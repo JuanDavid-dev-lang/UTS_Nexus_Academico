@@ -282,22 +282,33 @@ El script realiza automáticamente:
 | API REST | `http://localhost:4000` |
 | Documentación Swagger | `http://localhost:4000/docs` |
 
-### App de escritorio
+### App de escritorio (Windows)
+
+**Doble clic en `abrir_pc.bat`** — abre el ejecutable compilado, o crea el
+entorno virtual y ejecuta desde código automáticamente.
 
 ```bash
+# Alternativa manual
 cd desktop_python
 pip install -r requirements.txt
 python main.py
 ```
 
-### App móvil
+### App móvil (Flutter / Android Studio)
+
+**Doble clic en `abrir_android.bat`** — descarga dependencias y ofrece un menú:
+abrir en Android Studio, ejecutar en emulador/teléfono o generar el APK.
 
 ```bash
+# Alternativa manual
 cd flutter_app
 flutter pub get
 flutter run
 # En emulador Android la API se resuelve en http://10.0.2.2:4000
+# En teléfono físico, configura http://IP_DE_TU_PC:4000 en la pantalla de login
 ```
+
+> Guía visual paso a paso: [`docs/COMO_ABRIR.md`](docs/COMO_ABRIR.md)
 
 ---
 
@@ -465,6 +476,7 @@ docker compose up --build   # Levantar backend en contenedor
 
 | Documento | Contenido |
 |-----------|-----------|
+| [`docs/COMO_ABRIR.md`](docs/COMO_ABRIR.md) | Cómo abrir la app de PC y la de Android (Android Studio) paso a paso |
 | [`docs/FUNCIONAMIENTO.md`](docs/FUNCIONAMIENTO.md) | Guía de uso completa: roles, flujos, cálculos, FAQ |
 | [`docs/REFACTOR.md`](docs/REFACTOR.md) | Arquitectura, modelo de datos, decisiones de diseño y plan de migración |
 | [`README.txt`](README.txt) | Guía de arranque en texto plano (sin dependencias de Markdown) |
