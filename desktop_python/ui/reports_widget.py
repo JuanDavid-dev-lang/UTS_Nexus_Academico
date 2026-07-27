@@ -1,4 +1,6 @@
 from PySide6.QtCore import QDate, Qt
+
+from ui.theme import Theme
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -49,7 +51,7 @@ class ReportsWidget(QWidget):
         for text in ("PDF", "Excel", "Semestre", "Sincronizado"):
             pill = QLabel(text)
             pill.setStyleSheet(
-                "padding: 7px 12px; border-radius: 999px; background: #F1F5F9; border: 1px solid #E2E8F0; color: #111827;"
+                f"padding: 7px 12px; border-radius: 999px; background: {Theme.SURFACE_ALT}; border: 1px solid {Theme.BORDER}; color: {Theme.TEXT};"
             )
             pill_box.addWidget(pill)
         pill_box.addStretch(1)

@@ -98,7 +98,7 @@ class Badge(QLabel):
         super().__init__(text)
         tones = {
             "success": (Theme.SUCCESS, Theme.SUCCESS_SOFT),
-            "warning": ("#B45309", Theme.WARNING_SOFT),
+            "warning": (Theme.WARNING, Theme.WARNING_SOFT),
             "danger": (Theme.DANGER, Theme.DANGER_SOFT),
             "info": (Theme.INFO, Theme.INFO_SOFT),
         }

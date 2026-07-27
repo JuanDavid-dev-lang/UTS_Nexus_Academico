@@ -21,6 +21,12 @@ class SessionStore:
     def load_server(self):
         return self.settings.value("api_base_url", "http://127.0.0.1:4000/api/v1")
 
+    def save_dark_mode(self, dark: bool):
+        self.settings.setValue("dark_mode", "1" if dark else "0")
+
+    def load_dark_mode(self) -> bool:
+        return str(self.settings.value("dark_mode", "0")) in ("1", "true", "True")
+
     def clear(self):
         self.settings.remove("access_token")
         self.settings.remove("refresh_token")

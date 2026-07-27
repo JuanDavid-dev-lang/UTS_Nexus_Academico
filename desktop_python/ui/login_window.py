@@ -14,7 +14,6 @@ from services.backend_bootstrap import ensure_backend_running
 from services.api_client import ApiClient
 from services.session_store import SessionStore
 from ui.main_window import MainWindow
-from ui.style import APP_STYLE
 from ui.theme import Theme
 
 
@@ -29,7 +28,6 @@ class LoginWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("UTS Nexus Académico — Acceso")
-        self.setStyleSheet(APP_STYLE)
         self.resize(960, 640)
         self.store = SessionStore()
         self.api = ApiClient(self.store.load_server())
