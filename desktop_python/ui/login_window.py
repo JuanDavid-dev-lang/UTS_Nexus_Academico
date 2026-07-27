@@ -2,9 +2,11 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
+    QFrame,
     QMessageBox,
 )
 
@@ -12,6 +14,8 @@ from services.backend_bootstrap import ensure_backend_running
 from services.api_client import ApiClient
 from services.session_store import SessionStore
 from ui.main_window import MainWindow
+from ui.style import APP_STYLE
+from ui.theme import Theme
 
 
 def _normalize_api_url(value: str) -> str:
@@ -24,17 +28,36 @@ def _normalize_api_url(value: str) -> str:
 class LoginWindow(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("UTS Académico - Acceso")
+        self.setWindowTitle("UTS Nexus Académico — Acceso")
+        self.setStyleSheet(APP_STYLE)
+        self.resize(960, 640)
         self.store = SessionStore()
         self.api = ApiClient(self.store.load_server())
 
-        layout = QVBoxLayout(self)
-        layout.setSpacing(10)
-        layout.setContentsMargins(24, 24, 24, 24)
+        # Fondo general + tarjeta centrada (DESIGN.md §9).
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addStretch(1)
 
-        title = QLabel("UTS Académico")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(title)
+        center = QVBoxLayout()
+        center.addStretch(1)
+
+        card = QFrame()
+        card.setObjectName("Card")
+        card.setFixedWidth(420)
+        layout = QVBoxLayout(card)
+        layout.setSpacing(12)
+        layout.setContentsMargins(32, 32, 32, 32)
+
+        brand = QLabel("UTS Nexus Académico")
+        brand.setObjectName("AppTitle")
+        brand.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        subtitle = QLabel("Accede a tu espacio docente")
+        subtitle.setObjectName("SectionSubtitle")
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(brand)
+        layout.addWidget(subtitle)
+        layout.addSpacing(8)
 
         self.api_url = QLineEdit()
         self.api_url.setPlaceholderText("http://127.0.0.1:4000")
@@ -48,22 +71,35 @@ class LoginWindow(QWidget):
         self.password.setPlaceholderText("Contraseña")
         self.password.setEchoMode(QLineEdit.EchoMode.Password)
         self.password.setText("Uts12345!")
+        self.password.returnPressed.connect(self.open_main)
 
         self.status = QLabel("Listo")
+        self.status.setObjectName("Muted")
         self.status.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         btn_save = QPushButton("Guardar servidor")
         btn_save.clicked.connect(self.save_server)
 
         btn = QPushButton("Entrar")
+        btn.setObjectName("Primary")
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.clicked.connect(self.open_main)
 
+        layout.addWidget(QLabel("Servidor"))
         layout.addWidget(self.api_url)
         layout.addWidget(btn_save)
+        layout.addSpacing(6)
+        layout.addWidget(QLabel("Correo"))
         layout.addWidget(self.email)
+        layout.addWidget(QLabel("Contraseña"))
         layout.addWidget(self.password)
-        layout.addWidget(self.status)
         layout.addWidget(btn)
+        layout.addWidget(self.status)
+
+        center.addWidget(card)
+        center.addStretch(1)
+        outer.addLayout(center)
+        outer.addStretch(1)
 
     def save_server(self):
         api_base = _normalize_api_url(self.api_url.text())

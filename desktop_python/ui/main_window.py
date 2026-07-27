@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from ui.style import APP_STYLE
+from ui.theme import Theme
 from ui.dashboard_widget import DashboardWidget
 from ui.students_widget import StudentsWidget
 from ui.subjects_widget import SubjectsWidget
@@ -68,7 +69,7 @@ class MainWindow(QMainWindow):
         brand.setObjectName("AppTitle")
         brand.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
         subtitle = QLabel("Espacio docente")
-        subtitle.setStyleSheet("color: #9fb0bb;")
+        subtitle.setStyleSheet(f"color: {Theme.TEXT_MUTED};")
         side_layout.addWidget(brand)
         side_layout.addWidget(subtitle)
 
@@ -94,7 +95,7 @@ class MainWindow(QMainWindow):
         side_layout.addStretch(1)
 
         self.sync_status = QLabel("Sin conexión")
-        self.sync_status.setStyleSheet("color: #9fb0bb;")
+        self.sync_status.setStyleSheet(f"color: {Theme.TEXT_MUTED};")
         side_layout.addWidget(self.sync_status)
 
         connect_btn = QPushButton("Activar sincronización")
@@ -130,7 +131,8 @@ class MainWindow(QMainWindow):
         name = self.user.get("fullName") or "Docente UTS"
         self.user_chip = QLabel(name)
         self.user_chip.setStyleSheet(
-            "padding: 10px 14px; border-radius: 14px; background: #0f171d; border: 1px solid #23323c;"
+            f"padding: 10px 14px; border-radius: 14px; background: {Theme.SURFACE_ALT};"
+            f" border: 1px solid {Theme.BORDER}; color: {Theme.TEXT}; font-weight: 600;"
         )
         header_layout.addWidget(self.user_chip)
 

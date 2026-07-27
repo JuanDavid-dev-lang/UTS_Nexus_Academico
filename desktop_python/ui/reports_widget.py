@@ -49,7 +49,7 @@ class ReportsWidget(QWidget):
         for text in ("PDF", "Excel", "Semestre", "Sincronizado"):
             pill = QLabel(text)
             pill.setStyleSheet(
-                "padding: 7px 12px; border-radius: 999px; background: #0f171d; border: 1px solid #23323c; color: #dbe6ec;"
+                "padding: 7px 12px; border-radius: 999px; background: #F1F5F9; border: 1px solid #E2E8F0; color: #111827;"
             )
             pill_box.addWidget(pill)
         pill_box.addStretch(1)

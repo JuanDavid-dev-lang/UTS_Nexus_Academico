@@ -63,7 +63,7 @@ class GradesWidget(QWidget):
         self.student = QComboBox()
         self.student.currentIndexChanged.connect(lambda _: self.load_student_grades())
         self.final_preview = QLabel("0.00")
-        self.final_preview.setStyleSheet("font-size: 30px; font-weight: 800; color: #74d3b2;")
+        self.final_preview.setStyleSheet("font-size: 30px; font-weight: 800; color: #0057B8;")
 
         top_layout.addWidget(QLabel("Semestre"), 0, 0)
         top_layout.addWidget(QLabel("Materia"), 0, 1)
@@ -98,7 +98,7 @@ class GradesWidget(QWidget):
             wrap_layout.setHorizontalSpacing(12)
             wrap_layout.setVerticalSpacing(8)
 
-            grade_style = "font-weight: 800; color: #74d3b2; font-size: 18px;"
+            grade_style = "font-weight: 800; color: #0057B8; font-size: 18px;"
             inp1 = self._spin()
             inp2 = self._spin()
             inp3 = self._spin()
@@ -149,7 +149,7 @@ class GradesWidget(QWidget):
     def _chip(self, text):
         chip = QLabel(text)
         chip.setStyleSheet(
-            "padding: 7px 12px; border-radius: 999px; background: #0f171d; border: 1px solid #23323c; color: #dbe6ec;"
+            "padding: 7px 12px; border-radius: 999px; background: #F1F5F9; border: 1px solid #E2E8F0; color: #111827;"
         )
         return chip
 
