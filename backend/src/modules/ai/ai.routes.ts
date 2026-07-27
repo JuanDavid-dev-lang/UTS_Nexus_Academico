@@ -13,9 +13,34 @@ import {
   type ComponenteTipo,
 } from '../../domains/grading/grading.service.js';
 import { evaluarRiesgo } from '../../domains/risk/risk.service.js';
+import { env } from '../../shared/env.js';
+import {
+  askAssistant,
+  checkOllama,
+  OllamaUnavailableError,
+  type ChatMessage,
+} from './assistant.service.js';
 
 export const aiRouter = Router();
 aiRouter.use(auth);
+
+/** Estado del asistente de IA local (Ollama): ¿está activo y disponible? */
+aiRouter.get('/status', async (_req, res) => {
+  if (!env.AI_ENABLED) {
+    return res.json({ ok: true, enabled: false, available: false, message: 'IA desactivada (AI_ENABLED=0).' });
+  }
+  const status = await checkOllama();
+  res.json({
+    ok: true,
+    enabled: true,
+    available: status.ok,
+    model: env.AI_MODEL,
+    baseUrl: env.AI_BASE_URL,
+    models: status.models,
+    modelReady: status.models.some(m => m === env.AI_MODEL || m.startsWith(env.AI_MODEL.split(':')[0])),
+    error: status.error,
+  });
+});
 
 aiRouter.post('/predict', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
@@ -93,8 +118,14 @@ aiRouter.post('/chat', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (
       studentId: z.string().optional(),
       subjectId: z.string().optional(),
       groupId: z.string().optional(),
+      history: z.array(z.object({
+        role: z.enum(['user', 'assistant']),
+        content: z.string(),
+      })).optional(),
     }).parse(req.body);
 
+    // Aislamiento: un docente solo consulta lo suyo.
+    let teacherId: string | undefined;
     if (req.user?.role === 'PROFESSOR') {
       const scope = await getProfessorScope(req.user.id);
       if (body.subjectId && !scope.subjectIds.includes(body.subjectId)) {
@@ -106,14 +137,39 @@ aiRouter.post('/chat', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (
       if (body.groupId && !scope.groupIds.includes(body.groupId)) {
         return res.status(403).json({ ok: false, message: 'Group not assigned' });
       }
+      teacherId = req.user.id;
     }
 
+    // ── Camino principal: IA local (Ollama) con contexto académico real ────
+    if (env.AI_ENABLED) {
+      try {
+        const answer = await askAssistant(
+          body.message,
+          {
+            teacherId,
+            studentId: body.studentId,
+            subjectId: body.subjectId,
+            period: undefined,
+            role: req.user?.role,
+          },
+          (body.history ?? []) as ChatMessage[],
+        );
+        return res.json({ ok: true, answer, source: 'ollama', model: env.AI_MODEL });
+      } catch (err) {
+        if (!(err instanceof OllamaUnavailableError)) throw err;
+        // IA local caída → continúa al modo reglas más abajo.
+        console.warn('[ai/chat] IA local no disponible, usando modo reglas:', err.message);
+      }
+    }
+
+    // ── Fallback determinista (modo reglas, sin IA) ────────────────────────
     const message = body.message.toLowerCase();
+    const fallbackNote = 'ⓘ IA local no disponible; respuesta básica por reglas.';
 
     if (message.includes('promedio') && body.studentId && body.subjectId) {
       const grades = await GradeModel.find({ studentId: body.studentId, subjectId: body.subjectId, deletedAt: null }).lean();
       const avg = grades.length ? grades.reduce((s, g) => s + g.score, 0) / grades.length : 0;
-      return res.json({ ok: true, answer: `Promedio: ${avg.toFixed(2)}` });
+      return res.json({ ok: true, answer: `Promedio: ${avg.toFixed(2)}\n${fallbackNote}`, source: 'rules' });
     }
 
     if ((message.includes('riesgo') || message.includes('peligro')) && body.subjectId) {
@@ -122,13 +178,15 @@ aiRouter.post('/chat', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (
         : await StudentModel.find({ deletedAt: null }).lean();
       return res.json({
         ok: true,
-        answer: `Riesgo evaluado para ${students.length} estudiantes. Usa /ai/predict por estudiante.`,
+        source: 'rules',
+        answer: `Riesgo evaluado para ${students.length} estudiantes. Usa /ai/predict por estudiante.\n${fallbackNote}`,
       });
     }
 
     return res.json({
       ok: true,
-      answer: 'Puedo calcular promedio, notas necesarias, asistencia y riesgo. Envía studentId y subjectId para precisión.',
+      source: 'rules',
+      answer: `Puedo calcular promedio, notas necesarias, asistencia y riesgo. Envía studentId y subjectId para precisión.\n${fallbackNote}`,
     });
   } catch (err) {
     next(err);
