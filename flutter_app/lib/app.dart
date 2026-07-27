@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'core/services/auth_controller.dart';
 import 'core/services/realtime_service.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/theme_controller.dart';
 import 'core/widgets/app_scaffold.dart';
 import 'features/ai/ai_page.dart';
 import 'features/auth/login_page.dart';
@@ -87,6 +88,7 @@ class _UtsAppState extends ConsumerState<UtsApp> {
       title: 'UTS Nexus Académico',
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
+      themeMode: ref.watch(themeModeProvider),
       routerConfig: router,
     );
   }

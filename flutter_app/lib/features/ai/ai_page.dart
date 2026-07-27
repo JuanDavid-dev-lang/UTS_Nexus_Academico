@@ -183,12 +183,16 @@ class _Bubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final isUser = message.isUser;
     final isError = message.source == 'error';
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final assistantBg = isDark ? AppColors.surfaceAltDark : AppColors.surfaceAlt;
+    final assistantFg = isDark ? AppColors.textDark : AppColors.text;
     final bg = isUser
-        ? AppColors.primary
-        : (isError ? AppColors.dangerSoft : AppColors.surfaceAlt);
+        ? scheme.primary
+        : (isError ? AppColors.dangerSoft : assistantBg);
     final fg = isUser
-        ? Colors.white
-        : (isError ? AppColors.danger : AppColors.text);
+        ? scheme.onPrimary
+        : (isError ? AppColors.danger : assistantFg);
 
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
