@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/auth_controller.dart';
 import '../../core/services/auth_repository.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/ui_kit.dart';
 
 final dashboardProvider = FutureProvider<DashboardData>((ref) async {
   return ref.read(authRepositoryProvider).dashboard();
@@ -23,70 +25,57 @@ class DashboardPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(dashboardProvider);
     final auth = ref.watch(authControllerProvider);
-    final colorScheme = Theme.of(context).colorScheme;
     final user = auth.user;
     final userLabel = user == null ? 'UTS' : '${_roleLabel(user.role)} • ${user.fullName}';
 
     return Scaffold(
       body: SafeArea(
         child: async.when(
-          data: (data) => LayoutBuilder(
-            builder: (context, constraints) {
-              final wide = constraints.maxWidth >= 1100;
-              return SingleChildScrollView(
-                padding: const EdgeInsets.all(18),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1400),
-                    child: Column(
+          loading: () => const StateView(
+              icon: Icons.hourglass_empty,
+              title: 'Un momento',
+              message: 'Cargando el panel académico…'),
+          error: (e, _) => StateView.error('$e',
+              action: FilledButton(
+                onPressed: () => ref.invalidate(dashboardProvider),
+                child: const Text('Reintentar'),
+              )),
+          data: (data) => RefreshIndicator(
+            onRefresh: () async => ref.invalidate(dashboardProvider),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(18),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1400),
+                  child: LayoutBuilder(builder: (context, constraints) {
+                    final wide = constraints.maxWidth >= 1100;
+                    final s = data.summary;
+                    return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _HeroHeader(
-                          title: 'Dashboard académico',
-                          subtitle: 'Resumen rápido de rendimiento, riesgo y asistencia',
-                          userLabel: userLabel,
+                        SectionHeader(
+                          'Dashboard académico',
+                          subtitle: 'Resumen de rendimiento, riesgo y asistencia',
+                          trailing: _UserPill(userLabel),
                         ),
                         const SizedBox(height: 16),
                         Wrap(
                           spacing: 14,
                           runSpacing: 14,
                           children: [
-                            _MetricCard(
-                              title: 'Promedio',
-                              value: data.summary.averageGrade.toStringAsFixed(2),
-                              tone: const Color(0xFF74D3B2),
-                              hint: 'Promedio general',
-                            ),
-                            _MetricCard(
-                              title: 'Aprobados',
-                              value: data.summary.approvedStudents.toString(),
-                              tone: const Color(0xFF8CE2C4),
-                              hint: 'Estudiantes al día',
-                            ),
-                            _MetricCard(
-                              title: 'Reprobados',
-                              value: data.summary.failedStudents.toString(),
-                              tone: const Color(0xFFFFB86B),
-                              hint: 'En observación',
-                            ),
-                            _MetricCard(
-                              title: 'Riesgo',
-                              value: data.summary.riskStudents.toString(),
-                              tone: const Color(0xFF8FB5FF),
-                              hint: 'Alertas activas',
-                            ),
-                            _MetricCard(
-                              title: 'Asistencia',
-                              value: '${data.summary.averageAttendance.toStringAsFixed(0)}%',
-                              tone: const Color(0xFF74D3B2),
-                              hint: 'Promedio del grupo',
-                            ),
-                            _MetricCard(
-                              title: 'Materias críticas',
-                              value: data.summary.criticalSubjects.toString(),
-                              tone: const Color(0xFFFFC86B),
-                              hint: 'Necesitan seguimiento',
-                            ),
+                            _metric('Promedio', s.averageGrade.toStringAsFixed(2),
+                                AppColors.primary, 'Sobre cortes calificados', Icons.trending_up),
+                            _metric('Aprobados', '${s.approvedStudents}',
+                                AppColors.success, 'Estudiantes al día', Icons.check_circle_outline),
+                            _metric('Reprobados', '${s.failedStudents}',
+                                AppColors.danger, 'En observación', Icons.cancel_outlined),
+                            _metric('En riesgo', '${s.riskStudents}',
+                                AppColors.warningText, 'Alertas activas', Icons.warning_amber_rounded),
+                            _metric('Asistencia', '${s.averageAttendance.toStringAsFixed(0)}%',
+                                AppColors.info, 'Ponderada por minutos', Icons.event_available),
+                            _metric('Materias críticas', '${s.criticalSubjects}',
+                                AppColors.warningText, 'Necesitan seguimiento', Icons.report_problem_outlined),
                           ],
                         ),
                         const SizedBox(height: 16),
@@ -96,35 +85,38 @@ class DashboardPage extends ConsumerWidget {
                           children: [
                             Expanded(
                               flex: 2,
-                              child: _SurfaceCard(
-                                title: 'Actividad reciente',
+                              child: AppCard(
                                 child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: const [
-                                    _FeedItem('Juan Pérez registró una nueva nota'),
-                                    _FeedItem('Ana Ruiz entró en zona de riesgo'),
-                                    _FeedItem('Asistencia actualizada para Grupo A'),
-                                    _FeedItem('Reporte PDF exportado correctamente'),
+                                    Text('Actividad reciente',
+                                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                                    SizedBox(height: 12),
+                                    _FeedItem('Nueva nota registrada'),
+                                    _FeedItem('Un estudiante entró en zona de riesgo'),
+                                    _FeedItem('Asistencia actualizada'),
+                                    _FeedItem('Reporte exportado correctamente'),
                                   ],
                                 ),
                               ),
                             ),
                             const SizedBox(width: 14, height: 14),
                             Expanded(
-                              child: _SurfaceCard(
-                                title: 'Resumen',
+                              child: AppCard(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      'Todo está sincronizado con el backend y Atlas.',
-                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                            color: colorScheme.onSurfaceVariant,
-                                          ),
+                                    const Text('Resumen',
+                                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                                    const SizedBox(height: 12),
+                                    const Text(
+                                      'Todo sincronizado con el backend y Atlas.',
+                                      style: TextStyle(color: AppColors.textMuted),
                                     ),
-                                    const SizedBox(height: 18),
-                                    _MiniStat(label: 'Estudiantes', value: data.summary.totalStudents.toString()),
-                                    _MiniStat(label: 'Materias', value: data.summary.totalSubjects.toString()),
-                                    _MiniStat(label: 'Aprobación', value: '${data.summary.approvedStudents}%'),
+                                    const SizedBox(height: 16),
+                                    _MiniStat(label: 'Estudiantes', value: '${s.totalStudents}'),
+                                    _MiniStat(label: 'Materias', value: '${s.totalSubjects}'),
+                                    _MiniStat(label: 'En riesgo', value: '${s.riskStudents}'),
                                   ],
                                 ),
                               ),
@@ -132,151 +124,40 @@ class DashboardPage extends ConsumerWidget {
                           ],
                         ),
                       ],
-                    ),
-                  ),
+                    );
+                  }),
                 ),
-              );
-            },
+              ),
+            ),
           ),
-          error: (e, _) => Center(child: Text('Error: $e')),
-          loading: () => const Center(child: CircularProgressIndicator()),
         ),
       ),
     );
   }
-}
 
-class _HeroHeader extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final String userLabel;
-
-  const _HeroHeader({required this.title, required this.subtitle, required this.userLabel});
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF121C23),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFF20303A)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: colorScheme.onSurface,
-                      ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  subtitle,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 16),
-          _Pill(userLabel),
-        ],
-      ),
-    );
-  }
-}
-
-class _MetricCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final String hint;
-  final Color tone;
-
-  const _MetricCard({
-    required this.title,
-    required this.value,
-    required this.hint,
-    required this.tone,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
+  Widget _metric(String label, String value, Color color, String hint, IconData icon) {
+    return SizedBox(
       width: 220,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFF121C23),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFF20303A)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                  letterSpacing: 0.8,
-                ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: tone,
-                ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            hint,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-          ),
-        ],
-      ),
+      child: StatTile(label: label, value: value, hint: hint, valueColor: color, icon: icon),
     );
   }
 }
 
-class _SurfaceCard extends StatelessWidget {
-  final String title;
-  final Widget child;
-
-  const _SurfaceCard({required this.title, required this.child});
+class _UserPill extends StatelessWidget {
+  final String label;
+  const _UserPill(this.label);
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF121C23),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFF20303A)),
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.border),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-          const SizedBox(height: 14),
-          child,
-        ],
-      ),
+      child: Text(label,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5)),
     );
   }
 }
@@ -289,14 +170,19 @@ class _FeedItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F171D),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF23323C)),
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: Text(text, style: Theme.of(context).textTheme.bodyMedium),
+      child: Row(
+        children: [
+          const Icon(Icons.circle, size: 8, color: AppColors.primary),
+          const SizedBox(width: 10),
+          Expanded(child: Text(text)),
+        ],
+      ),
     );
   }
 }
@@ -304,7 +190,6 @@ class _FeedItem extends StatelessWidget {
 class _MiniStat extends StatelessWidget {
   final String label;
   final String value;
-
   const _MiniStat({required this.label, required this.value});
 
   @override
@@ -313,34 +198,11 @@ class _MiniStat extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         children: [
-          Text(label, style: Theme.of(context).textTheme.bodyMedium),
+          Text(label, style: const TextStyle(color: AppColors.textMuted)),
           const Spacer(),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
         ],
       ),
-    );
-  }
-}
-
-class _Pill extends StatelessWidget {
-  final String label;
-  const _Pill(this.label);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0F171D),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0xFF23323C)),
-      ),
-      child: Text(label, style: Theme.of(context).textTheme.labelMedium),
     );
   }
 }
