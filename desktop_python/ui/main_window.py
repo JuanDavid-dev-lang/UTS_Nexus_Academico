@@ -143,7 +143,7 @@ class MainWindow(QMainWindow):
             wrap_scroll(SubjectsWidget(api_client=self.api, user=self.user)),
             wrap_scroll(GradesWidget(api_client=self.api, user=self.user)),
             wrap_scroll(AttendanceWidget(api_client=self.api, user=self.user)),
-            wrap_scroll(AiWidget()),
+            AiWidget(api_client=self.api),
             wrap_scroll(ReportsWidget(api_client=self.api)),
             wrap_scroll(NotificationsWidget(api_client=self.api)),
             wrap_scroll(SettingsWidget(on_logout=self.close_app)),
