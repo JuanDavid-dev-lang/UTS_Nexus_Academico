@@ -108,7 +108,7 @@ class AttendanceWidget(QWidget):
         table_header.addWidget(QLabel("Lista de estudiantes"))
         table_header.addStretch(1)
         self.tip = QLabel("Marca asistente por fila y guarda.")
-        self.tip.setStyleSheet("color: #9fb0bb;")
+        self.tip.setStyleSheet("color: #6B7280;")
         table_header.addWidget(self.tip)
         card_layout.addLayout(table_header)
 
@@ -128,7 +128,7 @@ class AttendanceWidget(QWidget):
     def _chip(self, text):
         chip = QLabel(text)
         chip.setStyleSheet(
-            "padding: 7px 12px; border-radius: 999px; background: #0f171d; border: 1px solid #23323c; color: #dbe6ec;"
+            "padding: 7px 12px; border-radius: 999px; background: #F1F5F9; border: 1px solid #E2E8F0; color: #111827;"
         )
         return chip
 

@@ -96,7 +96,7 @@ class SubjectsWidget(QWidget):
         header.addStretch(1)
         self.semester_tag = QLabel("2026-1")
         self.semester_tag.setStyleSheet(
-            "padding: 6px 10px; border-radius: 999px; background: #0f171d; border: 1px solid #23323c; color: #dbe6ec;"
+            "padding: 6px 10px; border-radius: 999px; background: #F1F5F9; border: 1px solid #E2E8F0; color: #111827;"
         )
         header.addWidget(self.semester_tag)
         card_layout.addLayout(header)
@@ -111,7 +111,7 @@ class SubjectsWidget(QWidget):
     def _chip(self, text):
         chip = QLabel(text)
         chip.setStyleSheet(
-            "padding: 7px 12px; border-radius: 999px; background: #0f171d; border: 1px solid #23323c; color: #dbe6ec;"
+            "padding: 7px 12px; border-radius: 999px; background: #F1F5F9; border: 1px solid #E2E8F0; color: #111827;"
         )
         return chip
 
