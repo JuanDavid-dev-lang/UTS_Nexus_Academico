@@ -91,12 +91,17 @@ Cada pantalla debe responder tres preguntas:
 
 | Rol | Hex | Muestra | Uso |
 |-----|-----|---------|-----|
-| **Primario** | `#0057B8` | 🟦 | Azul institucional — acciones principales, cabeceras |
-| **Secundario** | `#0099FF` | 🟦 | Azul claro — acentos, enlaces, estados hover |
-| **Éxito** | `#22C55E` | 🟩 | Aprobado, riesgo bajo, confirmaciones |
-| **Advertencia** | `#FACC15` | 🟨 | Riesgo medio, seguimiento |
-| **Peligro** | `#EF4444` | 🟥 | Riesgo alto, reprobado, errores |
-| **Información** | `#3B82F6` | 🟦 | Mensajes informativos, tooltips |
+| **Primario** | `#144D37` | 🟩 | Verde institucional UTS — color dominante, acciones principales, cabeceras |
+| **Acento / Lettering** | `#CAD225` | 🟢 | Lima — acentos, resaltados, lettering (en oscuro es el color principal) |
+| **Éxito** | `#16A34A` | 🟩 | Aprobado, riesgo bajo, confirmaciones |
+| **Advertencia** | `#D97706` | 🟧 | Riesgo medio, seguimiento (ámbar, distinto de la lima) |
+| **Peligro** | `#DC2626` | 🟥 | Riesgo alto, reprobado, errores |
+| **Información** | `#0E7490` | 🟦 | Mensajes informativos, tooltips |
+
+> **Marca UTS:** verde `#144D37` como color **dominante** y lima `#CAD225` como
+> **acento / lettering**. En **modo oscuro** el fondo es verde profundo
+> (`#0F3D2B`) y el lettering es lima. Ambos modos (claro y oscuro) están
+> disponibles y se pueden alternar desde Configuración.
 
 ### Neutros
 
@@ -110,16 +115,22 @@ Cada pantalla debe responder tres preguntas:
 ### Tokens (referencia para implementación)
 
 ```
---color-primary:      #0057B8
---color-secondary:    #0099FF
---color-success:      #22C55E
---color-warning:      #FACC15
---color-danger:       #EF4444
---color-info:         #3B82F6
---color-bg:           #F8FAFC
+--color-primary:      #144D37   /* verde institucional (dominante) */
+--color-accent:       #CAD225   /* lima (acento / lettering) */
+--color-success:      #16A34A
+--color-warning:      #D97706
+--color-danger:       #DC2626
+--color-info:         #0E7490
+--color-bg:           #F4F7F1
 --color-surface:      #FFFFFF
---color-text:         #111827
---color-text-muted:   #6B7280
+--color-text:         #12271E
+--color-text-muted:   #5B6B61
+
+/* Modo oscuro */
+--dark-bg:            #0F3D2B   /* verde profundo */
+--dark-surface:       #164D38
+--dark-text:          #E9F2D3   /* lettering lima claro */
+--dark-primary:       #CAD225   /* lima como acento principal */
 ```
 
 > **Regla de semántica:** un color = un significado. El verde siempre es

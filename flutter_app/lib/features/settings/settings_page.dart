@@ -7,6 +7,7 @@ import '../../core/services/api_client.dart';
 import '../../core/services/auth_controller.dart';
 import '../../core/services/connection_settings.dart';
 import '../../core/services/realtime_service.dart';
+import '../../core/theme/theme_controller.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -103,11 +104,20 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                SwitchListTile(
-                  value: true,
-                  onChanged: (_) {},
-                  title: const Text('Modo oscuro'),
-                ),
+                Builder(builder: (context) {
+                  final mode = ref.watch(themeModeProvider);
+                  final isDark = mode == ThemeMode.dark ||
+                      (mode == ThemeMode.system &&
+                          MediaQuery.platformBrightnessOf(context) == Brightness.dark);
+                  return SwitchListTile(
+                    value: isDark,
+                    onChanged: (v) =>
+                        ref.read(themeModeProvider.notifier).toggleDark(v),
+                    title: const Text('Modo oscuro'),
+                    subtitle: const Text('Verde profundo con lettering lima'),
+                    secondary: Icon(isDark ? Icons.dark_mode : Icons.light_mode),
+                  );
+                }),
                 SwitchListTile(
                   value: true,
                   onChanged: (_) {},
