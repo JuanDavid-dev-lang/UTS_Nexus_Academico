@@ -1,0 +1,19 @@
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+build/
+.dart_tool/
+build/
+coverage/
+__pycache__/
+*.pyc
+.idea/
+.vscode/
+*.log
+
+
+# Artefactos de build / distribución
+releases/
+*.zip

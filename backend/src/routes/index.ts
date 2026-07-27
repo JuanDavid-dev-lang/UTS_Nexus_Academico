@@ -1,0 +1,36 @@
+import { Router } from 'express';
+import { authRouter } from '../modules/auth/auth.routes.js';
+import { studentRouter } from '../modules/students/student.routes.js';
+import { subjectRouter } from '../modules/subjects/subject.routes.js';
+import { groupRouter } from '../modules/groups/group.routes.js';
+import { analyticsRouter } from '../modules/analytics/analytics.routes.js';
+import { aiRouter } from '../modules/ai/ai.routes.js';
+import { gradeRouter } from '../modules/grades/grade.routes.js';
+import { enrollmentRouter } from '../modules/enrollment/enrollment.routes.js';
+import { attendanceRouter } from '../modules/attendance/attendance.routes.js';
+import { activityRouter } from '../modules/activities/activity.routes.js';
+import { notificationRouter } from '../modules/notifications/notification.routes.js';
+import { scheduleRouter } from '../modules/schedules/schedule.routes.js';
+import { reportsRouter } from '../modules/reports/reports.routes.js';
+import { uploadRouter } from '../modules/uploads/upload.routes.js';
+import { professorRouter } from '../modules/professors/professor.routes.js';
+import { configRouter } from '../modules/settings/config.routes.js';
+
+export const apiRouter = Router();
+
+apiRouter.use('/auth', authRouter);
+apiRouter.use('/students', studentRouter);
+apiRouter.use('/subjects', subjectRouter);
+apiRouter.use('/groups', groupRouter);
+apiRouter.use('/analytics', analyticsRouter);
+apiRouter.use('/ai', aiRouter);
+apiRouter.use('/grades', gradeRouter);
+apiRouter.use('/enrollments', enrollmentRouter);
+apiRouter.use('/attendance', attendanceRouter);
+apiRouter.use('/activities', activityRouter);
+apiRouter.use('/notifications', notificationRouter);
+apiRouter.use('/schedules', scheduleRouter);
+apiRouter.use('/reports', reportsRouter);
+apiRouter.use('/uploads', uploadRouter);
+apiRouter.use('/professors', professorRouter);
+apiRouter.use('/configurations', configRouter);
