@@ -1,4 +1,6 @@
 from PySide6.QtCore import Qt
+
+from ui.theme import Theme
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -96,7 +98,7 @@ class SubjectsWidget(QWidget):
         header.addStretch(1)
         self.semester_tag = QLabel("2026-1")
         self.semester_tag.setStyleSheet(
-            "padding: 6px 10px; border-radius: 999px; background: #F1F5F9; border: 1px solid #E2E8F0; color: #111827;"
+            f"padding: 6px 10px; border-radius: 999px; background: {Theme.SURFACE_ALT}; border: 1px solid {Theme.BORDER}; color: {Theme.TEXT};"
         )
         header.addWidget(self.semester_tag)
         card_layout.addLayout(header)
@@ -111,7 +113,7 @@ class SubjectsWidget(QWidget):
     def _chip(self, text):
         chip = QLabel(text)
         chip.setStyleSheet(
-            "padding: 7px 12px; border-radius: 999px; background: #F1F5F9; border: 1px solid #E2E8F0; color: #111827;"
+            f"padding: 7px 12px; border-radius: 999px; background: {Theme.SURFACE_ALT}; border: 1px solid {Theme.BORDER}; color: {Theme.TEXT};"
         )
         return chip
 

@@ -46,7 +46,7 @@ class DashboardWidget(QWidget):
             (self.card_avg, 0, 0, Theme.PRIMARY),
             (self.card_approved, 0, 1, Theme.SUCCESS),
             (self.card_failed, 0, 2, Theme.DANGER),
-            (self.card_risk, 1, 0, "#B45309"),
+            (self.card_risk, 1, 0, Theme.WARNING),
             (self.card_attendance, 1, 1, Theme.INFO),
             (self.card_students, 1, 2, Theme.TEXT),
         ]
@@ -77,7 +77,7 @@ class DashboardWidget(QWidget):
             self.card_avg.set_value(f"{data.get('averageGrade', 0):.2f}", color=Theme.PRIMARY)
             self.card_approved.set_value(data.get("approvedStudents", 0), color=Theme.SUCCESS)
             self.card_failed.set_value(data.get("failedStudents", 0), color=Theme.DANGER)
-            self.card_risk.set_value(data.get("riskStudents", 0), color="#B45309")
+            self.card_risk.set_value(data.get("riskStudents", 0), color=Theme.WARNING)
             self.card_attendance.set_value(f"{data.get('averageAttendance', 0):.0f}%", color=Theme.INFO)
             self.card_students.set_value(data.get("totalStudents", 0), color=Theme.TEXT)
             self.overview_label.setText(

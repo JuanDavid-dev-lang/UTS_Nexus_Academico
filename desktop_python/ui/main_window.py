@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QSizePolicy,
 )
 
-from ui.style import APP_STYLE
 from ui.theme import Theme
 from ui.dashboard_widget import DashboardWidget
 from ui.students_widget import StudentsWidget
@@ -51,7 +50,7 @@ class MainWindow(QMainWindow):
         self.api = api_client
         self.user = user or {}
         self.sync = None
-        self.setStyleSheet(APP_STYLE)
+        # El tema (claro/oscuro) se aplica a nivel de QApplication en main.py.
 
         root = QWidget()
         root_layout = QHBoxLayout(root)
