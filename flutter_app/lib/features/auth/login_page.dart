@@ -138,7 +138,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF071512), Color(0xFF0E1E1A), Color(0xFF0B1311)],
+            colors: [Color(0xFF00305F), Color(0xFF0057B8), Color(0xFF0099FF)],
           ),
         ),
         child: SafeArea(
@@ -153,7 +153,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       constraints: const BoxConstraints(maxWidth: 520),
                       child: Card(
                         elevation: 14,
-                        color: const Color(0xFF17211E),
+                        color: const Color(0xFF0E223F),
                         margin: EdgeInsets.zero,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                         child: Padding(
@@ -169,8 +169,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                     const Icon(Icons.school, size: 60, color: Colors.white),
                                     const SizedBox(height: 12),
                                     Text(
-                                      'UTS Académico',
-                                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white),
+                                      'UTS Nexus Académico',
+                                      textAlign: TextAlign.center,
+                                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                          color: Colors.white, fontWeight: FontWeight.w800),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(

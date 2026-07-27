@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'core/services/auth_controller.dart';
 import 'core/services/realtime_service.dart';
+import 'core/theme/app_theme.dart';
 import 'core/widgets/app_scaffold.dart';
 import 'features/ai/ai_page.dart';
 import 'features/auth/login_page.dart';
@@ -16,10 +17,6 @@ import 'features/settings/settings_page.dart';
 import 'features/students/students_page.dart';
 import 'features/subjects/subjects_page.dart';
 import 'features/grades/grades_page.dart';
-import 'features/dashboard/dashboard_page.dart' show dashboardProvider;
-import 'features/schedule/schedule_page.dart' show scheduleProvider;
-import 'features/students/students_page.dart' show studentsProvider;
-import 'features/subjects/subjects_page.dart' show subjectsProvider;
 
 final router = GoRouter(
   initialLocation: '/login',
@@ -87,17 +84,9 @@ class _UtsAppState extends ConsumerState<UtsApp> {
 
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
-      title: 'UTS Académico',
-      theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF0B5D4D),
-        useMaterial3: true,
-        brightness: Brightness.light,
-      ),
-      darkTheme: ThemeData(
-        colorSchemeSeed: const Color(0xFF0B5D4D),
-        useMaterial3: true,
-        brightness: Brightness.dark,
-      ),
+      title: 'UTS Nexus Académico',
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
       routerConfig: router,
     );
   }
