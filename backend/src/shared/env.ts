@@ -10,5 +10,11 @@ export const env = {
   CLIENT_ORIGIN: process.env.CLIENT_ORIGIN ?? '*',
   /** Minutos entre escaneos automáticos de riesgo. 0 = desactivado. */
   RISK_SCAN_INTERVAL_MIN: Number(process.env.RISK_SCAN_INTERVAL_MIN ?? 0),
+  /** URL del servidor de IA local (Ollama). */
+  AI_BASE_URL: process.env.AI_BASE_URL ?? 'http://localhost:11434',
+  /** Modelo de Ollama para el asistente académico. */
+  AI_MODEL: process.env.AI_MODEL ?? 'llama3.1:8b',
+  /** Habilita el chatbot con IA local. '0'/'false' lo desactiva (modo reglas). */
+  AI_ENABLED: !['0', 'false', 'no', ''].includes((process.env.AI_ENABLED ?? '1').toLowerCase()),
 };
 
