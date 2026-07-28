@@ -79,9 +79,10 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
           return ReorderableListView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: _items.length,
-            onReorder: (oldIndex, newIndex) {
+            // onReorderItem ya entrega el índice corregido tras retirar el
+            // elemento, así que el ajuste manual de newIndex sobra.
+            onReorderItem: (oldIndex, newIndex) {
               setState(() {
-                if (newIndex > oldIndex) newIndex -= 1;
                 final item = _items.removeAt(oldIndex);
                 _items.insert(newIndex, item);
               });

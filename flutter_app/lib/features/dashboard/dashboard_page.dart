@@ -1,206 +1,258 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../core/data/models.dart';
+import '../../core/data/providers.dart';
+import '../../core/models/dashboard_summary.dart';
+import '../../core/network/api_error.dart';
 import '../../core/services/auth_controller.dart';
 import '../../core/services/auth_repository.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/period_selector.dart';
 import '../../core/widgets/ui_kit.dart';
 
 final dashboardProvider = FutureProvider<DashboardData>((ref) async {
   return ref.read(authRepositoryProvider).dashboard();
 });
 
+/// Panel del docente.
+///
+/// Responde tres preguntas en orden de urgencia: cómo va el grupo, quién
+/// necesita ayuda ahora, y cómo está la asistencia. Lo demás tiene su pantalla.
 class DashboardPage extends ConsumerWidget {
   const DashboardPage({super.key});
 
-  String _roleLabel(String? role) {
-    return switch (role) {
-      'ADMIN' => 'Administrador',
-      'COORDINATOR' => 'Coordinación',
-      _ => 'Profesor',
-    };
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final async = ref.watch(dashboardProvider);
-    final auth = ref.watch(authControllerProvider);
-    final user = auth.user;
-    final userLabel = user == null ? 'UTS' : '${_roleLabel(user.role)} • ${user.fullName}';
+    final dashboard = ref.watch(dashboardProvider);
+    final risks = ref.watch(risksProvider);
+    final user = ref.watch(authControllerProvider).user;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+
+    final firstName = (user?.fullName ?? 'Docente').split(' ').first;
 
     return Scaffold(
-      body: SafeArea(
-        child: async.when(
-          loading: () => const StateView(
-              icon: Icons.hourglass_empty,
-              title: 'Un momento',
-              message: 'Cargando el panel académico…'),
-          error: (e, _) => StateView.error('$e',
-              action: FilledButton(
-                onPressed: () => ref.invalidate(dashboardProvider),
-                child: const Text('Reintentar'),
-              )),
-          data: (data) => RefreshIndicator(
-            onRefresh: () async => ref.invalidate(dashboardProvider),
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(18),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1400),
-                  child: LayoutBuilder(builder: (context, constraints) {
-                    final wide = constraints.maxWidth >= 1100;
-                    final s = data.summary;
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SectionHeader(
-                          'Dashboard académico',
-                          subtitle: 'Resumen de rendimiento, riesgo y asistencia',
-                          trailing: _UserPill(userLabel),
-                        ),
-                        const SizedBox(height: 16),
-                        Wrap(
-                          spacing: 14,
-                          runSpacing: 14,
-                          children: [
-                            _metric('Promedio', s.averageGrade.toStringAsFixed(2),
-                                AppColors.primary, 'Sobre cortes calificados', Icons.trending_up),
-                            _metric('Aprobados', '${s.approvedStudents}',
-                                AppColors.success, 'Estudiantes al día', Icons.check_circle_outline),
-                            _metric('Reprobados', '${s.failedStudents}',
-                                AppColors.danger, 'En observación', Icons.cancel_outlined),
-                            _metric('En riesgo', '${s.riskStudents}',
-                                AppColors.warningText, 'Alertas activas', Icons.warning_amber_rounded),
-                            _metric('Asistencia', '${s.averageAttendance.toStringAsFixed(0)}%',
-                                AppColors.info, 'Ponderada por minutos', Icons.event_available),
-                            _metric('Materias críticas', '${s.criticalSubjects}',
-                                AppColors.warningText, 'Necesitan seguimiento', Icons.report_problem_outlined),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        Flex(
-                          direction: wide ? Axis.horizontal : Axis.vertical,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              flex: 2,
-                              child: AppCard(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: const [
-                                    Text('Actividad reciente',
-                                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                                    SizedBox(height: 12),
-                                    _FeedItem('Nueva nota registrada'),
-                                    _FeedItem('Un estudiante entró en zona de riesgo'),
-                                    _FeedItem('Asistencia actualizada'),
-                                    _FeedItem('Reporte exportado correctamente'),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 14, height: 14),
-                            Expanded(
-                              child: AppCard(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text('Resumen',
-                                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                                    const SizedBox(height: 12),
-                                    const Text(
-                                      'Todo sincronizado con el backend y Atlas.',
-                                      style: TextStyle(color: AppColors.textMuted),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    _MiniStat(label: 'Estudiantes', value: '${s.totalStudents}'),
-                                    _MiniStat(label: 'Materias', value: '${s.totalSubjects}'),
-                                    _MiniStat(label: 'En riesgo', value: '${s.riskStudents}'),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    );
-                  }),
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Hola, $firstName',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+            Text(
+              'Estado actual de tus grupos',
+              style: TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.w400, color: muted),
+            ),
+          ],
+        ),
+        actions: const [PeriodSelector()],
+      ),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(dashboardProvider);
+          ref.invalidate(risksProvider);
+          await ref.read(dashboardProvider.future);
+        },
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+          children: [
+            dashboard.when(
+              loading: () => const SkeletonStatGrid(count: 6),
+              error: (error, _) => StateView.error(
+                ApiError.from(error).message,
+                action: FilledButton(
+                  onPressed: () => ref.invalidate(dashboardProvider),
+                  child: const Text('Reintentar'),
                 ),
               ),
+              data: (data) => _MetricsGrid(summary: data.summary),
             ),
-          ),
+            const SizedBox(height: 22),
+            SectionHeader(
+              'Necesitan atención',
+              subtitle: 'Ordenados por nivel de riesgo',
+              trailing: TextButton(
+                onPressed: () => context.go('/notifications'),
+                child: const Text('Alertas'),
+              ),
+            ),
+            const SizedBox(height: 10),
+            risks.when(
+              loading: () => Column(
+                children: List.generate(
+                  3,
+                  (_) => const Padding(
+                    padding: EdgeInsets.only(bottom: 10),
+                    child: SkeletonBox(height: 66, radius: 18),
+                  ),
+                ),
+              ),
+              error: (error, _) => StateView.error(
+                ApiError.from(error).message,
+                action: FilledButton(
+                  onPressed: () => ref.invalidate(risksProvider),
+                  child: const Text('Reintentar'),
+                ),
+              ),
+              data: (items) {
+                final atRisk =
+                    items.where((r) => r.level != RiskLevel.low).take(6).toList();
+                if (atRisk.isEmpty) {
+                  return AppCard(
+                    child: Row(
+                      children: [
+                        const Icon(Icons.check_circle_outline,
+                            color: AppColors.success),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Ningún estudiante en riesgo. Todos están dentro de '
+                            'los parámetros esperados.',
+                            style: TextStyle(fontSize: 13, color: muted),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                return Column(
+                  children: [
+                    for (final risk in atRisk)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _RiskRow(risk: risk),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ],
         ),
       ),
     );
   }
+}
 
-  Widget _metric(String label, String value, Color color, String hint, IconData icon) {
-    return SizedBox(
-      width: 220,
-      child: StatTile(label: label, value: value, hint: hint, valueColor: color, icon: icon),
+class _MetricsGrid extends StatelessWidget {
+  final DashboardSummary summary;
+  const _MetricsGrid({required this.summary});
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+      childAspectRatio: 1.45,
+      children: [
+        StatTile(
+          label: 'Promedio',
+          value: summary.averageGrade.toStringAsFixed(2),
+          hint: 'sobre cortes calificados',
+          icon: Icons.school_outlined,
+          valueColor: summary.averageGrade >= 3
+              ? AppColors.success
+              : AppColors.danger,
+        ),
+        StatTile(
+          label: 'Aprobados',
+          value: '${summary.approvedStudents}',
+          hint: 'proyección al día',
+          icon: Icons.check_circle_outline,
+          valueColor: AppColors.success,
+        ),
+        StatTile(
+          label: 'Reprobados',
+          value: '${summary.failedStudents}',
+          hint: 'al menos una materia',
+          icon: Icons.cancel_outlined,
+          valueColor: AppColors.danger,
+        ),
+        StatTile(
+          label: 'En riesgo',
+          value: '${summary.riskStudents}',
+          hint: 'requieren seguimiento',
+          icon: Icons.warning_amber_outlined,
+          valueColor: AppColors.warningText,
+        ),
+        StatTile(
+          label: 'Asistencia',
+          value: '${summary.averageAttendance.toStringAsFixed(0)}%',
+          hint: 'ponderada por minutos',
+          icon: Icons.event_available_outlined,
+          valueColor: AppColors.info,
+        ),
+        StatTile(
+          label: 'Estudiantes',
+          value: '${summary.totalStudents}',
+          hint: '${summary.totalSubjects} materias',
+          icon: Icons.people_outline,
+        ),
+      ],
     );
   }
 }
 
-class _UserPill extends StatelessWidget {
-  final String label;
-  const _UserPill(this.label);
+class _RiskRow extends StatelessWidget {
+  final RiskItem risk;
+  const _RiskRow({required this.risk});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Text(label,
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5)),
-    );
-  }
-}
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final style = RiskStyle.of(risk.level.name);
 
-class _FeedItem extends StatelessWidget {
-  final String text;
-  const _FeedItem(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 8),
+    return AppCard(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(12),
-      ),
       child: Row(
         children: [
-          const Icon(Icons.circle, size: 8, color: AppColors.primary),
-          const SizedBox(width: 10),
-          Expanded(child: Text(text)),
-        ],
-      ),
-    );
-  }
-}
-
-class _MiniStat extends StatelessWidget {
-  final String label;
-  final String value;
-  const _MiniStat({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          Text(label, style: const TextStyle(color: AppColors.textMuted)),
-          const Spacer(),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
+          Container(
+            width: 4,
+            height: 42,
+            decoration: BoxDecoration(
+              color: style.color,
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(risk.fullName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 14.5)),
+                const SizedBox(height: 2),
+                // El motivo, no solo el color: de esto depende que el docente
+                // decida intervenir.
+                Text(
+                  risk.reasons.isNotEmpty
+                      ? risk.reasons.first
+                      : 'Nota ${risk.finalGrade.toStringAsFixed(2)} · '
+                          'asistencia ${risk.attendanceRate.toStringAsFixed(0)}%',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, color: muted, height: 1.3),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            style.label,
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+              color: style.color,
+            ),
+          ),
         ],
       ),
     );

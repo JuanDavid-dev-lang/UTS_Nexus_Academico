@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'core/data/providers.dart';
 import 'core/services/auth_controller.dart';
 import 'core/services/realtime_service.dart';
 import 'core/theme/app_theme.dart';
@@ -11,12 +12,14 @@ import 'features/auth/login_page.dart';
 import 'features/auth/recovery_page.dart';
 import 'features/dashboard/dashboard_page.dart';
 import 'features/notifications/notifications_page.dart';
+import 'features/profile/profile_page.dart';
 import 'features/attendance/attendance_page.dart';
 import 'features/reports/reports_page.dart';
 import 'features/schedule/schedule_page.dart';
 import 'features/settings/settings_page.dart';
 import 'features/students/students_page.dart';
 import 'features/subjects/subjects_page.dart';
+import 'features/subjects/subject_detail_page.dart';
 import 'features/grades/grades_page.dart';
 
 final router = GoRouter(
@@ -29,7 +32,20 @@ final router = GoRouter(
       routes: [
         GoRoute(path: '/', builder: (_, __) => const DashboardPage()),
         GoRoute(path: '/students', builder: (_, __) => const StudentsPage()),
-        GoRoute(path: '/subjects', builder: (_, __) => const SubjectsPage()),
+        GoRoute(
+          path: '/subjects',
+          builder: (_, __) => const SubjectsPage(),
+          routes: [
+            // Los estudiantes cuelgan de su materia: es como trabaja un docente
+            // ("mis estudiantes de Cálculo I"), y la ruta lo refleja.
+            GoRoute(
+              path: ':subjectId',
+              builder: (_, state) => SubjectDetailPage(
+                subjectId: state.pathParameters['subjectId']!,
+              ),
+            ),
+          ],
+        ),
         GoRoute(path: '/grades', builder: (_, __) => const GradesPage()),
         GoRoute(path: '/attendance', builder: (_, __) => const AttendancePage()),
         GoRoute(path: '/schedule', builder: (_, __) => const SchedulePage()),
@@ -37,6 +53,7 @@ final router = GoRouter(
         GoRoute(path: '/reports', builder: (_, __) => const ReportsPage()),
         GoRoute(path: '/notifications', builder: (_, __) => const NotificationsPage()),
         GoRoute(path: '/settings', builder: (_, __) => const SettingsPage()),
+        GoRoute(path: '/profile', builder: (_, __) => const ProfilePage()),
       ],
     ),
   ],
@@ -52,14 +69,37 @@ class UtsApp extends ConsumerStatefulWidget {
 class _UtsAppState extends ConsumerState<UtsApp> {
   @override
   Widget build(BuildContext context) {
+    // El servicio de tiempo real ya filtra por el evento `sync:update` y emite
+    // su payload, que es {entity, action, id}. La versión anterior comprobaba
+    // `event['type'] == 'sync:update'`, una clave que ese payload nunca tiene,
+    // así que la condición jamás se cumplía y nada se refrescaba.
     ref.listen(realtimeEventsProvider, (previous, next) {
       next.whenData((event) {
-        if (event['type'] == 'sync:update') {
-          ref.invalidate(dashboardProvider);
-          ref.invalidate(studentsProvider);
-          ref.invalidate(subjectsProvider);
-          ref.invalidate(scheduleProvider);
-          ref.invalidate(consolidatedGradesProvider);
+        final entity = event['entity'] as String?;
+        if (entity == null) return;
+
+        // Cada entidad invalida solo lo que realmente depende de ella; recargar
+        // todo en cada evento desperdicia red y hace parpadear pantallas
+        // que no cambiaron.
+        switch (entity) {
+          case 'student':
+            ref.invalidate(studentsProvider);
+            ref.invalidate(dashboardProvider);
+          case 'subject':
+            ref.invalidate(subjectsProvider);
+            ref.invalidate(dashboardProvider);
+          case 'grade':
+            ref.invalidate(consolidatedGradesProvider);
+            ref.invalidate(dashboardProvider);
+          case 'attendance':
+            ref.invalidate(dashboardProvider);
+          case 'schedule':
+            ref.invalidate(scheduleProvider);
+          case 'enrollment':
+            ref.invalidate(studentsProvider);
+            ref.invalidate(dashboardProvider);
+          default:
+            ref.invalidate(dashboardProvider);
         }
       });
     });
