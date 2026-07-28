@@ -146,7 +146,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<String>(
-                          value: _subjectId,
+                          initialValue: _subjectId,
                           items: _subjects
                               .map((s) => DropdownMenuItem(
                                     value: s['_id'].toString(),
@@ -164,7 +164,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: DropdownButtonFormField<int>(
-                          value: _durationMinutes,
+                          initialValue: _durationMinutes,
                           items: const [
                             DropdownMenuItem(value: 90, child: Text('90 min')),
                             DropdownMenuItem(value: 180, child: Text('180 min')),

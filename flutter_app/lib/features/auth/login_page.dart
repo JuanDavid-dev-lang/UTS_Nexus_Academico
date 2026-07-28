@@ -1,15 +1,21 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/config.dart';
-import '../../core/services/backend_bootstrap.dart';
-import '../../core/services/api_client.dart';
+import '../../core/network/api_error.dart';
+import '../../core/network/connection_controller.dart';
 import '../../core/services/auth_controller.dart';
-import '../../core/services/connection_settings.dart';
-import '../../core/services/realtime_service.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/ui_kit.dart';
 
+/// Pantalla de acceso.
+///
+/// Dos cambios frente a la versión anterior:
+///
+///  - **No hay credenciales precargadas.** Estaban escritas en el código fuente.
+///  - **No se pide la dirección del servidor.** La app lo busca sola en la red;
+///    la entrada manual queda escondida como último recurso, para redes donde el
+///    barrido no llega.
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
@@ -18,238 +24,330 @@ class LoginPage extends ConsumerStatefulWidget {
 }
 
 class _LoginPageState extends ConsumerState<LoginPage> {
-  final email = TextEditingController(text: 'docente@uts.edu.co');
-  final password = TextEditingController(text: 'Uts12345!');
-  final apiUrl = TextEditingController();
-  final wsUrl = TextEditingController();
+  final _email = TextEditingController();
+  final _password = TextEditingController();
+  final _manualServer = TextEditingController();
 
-  String? error;
-  bool loadingConfig = true;
-  bool savingServer = false;
+  String? _emailError;
+  String? _passwordError;
+  bool _submitting = false;
+  bool _showManualServer = false;
+  bool _obscurePassword = true;
 
   @override
   void initState() {
     super.initState();
-    _loadConfig();
-  }
-
-  Future<void> _loadConfig() async {
-    final settings = await ConnectionSettings.load();
-    apiUrl.text = settings.apiBaseUrl;
-    wsUrl.text = settings.wsBaseUrl;
-    if (mounted) setState(() => loadingConfig = false);
-  }
-
-  Future<void> _saveServer() async {
-    setState(() {
-      savingServer = true;
-      error = null;
+    // Se busca el servidor mientras el usuario escribe sus credenciales, así el
+    // descubrimiento no se siente como una espera.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(connectionControllerProvider.notifier).initialize();
     });
-    final settings = ConnectionSettings(
-      apiBaseUrl: AppConfig.normalizeApiBaseUrl(apiUrl.text),
-      wsBaseUrl: AppConfig.normalizeWsBaseUrl(wsUrl.text),
-    );
-    await settings.save();
-    ApiClient.instance.setBaseUrl(settings.apiBaseUrl);
-    RealtimeService.instance.setBaseUrl(settings.wsBaseUrl);
-    if (mounted) {
-      setState(() => savingServer = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Servidor guardado')),
-      );
-    }
-  }
-
-  String _friendlyError(Object err) {
-    if (err is DioException) {
-      final status = err.response?.statusCode;
-      final message = err.response?.data?.toString();
-      if (status != null) {
-        return 'HTTP $status${message == null ? '' : ': $message'}';
-      }
-      return err.message ?? 'Sin conexión al backend';
-    }
-    return err.toString();
   }
 
   @override
   void dispose() {
-    email.dispose();
-    password.dispose();
-    apiUrl.dispose();
-    wsUrl.dispose();
+    _email.dispose();
+    _password.dispose();
+    _manualServer.dispose();
     super.dispose();
   }
 
-  Widget _serverFields() {
-    return ExpansionTile(
-      iconColor: Colors.white70,
-      collapsedIconColor: Colors.white70,
-      title: const Text('Servidor', style: TextStyle(color: Colors.white)),
-      subtitle: const Text(
-        'Ajusta la API si usas un móvil físico',
-        style: TextStyle(color: Colors.white54),
-      ),
-      children: [
-        const SizedBox(height: 8),
-        TextField(
-          controller: apiUrl,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            labelText: 'API base URL',
-            hintText: 'http://192.168.1.20:4000',
-            labelStyle: TextStyle(color: Colors.white70),
-          ),
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: wsUrl,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            labelText: 'WS base URL',
-            hintText: 'http://192.168.1.20:4000',
-            labelStyle: TextStyle(color: Colors.white70),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Align(
-          alignment: Alignment.centerRight,
-          child: OutlinedButton(
-            onPressed: savingServer ? null : _saveServer,
-            child: savingServer
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text('Guardar servidor'),
-          ),
-        ),
-      ],
-    );
+  Future<void> _submit() async {
+    final email = _email.text.trim();
+    final password = _password.text;
+
+    setState(() {
+      _emailError = email.isEmpty
+          ? 'El correo es obligatorio'
+          : (!email.contains('@') ? 'Correo inválido' : null);
+      _passwordError = password.isEmpty ? 'La contraseña es obligatoria' : null;
+    });
+    if (_emailError != null || _passwordError != null) return;
+
+    setState(() => _submitting = true);
+    try {
+      await ref.read(authControllerProvider.notifier).login(email, password);
+      if (mounted) context.go('/');
+    } catch (error) {
+      final apiError = ApiError.from(error);
+      if (!mounted) return;
+
+      setState(() {
+        if (apiError.kind == ApiErrorKind.unauthorized) {
+          _passwordError = 'Correo o contraseña incorrectos';
+        }
+      });
+      AppToast.error(context, 'No se pudo iniciar sesión', apiError.message);
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<void> _applyManualServer() async {
+    final ok = await ref
+        .read(connectionControllerProvider.notifier)
+        .setManual(_manualServer.text);
+
+    if (!mounted) return;
+    if (ok) {
+      setState(() => _showManualServer = false);
+      AppToast.success(context, 'Servidor conectado');
+    } else {
+      AppToast.error(context, 'No responde', 'Verifica la dirección y que el servidor esté encendido.');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final auth = ref.watch(authControllerProvider);
+    final connection = ref.watch(connectionControllerProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF00305F), Color(0xFF0057B8), Color(0xFF0099FF)],
-          ),
-        ),
-        child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight - 48),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 520),
-                      child: Card(
-                        elevation: 14,
-                        color: const Color(0xFF0E223F),
-                        margin: EdgeInsets.zero,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                        child: Padding(
-                          padding: const EdgeInsets.all(28),
-                          child: loadingConfig
-                              ? const SizedBox(
-                                  height: 260,
-                                  child: Center(child: CircularProgressIndicator()),
-                                )
-                              : Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.school, size: 60, color: Colors.white),
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      'UTS Nexus Académico',
-                                      textAlign: TextAlign.center,
-                                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                                          color: Colors.white, fontWeight: FontWeight.w800),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Acceso docente',
-                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white70),
-                                    ),
-                                    const SizedBox(height: 20),
-                                    TextField(
-                                      controller: email,
-                                      style: const TextStyle(color: Colors.white),
-                                      decoration: const InputDecoration(
-                                        labelText: 'Correo',
-                                        labelStyle: TextStyle(color: Colors.white70),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    TextField(
-                                      controller: password,
-                                      obscureText: true,
-                                      style: const TextStyle(color: Colors.white),
-                                      decoration: const InputDecoration(
-                                        labelText: 'Contraseña',
-                                        labelStyle: TextStyle(color: Colors.white70),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 14),
-                                    _serverFields(),
-                                    const SizedBox(height: 8),
-                                    if (error != null) ...[
-                                      Text(error!, style: const TextStyle(color: Colors.redAccent)),
-                                      const SizedBox(height: 8),
-                                    ],
-                                    FilledButton(
-                                      onPressed: auth.loading
-                                          ? null
-                                          : () async {
-                                              try {
-                                        final settings = ConnectionSettings(
-                                                  apiBaseUrl: AppConfig.normalizeApiBaseUrl(apiUrl.text),
-                                                  wsBaseUrl: AppConfig.normalizeWsBaseUrl(wsUrl.text),
-                                                );
-                                                await settings.save();
-                                                await BackendBootstrap.ensureRunning();
-                                                ApiClient.instance.setBaseUrl(settings.apiBaseUrl);
-                                                RealtimeService.instance.setBaseUrl(settings.wsBaseUrl);
-                                                await ref
-                                                    .read(authControllerProvider.notifier)
-                                                    .login(email.text.trim(), password.text.trim());
-                                                if (mounted) context.go('/');
-                                              } catch (err) {
-                                                setState(() => error = _friendlyError(err));
-                                              }
-                                            },
-                                      child: auth.loading
-                                          ? const SizedBox(
-                                              width: 18,
-                                              height: 18,
-                                              child: CircularProgressIndicator(strokeWidth: 2),
-                                            )
-                                          : const Text('Entrar'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () => context.go('/recovery'),
-                                      child: const Text('¿Olvidaste tu contraseña?'),
-                                    ),
-                                  ],
-                                ),
-                        ),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 8),
+                  Image.asset(
+                    'assets/logo.png',
+                    height: 96,
+                    errorBuilder: (_, __, ___) => Icon(
+                      Icons.school,
+                      size: 72,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'UTS Nexus Académico',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Ingresa con tu cuenta institucional',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: muted, fontSize: 14),
+                  ),
+                  const SizedBox(height: 28),
+
+                  TextField(
+                    controller: _email,
+                    keyboardType: TextInputType.emailAddress,
+                    autocorrect: false,
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      labelText: 'Correo institucional',
+                      hintText: 'docente@uts.edu.co',
+                      prefixIcon: const Icon(Icons.mail_outline),
+                      errorText: _emailError,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  TextField(
+                    controller: _password,
+                    obscureText: _obscurePassword,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _submit(),
+                    decoration: InputDecoration(
+                      labelText: 'Contraseña',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      errorText: _passwordError,
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscurePassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined),
+                        tooltip: _obscurePassword ? 'Mostrar' : 'Ocultar',
+                        onPressed: () =>
+                            setState(() => _obscurePassword = !_obscurePassword),
                       ),
                     ),
                   ),
-                ),
-              );
-            },
+                  const SizedBox(height: 22),
+
+                  FilledButton(
+                    onPressed: _submitting ? null : _submit,
+                    child: _submitting
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2.4),
+                          )
+                        : const Text('Entrar'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextButton(
+                    onPressed: () => context.go('/recovery'),
+                    child: const Text('¿Olvidaste tu contraseña?'),
+                  ),
+
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const SizedBox(height: 8),
+
+                  _ConnectionBanner(
+                    state: connection,
+                    onRetry: () =>
+                        ref.read(connectionControllerProvider.notifier).discover(),
+                    onManual: () =>
+                        setState(() => _showManualServer = !_showManualServer),
+                  ),
+
+                  if (_showManualServer) ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _manualServer,
+                      keyboardType: TextInputType.url,
+                      autocorrect: false,
+                      decoration: const InputDecoration(
+                        labelText: 'Dirección del servidor',
+                        hintText: '192.168.1.10',
+                        prefixIcon: Icon(Icons.dns_outlined),
+                        helperText: 'Solo si la búsqueda automática no lo encuentra',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton(
+                      onPressed: _applyManualServer,
+                      child: const Text('Conectar a esta dirección'),
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Estado de la conexión, en lenguaje de usuario.
+class _ConnectionBanner extends StatelessWidget {
+  final ServerConnectionState state;
+  final VoidCallback onRetry;
+  final VoidCallback onManual;
+
+  const _ConnectionBanner({
+    required this.state,
+    required this.onRetry,
+    required this.onManual,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+
+    // `switch` como expresión: el analizador comprueba que estén todos los
+    // casos del enum, así que añadir una fase nueva rompe la compilación en vez
+    // de dejar la pantalla en blanco.
+    return switch (state.phase) {
+      ConnectionPhase.checking => _row(
+          icon: Icons.wifi_find_outlined,
+          color: muted,
+          text: 'Comprobando el servidor…',
+        ),
+      ConnectionPhase.discovering => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _row(
+              icon: Icons.travel_explore,
+              color: AppColors.info,
+              text: 'Buscando el servidor en tu red…',
+            ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: state.progress == 0 ? null : state.progress,
+                minHeight: 4,
+              ),
+            ),
+          ],
+        ),
+      ConnectionPhase.connected => _row(
+          icon: Icons.check_circle_outline,
+          color: AppColors.success,
+          text: state.detail ?? 'Servidor encontrado',
+        ),
+
+      ConnectionPhase.degraded => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _row(
+              icon: Icons.warning_amber_outlined,
+              color: AppColors.warningText,
+              text: 'El servidor no alcanza la base de datos',
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Podrás abrir la app, pero no habrá datos hasta que se resuelva.',
+              style: TextStyle(fontSize: 12, color: muted),
+            ),
+          ],
+        ),
+      ConnectionPhase.notFound => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _row(
+              icon: Icons.wifi_off_outlined,
+              color: AppColors.danger,
+              text: 'No encontramos el servidor',
+            ),
+            const SizedBox(height: 4),
+            Text(
+              state.detail ??
+                  'Verifica que el servidor esté encendido y que estés en la misma red Wi-Fi.',
+              style: TextStyle(fontSize: 12, color: muted),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onRetry,
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('Buscar de nuevo'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextButton(
+                    onPressed: onManual,
+                    child: const Text('Escribir dirección'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+    };
+  }
+
+  Widget _row({required IconData icon, required Color color, required String text}) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: color),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(fontSize: 13, color: color, fontWeight: FontWeight.w600),
+          ),
+        ),
+      ],
     );
   }
 }

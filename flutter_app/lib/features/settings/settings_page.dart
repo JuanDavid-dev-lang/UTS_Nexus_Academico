@@ -2,13 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/config.dart';
-import '../../core/services/api_client.dart';
-import '../../core/services/auth_controller.dart';
-import '../../core/services/connection_settings.dart';
-import '../../core/services/realtime_service.dart';
+import '../../core/network/connection_controller.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/theme/theme_controller.dart';
+import '../../core/widgets/ui_kit.dart';
 
+/// Ajustes.
+///
+/// Se eliminaron dos interruptores —"Notificaciones push" y "Sincronización
+/// automática"— que tenían `value: true` fijo y un `onChanged` vacío: parecían
+/// funcionar y no hacían nada. Un control que miente sobre el estado del sistema
+/// es peor que no tenerlo.
+///
+/// La dirección del servidor tampoco se pide ya: la app la descubre sola. Queda
+/// como entrada manual plegada, para redes donde el barrido no llega.
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
 
@@ -17,128 +24,195 @@ class SettingsPage extends ConsumerStatefulWidget {
 }
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
-  final apiUrl = TextEditingController();
-  final wsUrl = TextEditingController();
-  bool loading = true;
-  bool saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final settings = await ConnectionSettings.load();
-    apiUrl.text = settings.apiBaseUrl;
-    wsUrl.text = settings.wsBaseUrl;
-    if (mounted) setState(() => loading = false);
-  }
-
-  Future<void> _saveServer() async {
-    setState(() => saving = true);
-    final settings = ConnectionSettings(
-      apiBaseUrl: AppConfig.normalizeApiBaseUrl(apiUrl.text),
-      wsBaseUrl: AppConfig.normalizeWsBaseUrl(wsUrl.text),
-    );
-    await settings.save();
-    ApiClient.instance.setBaseUrl(settings.apiBaseUrl);
-    RealtimeService.instance.setBaseUrl(settings.wsBaseUrl);
-    if (mounted) {
-      setState(() => saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Servidor actualizado')),
-      );
-    }
-  }
+  final _manualServer = TextEditingController();
+  bool _showManual = false;
+  bool _working = false;
 
   @override
   void dispose() {
-    apiUrl.dispose();
-    wsUrl.dispose();
+    _manualServer.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final connection = ref.watch(connectionControllerProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Configuraciones')),
-      body: loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16),
+      appBar: AppBar(title: const Text('Ajustes')),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+        children: [
+          _SectionLabel('Servidor', muted: muted),
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Servidor', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: apiUrl,
-                          decoration: const InputDecoration(
-                            labelText: 'API base URL',
-                            hintText: 'http://192.168.1.20:4000',
+                Row(
+                  children: [
+                    Icon(
+                      switch (connection.phase) {
+                        ConnectionPhase.connected => Icons.check_circle_outline,
+                        ConnectionPhase.degraded =>
+                          Icons.warning_amber_outlined,
+                        ConnectionPhase.discovering => Icons.travel_explore,
+                        ConnectionPhase.checking => Icons.wifi_find_outlined,
+                        ConnectionPhase.notFound => Icons.wifi_off_outlined,
+                      },
+                      size: 20,
+                      color: switch (connection.phase) {
+                        ConnectionPhase.connected => AppColors.success,
+                        ConnectionPhase.degraded => AppColors.warningText,
+                        ConnectionPhase.notFound => AppColors.danger,
+                        _ => muted,
+                      },
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            connection.baseUrl ?? 'Sin servidor',
+                            style: const TextStyle(
+                                fontSize: 13.5, fontFamily: 'monospace'),
                           ),
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: wsUrl,
-                          decoration: const InputDecoration(
-                            labelText: 'WS base URL',
-                            hintText: 'http://192.168.1.20:4000',
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: FilledButton(
-                            onPressed: saving ? null : _saveServer,
-                            child: saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Guardar'),
-                          ),
-                        ),
-                      ],
+                          if (connection.detail != null)
+                            Text(connection.detail!,
+                                style:
+                                    TextStyle(fontSize: 11.5, color: muted)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _working ? null : _rediscover,
+                        icon: _working
+                            ? const SizedBox(
+                                height: 15,
+                                width: 15,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2))
+                            : const Icon(Icons.refresh, size: 18),
+                        label: const Text('Buscar servidor'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () =>
+                            setState(() => _showManual = !_showManual),
+                        child: Text(_showManual ? 'Ocultar' : 'Manual'),
+                      ),
+                    ),
+                  ],
+                ),
+                if (_showManual) ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _manualServer,
+                    keyboardType: TextInputType.url,
+                    autocorrect: false,
+                    decoration: const InputDecoration(
+                      labelText: 'Dirección del servidor',
+                      hintText: '192.168.1.10',
+                      isDense: true,
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                Builder(builder: (context) {
-                  final mode = ref.watch(themeModeProvider);
-                  final isDark = mode == ThemeMode.dark ||
-                      (mode == ThemeMode.system &&
-                          MediaQuery.platformBrightnessOf(context) == Brightness.dark);
-                  return SwitchListTile(
-                    value: isDark,
-                    onChanged: (v) =>
-                        ref.read(themeModeProvider.notifier).toggleDark(v),
-                    title: const Text('Modo oscuro'),
-                    subtitle: const Text('Verde profundo con lettering lima'),
-                    secondary: Icon(isDark ? Icons.dark_mode : Icons.light_mode),
-                  );
-                }),
-                SwitchListTile(
-                  value: true,
-                  onChanged: (_) {},
-                  title: const Text('Notificaciones push'),
-                ),
-                SwitchListTile(
-                  value: true,
-                  onChanged: (_) {},
-                  title: const Text('Sincronización automática'),
-                ),
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: () async {
-                    await ref.read(authControllerProvider.notifier).logout();
-                    if (mounted) context.go('/login');
-                  },
-                  icon: const Icon(Icons.logout),
-                  label: const Text('Cerrar sesión'),
-                ),
+                  const SizedBox(height: 10),
+                  FilledButton(
+                    onPressed: _applyManual,
+                    child: const Text('Conectar'),
+                  ),
+                ],
               ],
             ),
+          ),
+          const SizedBox(height: 22),
+          _SectionLabel('Apariencia', muted: muted),
+          AppCard(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            child: Builder(
+              builder: (context) {
+                final mode = ref.watch(themeModeProvider);
+                final dark = mode == ThemeMode.dark ||
+                    (mode == ThemeMode.system &&
+                        MediaQuery.platformBrightnessOf(context) ==
+                            Brightness.dark);
+                return SwitchListTile(
+                  value: dark,
+                  onChanged: (value) =>
+                      ref.read(themeModeProvider.notifier).toggleDark(value),
+                  title: const Text('Modo oscuro'),
+                  subtitle: const Text('Verde profundo con lettering lima'),
+                  secondary: Icon(dark ? Icons.dark_mode : Icons.light_mode),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 22),
+          _SectionLabel('Cuenta', muted: muted),
+          AppCard(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            child: ListTile(
+              leading: const Icon(Icons.person_outline),
+              title: const Text('Mi perfil'),
+              subtitle: const Text('Datos de la sesión y cerrar sesión'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.go('/profile'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _rediscover() async {
+    setState(() => _working = true);
+    await ref.read(connectionControllerProvider.notifier).discover();
+    if (mounted) setState(() => _working = false);
+  }
+
+  Future<void> _applyManual() async {
+    final ok = await ref
+        .read(connectionControllerProvider.notifier)
+        .setManual(_manualServer.text);
+    if (!mounted) return;
+    if (ok) {
+      setState(() => _showManual = false);
+      AppToast.success(context, 'Servidor conectado');
+    } else {
+      AppToast.error(context, 'No responde',
+          'Verifica la dirección y que el servidor esté encendido.');
+    }
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  final Color muted;
+  const _SectionLabel(this.text, {required this.muted});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 8),
+      child: Text(
+        text.toUpperCase(),
+        style: TextStyle(
+          fontSize: 10.5,
+          letterSpacing: 0.8,
+          fontWeight: FontWeight.w700,
+          color: muted,
+        ),
+      ),
     );
   }
 }

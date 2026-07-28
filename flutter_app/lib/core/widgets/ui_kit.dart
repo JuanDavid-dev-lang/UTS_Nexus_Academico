@@ -183,6 +183,176 @@ class StatTile extends StatelessWidget {
   }
 }
 
+/// Avisos efímeros.
+///
+/// Sustituyen a los `AlertDialog` de confirmación. Un diálogo modal para "nota
+/// guardada" interrumpe el trabajo y exige un toque; un aviso informa sin robar
+/// el foco. Los errores duran más porque requieren una decisión.
+class AppToast {
+  static void _show(
+    BuildContext context, {
+    required IconData icon,
+    required Color color,
+    required String title,
+    String? detail,
+    required Duration duration,
+  }) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        duration: duration,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusInput),
+        ),
+        content: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(title,
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                  if (detail != null) ...[
+                    const SizedBox(height: 2),
+                    Text(detail, style: const TextStyle(fontSize: 12.5)),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static void success(BuildContext context, String title, [String? detail]) => _show(
+        context,
+        icon: Icons.check_circle_outline,
+        color: AppColors.success,
+        title: title,
+        detail: detail,
+        duration: const Duration(seconds: 3),
+      );
+
+  static void info(BuildContext context, String title, [String? detail]) => _show(
+        context,
+        icon: Icons.info_outline,
+        color: AppColors.info,
+        title: title,
+        detail: detail,
+        duration: const Duration(seconds: 4),
+      );
+
+  static void error(BuildContext context, String title, [String? detail]) => _show(
+        context,
+        icon: Icons.error_outline,
+        color: AppColors.danger,
+        title: title,
+        detail: detail,
+        duration: const Duration(seconds: 6),
+      );
+}
+
+/// Bloque de carga con brillo.
+///
+/// Reserva el espacio del contenido real, así la pantalla no salta cuando
+/// llegan los datos. Un indicador circular centrado no consigue ninguna de las
+/// dos cosas.
+class SkeletonBox extends StatefulWidget {
+  final double height;
+  final double? width;
+  final double radius;
+
+  const SkeletonBox({
+    super.key,
+    this.height = 16,
+    this.width,
+    this.radius = 8,
+  });
+
+  @override
+  State<SkeletonBox> createState() => _SkeletonBoxState();
+}
+
+class _SkeletonBoxState extends State<SkeletonBox>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final base = isDark ? AppColors.surfaceAltDark : AppColors.surfaceAlt;
+    final highlight = isDark ? AppColors.borderDark : AppColors.border;
+
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        return Container(
+          height: widget.height,
+          width: widget.width,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(widget.radius),
+            gradient: LinearGradient(
+              colors: [base, highlight, base],
+              stops: const [0.1, 0.5, 0.9],
+              begin: Alignment(-1 - 2 * _controller.value, 0),
+              end: Alignment(1 - 2 * _controller.value, 0),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Rejilla de métricas en carga, con la forma de las tarjetas reales.
+class SkeletonStatGrid extends StatelessWidget {
+  final int count;
+  const SkeletonStatGrid({super.key, this.count = 4});
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+      childAspectRatio: 1.5,
+      children: List.generate(
+        count,
+        (_) => const AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SkeletonBox(height: 10, width: 70),
+              SizedBox(height: 12),
+              SkeletonBox(height: 26, width: 60),
+              SizedBox(height: 10),
+              SkeletonBox(height: 9, width: 90),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Vista de estado: loading / empty / error (DESIGN.md §18).
 /// Evita pantallas en blanco: siempre comunica qué pasa.
 class StateView extends StatelessWidget {
