@@ -2,7 +2,7 @@
 
 # UTS Nexus Académico
 
-**Plataforma académica unificada · Universidad de Santander (UTS)**
+**Plataforma académica unificada · Unidades Tecnologicas de Santander (UTS)**
 
 [![Node.js](https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
