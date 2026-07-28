@@ -1,0 +1,135 @@
+/**
+ * Design tokens - UTS Nexus Academico.
+ *
+ * Single source of truth for colour, spacing, radius, elevation and motion.
+ * Values mirror DESIGN.md so desktop, mobile and web stay visually identical.
+ *
+ * Institutional palette: deep green #144D37 (dominant) + lime #CAD225 (accent).
+ * One colour means exactly one thing; never re-use a semantic colour for
+ * decoration.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Brand */
+  --brand-green: #144d37;
+  --brand-green-strong: #0f3d2b;
+  --brand-lime: #cad225;
+
+  /* Semantic surfaces */
+  --bg: #f4f7f1;
+  --bg-subtle: #eaf0e6;
+  --surface: #ffffff;
+  --surface-alt: #eaf0e6;
+  --surface-hover: #e2ebdd;
+  --border: #d8e2d4;
+  --border-strong: #b9cbb2;
+
+  /* Text */
+  --text: #12271e;
+  --text-muted: #5b6b61;
+  --text-inverted: #ffffff;
+
+  /* Interactive */
+  --primary: #144d37;
+  --primary-hover: #1c6b4c;
+  --primary-active: #0f3d2b;
+  --on-primary: #ffffff;
+  --accent: #cad225;
+  --accent-soft: #f1f6ce;
+  --on-accent: #12271e;
+
+  /* Status - each has a solid tone for text/icon and a soft tone for fills */
+  --success: #16a34a;
+  --success-soft: #dcfce7;
+  --warning: #b45309;
+  --warning-soft: #fef3c7;
+  --danger: #dc2626;
+  --danger-soft: #fee2e2;
+  --info: #0e7490;
+  --info-soft: #cff4fa;
+
+  /* Focus ring - must stay visible on every surface */
+  --ring: #1c6b4c;
+
+  /* Elevation */
+  --shadow-sm: 0 1px 2px rgb(18 39 30 / 0.06);
+  --shadow-md: 0 4px 16px rgb(18 39 30 / 0.08);
+  --shadow-lg: 0 12px 32px rgb(18 39 30 / 0.12);
+  --shadow-pop: 0 16px 48px rgb(18 39 30 / 0.18);
+
+  /* Glass surfaces */
+  --glass-bg: rgb(255 255 255 / 0.72);
+  --glass-border: rgb(216 226 212 / 0.8);
+
+  /* Radius scale */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-pill: 999px;
+
+  /* Motion - short and consistent. Anything above 300ms feels sluggish. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+
+  /* Typography */
+  --font-sans:
+    'Segoe UI Variable Display', 'Segoe UI', Inter, system-ui, -apple-system,
+    'Helvetica Neue', sans-serif;
+  --font-mono: 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
+
+  /* Layout */
+  --sidebar-width: 264px;
+  --sidebar-width-collapsed: 72px;
+  --topbar-height: 64px;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #0c2c1f;
+  --bg-subtle: #0f3d2b;
+  --surface: #144d37;
+  --surface-alt: #1a5941;
+  --surface-hover: #1e6549;
+  --border: #2e6b51;
+  --border-strong: #3d8464;
+
+  --text: #e9f2d3;
+  --text-muted: #9fb89f;
+  --text-inverted: #0f3d2b;
+
+  /* In dark mode lime becomes the primary interactive colour: the deep green
+     is already the background, so it can no longer carry emphasis. */
+  --primary: #cad225;
+  --primary-hover: #d8e04a;
+  --primary-active: #b8c018;
+  --on-primary: #0f3d2b;
+  --accent: #cad225;
+  --accent-soft: #2a3d14;
+  --on-accent: #e9f2d3;
+
+  --success: #4ade80;
+  --success-soft: #14532d;
+  --warning: #fbbf24;
+  --warning-soft: #4a3308;
+  --danger: #f87171;
+  --danger-soft: #4c1d1d;
+  --info: #38bdf8;
+  --info-soft: #0c4a60;
+
+  --ring: #cad225;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.25);
+  --shadow-md: 0 4px 16px rgb(0 0 0 / 0.32);
+  --shadow-lg: 0 12px 32px rgb(0 0 0 / 0.4);
+  --shadow-pop: 0 16px 48px rgb(0 0 0 / 0.5);
+
+  --glass-bg: rgb(20 77 55 / 0.72);
+  --glass-border: rgb(46 107 81 / 0.8);
+}

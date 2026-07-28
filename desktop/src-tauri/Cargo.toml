@@ -1,0 +1,37 @@
+[package]
+name = "uts-nexus-desktop"
+version = "2.0.0"
+description = "UTS Nexus Academico desktop client"
+authors = ["UTS Nexus Academico"]
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "uts_nexus_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# OS credential vault: DPAPI on Windows, Keychain on macOS, Secret Service on Linux.
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+# Resolving the user's Downloads directory for report exports.
+dirs = "5"
+# Cross-platform "reveal in file manager" without shelling out per OS.
+opener = "0.7"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
+
+[features]
+# This feature is used for production builds where `devPath` points to the filesystem.
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

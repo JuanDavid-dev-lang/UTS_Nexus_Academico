@@ -1,0 +1,16 @@
+node_modules/
+dist/
+dist-ssr/
+.vite/
+coverage/
+playwright-report/
+test-results/
+
+src-tauri/target/
+src-tauri/gen/
+
+.env
+.env.local
+*.local
+*.log
+.DS_Store
