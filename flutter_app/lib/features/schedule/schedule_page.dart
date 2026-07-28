@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/network/api_error.dart';
 import '../../core/services/api_client.dart';
 import '../../core/services/schedule_repository.dart';
+import '../../core/widgets/ui_kit.dart';
 
 final scheduleProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
   return ScheduleRepository().list();
@@ -103,7 +105,15 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        // Nunca se vuelca la excepción cruda: se traduce a una causa accionable
+        // y se ofrece reintentar.
+        error: (error, _) => StateView.error(
+          ApiError.from(error).message,
+          action: FilledButton(
+            onPressed: () => ref.invalidate(scheduleProvider),
+            child: const Text('Reintentar'),
+          ),
+        ),
       ),
     );
   }
