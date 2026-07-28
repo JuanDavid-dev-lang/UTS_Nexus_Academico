@@ -15,6 +15,7 @@ import { reportsRouter } from '../modules/reports/reports.routes.js';
 import { uploadRouter } from '../modules/uploads/upload.routes.js';
 import { professorRouter } from '../modules/professors/professor.routes.js';
 import { configRouter } from '../modules/settings/config.routes.js';
+import { mlRouter } from '../modules/ml/ml.routes.js';
 
 export const apiRouter = Router();
 
@@ -34,3 +35,4 @@ apiRouter.use('/reports', reportsRouter);
 apiRouter.use('/uploads', uploadRouter);
 apiRouter.use('/professors', professorRouter);
 apiRouter.use('/configurations', configRouter);
+apiRouter.use('/ml', mlRouter);

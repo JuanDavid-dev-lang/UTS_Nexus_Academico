@@ -16,5 +16,9 @@ export const env = {
   AI_MODEL: process.env.AI_MODEL ?? 'llama3.1:8b',
   /** Habilita el chatbot con IA local. '0'/'false' lo desactiva (modo reglas). */
   AI_ENABLED: !['0', 'false', 'no', ''].includes((process.env.AI_ENABLED ?? '1').toLowerCase()),
+  /** Servicio de predicción de riesgo (Python + scikit-learn). */
+  ML_BASE_URL: process.env.ML_BASE_URL ?? 'http://127.0.0.1:8100',
+  /** '0' lo desactiva y el backend usa solo el motor de reglas. */
+  ML_ENABLED: !['0', 'false', 'no'].includes((process.env.ML_ENABLED ?? '1').toLowerCase()),
 };
 
