@@ -10,6 +10,7 @@
     "seed": "tsx src/scripts/seed.ts",
     "migrate:enrollments": "tsx src/scripts/migrate-enrollments.ts",
     "smoke": "tsx src/scripts/smoke.ts",
+    "check:env": "node check-env.mjs",
     "lint": "eslint ."
   },
   "dependencies": {

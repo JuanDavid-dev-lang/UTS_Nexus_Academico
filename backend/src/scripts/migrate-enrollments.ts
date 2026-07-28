@@ -5,13 +5,12 @@
  * Uso:  npm run build && node dist/scripts/migrate-enrollments.js
  */
 import mongoose from 'mongoose';
-import { env } from '../shared/env.js';
+import { connectDbOrThrow } from '../shared/db.js';
 import { GroupModel } from '../models/group.model.js';
 import { EnrollmentModel } from '../models/enrollment.model.js';
 
 async function main() {
-  if (!env.MONGODB_URI) throw new Error('MONGODB_URI is required');
-  await mongoose.connect(env.MONGODB_URI);
+  await connectDbOrThrow();
 
   const groups = await GroupModel.find({ deletedAt: null }).lean();
   let creadas = 0;

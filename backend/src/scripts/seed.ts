@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
-import { env } from '../shared/env.js';
+import { connectDbOrThrow } from '../shared/db.js';
 import { UserModel } from '../models/user.model.js';
 import { ProfessorModel } from '../models/professor.model.js';
 import { StudentModel } from '../models/student.model.js';
@@ -40,9 +40,8 @@ async function upsertUser(input: {
 }
 
 async function main() {
-  if (!env.MONGODB_URI) throw new Error('MONGODB_URI is required');
-  await mongoose.connect(env.MONGODB_URI);
-  mongoose.set('strictQuery', true);
+  // connectDbOrThrow ya valida MONGODB_URI y fija strictQuery.
+  await connectDbOrThrow();
 
   const admin = await upsertUser({ email: 'admin@uts.edu.co', fullName: 'Administrador UTS', role: 'ADMIN' });
   const coordinator = await upsertUser({ email: 'coordinador@uts.edu.co', fullName: 'Coordinador UTS', role: 'COORDINATOR' });
