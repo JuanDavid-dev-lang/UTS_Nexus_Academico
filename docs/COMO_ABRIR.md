@@ -17,29 +17,77 @@ powershell -ExecutionPolicy Bypass -File .\iniciar.ps1
 
 Cuando veas `API: http://localhost:4000` el backend está listo.
 
-> La app de escritorio intenta levantar el backend automáticamente si encuentra
-> `backend/dist/server.js`. Aun así, se recomienda arrancarlo con `iniciar.ps1`
-> la primera vez (compila, siembra datos de demo y valida).
+> La app de escritorio levanta el backend **por su cuenta** si encuentra
+> `backend/dist/server.js`. Aun así, conviene arrancarlo con `iniciar.ps1` la
+> primera vez, porque además compila, siembra los datos de demo y valida que
+> todo responda.
 
 ---
 
 ## 1. App de PC (Escritorio) 🖥️
 
+Es una aplicación **nativa de Windows**: ventana propia, icono en el menú de
+inicio, entrada en la barra de tareas. No se abre en el navegador.
+
 ### Opción fácil — doble clic
 
-Haz **doble clic en `abrir_pc.bat`** (está en la raíz del proyecto).
+Haz **doble clic en `abrir_escritorio.bat`** (está en la raíz del proyecto).
 
-- Si existe el ejecutable compilado, se abre al instante.
-- Si no, el script crea un entorno virtual de Python, instala lo necesario y
-  abre la app. La primera vez tarda unos minutos; las siguientes son inmediatas.
+El script se encarga de todo:
+1. Compila el backend si aún no lo está.
+2. Abre el ejecutable si ya existe.
+3. Si no existe, lo compila y lo abre (la primera vez tarda ~10 minutos).
 
-### Opción manual (desde código)
+### Opción instalada — para usarla todos los días
+
+Si vas a usarla a diario, instálala como cualquier otro programa:
+
+```
+desktop\src-tauri\target\release\bundle\nsis\UTS Nexus Académico_2.0.0_x64-setup.exe
+```
+
+Doble clic, siguiente, listo. Queda en el menú de inicio con su icono y su
+desinstalador. Pesa 2,1 MB.
+
+> ¿No existe esa carpeta? Todavía no has compilado. Usa `abrir_escritorio.bat`
+> una vez y se genera sola.
+
+### Opción portable — sin instalar
+
+```
+desktop\src-tauri\target\release\uts-nexus-desktop.exe
+```
+
+Doble clic y abre. Puedes copiar ese archivo a una memoria USB.
+
+### Opción desarrollador — compilar a mano
 
 ```powershell
-cd desktop_python
-pip install -r requirements.txt
-python main.py
+cd desktop
+npm install
+npm run desktop:build     # ejecutable + instaladores
+npm run desktop:dev       # ventana nativa con recarga en caliente
+npm run dev               # solo la interfaz, en el navegador (sin Rust)
 ```
+
+**Requisitos para compilar** (solo la primera vez):
+
+```powershell
+winget install Rustlang.Rustup
+winget install --id Microsoft.VisualStudio.2022.BuildTools -e --override `
+  "--wait --passive --norestart --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.Windows11SDK.22621 --includeRecommended"
+```
+
+> **Ojo con winget.** Puede responder «already installed» sin haber instalado
+> nada, porque consulta el registro de programas de Windows y no lo que Visual
+> Studio realmente tiene. Comprueba de verdad con:
+>
+> ```powershell
+> & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+>   -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+> ```
+>
+> Si no devuelve una ruta, falta el compilador de C++: reinstala con `--force`.
 
 ### Iniciar sesión
 
@@ -47,6 +95,36 @@ python main.py
 |-----|-------|------------|
 | Administrador | `admin@uts.edu.co` | `Uts12345!` |
 | Docente | `docente@uts.edu.co` | `Uts12345!` |
+
+La primera vez, la pantalla de acceso comprueba sola si el servidor responde y
+te lo dice con una etiqueta verde («En línea») o roja («Sin conexión»). Si sale
+roja, despliega **Servidor** y verifica la dirección.
+
+Tu sesión se guarda cifrada en el llavero de Windows, así que no tendrás que
+volver a escribir la contraseña cada vez.
+
+### Atajos útiles
+
+| Atajo | Acción |
+|-------|--------|
+| `Ctrl K` | Búsqueda global: estudiantes, materias y acciones |
+| `Ctrl B` | Contraer / expandir el menú lateral |
+| `Ctrl ⇧ L` | Cambiar tema: claro → oscuro → automático |
+| `Ctrl 1…7` | Saltar directo a una sección |
+
+<details>
+<summary>Versión anterior en Python (en desuso)</summary>
+
+`abrir_pc.bat` sigue abriendo la app v1 hecha con PySide6. Se conserva como
+referencia mientras se valida la v2, pero ya no recibe funcionalidades nuevas.
+
+```powershell
+cd desktop_python
+pip install -r requirements.txt
+python main.py
+```
+
+</details>
 
 ---
 
@@ -131,10 +209,13 @@ conectarse.
 
 | Quiero abrir… | Haz esto |
 |---------------|----------|
-| **PC (escritorio)** | Doble clic en `abrir_pc.bat` |
+| **PC (escritorio)** | Doble clic en `abrir_escritorio.bat` |
+| **PC — instalarla de verdad** | Ejecuta el instalador en `desktop\src-tauri\target\release\bundle\nsis\` |
+| **PC — solo la interfaz, sin compilar Rust** | `cd desktop` y `npm run dev` |
 | **Android en Android Studio** | Doble clic en `abrir_android.bat` → opción **1** |
 | **Android directo en dispositivo** | Doble clic en `abrir_android.bat` → opción **2** |
 | **APK para instalar en un teléfono** | Doble clic en `abrir_android.bat` → opción **3** |
+| **PC — versión antigua en Python** | Doble clic en `abrir_pc.bat` |
 
 Credenciales de demo (todas con contraseña `Uts12345!`):
 `admin@uts.edu.co` · `docente@uts.edu.co` · `estudiante@uts.edu.co`

@@ -4,10 +4,11 @@
 
 **Plataforma académica unificada · Universidad de Santander (UTS)**
 
-[![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?logo=tauri&logoColor=white)](https://tauri.app/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![Flutter](https://img.shields.io/badge/Flutter-3-02569B?logo=flutter&logoColor=white)](https://flutter.dev/)
-[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?logo=mongodb&logoColor=white)](https://www.mongodb.com/atlas)
 [![Socket.io](https://img.shields.io/badge/Socket.io-4-010101?logo=socket.io&logoColor=white)](https://socket.io/)
 [![License](https://img.shields.io/badge/Licencia-MIT-blue)](LICENSE)
@@ -46,8 +47,8 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                      UTS Nexus Académico                        │
 │                                                                 │
-│   📱 App Móvil (Flutter)        🖥️  App Escritorio (Python)     │
-│   Docentes + Estudiantes        Administradores + Docentes      │
+│   📱 App Móvil (Flutter)     🖥️  App Escritorio (Tauri+React)   │
+│   Docentes + Estudiantes     Administradores + Docentes         │
 │           │                              │                      │
 │           └──────────────┬───────────────┘                      │
 │                          ▼                                      │
@@ -127,13 +128,40 @@ backend/src/
 | Dio | Cliente HTTP con interceptores |
 | socket_io_client | WebSocket con auth JWT |
 
-### App de escritorio
+### App de escritorio (v2)
+| Tecnología | Uso |
+|-----------|-----|
+| Tauri 2 (Rust) | Shell nativo — usa el WebView del sistema, no empaqueta Chromium |
+| React 19 + TypeScript | Interfaz, con tipos compartidos con el backend |
+| Vite 6 | Build y recarga en caliente |
+| TailwindCSS 4 | Estilos desde los tokens de `DESIGN.md` |
+| Radix UI | Primitivas accesibles (foco, teclado, ARIA) |
+| TanStack Query | Estado de servidor: caché, reintentos, invalidación |
+| TanStack Virtual | Virtualización de listas largas |
+| Zustand | Estado de cliente (sesión, tema, toasts) |
+| Zod | Validación de las respuestas del backend en runtime |
+| ECharts | Gráficos en canvas (carga diferida) |
+| Framer Motion | Microanimaciones y transiciones |
+| `keyring` (Rust) | Tokens en DPAPI / Keychain / Secret Service |
+
+> **Instalador: 2,1 MB.** El empaquetado anterior con PyInstaller pesaba ~120 MB.
+
+<details>
+<summary>Versión anterior (Python + PySide6) — en desuso</summary>
+
+`desktop_python/` sigue en el repositorio y funciona, pero ya no recibe
+funcionalidades nuevas. Se conserva únicamente como referencia hasta que la v2
+esté validada en producción. Ver [`docs/ARQUITECTURA_V2.md`](docs/ARQUITECTURA_V2.md)
+para la auditoría que motivó el reemplazo.
+
 | Tecnología | Uso |
 |-----------|-----|
 | Python 3.10+ | Runtime |
 | PySide6 | UI nativa multiplataforma (Qt6) |
 | python-socketio | WebSocket para sincronización en tiempo real |
 | requests | Cliente HTTP |
+
+</details>
 
 ### Base de datos
 | Colección | Propósito |
@@ -223,7 +251,23 @@ UTS-Nexus-Academico/
 │   ├── .env.example               # Variables de entorno (plantilla)
 │   └── package.json
 │
-├── desktop_python/                # App de escritorio (PySide6)
+├── desktop/                       # App de escritorio v2 (Tauri 2 + React 19)
+│   ├── src/
+│   │   ├── app/                   # Router, providers, error boundary
+│   │   ├── core/                  # HTTP, auth, config, realtime, plataforma
+│   │   ├── domain/                # Esquemas zod + puertos (sin React)
+│   │   ├── infrastructure/        # Adaptadores HTTP de los puertos
+│   │   ├── features/              # 11 pantallas, una por capacidad
+│   │   ├── shared/                # Design system, layouts, hooks
+│   │   ├── state/                 # Sesión, tema, toasts, sincronización
+│   │   └── styles/                # Tokens de diseño
+│   ├── src-tauri/                 # Shell nativo (Rust)
+│   │   ├── src/commands/          # secure_store · backend · files
+│   │   └── capabilities/          # Permisos nativos (lista blanca)
+│   ├── tests/                     # Pruebas unitarias (Vitest)
+│   └── README.md                  # Guía completa del cliente de escritorio
+│
+├── desktop_python/                # App de escritorio v1 (PySide6) — en desuso
 │   ├── ui/                        # Widgets: notas, asistencia, dashboard…
 │   ├── services/                  # API client + SyncWorker (WebSocket)
 │   └── main.py
@@ -235,9 +279,14 @@ UTS-Nexus-Academico/
 │   └── pubspec.yaml
 │
 ├── docs/
+│   ├── COMO_ABRIR.md              # Cómo abrir cada aplicación, paso a paso
+│   ├── ARQUITECTURA_V2.md         # Auditoría, arquitectura y plan del escritorio v2
 │   ├── FUNCIONAMIENTO.md          # Guía de uso completa
 │   └── REFACTOR.md                # Arquitectura, modelo de datos y migración
 │
+├── abrir_escritorio.bat           # Lanzador de la app de escritorio v2
+├── abrir_pc.bat                   # Lanzador de la app v1 en Python (en desuso)
+├── abrir_android.bat              # Lanzador de la app móvil
 ├── iniciar.ps1                    # Arranque automático — Windows
 ├── iniciar.sh                     # Arranque automático — Linux / macOS
 ├── docker-compose.yml             # Despliegue con Docker
@@ -284,15 +333,55 @@ El script realiza automáticamente:
 
 ### App de escritorio (Windows)
 
-**Doble clic en `abrir_pc.bat`** — abre el ejecutable compilado, o crea el
-entorno virtual y ejecuta desde código automáticamente.
+**Doble clic en `abrir_escritorio.bat`.** Compila el backend si hace falta, abre
+el ejecutable si ya existe, y si no lo compila por ti.
 
 ```bash
 # Alternativa manual
+cd desktop
+npm install
+npm run desktop:build    # genera el .exe y los instaladores
+```
+
+Una vez compilado, el ejecutable queda en:
+
+```
+desktop/src-tauri/target/release/uts-nexus-desktop.exe
+```
+
+Y los instaladores en `desktop/src-tauri/target/release/bundle/`:
+
+| Artefacto | Tamaño | Para qué |
+|-----------|--------|----------|
+| `nsis/UTS Nexus Académico_2.0.0_x64-setup.exe` | 2,1 MB | Instalación normal (recomendado) |
+| `msi/UTS Nexus Académico_2.0.0_x64_en-US.msi` | 2,7 MB | Despliegue por política de dominio |
+| `uts-nexus-desktop.exe` | 4,7 MB | Ejecutar sin instalar (portable) |
+
+**Requisitos para compilar** (solo la primera vez):
+
+```powershell
+winget install Rustlang.Rustup
+winget install --id Microsoft.VisualStudio.2022.BuildTools -e --override `
+  "--wait --passive --norestart --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.Windows11SDK.22621 --includeRecommended"
+```
+
+Para desarrollar la interfaz sin compilar Rust: `cd desktop && npm run dev`
+(abre en el navegador, con degradación automática de las funciones nativas).
+
+> Guía completa del cliente de escritorio: [`desktop/README.md`](desktop/README.md)
+
+<details>
+<summary>App de escritorio v1 (Python) — en desuso</summary>
+
+Sigue funcionando con **doble clic en `abrir_pc.bat`**, o manualmente:
+
+```bash
 cd desktop_python
 pip install -r requirements.txt
 python main.py
 ```
+
+</details>
 
 ### App móvil (Flutter / Android Studio)
 
@@ -314,16 +403,58 @@ flutter run
 
 ## Variables de entorno
 
+Nombres exactos leídos por `backend/src/shared/env.ts`. Un nombre mal escrito no
+da error: el backend cae silenciosamente al valor por defecto.
+
 ```env
 # backend/.env
+
+# Obligatoria. Sin ella el backend arranca pero no conecta a la base.
 MONGODB_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/uts_nexus
-JWT_SECRET=tu_secreto_super_seguro
+
+# Secretos JWT. OJO: la variable es JWT_ACCESS_SECRET, no JWT_SECRET.
+JWT_ACCESS_SECRET=tu_secreto_super_seguro
 JWT_REFRESH_SECRET=otro_secreto_diferente
+ACCESS_TOKEN_TTL=15m
+REFRESH_TOKEN_TTL=30d
+
 PORT=4000
+
+# Origen permitido por CORS. Para uso local con la app de escritorio, usa *
+# (ver la nota de abajo).
+CLIENT_ORIGIN=*
 
 # Escaneo automático de riesgo (0 = desactivado)
 RISK_SCAN_INTERVAL_MIN=30
+
+# Asistente de IA local (Ollama)
+AI_ENABLED=1
+AI_BASE_URL=http://localhost:11434
+AI_MODEL=llama3.1:8b
 ```
+
+| Variable | Por defecto si falta | Consecuencia de omitirla |
+|----------|---------------------|--------------------------|
+| `MONGODB_URI` | `''` | **El backend no conecta a la base de datos** |
+| `JWT_ACCESS_SECRET` | `dev-access` | Tokens firmados con un secreto público conocido |
+| `JWT_REFRESH_SECRET` | `dev-refresh` | Ídem para los refresh tokens |
+| `CLIENT_ORIGIN` | `*` | Ninguna en local; restringir solo en despliegue público |
+| `RISK_SCAN_INTERVAL_MIN` | `0` | Sin escaneo automático de riesgo |
+| `AI_ENABLED` | `1` | — |
+
+> ### CORS y la app de escritorio
+>
+> `CLIENT_ORIGIN` controla qué origen acepta el backend. La app empaquetada **no
+> se sirve desde `localhost`**: en Windows su origen es `http://tauri.localhost`,
+> y el servidor de desarrollo usa `http://localhost:5183`.
+>
+> Si `CLIENT_ORIGIN` apunta a un puerto concreto (por ejemplo `5173`), el login
+> desde el escritorio fallará con un error de red que **no** dice «CORS» — dirá
+> simplemente que no hay conexión.
+>
+> Para uso local, deja `CLIENT_ORIGIN=*`. El backend solo escucha en `127.0.0.1`,
+> así que no expone nada a la red. Restringe el origen únicamente si algún día
+> publicas el backend en internet.
 
 ---
 
@@ -355,9 +486,9 @@ Todos los endpoints requieren `Authorization: Bearer <token>` excepto `/auth/log
 |--------|------|-------------|
 | `GET` | `/grades` | Notas del docente (o propias si STUDENT) |
 | `POST` | `/grades` | Crear nota `{corte, componentType, label, score}` |
-| `PUT` | `/grades/:id` | Actualizar nota |
+| `PATCH` | `/grades/:id` | Actualizar nota |
 | `DELETE` | `/grades/:id` | Eliminar nota |
-| `GET` | `/grades/consolidado` | Nota final calculada por el backend |
+| `GET` | `/grades/consolidado` | Nota final calculada por el backend (requiere `period`) |
 
 ### Asistencia
 | Método | Ruta | Descripción |
@@ -390,13 +521,22 @@ Todos los endpoints requieren `Authorization: Bearer <token>` excepto `/auth/log
 ### Reportes
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| `GET` | `/reports/pdf/notas` | PDF de notas por corte y componente |
-| `GET` | `/reports/pdf/asistencia` | PDF de registros de asistencia |
-| `GET` | `/reports/pdf/completo` | PDF notas + asistencia |
+| `GET` | `/reports/summary` | Resumen agregado para el panel de reportes |
 | `GET` | `/reports/pdf/consolidado` | PDF con nota final, estado y % asistencia |
-| `GET` | `/reports/excel/notas` | Excel de notas |
-| `GET` | `/reports/excel/asistencia` | Excel de asistencia |
+| `GET` | `/reports/pdf/grades` | PDF de notas por corte y componente |
+| `GET` | `/reports/pdf/attendance` | PDF de registros de asistencia |
+| `GET` | `/reports/pdf/combined` | PDF notas + asistencia |
 | `GET` | `/reports/excel/consolidado` | Excel consolidado (Cédula, Estudiante, C1, C2, C3, Nota final, Estado, Asistencia, Semestre) |
+| `GET` | `/reports/excel/grades` | Excel de notas |
+| `GET` | `/reports/excel/attendance` | Excel de asistencia |
+| `GET` | `/reports/excel/combined` | Excel notas + asistencia |
+
+### Asistente de IA
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `GET` | `/ai/status` | Estado de Ollama: activo, modelo cargado, URL |
+| `POST` | `/ai/chat` | Consulta en lenguaje natural con contexto académico real |
+| `POST` | `/ai/predict` | Nota necesaria para aprobar + escenarios por estudiante |
 
 ---
 
@@ -404,27 +544,39 @@ Todos los endpoints requieren `Authorization: Bearer <token>` excepto `/auth/log
 
 El servidor emite eventos a **salas privadas por usuario** (`user:<id>`), nunca en broadcast global.
 
-**Conexión (requiere JWT):**
+**Conexión (requiere JWT en el handshake):**
 ```javascript
-// Flutter / JS
+// Escritorio v2 / Flutter / JS
 const socket = io("http://localhost:4000", {
-  auth: { token: accessToken }
+  transports: ["websocket"],
+  auth: { token: accessToken },
 });
 ```
 
-```python
-# Python (desktop)
-sio.connect(url, auth={"token": access_token})
-```
+Al conectar, el servidor une al cliente a dos salas: `user:<id>` y `role:<ROL>`.
+Los roles `ADMIN` y `COORDINATOR` además reciben los eventos dirigidos a otros
+usuarios.
 
 **Eventos emitidos:**
 
-| Evento | Cuándo |
-|--------|--------|
-| `grade:created` | Al guardar una nota nueva |
-| `grade:updated` | Al modificar una nota |
-| `attendance:created` | Al registrar asistencia |
-| `notification:new` | Al generar alerta de riesgo |
+| Evento | Payload | Cuándo |
+|--------|---------|--------|
+| `sync:ready` | `{ ok: true }` | Al completar el handshake |
+| `sync:update` | `{ entity, action, id }` | Ante cualquier cambio de datos |
+| `sync:pong` | `{ ts }` | Respuesta a `sync:ping` |
+
+`sync:update` es un **evento único** con el detalle en el payload, no una familia
+de eventos por entidad:
+
+| Campo | Valores |
+|-------|---------|
+| `entity` | `student` · `subject` · `group` · `grade` · `attendance` · `enrollment` · `notification` · `schedule` · `activity` · `professor` |
+| `action` | `create` · `update` · `delete` · `bulk` · `read` · `risk` · `reorder` |
+| `id` | Identificador del registro afectado |
+
+El cliente de escritorio v2 mapea cada `entity` a las claves de caché que
+invalida, así que solo se refresca la pantalla afectada
+(`desktop/src/core/realtime/socket.ts`).
 
 ---
 
@@ -449,7 +601,12 @@ El backend evalúa riesgo combinando **rendimiento parcial + asistencia**:
 > El riesgo usa `calcularPromedioParcial()` — solo los cortes ya calificados, con pesos renormalizados — para evitar que un buen estudiante aparezca en riesgo a mitad de semestre por cortes aún no dictados.
 
 **Activación automática:** `RISK_SCAN_INTERVAL_MIN=30` en `.env`
-**Activación manual:** botón "Escanear riesgo" en la app de escritorio o `POST /notifications/risks/scan`
+**Activación manual:** botón «Escanear riesgo» en la app de escritorio (pantallas
+*Riesgo* y *Notificaciones*) o `POST /notifications/risks/scan`
+
+En la app de escritorio v2, cada alerta muestra siempre el **motivo** junto al
+nivel —nunca solo un color—, porque de esa insignia depende que un docente
+decida intervenir con un estudiante.
 
 Las notificaciones son **idempotentes** (sin duplicados) y se envían al docente y al propio estudiante por WebSocket.
 
@@ -459,12 +616,20 @@ Las notificaciones son **idempotentes** (sin duplicados) y se envían al docente
 
 ```bash
 # Desde /backend
+npm run check:env        # Verifica el .env sin imprimir secretos
 npm run dev              # Servidor con recarga automática (desarrollo)
 npm run build            # Compilar TypeScript
 npm start                # Servidor compilado (producción)
 npm run seed             # Sembrar / resetear datos de demo
 npm run smoke            # Smoke test end-to-end (servidor debe estar arriba)
 npm run migrate:enrollments  # Migrar studentIds[] a colección Matrículas
+
+# Desde /desktop
+npm run dev              # Interfaz en el navegador (no requiere Rust)
+npm run desktop:dev      # Ventana nativa con recarga en caliente
+npm run desktop:build    # Ejecutable + instaladores NSIS y MSI
+npm run typecheck        # Verificación de tipos
+npm test                 # Pruebas unitarias (Vitest)
 
 # Docker
 docker compose up --build   # Levantar backend en contenedor
@@ -477,10 +642,26 @@ docker compose up --build   # Levantar backend en contenedor
 | Documento | Contenido |
 |-----------|-----------|
 | [`docs/COMO_ABRIR.md`](docs/COMO_ABRIR.md) | Cómo abrir la app de PC y la de Android (Android Studio) paso a paso |
+| [`desktop/README.md`](desktop/README.md) | Cliente de escritorio v2: requisitos, comandos, estructura y decisiones |
+| [`docs/ARQUITECTURA_V2.md`](docs/ARQUITECTURA_V2.md) | Auditoría de la v1, arquitectura de la v2 y plan de fases |
+| [`DESIGN.md`](DESIGN.md) | Sistema de diseño: paleta, tipografía, componentes y accesibilidad |
 | [`docs/FUNCIONAMIENTO.md`](docs/FUNCIONAMIENTO.md) | Guía de uso completa: roles, flujos, cálculos, FAQ |
 | [`docs/REFACTOR.md`](docs/REFACTOR.md) | Arquitectura, modelo de datos, decisiones de diseño y plan de migración |
 | [`README.txt`](README.txt) | Guía de arranque en texto plano (sin dependencias de Markdown) |
 | `http://localhost:4000/docs` | Swagger interactivo (servidor debe estar arriba) |
+
+---
+
+## Estado del proyecto
+
+| Componente | Estado |
+|-----------|--------|
+| Backend (Node.js / TypeScript) | ✅ Operativo |
+| App móvil (Flutter) | ✅ Operativa |
+| **App de escritorio v2 (Tauri + React)** | ✅ **Operativa · 29 pruebas · instalador 2,1 MB** |
+| App de escritorio v1 (PySide6) | 🗄️ En desuso, se conserva como referencia |
+| Servicio de ML (predicción de riesgo entrenada) | ⏳ Planificado — ver `docs/ARQUITECTURA_V2.md` §5 |
+| Pruebas E2E | ⏳ Planificadas |
 
 ---
 
