@@ -58,8 +58,13 @@ ARRANQUE RÁPIDO (backend + datos demo + prueba automática)
    Sobre CLIENT_ORIGIN: la app de escritorio no se sirve desde localhost
    (su origen es http://tauri.localhost). Si CLIENT_ORIGIN apunta a un puerto
    concreto, el login fallará con un error que dice "sin conexión" y no
-   menciona CORS. En local, deja CLIENT_ORIGIN=*  — el backend solo escucha
-   en 127.0.0.1, así que no expone nada a la red.
+   menciona CORS. En local, deja CLIENT_ORIGIN=*
+
+   OJO: el backend escucha en TODAS las interfaces (0.0.0.0), no solo en
+   127.0.0.1. Eso es lo que permite que el teléfono se conecte, pero también
+   lo hace visible para cualquiera en la misma red Wi-Fi. Todos los endpoints
+   exigen JWT, pero no lo expongas en una red pública sin cortafuegos.
+   Compruébalo con:  netstat -ano | findstr :4000
 
 2) Ejecuta el arranque automático:
 
