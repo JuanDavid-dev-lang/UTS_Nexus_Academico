@@ -8,6 +8,7 @@ import path from 'node:path';
 import { apiRouter } from './routes/index.js';
 import { swaggerSpec } from './shared/swagger.js';
 import { errorHandler } from './shared/error.js';
+import { dbStatus } from './shared/db.js';
 import { env } from './shared/env.js';
 
 export const app = express();
@@ -20,5 +21,16 @@ app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 250 }));
 app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/api/v1', apiRouter);
-app.get('/health', (_req, res) => res.json({ ok: true }));
+/**
+ * Sonda de salud.
+ *
+ * Informa del estado de la base de datos además del propio servidor: un cliente
+ * que solo sabe "el servidor responde" no puede distinguir entre "todo bien" y
+ * "el servidor está vivo pero no alcanza la base", que es justo la diferencia
+ * entre un login que funciona y uno que falla a los 10 segundos.
+ */
+app.get('/health', (_req, res) => {
+  const db = dbStatus();
+  res.json({ ok: true, db: db.status, dbError: db.error });
+});
 app.use(errorHandler);
