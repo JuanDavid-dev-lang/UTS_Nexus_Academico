@@ -1,4 +1,3 @@
-import '../models/auth_user.dart';
 import '../models/dashboard_summary.dart';
 import 'api_client.dart';
 
