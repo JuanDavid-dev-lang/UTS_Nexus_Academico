@@ -20,3 +20,9 @@ releases/
 
 # Cache de herramientas locales (no es del proyecto)
 .atl/
+
+# Firma de release del movil: NUNCA se versiona.
+# Perder estos archivos impide publicar actualizaciones de la app.
+flutter_app/android/key.properties
+flutter_app/android/*.jks
+flutter_app/android/*.keystore
