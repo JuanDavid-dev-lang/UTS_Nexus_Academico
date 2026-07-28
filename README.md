@@ -125,8 +125,24 @@ backend/src/
 | Flutter 3 | UI multiplataforma (Android/iOS) |
 | Riverpod | Estado reactivo y caché de providers |
 | GoRouter | Navegación declarativa |
-| Dio | Cliente HTTP con interceptores |
+| Dio | Cliente HTTP con renovación automática de token |
 | socket_io_client | WebSocket con auth JWT |
+| path_provider + share_plus | Guardar y compartir reportes exportados |
+
+**Sin configuración manual del servidor.** La app descubre el backend sola: barre
+la subred del dispositivo preguntando por `/health` y recuerda el que funcionó.
+La entrada manual queda como último recurso, para redes con aislamiento de
+clientes. Ver `flutter_app/lib/core/network/server_discovery.dart`.
+
+**Navegación por materia.** Los estudiantes no son una lista plana: se llega a
+ellos desde su materia (`Materias → Cálculo I → sus estudiantes`), que es como
+los busca un docente. Dentro de cada materia la lista se ordena por riesgo, no
+alfabéticamente.
+
+| Identificador | `co.edu.uts.nexus.academico` |
+|---|---|
+| Nombre visible | UTS Nexus Académico |
+| Firma | Clave de depuración — **falta un keystore propio para publicar** |
 
 ### App de escritorio (v2)
 | Tecnología | Uso |
@@ -452,9 +468,25 @@ AI_MODEL=llama3.1:8b
 > desde el escritorio fallará con un error de red que **no** dice «CORS» — dirá
 > simplemente que no hay conexión.
 >
-> Para uso local, deja `CLIENT_ORIGIN=*`. El backend solo escucha en `127.0.0.1`,
-> así que no expone nada a la red. Restringe el origen únicamente si algún día
-> publicas el backend en internet.
+> Para uso local, deja `CLIENT_ORIGIN=*`.
+>
+> ### El backend SÍ es visible en tu red local
+>
+> `server.listen(PORT)` sin host hace que Node escuche en **todas** las
+> interfaces (`0.0.0.0` y `[::]`), no solo en `127.0.0.1`. Compruébalo con
+> `netstat -ano | findstr :4000`.
+>
+> Eso es justo lo que permite que la app móvil se conecte desde el teléfono. Pero
+> también significa que cualquiera en la misma red Wi-Fi puede alcanzar la API.
+>
+> No es tan grave como suena —todos los endpoints exigen JWT y `/health` no
+> revela nada—, pero conviene saberlo: no lo uses en una red pública sin un
+> cortafuegos delante, y `CLIENT_ORIGIN=*` no es aceptable si algún día publicas
+> el backend en internet.
+>
+> CORS, además, solo lo aplican los navegadores: no protege frente a un cliente
+> nativo ni frente a `curl`. La autenticación es lo que protege la API; CORS
+> únicamente decide qué páginas web pueden llamarla.
 
 ---
 
