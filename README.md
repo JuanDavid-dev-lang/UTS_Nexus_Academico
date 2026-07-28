@@ -689,11 +689,34 @@ docker compose up --build   # Levantar backend en contenedor
 | Componente | Estado |
 |-----------|--------|
 | Backend (Node.js / TypeScript) | ✅ Operativo |
-| App móvil (Flutter) | ✅ Operativa |
-| **App de escritorio v2 (Tauri + React)** | ✅ **Operativa · 29 pruebas · instalador 2,1 MB** |
+| App móvil (Flutter) | ✅ Operativa · 7 pruebas · APK firmado |
+| **App de escritorio v2 (Tauri + React)** | ✅ **Operativa · 31 pruebas · instalador 2,1 MB** |
 | App de escritorio v1 (PySide6) | 🗄️ En desuso, se conserva como referencia |
-| Servicio de ML (predicción de riesgo entrenada) | ⏳ Planificado — ver `docs/ARQUITECTURA_V2.md` §5 |
+| **Servicio de ML** (`ml_service/`) | ✅ **Operativo · 13 pruebas** — ver [`ml_service/README.md`](ml_service/README.md) |
 | Pruebas E2E | ⏳ Planificadas |
+
+### Predicción de riesgo con aprendizaje
+
+`ml_service/` sustituye los umbrales fijos de `domains/risk` (promedio < 3.0,
+asistencia < 70%) por un modelo entrenado. Python + FastAPI + scikit-learn, con
+explicación SHAP obligatoria: **ninguna predicción sale sin decir qué la causó**.
+
+Arranca con un modelo derivado de las reglas actuales —porque una institución
+nueva no tiene casos cerrados con los que entrenar— y aprende de verdad cuando
+el docente valora las alertas y se cierran los semestres. Un modelo nuevo solo
+reemplaza al vigente **si le gana en validación**; se compara por recall, porque
+dejar de detectar a un estudiante en riesgo es peor que revisar a uno que estaba
+bien.
+
+Si el servicio se cae, el backend usa el motor de reglas y lo declara en el
+campo `source` (`model` o `rules`). El docente siempre sabe de dónde salió la
+alerta.
+
+```ini
+# backend/.env
+ML_BASE_URL=http://127.0.0.1:8100
+ML_ENABLED=1
+```
 
 ---
 
