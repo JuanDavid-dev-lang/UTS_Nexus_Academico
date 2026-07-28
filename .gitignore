@@ -17,3 +17,6 @@ __pycache__/
 # Artefactos de build / distribución
 releases/
 *.zip
+
+# Cache de herramientas locales (no es del proyecto)
+.atl/
