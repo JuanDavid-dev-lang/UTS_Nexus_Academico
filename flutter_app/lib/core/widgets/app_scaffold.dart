@@ -21,14 +21,15 @@ import '../theme/app_theme.dart';
 class NavDestination {
   final String route;
   final String label;
+
+  /// Siempre en trazo (outline): la selección la comunican el indicador y el
+  /// color, no un cambio de estilo de icono.
   final IconData icon;
-  final IconData activeIcon;
 
   const NavDestination({
     required this.route,
     required this.label,
     required this.icon,
-    required this.activeIcon,
   });
 }
 
@@ -41,25 +42,21 @@ const primaryDestinations = <NavDestination>[
     route: '/',
     label: 'Panel',
     icon: Icons.space_dashboard_outlined,
-    activeIcon: Icons.space_dashboard,
   ),
   NavDestination(
     route: '/subjects',
     label: 'Materias',
     icon: Icons.menu_book_outlined,
-    activeIcon: Icons.menu_book,
   ),
   NavDestination(
     route: '/attendance',
     label: 'Asistencia',
     icon: Icons.fact_check_outlined,
-    activeIcon: Icons.fact_check,
   ),
   NavDestination(
     route: '/ai',
     label: 'Asistente',
     icon: Icons.auto_awesome_outlined,
-    activeIcon: Icons.auto_awesome,
   ),
 ];
 
@@ -69,37 +66,31 @@ const secondaryDestinations = <NavDestination>[
     route: '/grades',
     label: 'Consolidado de notas',
     icon: Icons.school_outlined,
-    activeIcon: Icons.school,
   ),
   NavDestination(
     route: '/students',
     label: 'Directorio de estudiantes',
     icon: Icons.people_outline,
-    activeIcon: Icons.people,
   ),
   NavDestination(
     route: '/schedule',
     label: 'Horario',
     icon: Icons.schedule_outlined,
-    activeIcon: Icons.schedule,
   ),
   NavDestination(
     route: '/reports',
     label: 'Reportes',
     icon: Icons.description_outlined,
-    activeIcon: Icons.description,
   ),
   NavDestination(
     route: '/notifications',
     label: 'Notificaciones',
     icon: Icons.notifications_outlined,
-    activeIcon: Icons.notifications,
   ),
   NavDestination(
     route: '/settings',
     label: 'Ajustes',
     icon: Icons.settings_outlined,
-    activeIcon: Icons.settings,
   ),
 ];
 
@@ -147,13 +138,13 @@ class AppScaffold extends StatelessWidget {
             NavigationRail(
               // NavigationRail exige un índice válido; -1 lo haría fallar.
               selectedIndex: index < 0 ? 0 : index,
-              onDestinationSelected: (i) => context.go(_allDestinations[i].route),
+              onDestinationSelected: (i) =>
+                  context.go(_allDestinations[i].route),
               labelType: NavigationRailLabelType.all,
               destinations: [
                 for (final destination in _allDestinations)
                   NavigationRailDestination(
                     icon: Icon(destination.icon),
-                    selectedIcon: Icon(destination.activeIcon),
                     label: Text(destination.label),
                   ),
               ],
@@ -185,11 +176,10 @@ class AppScaffold extends StatelessWidget {
           for (final destination in primaryDestinations)
             NavigationDestination(
               icon: Icon(destination.icon),
-              selectedIcon: Icon(destination.activeIcon),
               label: destination.label,
             ),
           const NavigationDestination(
-            icon: Icon(Icons.more_horiz),
+            icon: Icon(Icons.more_horiz_outlined),
             label: 'Más',
           ),
         ],
@@ -214,8 +204,7 @@ class AppScaffold extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
                 child: Text(
                   'MÁS SECCIONES',
-                  style: TextStyle(
-                    fontSize: 11,
+                  style: AppType.captionStrong.copyWith(
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.8,
                     color: muted,
@@ -225,9 +214,7 @@ class AppScaffold extends StatelessWidget {
               for (final destination in secondaryDestinations)
                 ListTile(
                   leading: Icon(
-                    currentRoute == destination.route
-                        ? destination.activeIcon
-                        : destination.icon,
+                    destination.icon,
                     color: currentRoute == destination.route
                         ? Theme.of(sheetContext).colorScheme.primary
                         : null,

@@ -43,7 +43,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Ajustes')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+        padding: AppSpacing.pagePadding,
         children: [
           _SectionLabel('Servidor', muted: muted),
           AppCard(
@@ -57,15 +57,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         ConnectionPhase.connected => Icons.check_circle_outline,
                         ConnectionPhase.degraded =>
                           Icons.warning_amber_outlined,
-                        ConnectionPhase.discovering => Icons.travel_explore,
+                        ConnectionPhase.discovering =>
+                          Icons.travel_explore_outlined,
                         ConnectionPhase.checking => Icons.wifi_find_outlined,
                         ConnectionPhase.notFound => Icons.wifi_off_outlined,
                       },
                       size: 20,
                       color: switch (connection.phase) {
-                        ConnectionPhase.connected => AppColors.success,
-                        ConnectionPhase.degraded => AppColors.warningText,
-                        ConnectionPhase.notFound => AppColors.danger,
+                        ConnectionPhase.connected =>
+                          SemanticTone.of(context, SemanticKind.success).fg,
+                        ConnectionPhase.degraded =>
+                          SemanticTone.of(context, SemanticKind.warning).fg,
+                        ConnectionPhase.notFound =>
+                          SemanticTone.of(context, SemanticKind.danger).fg,
                         _ => muted,
                       },
                     ),
@@ -76,13 +80,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         children: [
                           Text(
                             connection.baseUrl ?? 'Sin servidor',
-                            style: const TextStyle(
-                                fontSize: 13.5, fontFamily: 'monospace'),
+                            style: AppType.caption
+                                .copyWith(fontFamily: 'monospace'),
                           ),
                           if (connection.detail != null)
                             Text(connection.detail!,
                                 style:
-                                    TextStyle(fontSize: 11.5, color: muted)),
+                                    AppType.caption.copyWith(color: muted)),
                         ],
                       ),
                     ),
@@ -152,7 +156,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       ref.read(themeModeProvider.notifier).toggleDark(value),
                   title: const Text('Modo oscuro'),
                   subtitle: const Text('Verde profundo con lettering lima'),
-                  secondary: Icon(dark ? Icons.dark_mode : Icons.light_mode),
+                  secondary: Icon(dark
+                      ? Icons.dark_mode_outlined
+                      : Icons.light_mode_outlined),
                 );
               },
             ),
@@ -165,7 +171,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               leading: const Icon(Icons.person_outline),
               title: const Text('Mi perfil'),
               subtitle: const Text('Datos de la sesión y cerrar sesión'),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: const Icon(Icons.chevron_right_outlined),
               onTap: () => context.go('/profile'),
             ),
           ),
@@ -206,8 +212,7 @@ class _SectionLabel extends StatelessWidget {
       padding: const EdgeInsets.only(left: 4, bottom: 8),
       child: Text(
         text.toUpperCase(),
-        style: TextStyle(
-          fontSize: 10.5,
+        style: AppType.captionStrong.copyWith(
           letterSpacing: 0.8,
           fontWeight: FontWeight.w700,
           color: muted,

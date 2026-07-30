@@ -73,7 +73,7 @@ class _AiPageState extends ConsumerState<AiPage> {
                 ? _EmptyChat(onPick: _send)
                 : ListView.builder(
                     controller: _scroll,
-                    padding: const EdgeInsets.all(16),
+                    padding: AppSpacing.pagePadding,
                     itemCount: chat.messages.length + (chat.sending ? 1 : 0),
                     itemBuilder: (context, i) {
                       if (i >= chat.messages.length) return const _TypingBubble();
@@ -104,8 +104,10 @@ class _StatusBanner extends ConsumerWidget {
       error: (_, __) => const SizedBox.shrink(),
       data: (s) {
         final ok = s.enabled && s.available && s.modelReady;
-        final color = ok ? AppColors.success : AppColors.warningText;
-        final bg = ok ? AppColors.successSoft : AppColors.warningSoft;
+        final tone = SemanticTone.of(
+            context, ok ? SemanticKind.success : SemanticKind.warning);
+        final color = tone.fg;
+        final bg = tone.bg;
         final text = ok
             ? 'IA local activa · ${s.model ?? ''}'
             : 'IA local no disponible — respuestas básicas por reglas';
@@ -115,12 +117,12 @@ class _StatusBanner extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
             children: [
-              Icon(ok ? Icons.bolt : Icons.info_outline, size: 16, color: color),
+              Icon(ok ? Icons.bolt_outlined : Icons.info_outline,
+                  size: 16, color: color),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(text,
-                    style: TextStyle(
-                        color: color, fontSize: 12.5, fontWeight: FontWeight.w600)),
+                    style: AppType.captionStrong.copyWith(color: color)),
               ),
             ],
           ),
@@ -136,22 +138,24 @@ class _EmptyChat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final brand = SemanticTone.of(context, SemanticKind.brand);
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
         const SizedBox(height: 24),
-        const Icon(Icons.smart_toy_outlined, size: 56, color: AppColors.primary),
+        Icon(Icons.smart_toy_outlined, size: 56, color: brand.fg),
         const SizedBox(height: 12),
         const Center(
-          child: Text('Asistente académico',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+          child: Text('Asistente académico', style: AppType.h3),
         ),
         const SizedBox(height: 6),
-        const Center(
+        Center(
           child: Text(
             'Pregunta en lenguaje natural sobre tus estudiantes:\nnotas, riesgo, asistencia y recomendaciones.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textMuted),
+            style: TextStyle(color: muted),
           ),
         ),
         const SizedBox(height: 24),
@@ -164,8 +168,8 @@ class _EmptyChat extends StatelessWidget {
               ActionChip(
                 label: Text(s),
                 onPressed: () => onPick(s),
-                backgroundColor: AppColors.infoSoft,
-                labelStyle: const TextStyle(color: AppColors.primary),
+                backgroundColor: brand.bg,
+                labelStyle: TextStyle(color: brand.fg),
                 side: BorderSide.none,
               ),
           ],
@@ -187,12 +191,9 @@ class _Bubble extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final assistantBg = isDark ? AppColors.surfaceAltDark : AppColors.surfaceAlt;
     final assistantFg = isDark ? AppColors.textDark : AppColors.text;
-    final bg = isUser
-        ? scheme.primary
-        : (isError ? AppColors.dangerSoft : assistantBg);
-    final fg = isUser
-        ? scheme.onPrimary
-        : (isError ? AppColors.danger : assistantFg);
+    final error = SemanticTone.of(context, SemanticKind.danger);
+    final bg = isUser ? scheme.primary : (isError ? error.bg : assistantBg);
+    final fg = isUser ? scheme.onPrimary : (isError ? error.fg : assistantFg);
 
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -214,11 +215,12 @@ class _Bubble extends StatelessWidget {
           crossAxisAlignment:
               isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
-            Text(message.content, style: TextStyle(color: fg, fontSize: 14, height: 1.35)),
+            Text(message.content,
+                style: AppType.body.copyWith(color: fg, height: 1.35)),
             if (!isUser && message.source == 'rules') ...[
               const SizedBox(height: 4),
-              const Text('modo básico (sin IA)',
-                  style: TextStyle(fontSize: 10, color: AppColors.textMuted)),
+              Text('modo básico (sin IA)',
+                  style: AppType.caption.copyWith(color: AppColors.textMuted)),
             ],
           ],
         ),
@@ -308,7 +310,7 @@ class _InputBar extends StatelessWidget {
                       height: 18,
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white))
-                  : const Icon(Icons.send),
+                  : const Icon(Icons.send_outlined),
             ),
           ],
         ),

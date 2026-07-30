@@ -191,7 +191,7 @@ export function CommandPalette({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Buscar estudiantes, materias o acciones…"
-              className="h-12 flex-1 bg-transparent text-sm text-text outline-none placeholder:text-muted"
+              className="h-12 flex-1 bg-transparent text-body text-text outline-none placeholder:text-muted"
               aria-label="Buscar"
             />
             <Kbd>Esc</Kbd>
@@ -199,7 +199,7 @@ export function CommandPalette({
 
           <div ref={listRef} className="scrollbar-slim max-h-80 overflow-y-auto p-2">
             {results.length === 0 ? (
-              <p className="px-3 py-8 text-center text-sm text-muted">
+              <p className="px-3 py-8 text-center text-body text-muted">
                 Sin resultados para “{query}”.
               </p>
             ) : (
@@ -210,7 +210,7 @@ export function CommandPalette({
                 return (
                   <div key={command.id}>
                     {showGroup ? (
-                      <p className="px-3 pb-1 pt-3 text-[10px] font-bold uppercase tracking-wide text-muted">
+                      <p className="px-3 pb-1 pt-3 text-caption font-bold uppercase tracking-wide text-muted">
                         {command.group}
                       </p>
                     ) : null}
@@ -220,14 +220,14 @@ export function CommandPalette({
                       onClick={command.run}
                       onMouseEnter={() => setActiveIndex(index)}
                       className={cn(
-                        'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors',
+                        'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-body transition-colors',
                         index === activeIndex ? 'bg-primary/10 text-primary' : 'text-text',
                       )}
                     >
                       <command.icon className="size-4 shrink-0 opacity-70" aria-hidden />
                       <span className="flex-1 truncate">{command.label}</span>
                       {command.hint ? (
-                        <span className="shrink-0 text-xs text-muted">{command.hint}</span>
+                        <span className="shrink-0 text-caption text-muted">{command.hint}</span>
                       ) : null}
                       {index === activeIndex ? (
                         <CornerDownLeft className="size-3.5 shrink-0 opacity-60" aria-hidden />

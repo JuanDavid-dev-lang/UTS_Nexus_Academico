@@ -21,7 +21,7 @@ export function SkeletonStatGrid({ count = 6 }: { count?: number }) {
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
       {Array.from({ length: count }, (_, index) => (
-        <div key={index} className="surface-card flex flex-col gap-3 p-5">
+        <div key={index} className="surface-card flex flex-col gap-3 p-6">
           <Skeleton className="h-3 w-20" />
           <Skeleton className="h-8 w-16" />
           <Skeleton className="h-3 w-24" />

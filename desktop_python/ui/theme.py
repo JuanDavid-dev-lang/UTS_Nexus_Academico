@@ -23,15 +23,17 @@ LIGHT = {
     "PRIMARY_HOVER": "#1C6B4C",
     "ON_PRIMARY": "#FFFFFF",     # Texto sobre el verde
     "SECONDARY": "#CAD225",      # Lima (acento)
+    "ACCENT_SECONDARY": "#999E3C",  # Oliva: hover secundario, iconos inactivos
     "TITLE": "#144D37",          # Títulos / marca
     "SUCCESS": "#16A34A",
-    "WARNING": "#B45309",
+    "WARNING": "#B45309",        # Ámbar oscuro: el #D97706 de marca no da AA
     "DANGER": "#DC2626",
     "INFO": "#0E7490",
     "BG": "#F4F7F1",             # Fondo general (tinte verde muy suave)
     "SURFACE": "#FFFFFF",
     "SURFACE_ALT": "#EAF0E6",
     "BORDER": "#D8E2D4",
+    "BORDER_STRONG": "#B9CBB2",
     "TEXT": "#12271E",           # Casi negro verdoso (legible)
     "TEXT_MUTED": "#5B6B61",
     "SUCCESS_SOFT": "#DCFCE7",
@@ -41,27 +43,40 @@ LIGHT = {
     "ACCENT_SOFT": "#F1F6CE",    # Lima suave para resaltados
 }
 
+# Escala oliva de DESIGN.md §4. El modo oscuro anterior pintaba las superficies
+# con el verde institucional y la letra en lima: las capas no se distinguían y
+# el texto competía con los botones. Ahora las superficies son oliva neutro y la
+# lima queda reservada a la interacción.
+#
+# La elevación la marca el contraste tonal, nunca el acento:
+# BG → SURFACE → SURFACE_ALT → BORDER.
 DARK = {
     "PRIMARY": "#CAD225",        # En oscuro, la lima es el acento principal
     "PRIMARY_HOVER": "#D8E04A",
-    "ON_PRIMARY": "#0F3D2B",     # Texto verde oscuro sobre lima
+    "ON_PRIMARY": "#232922",     # Texto oliva oscuro sobre lima
     "SECONDARY": "#CAD225",
-    "TITLE": "#CAD225",          # Lettering lima sobre verde
+    "ACCENT_SECONDARY": "#999E3C",
+    # Los títulos NO van en lima (§4 regla 4): compiten con los CTAs.
+    "TITLE": "#EDEFDD",
+    # Los hex canónicos de §4 están calibrados para texto sobre blanco; sobre
+    # #33332A caen a 2.4–4.0:1, por debajo del 4.5:1 que exigen §4 regla 5
+    # y §15. Se aclaran conservando el significado.
     "SUCCESS": "#4ADE80",
     "WARNING": "#FBBF24",
     "DANGER": "#F87171",
     "INFO": "#38BDF8",
-    "BG": "#0F3D2B",             # Verde profundo (dominante)
-    "SURFACE": "#164D38",        # Verde institucional como superficie
-    "SURFACE_ALT": "#1E5B44",
-    "BORDER": "#2E6B51",
-    "TEXT": "#E9F2D3",           # Lima muy claro (letra legible)
-    "TEXT_MUTED": "#9FB89F",
-    "SUCCESS_SOFT": "#14532D",
-    "WARNING_SOFT": "#4D3B12",
-    "DANGER_SOFT": "#4C1D1D",
-    "INFO_SOFT": "#0C4A6E",
-    "ACCENT_SOFT": "#26361A",
+    "BG": "#232922",             # Fondo base
+    "SURFACE": "#33332A",        # Cards / paneles (elevación 1)
+    "SURFACE_ALT": "#37382C",    # Flotantes / cabeceras (elevación 2)
+    "BORDER": "#43442F",         # #696B3E al 30% sobre la superficie de card
+    "BORDER_STRONG": "#696B3E",
+    "TEXT": "#EDEFDD",           # Crema-lima, no lima puro
+    "TEXT_MUTED": "#A6AA8A",
+    "SUCCESS_SOFT": "#1C3B23",
+    "WARNING_SOFT": "#40320F",
+    "DANGER_SOFT": "#43201D",
+    "INFO_SOFT": "#123A44",
+    "ACCENT_SOFT": "#3A3D1C",
 }
 
 
@@ -76,6 +91,7 @@ class Theme:
     PRIMARY_HOVER = LIGHT["PRIMARY_HOVER"]
     ON_PRIMARY = LIGHT["ON_PRIMARY"]
     SECONDARY = LIGHT["SECONDARY"]
+    ACCENT_SECONDARY = LIGHT["ACCENT_SECONDARY"]
     TITLE = LIGHT["TITLE"]
     SUCCESS = LIGHT["SUCCESS"]
     WARNING = LIGHT["WARNING"]
@@ -85,6 +101,7 @@ class Theme:
     SURFACE = LIGHT["SURFACE"]
     SURFACE_ALT = LIGHT["SURFACE_ALT"]
     BORDER = LIGHT["BORDER"]
+    BORDER_STRONG = LIGHT["BORDER_STRONG"]
     TEXT = LIGHT["TEXT"]
     TEXT_MUTED = LIGHT["TEXT_MUTED"]
     SUCCESS_SOFT = LIGHT["SUCCESS_SOFT"]
@@ -93,13 +110,15 @@ class Theme:
     INFO_SOFT = LIGHT["INFO_SOFT"]
     ACCENT_SOFT = LIGHT["ACCENT_SOFT"]
 
-    # Tipografía (DESIGN.md §5)
-    FONT_FAMILY = "Inter, 'Segoe UI', Roboto, sans-serif"
-    FS_H1 = 32
-    FS_H2 = 26
-    FS_H3 = 20
-    FS_BODY = 14
-    FS_CAPTION = 12
+    # Tipografía (DESIGN.md §5). Inter primero, Roboto como respaldo declarado.
+    # load_fonts() la registra desde assets/, así que la familia resuelve aunque
+    # no esté instalada en el sistema.
+    FONT_FAMILY = "Inter, Roboto, 'Segoe UI', sans-serif"
+    FS_H1 = 36      # Título de página
+    FS_H2 = 30      # Sección principal
+    FS_H3 = 24      # Subsección / título de tarjeta
+    FS_BODY = 16    # Texto general
+    FS_CAPTION = 13  # Metadatos, etiquetas, notas al pie
 
     # Espaciado y radios (DESIGN.md §7)
     SPACE_PAGE = 24
@@ -107,6 +126,34 @@ class Theme:
     RADIUS_CARD = 18
     RADIUS_INPUT = 12
     RADIUS_PILL = 999
+
+
+def load_fonts() -> bool:
+    """Registra Inter desde assets/ para que la familia resuelva de verdad.
+
+    Sin esto `FONT_FAMILY` es una declaración muerta: Qt cae al primer nombre
+    que exista en el sistema, que en Windows es Segoe UI. Se empaqueta en vez de
+    depender de una instalación previa porque la app se usa en equipos del
+    campus donde nadie instala tipografías.
+
+    Devuelve True si se registró al menos un peso. Si no, la app sigue
+    funcionando con el respaldo del sistema — una fuente ausente no es motivo
+    para no arrancar.
+    """
+    import sys
+    from pathlib import Path
+
+    from PySide6.QtGui import QFontDatabase
+
+    # Empaquetado con PyInstaller los datos viven en _MEIPASS, no junto al
+    # fuente; ejecutando desde el repositorio, dos niveles por encima de ui/.
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
+    fonts_dir = base / "assets" / "fonts"
+    loaded = 0
+    for path in sorted(fonts_dir.glob("Inter-*.ttf")):
+        if QFontDatabase.addApplicationFont(str(path)) != -1:
+            loaded += 1
+    return loaded > 0
 
 
 def set_mode(dark: bool) -> None:
@@ -142,7 +189,7 @@ QMainWindow, QWidget {{
 QFrame#Sidebar {{
     background: {p['SURFACE']};
     border: 1px solid {p['BORDER']};
-    border-radius: 24px;
+    border-radius: {Theme.RADIUS_CARD}px;
 }}
 
 QFrame#TopBar, QFrame#Card, QFrame#Surface,
@@ -163,6 +210,14 @@ QLabel#AppTitle {{
     color: {p['TITLE']};
 }}
 
+/* Título de la página activa (§5 H1). Solo hay uno por pantalla. */
+QLabel#PageTitle {{
+    font-size: {Theme.FS_H1}px;
+    font-weight: 800;
+    color: {p['TITLE']};
+}}
+
+/* Encabezado de una sección dentro de la página (§5 H2). */
 QLabel#SectionTitle {{
     font-size: {Theme.FS_H2}px;
     font-weight: 700;
@@ -176,20 +231,20 @@ QLabel#SectionSubtitle {{
 
 QLabel#MetricLabel {{
     color: {p['TEXT_MUTED']};
-    font-size: 11px;
+    font-size: {Theme.FS_CAPTION}px;
     text-transform: uppercase;
     letter-spacing: 1px;
 }}
 
 QLabel#MetricValue {{
-    font-size: {Theme.FS_H3}px;
+    font-size: {Theme.FS_H2}px;
     font-weight: 800;
     color: {p['TEXT']};
 }}
 
 QLabel#MetricHint {{
     color: {p['TEXT_MUTED']};
-    font-size: 10px;
+    font-size: {Theme.FS_CAPTION}px;
 }}
 
 QLabel#Muted {{

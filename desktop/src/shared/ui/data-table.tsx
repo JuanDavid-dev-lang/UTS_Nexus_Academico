@@ -118,7 +118,7 @@ export function DataTable<T>({
               role="columnheader"
               aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
               className={cn(
-                'text-[11px] font-semibold uppercase tracking-wide text-muted',
+                'text-caption font-semibold uppercase tracking-wide text-muted',
                 column.align === 'right' && 'text-right',
                 column.align === 'center' && 'text-center',
               )}
@@ -163,7 +163,7 @@ export function DataTable<T>({
                 role="row"
                 className={cn(
                   'absolute left-0 top-0 grid w-full items-center gap-3 border-b border-border px-4',
-                  'transition-colors duration-100 hover:bg-surface-alt',
+                  'transition-colors duration-200 ease-out hover:bg-surface-alt',
                   onRowClick && 'cursor-pointer',
                 )}
                 style={{
@@ -186,7 +186,7 @@ export function DataTable<T>({
                     key={column.key}
                     role="cell"
                     className={cn(
-                      'min-w-0 truncate text-sm text-text',
+                      'min-w-0 truncate text-body text-text',
                       column.align === 'right' && 'text-right',
                       column.align === 'center' && 'text-center',
                     )}
@@ -200,7 +200,7 @@ export function DataTable<T>({
         </div>
       </div>
 
-      <div className="border-t border-border px-4 py-2 text-[11px] text-muted">
+      <div className="border-t border-border px-4 py-2 text-caption text-muted">
         {sortedRows.length} {sortedRows.length === 1 ? 'registro' : 'registros'}
       </div>
     </div>

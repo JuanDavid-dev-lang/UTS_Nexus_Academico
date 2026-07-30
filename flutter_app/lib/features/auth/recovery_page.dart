@@ -65,7 +65,7 @@ class _RecoveryPageState extends State<RecoveryPage> {
                           _step == _Step.requestCode
                               ? 'Te enviaremos un código al correo institucional registrado.'
                               : 'Revisa tu correo e ingresa el código que recibiste.',
-                          style: TextStyle(fontSize: 14, color: muted),
+                          style: AppType.body.copyWith(color: muted),
                         ),
                         const SizedBox(height: 22),
                         TextField(
@@ -110,8 +110,8 @@ class _RecoveryPageState extends State<RecoveryPage> {
                               Expanded(
                                 child: Text(
                                   _error!,
-                                  style: const TextStyle(
-                                      fontSize: 13, color: AppColors.danger),
+                                  style: AppType.caption
+                                      .copyWith(color: AppColors.danger),
                                 ),
                               ),
                             ],
@@ -204,10 +204,10 @@ class _DoneView extends StatelessWidget {
         const Icon(Icons.check_circle_outline,
             size: 64, color: AppColors.success),
         const SizedBox(height: 18),
-        const Text(
+        Text(
           'Contraseña actualizada',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+          style: AppType.h3.copyWith(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 8),
         const Text(

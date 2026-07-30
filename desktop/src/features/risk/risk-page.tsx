@@ -85,7 +85,7 @@ export default function RiskPage() {
         cell: (row) => (
           <div className="flex min-w-0 flex-col">
             <span className="truncate font-medium">{row.fullName}</span>
-            <span className="truncate font-mono text-xs text-muted">{row.code}</span>
+            <span className="truncate font-mono text-caption text-muted">{row.code}</span>
           </div>
         ),
       },
@@ -120,7 +120,7 @@ export default function RiskPage() {
         sortValue: (row) => row.attendanceRate,
         cell: (row) => (
           <div className="flex flex-col items-center gap-1">
-            <span className="font-mono text-xs tabular-nums">
+            <span className="font-mono text-caption tabular-nums">
               {formatPercent(row.attendanceRate)}
             </span>
             <Progress
@@ -148,7 +148,7 @@ export default function RiskPage() {
         align: 'right',
         sortValue: (row) => row.riskScore,
         cell: (row) => (
-          <span className="font-mono text-xs tabular-nums text-muted">{row.riskScore}/100</span>
+          <span className="font-mono text-caption tabular-nums text-muted">{row.riskScore}/100</span>
         ),
       },
     ],
@@ -188,30 +188,30 @@ export default function RiskPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Riesgo alto</CardDescription>
-            <CardTitle className="font-mono text-3xl text-danger">{counts.HIGH}</CardTitle>
+            <CardTitle className="font-mono text-h2 text-danger">{counts.HIGH}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-muted">Requieren contacto inmediato</p>
+            <p className="text-caption text-muted">Requieren contacto inmediato</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Riesgo medio</CardDescription>
-            <CardTitle className="font-mono text-3xl text-warning">{counts.MEDIUM}</CardTitle>
+            <CardTitle className="font-mono text-h2 text-warning">{counts.MEDIUM}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-muted">Seguimiento en las próximas semanas</p>
+            <p className="text-caption text-muted">Seguimiento en las próximas semanas</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Total en seguimiento</CardDescription>
-            <CardTitle className="font-mono text-3xl">{counts.all}</CardTitle>
+            <CardTitle className="font-mono text-h2">{counts.all}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-muted">Estudiantes con alguna señal de alerta</p>
+            <p className="text-caption text-muted">Estudiantes con alguna señal de alerta</p>
           </CardContent>
         </Card>
       </div>
@@ -276,17 +276,17 @@ export default function RiskPage() {
                   className="flex flex-col gap-1.5 rounded-lg border border-border p-3"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-text">{item.fullName}</span>
+                    <span className="text-body font-medium text-text">{item.fullName}</span>
                     <RiskBadge level={item.level} />
                   </div>
                   {item.motivos.length > 0 ? (
-                    <ul className="ml-4 list-disc text-xs text-muted">
+                    <ul className="ml-4 list-disc text-caption text-muted">
                       {item.motivos.map((reason) => (
                         <li key={reason}>{reason}</li>
                       ))}
                     </ul>
                   ) : (
-                    <p className="text-xs text-muted">Sin motivos registrados.</p>
+                    <p className="text-caption text-muted">Sin motivos registrados.</p>
                   )}
                 </div>
               ))}

@@ -66,26 +66,26 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         actions: const [PeriodSelector()],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+        padding: AppSpacing.pagePadding,
         children: [
           AppCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Alcance',
-                    style:
-                        TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                Text('Alcance',
+                    style: AppType.bodyStrong
+                        .copyWith(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
                 Text(
                   'Los documentos se generan solo con los datos que tienes '
                   'autorizados a ver.',
-                  style: TextStyle(fontSize: 12.5, color: muted),
+                  style: AppType.caption.copyWith(color: muted),
                 ),
                 const SizedBox(height: 14),
                 subjects.when(
                   loading: () => const SkeletonBox(height: 48, radius: 12),
                   error: (_, __) => Text('No se pudieron cargar las materias',
-                      style: TextStyle(fontSize: 12, color: muted)),
+                      style: AppType.caption.copyWith(color: muted)),
                   data: (items) => DropdownButtonFormField<String?>(
                     initialValue: _subjectId,
                     isExpanded: true,
@@ -135,7 +135,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                 child: Text(
                   'Al terminar se abre la hoja de compartir para que guardes el '
                   'archivo donde prefieras.',
-                  style: TextStyle(fontSize: 11.5, color: muted),
+                  style: AppType.caption.copyWith(color: muted),
                 ),
               ),
             ],
@@ -239,10 +239,9 @@ class _ReportCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title,
-              style:
-                  const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+              style: AppType.bodyStrong.copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
-          Text(description, style: TextStyle(fontSize: 12.5, color: muted)),
+          Text(description, style: AppType.caption.copyWith(color: muted)),
           const SizedBox(height: 14),
           Row(
             children: [

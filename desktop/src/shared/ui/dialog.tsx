@@ -38,11 +38,11 @@ export function DialogContent({
         {...props}
       >
         <div className="mb-4 flex flex-col gap-1 pr-8">
-          <DialogPrimitive.Title className="text-lg font-semibold text-text">
+          <DialogPrimitive.Title className="text-h3 font-semibold text-text">
             {title}
           </DialogPrimitive.Title>
           {description ? (
-            <DialogPrimitive.Description className="text-sm text-muted">
+            <DialogPrimitive.Description className="text-body text-muted">
               {description}
             </DialogPrimitive.Description>
           ) : null}

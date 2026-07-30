@@ -99,7 +99,7 @@ export default function AssistantPage() {
         />
 
         {enabled && !available && !status.isPending ? (
-          <div className="flex items-start gap-2.5 rounded-lg border border-warning/30 bg-warning-soft px-4 py-3 text-xs text-warning">
+          <div className="flex items-start gap-2.5 rounded-lg border border-warning/30 bg-warning-soft px-4 py-3 text-caption text-warning">
             <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
             <p>
               Ollama no responde en <code className="font-mono">{status.data?.baseUrl}</code>. El
@@ -111,17 +111,17 @@ export default function AssistantPage() {
         ) : null}
 
         <Card className="flex min-h-0 flex-1 flex-col">
-          <div ref={scrollRef} className="scrollbar-slim flex-1 overflow-y-auto p-5">
+          <div ref={scrollRef} className="scrollbar-slim flex-1 overflow-y-auto p-6">
             {messages.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center gap-5 text-center">
                 <span className="grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary">
                   <Bot className="size-7" aria-hidden />
                 </span>
                 <div className="flex flex-col gap-1">
-                  <h3 className="text-base font-semibold text-text">
+                  <h3 className="text-body font-semibold text-text">
                     Pregúntame sobre tus estudiantes
                   </h3>
-                  <p className="max-w-md text-sm text-muted">
+                  <p className="max-w-md text-body text-muted">
                     Tengo acceso a tus notas, asistencia y niveles de riesgo reales. No invento
                     cifras: si un dato no está, te lo digo.
                   </p>
@@ -133,7 +133,7 @@ export default function AssistantPage() {
                       key={suggestion}
                       type="button"
                       onClick={() => send(suggestion)}
-                      className="rounded-full border border-border px-3.5 py-1.5 text-xs text-muted transition-colors hover:border-primary hover:text-primary"
+                      className="rounded-full border border-border px-3.5 py-1.5 text-caption text-muted transition-colors hover:border-primary hover:text-primary"
                     >
                       {suggestion}
                     </button>
@@ -172,7 +172,7 @@ export default function AssistantPage() {
                       <div
                         data-selectable
                         className={cn(
-                          'max-w-[75%] whitespace-pre-wrap rounded-xl px-4 py-2.5 text-sm leading-relaxed',
+                          'max-w-[75%] whitespace-pre-wrap rounded-xl px-4 py-2.5 text-body leading-relaxed',
                           message.role === 'user'
                             ? 'bg-primary text-on-primary'
                             : 'bg-surface-alt text-text',
@@ -203,7 +203,7 @@ export default function AssistantPage() {
                 ) : null}
 
                 {lastSource === 'rules' && !chat.isPending ? (
-                  <p className="text-center text-[11px] text-muted">
+                  <p className="text-center text-caption text-muted">
                     Respuesta generada por reglas, sin el modelo de IA.
                   </p>
                 ) : null}

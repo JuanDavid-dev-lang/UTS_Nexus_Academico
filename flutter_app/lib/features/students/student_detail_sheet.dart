@@ -49,10 +49,9 @@ class _StudentDetailSheet extends StatelessWidget {
                 backgroundColor: primary.withValues(alpha: 0.12),
                 child: Text(
                   _initials(entry.student.fullName),
-                  style: TextStyle(
+                  style: AppType.bodyStrong.copyWith(
                     fontWeight: FontWeight.w800,
                     color: primary,
-                    fontSize: 16,
                   ),
                 ),
               ),
@@ -63,18 +62,17 @@ class _StudentDetailSheet extends StatelessWidget {
                   children: [
                     Text(
                       entry.student.fullName,
-                      style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.w800),
+                      style: AppType.h3.copyWith(fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       'Cédula ${entry.student.code}',
-                      style: TextStyle(fontSize: 13, color: muted),
+                      style: AppType.caption.copyWith(color: muted),
                     ),
                     if (entry.student.program.isNotEmpty)
                       Text(
                         entry.student.program,
-                        style: TextStyle(fontSize: 12, color: muted),
+                        style: AppType.caption.copyWith(color: muted),
                       ),
                   ],
                 ),
@@ -97,8 +95,7 @@ class _StudentDetailSheet extends StatelessWidget {
                   children: [
                     Text(
                       'POR QUÉ ESTÁ EN RIESGO',
-                      style: TextStyle(
-                        fontSize: 10.5,
+                      style: AppType.captionStrong.copyWith(
                         letterSpacing: 0.8,
                         fontWeight: FontWeight.w700,
                         color: muted,
@@ -114,7 +111,7 @@ class _StudentDetailSheet extends StatelessWidget {
                             const Text('•  '),
                             Expanded(
                               child: Text(reason,
-                                  style: const TextStyle(fontSize: 13, height: 1.4)),
+                                  style: AppType.caption.copyWith(height: 1.4)),
                             ),
                           ],
                         ),
@@ -136,9 +133,9 @@ class _StudentDetailSheet extends StatelessWidget {
                   hint: entry.grades?.complete == true
                       ? 'los 3 cortes completos'
                       : 'aún en curso',
-                  valueColor: (entry.finalGrade ?? 0) >= 3
-                      ? AppColors.success
-                      : AppColors.danger,
+                  tone: (entry.finalGrade ?? 0) >= 3
+                      ? SemanticKind.success
+                      : SemanticKind.danger,
                 ),
               ),
               const SizedBox(width: 10),
@@ -151,9 +148,9 @@ class _StudentDetailSheet extends StatelessWidget {
                   hint: entry.risk == null
                       ? 'sin registros'
                       : '${entry.risk!.missed} faltas',
-                  valueColor: (entry.attendanceRate ?? 100) >= 80
-                      ? AppColors.info
-                      : AppColors.warningText,
+                  tone: (entry.attendanceRate ?? 100) >= 80
+                      ? SemanticKind.info
+                      : SemanticKind.warning,
                 ),
               ),
             ],
@@ -163,8 +160,7 @@ class _StudentDetailSheet extends StatelessWidget {
             const SizedBox(height: 20),
             Text(
               'DESGLOSE POR CORTE',
-              style: TextStyle(
-                fontSize: 10.5,
+              style: AppType.captionStrong.copyWith(
                 letterSpacing: 0.8,
                 fontWeight: FontWeight.w700,
                 color: muted,
@@ -175,13 +171,15 @@ class _StudentDetailSheet extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: AppCard(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   child: Row(
                     children: [
                       SizedBox(
                         width: 74,
                         child: Text('Corte ${cut.cut}',
-                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w600)),
                       ),
                       Expanded(
                         child: ClipRRect(
@@ -222,7 +220,7 @@ class _StudentDetailSheet extends StatelessWidget {
               ),
             Text(
               'En cursiva, los cortes a los que aún les faltan componentes por calificar.',
-              style: TextStyle(fontSize: 11.5, color: muted),
+              style: AppType.caption.copyWith(color: muted),
             ),
           ],
         ],
