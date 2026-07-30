@@ -96,8 +96,8 @@ export default function SettingsPage() {
         <CardContent className="flex items-center gap-4">
           <Avatar name={user?.fullName ?? 'Docente'} src={user?.photoUrl} size="lg" />
           <div className="flex min-w-0 flex-col">
-            <span className="truncate text-sm font-semibold text-text">{user?.fullName}</span>
-            <span className="truncate text-xs text-muted">{user?.email}</span>
+            <span className="truncate text-body font-semibold text-text">{user?.fullName}</span>
+            <span className="truncate text-caption text-muted">{user?.email}</span>
           </div>
           <Badge tone="accent" className="ml-auto">
             {user?.role}
@@ -135,8 +135,8 @@ export default function SettingsPage() {
                   />
                   {active ? <Check className="size-4 text-primary" aria-hidden /> : null}
                 </span>
-                <span className="text-sm font-semibold text-text">{option.label}</span>
-                <span className="text-xs text-muted">{option.description}</span>
+                <span className="text-body font-semibold text-text">{option.label}</span>
+                <span className="text-caption text-muted">{option.description}</span>
               </button>
             );
           })}
@@ -162,7 +162,7 @@ export default function SettingsPage() {
                   value={serverDraft}
                   onChange={(event) => setServerDraft(event.target.value)}
                   placeholder="http://127.0.0.1:4000"
-                  className="font-mono text-xs"
+                  className="font-mono text-caption"
                 />
               )}
             </Field>
@@ -176,7 +176,7 @@ export default function SettingsPage() {
             </Button>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-muted">
+          <div className="flex items-center gap-2 text-caption text-muted">
             <Wifi
               className={cn(
                 'size-3.5',
@@ -207,7 +207,7 @@ export default function SettingsPage() {
               key={shortcut.action}
               className="flex items-center justify-between border-b border-border py-2 last:border-0"
             >
-              <span className="text-sm text-text">{shortcut.action}</span>
+              <span className="text-body text-text">{shortcut.action}</span>
               <Kbd>{shortcut.keys}</Kbd>
             </div>
           ))}
@@ -222,7 +222,7 @@ export default function SettingsPage() {
           </CardTitle>
           <CardDescription>Cómo se protegen tus credenciales</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-2 text-sm text-muted">
+        <CardContent className="flex flex-col gap-2 text-body text-muted">
           <p>
             Tus tokens de sesión se guardan en el almacén de credenciales del sistema operativo
             {platform.isDesktop ? '' : ' (en modo navegador se usa almacenamiento temporal)'}, nunca
@@ -243,7 +243,7 @@ export default function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex items-center justify-between">
-          <span className="text-xs text-muted">
+          <span className="text-caption text-muted">
             {env.appName} v{env.appVersion}
           </span>
           <Button variant="danger" onClick={() => setLogoutOpen(true)}>

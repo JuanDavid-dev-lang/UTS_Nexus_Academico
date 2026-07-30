@@ -11,7 +11,10 @@ class AppCard extends StatelessWidget {
   const AppCard({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(18),
+    // Relleno interior = el gap de §7, no el padding de página: en un teléfono
+    // de 360dp, 24 de margen exterior más 24 de interior deja el contenido sin
+    // aire. La tarjeta ya está separada de los bordes por la página.
+    this.padding = const EdgeInsets.all(AppSpacing.gap),
     this.onTap,
   });
 
@@ -57,10 +60,10 @@ class SectionHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(title,
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
+                  style: AppType.h2),
               if (subtitle != null) ...[
                 const SizedBox(height: 2),
-                Text(subtitle!, style: TextStyle(fontSize: 13, color: muted)),
+                Text(subtitle!, style: AppType.caption.copyWith(color: muted)),
               ],
             ],
           ),
@@ -80,7 +83,7 @@ class RiskBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final s = RiskStyle.of(nivel);
+    final s = RiskStyle.from(context, nivel);
     final text = motivo == null || motivo!.isEmpty || compact
         ? '${s.emoji}  ${s.label}'
         : '${s.emoji}  ${s.label} — ${motivo!}';
@@ -92,56 +95,61 @@ class RiskBadge extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: TextStyle(
-            color: s.color, fontWeight: FontWeight.w600, fontSize: 12.5),
+        style: AppType.captionStrong.copyWith(color: s.color),
       ),
     );
   }
 }
 
 /// Etiqueta de estado genérica (aprobado, pendiente, etc.).
+///
+/// Recibe el *significado*, no el color: el par texto/fondo lo resuelve
+/// [SemanticTone] contra el tema activo, porque los chips claros de DESIGN.md
+/// §4 no alcanzan AA sobre las superficies oliva del modo oscuro.
 class StatusPill extends StatelessWidget {
   final String text;
-  final Color color;
-  final Color background;
-  const StatusPill(this.text,
-      {super.key, this.color = AppColors.info, this.background = AppColors.infoSoft});
+  final SemanticKind kind;
+  const StatusPill(this.text, {super.key, this.kind = SemanticKind.info});
 
   factory StatusPill.success(String t) =>
-      StatusPill(t, color: AppColors.success, background: AppColors.successSoft);
+      StatusPill(t, kind: SemanticKind.success);
   factory StatusPill.danger(String t) =>
-      StatusPill(t, color: AppColors.danger, background: AppColors.dangerSoft);
-  factory StatusPill.warning(String t) => StatusPill(t,
-      color: AppColors.warningText, background: AppColors.warningSoft);
+      StatusPill(t, kind: SemanticKind.danger);
+  factory StatusPill.warning(String t) =>
+      StatusPill(t, kind: SemanticKind.warning);
 
   @override
   Widget build(BuildContext context) {
+    final tone = SemanticTone.of(context, kind);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: background,
+        color: tone.bg,
         borderRadius: BorderRadius.circular(AppSpacing.radiusPill),
       ),
       child: Text(text,
-          style: TextStyle(
-              color: color, fontWeight: FontWeight.w600, fontSize: 12)),
+          style: AppType.captionStrong.copyWith(color: tone.fg)),
     );
   }
 }
 
 /// Tarjeta de métrica: etiqueta, valor grande y pista.
+///
+/// El color del valor se declara por [tone] (su significado), no en crudo: el
+/// verde institucional es ilegible sobre las superficies oliva del modo oscuro,
+/// así que sin tono el valor cae en el color de texto del tema.
 class StatTile extends StatelessWidget {
   final String label;
   final String value;
   final String? hint;
-  final Color valueColor;
+  final SemanticKind? tone;
   final IconData? icon;
   const StatTile({
     super.key,
     required this.label,
     required this.value,
     this.hint,
-    this.valueColor = AppColors.primary,
+    this.tone,
     this.icon,
   });
 
@@ -149,6 +157,11 @@ class StatTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    // DESIGN.md §4 regla 4: en oscuro el texto nunca va en lima, para no
+    // competir con los CTAs. La cifra neutra usa el color de texto del tema.
+    final valueColor = tone == null
+        ? (isDark ? AppColors.textDark : AppColors.primary)
+        : SemanticTone.of(context, tone!).fg;
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -161,21 +174,17 @@ class StatTile extends StatelessWidget {
               ],
               Expanded(
                 child: Text(label.toUpperCase(),
-                    style: TextStyle(
-                        fontSize: 11,
-                        letterSpacing: 0.8,
-                        fontWeight: FontWeight.w600,
-                        color: muted)),
+                    style: AppType.captionStrong
+                        .copyWith(letterSpacing: 0.8, color: muted)),
               ),
             ],
           ),
           const SizedBox(height: 6),
           Text(value,
-              style: TextStyle(
-                  fontSize: 26, fontWeight: FontWeight.w800, color: valueColor)),
+              style: AppType.h2.copyWith(color: valueColor)),
           if (hint != null) ...[
             const SizedBox(height: 2),
-            Text(hint!, style: TextStyle(fontSize: 11, color: muted)),
+            Text(hint!, style: AppType.caption.copyWith(color: muted)),
           ],
         ],
       ),
@@ -217,10 +226,10 @@ class AppToast {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(title,
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                      style: AppType.bodyStrong.copyWith(fontWeight: FontWeight.w700)),
                   if (detail != null) ...[
                     const SizedBox(height: 2),
-                    Text(detail, style: const TextStyle(fontSize: 12.5)),
+                    Text(detail, style: AppType.caption),
                   ],
                 ],
               ),
@@ -394,11 +403,11 @@ class StateView extends StatelessWidget {
             const SizedBox(height: 12),
             Text(title,
                 style:
-                    const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                    AppType.h3),
             const SizedBox(height: 6),
             Text(message,
                 textAlign: TextAlign.center,
-                style: TextStyle(color: muted, fontSize: 14)),
+                style: AppType.body.copyWith(color: muted)),
             if (action != null) ...[const SizedBox(height: 16), action!],
           ],
         ),

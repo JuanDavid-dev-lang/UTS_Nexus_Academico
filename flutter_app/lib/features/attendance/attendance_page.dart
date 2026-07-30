@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/services/api_client.dart';
 import '../../core/services/auth_controller.dart';
+import '../../core/theme/app_theme.dart';
 
 class AttendancePage extends ConsumerStatefulWidget {
   const AttendancePage({super.key});
@@ -130,7 +131,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
           : RefreshIndicator(
               onRefresh: _load,
               child: ListView(
-                padding: const EdgeInsets.all(16),
+                padding: AppSpacing.pagePadding,
                 children: [
                   Wrap(
                     spacing: 12,
@@ -189,7 +190,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                           contentPadding: EdgeInsets.zero,
                           title: const Text('Fecha'),
                           subtitle: Text(_date.toIso8601String().split('T').first),
-                          trailing: const Icon(Icons.date_range),
+                          trailing: const Icon(Icons.date_range_outlined),
                           onTap: () async {
                             final picked = await showDatePicker(
                               context: context,
@@ -224,7 +225,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                     final student = _studentById[row['studentId']?.toString()] ?? {};
                     return Card(
                       child: ListTile(
-                        leading: Icon(row['present'] == true ? Icons.check_circle : Icons.cancel, color: row['present'] == true ? Colors.green : Colors.red),
+                        leading: Icon(row['present'] == true ? Icons.check_circle_outline : Icons.cancel_outlined, color: row['present'] == true ? SemanticTone.of(context, SemanticKind.success).fg : SemanticTone.of(context, SemanticKind.danger).fg),
                         title: Text(student['fullName']?.toString() ?? 'Estudiante'),
                         subtitle: Text('${row['date']?.toString().split('T').first ?? ''} • ${row['durationMinutes'] ?? 90} min'),
                         trailing: Text(row['present'] == true ? 'Presente' : 'Falta'),

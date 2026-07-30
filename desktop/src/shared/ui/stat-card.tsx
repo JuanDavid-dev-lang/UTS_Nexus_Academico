@@ -48,9 +48,9 @@ export function StatCard({
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.24, delay: Math.min(index * 0.04, 0.24), ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: 0.2, delay: Math.min(index * 0.04, 0.24), ease: [0.22, 1, 0.36, 1] }}
       className={cn(
-        'surface-card flex flex-col gap-2 p-5',
+        'surface-card flex flex-col gap-2 p-6',
         interactive &&
           'cursor-pointer transition-shadow duration-200 hover:shadow-md focus-visible:shadow-md',
       )}
@@ -69,7 +69,7 @@ export function StatCard({
         : {})}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{label}</p>
+        <p className="text-caption font-semibold uppercase tracking-wide text-muted">{label}</p>
         {Icon ? (
           <span className={cn('flex size-7 items-center justify-center rounded-lg', classes.iconBg)}>
             <Icon className={cn('size-3.5', classes.icon)} aria-hidden />
@@ -77,7 +77,7 @@ export function StatCard({
         ) : null}
       </div>
 
-      <p className={cn('font-mono text-3xl font-bold leading-none tabular-nums', classes.value)}>
+      <p className={cn('font-mono text-h2 font-bold leading-none tabular-nums', classes.value)}>
         {value}
       </p>
 
@@ -85,7 +85,7 @@ export function StatCard({
         {typeof trend === 'number' && Number.isFinite(trend) ? (
           <span
             className={cn(
-              'inline-flex items-center gap-0.5 text-[11px] font-semibold',
+              'inline-flex items-center gap-0.5 text-caption font-semibold',
               trend >= 0 ? 'text-success' : 'text-danger',
             )}
           >
@@ -97,7 +97,7 @@ export function StatCard({
             {Math.abs(trend).toFixed(1)}%
           </span>
         ) : null}
-        {hint ? <p className="truncate text-[11px] text-muted">{hint}</p> : null}
+        {hint ? <p className="truncate text-caption text-muted">{hint}</p> : null}
       </div>
     </motion.div>
   );

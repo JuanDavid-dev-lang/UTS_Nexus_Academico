@@ -35,7 +35,7 @@ class SubjectsPage extends ConsumerWidget {
         },
         child: subjects.when(
           loading: () => ListView(
-            padding: const EdgeInsets.all(16),
+            padding: AppSpacing.pagePadding,
             children: const [
               SkeletonBox(height: 108, radius: 18),
               SizedBox(height: 12),
@@ -70,7 +70,7 @@ class SubjectsPage extends ConsumerWidget {
             }
 
             return ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+              padding: AppSpacing.pagePadding,
               itemCount: items.length,
               separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemBuilder: (_, index) => _SubjectCard(subject: items[index]),
@@ -107,7 +107,7 @@ class _SubjectCard extends ConsumerWidget {
                   color: primary.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(Icons.menu_book, color: primary, size: 22),
+                child: Icon(Icons.menu_book_outlined, color: primary, size: 22),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -118,13 +118,13 @@ class _SubjectCard extends ConsumerWidget {
                       subject.name,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w700),
+                      style:
+                          AppType.bodyStrong.copyWith(fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       '${subject.code} · ${subject.credits} créditos',
-                      style: TextStyle(fontSize: 12.5, color: muted),
+                      style: AppType.caption.copyWith(color: muted),
                     ),
                   ],
                 ),
@@ -145,7 +145,7 @@ class _SubjectCard extends ConsumerWidget {
             // siendo navegable, solo sin las cifras.
             error: (_, __) => Text(
               'No se pudieron cargar las cifras',
-              style: TextStyle(fontSize: 12, color: muted),
+              style: AppType.caption.copyWith(color: muted),
             ),
             data: (data) => Wrap(
               spacing: 8,
@@ -155,12 +155,9 @@ class _SubjectCard extends ConsumerWidget {
                 if (data.averageGrade > 0)
                   StatusPill(
                     'Promedio ${data.averageGrade.toStringAsFixed(2)}',
-                    color: data.averageGrade >= 3
-                        ? AppColors.success
-                        : AppColors.danger,
-                    background: data.averageGrade >= 3
-                        ? AppColors.successSoft
-                        : AppColors.dangerSoft,
+                    kind: data.averageGrade >= 3
+                        ? SemanticKind.success
+                        : SemanticKind.danger,
                   ),
                 if (data.atRisk > 0)
                   StatusPill.warning('${data.atRisk} en riesgo'),

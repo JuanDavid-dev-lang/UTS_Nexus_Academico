@@ -100,24 +100,24 @@ export default function LoginPage() {
         <div className="relative flex items-center gap-3">
           <Logo size={48} alt="" />
           <div className="flex flex-col">
-            <span className="text-base font-bold leading-tight">UTS Nexus Académico</span>
-            <span className="text-xs opacity-80">Unidades Tecnológicas de Santander</span>
+            <span className="text-body font-bold leading-tight">UTS Nexus Académico</span>
+            <span className="text-caption opacity-80">Unidades Tecnológicas de Santander</span>
           </div>
         </div>
 
         <div className="relative flex flex-col gap-4">
-          <h2 className="max-w-md text-3xl font-bold leading-tight">
+          <h2 className="max-w-md text-h2 font-bold leading-tight">
             Menos planillas.
             <br />
             Más tiempo con tus estudiantes.
           </h2>
-          <p className="max-w-md text-sm leading-relaxed opacity-85">
+          <p className="max-w-md text-body leading-relaxed opacity-85">
             Notas, asistencia y riesgo académico en un solo lugar, con un asistente de IA que corre
             en tu propio equipo.
           </p>
         </div>
 
-        <p className="relative flex items-center gap-2 text-xs opacity-75">
+        <p className="relative flex items-center gap-2 text-caption opacity-75">
           <ShieldCheck className="size-4" aria-hidden />
           Tus credenciales se guardan cifradas por el sistema operativo.
         </p>
@@ -131,8 +131,8 @@ export default function LoginPage() {
           className="w-full max-w-sm"
         >
           <div className="mb-7 flex flex-col gap-1.5">
-            <h1 className="text-2xl font-bold text-text">Bienvenido de vuelta</h1>
-            <p className="text-sm text-muted">Ingresa con tu cuenta institucional.</p>
+            <h1 className="text-h3 font-bold text-text">Bienvenido de vuelta</h1>
+            <p className="text-body text-muted">Ingresa con tu cuenta institucional.</p>
           </div>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
@@ -172,7 +172,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => setShowServer((value) => !value)}
-              className="flex w-full items-center gap-2 text-xs font-medium text-muted transition-colors hover:text-text"
+              className="flex w-full items-center gap-2 text-caption font-medium text-muted transition-colors hover:text-text"
             >
               <Server className="size-3.5" aria-hidden />
               Servidor
@@ -193,7 +193,7 @@ export default function LoginPage() {
                   onChange={(event) => setServerDraft(event.target.value)}
                   placeholder="http://127.0.0.1:4000"
                   aria-label="Dirección del servidor"
-                  className="font-mono text-xs"
+                  className="font-mono text-caption"
                 />
                 <Button variant="secondary" onClick={() => void handleSaveServer()}>
                   Guardar
@@ -202,7 +202,7 @@ export default function LoginPage() {
             ) : null}
 
             {serverStatus === 'offline' ? (
-              <p className="mt-3 rounded-lg bg-warning-soft px-3 py-2 text-xs text-warning">
+              <p className="mt-3 rounded-lg bg-warning-soft px-3 py-2 text-caption text-warning">
                 No hay respuesta del servidor. Verifica que el backend esté compilado
                 (<code className="font-mono">npm run build</code> en <code className="font-mono">backend/</code>)
                 y que Node esté instalado.

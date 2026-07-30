@@ -39,11 +39,10 @@ class DashboardPage extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Hola, $firstName',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                style: AppType.h3.copyWith(fontWeight: FontWeight.w800)),
             Text(
               'Estado actual de tus grupos',
-              style: TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.w400, color: muted),
+              style: AppType.caption.copyWith(color: muted),
             ),
           ],
         ),
@@ -56,7 +55,7 @@ class DashboardPage extends ConsumerWidget {
           await ref.read(dashboardProvider.future);
         },
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+          padding: AppSpacing.pagePadding,
           children: [
             dashboard.when(
               loading: () => const SkeletonStatGrid(count: 6),
@@ -97,8 +96,10 @@ class DashboardPage extends ConsumerWidget {
                 ),
               ),
               data: (items) {
-                final atRisk =
-                    items.where((r) => r.level != RiskLevel.low).take(6).toList();
+                final atRisk = items
+                    .where((r) => r.level != RiskLevel.low)
+                    .take(6)
+                    .toList();
                 if (atRisk.isEmpty) {
                   return AppCard(
                     child: Row(
@@ -110,7 +111,7 @@ class DashboardPage extends ConsumerWidget {
                           child: Text(
                             'Ningún estudiante en riesgo. Todos están dentro de '
                             'los parámetros esperados.',
-                            style: TextStyle(fontSize: 13, color: muted),
+                            style: AppType.caption.copyWith(color: muted),
                           ),
                         ),
                       ],
@@ -154,37 +155,37 @@ class _MetricsGrid extends StatelessWidget {
           value: summary.averageGrade.toStringAsFixed(2),
           hint: 'sobre cortes calificados',
           icon: Icons.school_outlined,
-          valueColor: summary.averageGrade >= 3
-              ? AppColors.success
-              : AppColors.danger,
+          tone: summary.averageGrade >= 3
+              ? SemanticKind.success
+              : SemanticKind.danger,
         ),
         StatTile(
           label: 'Aprobados',
           value: '${summary.approvedStudents}',
           hint: 'proyección al día',
           icon: Icons.check_circle_outline,
-          valueColor: AppColors.success,
+          tone: SemanticKind.success,
         ),
         StatTile(
           label: 'Reprobados',
           value: '${summary.failedStudents}',
           hint: 'al menos una materia',
           icon: Icons.cancel_outlined,
-          valueColor: AppColors.danger,
+          tone: SemanticKind.danger,
         ),
         StatTile(
           label: 'En riesgo',
           value: '${summary.riskStudents}',
           hint: 'requieren seguimiento',
           icon: Icons.warning_amber_outlined,
-          valueColor: AppColors.warningText,
+          tone: SemanticKind.warning,
         ),
         StatTile(
           label: 'Asistencia',
           value: '${summary.averageAttendance.toStringAsFixed(0)}%',
           hint: 'ponderada por minutos',
           icon: Icons.event_available_outlined,
-          valueColor: AppColors.info,
+          tone: SemanticKind.info,
         ),
         StatTile(
           label: 'Estudiantes',
@@ -205,7 +206,7 @@ class _RiskRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
-    final style = RiskStyle.of(risk.level.name);
+    final style = RiskStyle.from(context, risk.level.name);
 
     return AppCard(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -227,8 +228,7 @@ class _RiskRow extends StatelessWidget {
                 Text(risk.fullName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 14.5)),
+                    style: AppType.bodyStrong),
                 const SizedBox(height: 2),
                 // El motivo, no solo el color: de esto depende que el docente
                 // decida intervenir.
@@ -239,7 +239,7 @@ class _RiskRow extends StatelessWidget {
                           'asistencia ${risk.attendanceRate.toStringAsFixed(0)}%',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, color: muted, height: 1.3),
+                  style: AppType.caption.copyWith(color: muted, height: 1.3),
                 ),
               ],
             ),
@@ -247,8 +247,7 @@ class _RiskRow extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             style.label,
-            style: TextStyle(
-              fontSize: 10.5,
+            style: AppType.captionStrong.copyWith(
               fontWeight: FontWeight.w800,
               color: style.color,
             ),

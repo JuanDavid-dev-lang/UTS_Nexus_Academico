@@ -39,7 +39,7 @@ const menuContentClass = cn(
 );
 
 const menuItemClass = cn(
-  'flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-text outline-none',
+  'flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-body text-text outline-none',
   'transition-colors data-[highlighted]:bg-surface-alt',
 );
 
@@ -69,10 +69,12 @@ export function TopBar({
   }
 
   return (
-    <header className="drag-region flex h-16 shrink-0 items-center gap-3 border-b border-border bg-surface px-5">
+    <header className="drag-region flex h-16 shrink-0 items-center gap-3 border-b border-border bg-surface px-6">
       <div className="flex min-w-0 flex-col">
-        <h1 className="truncate text-sm font-bold leading-tight text-text">{title}</h1>
-        <p className="truncate text-xs leading-tight text-muted">{subtitle}</p>
+        {/* Not a heading: this repeats the page title as window chrome, and the
+            page body already carries the document's only h1. */}
+        <p className="truncate text-body font-bold leading-tight text-text">{title}</p>
+        <p className="truncate text-caption leading-tight text-muted">{subtitle}</p>
       </div>
 
       <div className="flex-1" />
@@ -83,7 +85,7 @@ export function TopBar({
         onClick={onOpenSearch}
         className={cn(
           'no-drag flex h-9 w-72 items-center gap-2 rounded-lg border border-border bg-bg px-3',
-          'text-sm text-muted transition-colors hover:border-border-strong hover:text-text',
+          'text-body text-muted transition-colors hover:border-border-strong hover:text-text',
         )}
       >
         <Search className="size-4 shrink-0" aria-hidden />
@@ -92,7 +94,7 @@ export function TopBar({
       </button>
 
       <Tooltip content={sync.label}>
-        <span className={cn('no-drag flex items-center gap-1.5 px-1 text-xs font-medium', sync.tone)}>
+        <span className={cn('no-drag flex items-center gap-1.5 px-1 text-caption font-medium', sync.tone)}>
           <sync.Icon
             className={cn('size-4', syncStatus === 'connecting' && 'animate-spin')}
             aria-hidden
@@ -138,7 +140,7 @@ export function TopBar({
             className="no-drag flex items-center gap-2 rounded-lg py-1 pl-1 pr-2 transition-colors hover:bg-surface-alt"
           >
             <Avatar name={user?.fullName ?? 'Docente'} src={user?.photoUrl} size="sm" />
-            <span className="max-w-32 truncate text-xs font-semibold text-text">
+            <span className="max-w-32 truncate text-caption font-semibold text-text">
               {user?.fullName ?? 'Docente'}
             </span>
           </button>
@@ -146,8 +148,8 @@ export function TopBar({
         <DropdownMenu.Portal>
           <DropdownMenu.Content className={menuContentClass} sideOffset={8} align="end">
             <div className="px-2.5 py-2">
-              <p className="truncate text-sm font-semibold text-text">{user?.fullName}</p>
-              <p className="truncate text-xs text-muted">{user?.email}</p>
+              <p className="truncate text-body font-semibold text-text">{user?.fullName}</p>
+              <p className="truncate text-caption text-muted">{user?.email}</p>
             </div>
             <DropdownMenu.Separator className="my-1 h-px bg-border" />
             <DropdownMenu.Item className={menuItemClass} onSelect={() => navigate('/configuracion')}>

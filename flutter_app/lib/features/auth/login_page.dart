@@ -118,7 +118,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     'assets/logo.png',
                     height: 96,
                     errorBuilder: (_, __, ___) => Icon(
-                      Icons.school,
+                      Icons.school_outlined,
                       size: 72,
                       color: Theme.of(context).colorScheme.primary,
                     ),
@@ -127,8 +127,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   Text(
                     'UTS Nexus Académico',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 24,
+                    style: AppType.h2.copyWith(
                       fontWeight: FontWeight.w800,
                       color: Theme.of(context).colorScheme.primary,
                     ),
@@ -137,7 +136,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   Text(
                     'Ingresa con tu cuenta institucional',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: muted, fontSize: 14),
+                    style: AppType.body.copyWith(color: muted),
                   ),
                   const SizedBox(height: 28),
 
@@ -263,7 +262,7 @@ class _ConnectionBanner extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _row(
-              icon: Icons.travel_explore,
+              icon: Icons.travel_explore_outlined,
               color: AppColors.info,
               text: 'Buscando el servidor en tu red…',
             ),
@@ -279,7 +278,7 @@ class _ConnectionBanner extends StatelessWidget {
         ),
       ConnectionPhase.connected => _row(
           icon: Icons.check_circle_outline,
-          color: AppColors.success,
+          color: SemanticTone.of(context, SemanticKind.success).fg,
           text: state.detail ?? 'Servidor encontrado',
         ),
 
@@ -288,13 +287,13 @@ class _ConnectionBanner extends StatelessWidget {
           children: [
             _row(
               icon: Icons.warning_amber_outlined,
-              color: AppColors.warningText,
+              color: SemanticTone.of(context, SemanticKind.warning).fg,
               text: 'El servidor no alcanza la base de datos',
             ),
             const SizedBox(height: 4),
             Text(
               'Podrás abrir la app, pero no habrá datos hasta que se resuelva.',
-              style: TextStyle(fontSize: 12, color: muted),
+              style: AppType.caption.copyWith(color: muted),
             ),
           ],
         ),
@@ -310,7 +309,7 @@ class _ConnectionBanner extends StatelessWidget {
             Text(
               state.detail ??
                   'Verifica que el servidor esté encendido y que estés en la misma red Wi-Fi.',
-              style: TextStyle(fontSize: 12, color: muted),
+              style: AppType.caption.copyWith(color: muted),
             ),
             const SizedBox(height: 10),
             Row(
@@ -344,7 +343,7 @@ class _ConnectionBanner extends StatelessWidget {
         Expanded(
           child: Text(
             text,
-            style: TextStyle(fontSize: 13, color: color, fontWeight: FontWeight.w600),
+            style: AppType.captionStrong.copyWith(color: color),
           ),
         ),
       ],

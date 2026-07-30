@@ -163,16 +163,16 @@ function NotificationRow({
 
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-sm font-semibold text-text">{notification.title}</h3>
+          <h3 className="text-body font-semibold text-text">{notification.title}</h3>
           <Badge>{presentation.label}</Badge>
           {unread ? <span className="size-1.5 rounded-full bg-primary" aria-label="Sin leer" /> : null}
         </div>
 
-        <p className="text-sm leading-relaxed text-muted" data-selectable>
+        <p className="text-body leading-relaxed text-muted" data-selectable>
           {notification.message}
         </p>
 
-        <span className="text-[11px] text-muted">{formatRelative(notification.createdAt)}</span>
+        <span className="text-caption text-muted">{formatRelative(notification.createdAt)}</span>
       </div>
 
       {unread ? (

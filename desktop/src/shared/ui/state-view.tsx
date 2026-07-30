@@ -30,8 +30,8 @@ function StateView({ icon, title, message, action, className }: StateViewProps) 
       <div className="flex size-12 items-center justify-center rounded-full bg-surface-alt text-muted">
         {icon}
       </div>
-      <h3 className="text-base font-semibold text-text">{title}</h3>
-      <p className="max-w-sm text-sm text-muted">{message}</p>
+      <h3 className="text-body font-semibold text-text">{title}</h3>
+      <p className="max-w-sm text-body text-muted">{message}</p>
       {action ? (
         <Button variant="primary" size="sm" onClick={action.onClick} className="mt-2">
           {action.label}

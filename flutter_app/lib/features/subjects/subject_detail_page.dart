@@ -40,7 +40,7 @@ class _SubjectDetailPageState extends ConsumerState<SubjectDetailPage> {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back_outlined),
           onPressed: () => context.go('/subjects'),
         ),
         title: Column(
@@ -48,19 +48,19 @@ class _SubjectDetailPageState extends ConsumerState<SubjectDetailPage> {
           children: [
             Text(
               subject?.name ?? 'Materia',
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+              style: AppType.bodyStrong.copyWith(fontWeight: FontWeight.w700),
             ),
             if (subject != null)
               Text(
                 '${subject.code} · ${ref.watch(selectedPeriodProvider)}',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w400),
+                style: AppType.caption,
               ),
           ],
         ),
       ),
       body: roster.when(
         loading: () => ListView(
-          padding: const EdgeInsets.all(16),
+          padding: AppSpacing.pagePadding,
           children: List.generate(
             6,
             (_) => const Padding(
@@ -101,7 +101,7 @@ class _SubjectDetailPageState extends ConsumerState<SubjectDetailPage> {
               await ref.read(subjectRosterProvider(widget.subjectId).future);
             },
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              padding: AppSpacing.pagePadding,
               children: [
                 _SummaryStrip(students: students),
                 const SizedBox(height: 14),
@@ -109,7 +109,7 @@ class _SubjectDetailPageState extends ConsumerState<SubjectDetailPage> {
                   onChanged: (value) => setState(() => _query = value),
                   decoration: const InputDecoration(
                     hintText: 'Buscar por nombre o cédula…',
-                    prefixIcon: Icon(Icons.search),
+                    prefixIcon: Icon(Icons.search_outlined),
                     isDense: true,
                   ),
                 ),
@@ -188,7 +188,7 @@ class _SummaryStrip extends StatelessWidget {
             label: 'Promedio',
             value: average == 0 ? '—' : average.toStringAsFixed(2),
             hint: 'del grupo',
-            valueColor: average >= 3 ? AppColors.success : AppColors.danger,
+            tone: average >= 3 ? SemanticKind.success : SemanticKind.danger,
           ),
         ),
         const SizedBox(width: 10),
@@ -197,7 +197,7 @@ class _SummaryStrip extends StatelessWidget {
             label: 'Aprobando',
             value: '$passing',
             hint: 'de ${graded.length} con notas',
-            valueColor: AppColors.success,
+            tone: SemanticKind.success,
           ),
         ),
         const SizedBox(width: 10),
@@ -206,7 +206,7 @@ class _SummaryStrip extends StatelessWidget {
             label: 'En riesgo',
             value: '$atRisk',
             hint: 'requieren atención',
-            valueColor: atRisk == 0 ? AppColors.success : AppColors.warningText,
+            tone: atRisk == 0 ? SemanticKind.success : SemanticKind.warning,
           ),
         ),
       ],
@@ -246,7 +246,7 @@ class _StudentRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
-    final style = RiskStyle.of(entry.riskLevel.name);
+    final style = RiskStyle.from(context, entry.riskLevel.name);
     final grade = entry.finalGrade;
 
     return AppCard(
@@ -276,8 +276,7 @@ class _StudentRow extends StatelessWidget {
             backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
             child: Text(
               _initials(entry.student.fullName),
-              style: TextStyle(
-                fontSize: 13,
+              style: AppType.captionStrong.copyWith(
                 fontWeight: FontWeight.w700,
                 color: Theme.of(context).colorScheme.primary,
               ),
@@ -292,7 +291,7 @@ class _StudentRow extends StatelessWidget {
                   entry.student.fullName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14.5),
+                  style: AppType.bodyStrong,
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -301,7 +300,7 @@ class _StudentRow extends StatelessWidget {
                       : '${entry.student.code} · asistencia ${entry.attendanceRate!.toStringAsFixed(0)}%',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, color: muted),
+                  style: AppType.caption.copyWith(color: muted),
                 ),
               ],
             ),
@@ -312,8 +311,7 @@ class _StudentRow extends StatelessWidget {
             children: [
               Text(
                 grade == null || grade == 0 ? '—' : grade.toStringAsFixed(2),
-                style: TextStyle(
-                  fontSize: 17,
+                style: AppType.bodyStrong.copyWith(
                   fontWeight: FontWeight.w800,
                   color: grade == null || grade == 0
                       ? muted
@@ -323,8 +321,7 @@ class _StudentRow extends StatelessWidget {
               if (entry.riskLevel != RiskLevel.low)
                 Text(
                   style.label,
-                  style: TextStyle(
-                    fontSize: 10.5,
+                  style: AppType.captionStrong.copyWith(
                     fontWeight: FontWeight.w700,
                     color: style.color,
                   ),

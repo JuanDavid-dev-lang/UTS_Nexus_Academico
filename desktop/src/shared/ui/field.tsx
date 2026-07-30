@@ -10,9 +10,9 @@ import { cn } from '@/shared/lib/cn';
  */
 
 const controlStyles = cn(
-  'w-full rounded-lg border border-border bg-surface px-3 text-sm text-text',
+  'w-full rounded-lg border border-border bg-surface px-3 text-body text-text',
   'placeholder:text-muted',
-  'transition-colors duration-150',
+  'transition-colors duration-200 ease-out',
   'hover:border-border-strong',
   'focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/30',
   'disabled:cursor-not-allowed disabled:opacity-60',
@@ -50,7 +50,7 @@ export const NativeSelect = forwardRef<
 });
 
 export function Label({ className, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) {
-  return <label className={cn('text-xs font-semibold text-muted', className)} {...props} />;
+  return <label className={cn('text-caption font-semibold text-muted', className)} {...props} />;
 }
 
 type FieldProps = {
@@ -80,11 +80,11 @@ export function Field({ label, error, hint, required, className, children }: Fie
       {children({ id, 'aria-invalid': Boolean(error), 'aria-describedby': messageId })}
 
       {error ? (
-        <p id={messageId} role="alert" className="text-xs font-medium text-danger">
+        <p id={messageId} role="alert" className="text-caption font-medium text-danger">
           {error}
         </p>
       ) : hint ? (
-        <p id={messageId} className="text-xs text-muted">
+        <p id={messageId} className="text-caption text-muted">
           {hint}
         </p>
       ) : null}

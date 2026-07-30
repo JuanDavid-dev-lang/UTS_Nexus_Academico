@@ -65,7 +65,11 @@ class GradesWidget(QWidget):
         self.student = QComboBox()
         self.student.currentIndexChanged.connect(lambda _: self.load_student_grades())
         self.final_preview = QLabel("0.00")
-        self.final_preview.setStyleSheet(f"font-size: 30px; font-weight: 800; color: {Theme.PRIMARY};")
+        # TITLE, no PRIMARY: en oscuro PRIMARY es la lima, y §4 regla 4 prohíbe
+        # texto en lima para que no compita con los botones.
+        self.final_preview.setStyleSheet(
+            f"font-size: {Theme.FS_H2}px; font-weight: 800; color: {Theme.TITLE};"
+        )
 
         top_layout.addWidget(QLabel("Semestre"), 0, 0)
         top_layout.addWidget(QLabel("Materia"), 0, 1)
@@ -100,7 +104,12 @@ class GradesWidget(QWidget):
             wrap_layout.setHorizontalSpacing(12)
             wrap_layout.setVerticalSpacing(8)
 
-            grade_style = f"font-weight: 800; color: {Theme.PRIMARY}; font-size: 18px;"
+            # Valor en línea dentro de la fila, no un encabezado: cae en el paso
+            # de cuerpo de la escala, no en H3.
+            grade_style = (
+                f"font-weight: 800; color: {Theme.TITLE};"
+                f" font-size: {Theme.FS_BODY}px;"
+            )
             inp1 = self._spin()
             inp2 = self._spin()
             inp3 = self._spin()

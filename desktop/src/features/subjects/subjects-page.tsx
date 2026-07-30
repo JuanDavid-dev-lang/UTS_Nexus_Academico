@@ -187,7 +187,7 @@ export default function SubjectsPage() {
         byPeriod.map(([period, items]) => (
           <section key={period} className="flex flex-col gap-3">
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-text">Periodo {period}</h3>
+              <h3 className="text-body font-bold text-text">Periodo {period}</h3>
               <Badge>{items.length}</Badge>
             </div>
 
@@ -205,8 +205,8 @@ export default function SubjectsPage() {
                   </span>
 
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <h4 className="truncate text-sm font-semibold text-text">{subject.name}</h4>
-                    <p className="truncate text-xs text-muted">
+                    <h4 className="truncate text-body font-semibold text-text">{subject.name}</h4>
+                    <p className="truncate text-caption text-muted">
                       {subject.code} · {subject.credits} créditos
                     </p>
                   </div>

@@ -37,6 +37,7 @@
   --primary-active: #0f3d2b;
   --on-primary: #ffffff;
   --accent: #cad225;
+  --accent-secondary: #999e3c;
   --accent-soft: #f1f6ce;
   --on-accent: #12271e;
 
@@ -63,10 +64,12 @@
   --glass-bg: rgb(255 255 255 / 0.72);
   --glass-border: rgb(216 226 212 / 0.8);
 
-  /* Radius scale */
+  /* Radius scale. --radius-card is the one DESIGN.md S7 fixes at 18px; the rest
+     is the surrounding ramp for smaller and larger corners. */
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
+  --radius-card: 18px;
   --radius-xl: 20px;
   --radius-pill: 999px;
 
@@ -77,51 +80,83 @@
   --duration-base: 200ms;
   --duration-slow: 320ms;
 
-  /* Typography */
+  /* Typography (DESIGN.md S5). Inter is bundled and served by the app itself, so
+     it renders offline and under the Tauri CSP, which blocks remote font hosts.
+     Roboto is the declared fallback; the system stack catches the rest. */
   --font-sans:
-    'Segoe UI Variable Display', 'Segoe UI', Inter, system-ui, -apple-system,
-    'Helvetica Neue', sans-serif;
+    Inter, Roboto, 'Segoe UI Variable Display', 'Segoe UI', system-ui,
+    -apple-system, 'Helvetica Neue', sans-serif;
   --font-mono: 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
 
+  /* Type scale - five steps, one per role. A size outside this ramp is a bug.
+     Named --type-* so globals.css can map them onto Tailwind's --text-* font
+     namespace without a variable referring to itself. */
+  --type-h1: 36px;
+  --type-h2: 30px;
+  --type-h3: 24px;
+  --type-body: 16px;
+  --type-caption: 13px;
+
   /* Layout */
+  --space-page: 24px;
+  --space-gap: 16px;
   --sidebar-width: 264px;
   --sidebar-width-collapsed: 72px;
   --topbar-height: 64px;
 }
 
+/**
+ * Dark mode - olive/lime scale (DESIGN.md S4 "Modo oscuro - paleta oliva/lima").
+ *
+ * The previous dark theme painted the surfaces in the institutional green and
+ * the body text in lime, which flattened the elevation steps and made large
+ * blocks of text compete with the calls to action. Surfaces now use a neutral
+ * olive ramp and lime is reserved for interaction only.
+ *
+ * Elevation is carried by tonal contrast between surfaces, never by the accent:
+ * bg -> surface -> surface-alt -> border.
+ */
 [data-theme='dark'] {
   color-scheme: dark;
 
-  --bg: #0c2c1f;
-  --bg-subtle: #0f3d2b;
-  --surface: #144d37;
-  --surface-alt: #1a5941;
-  --surface-hover: #1e6549;
-  --border: #2e6b51;
-  --border-strong: #3d8464;
+  --bg: #232922;
+  --bg-subtle: #2b2e26;
+  --surface: #33332a;
+  --surface-alt: #37382c;
+  --surface-hover: #3f4033;
+  /* DESIGN.md allows the border tone at 25-35% for subtle dividers; this is
+     #696b3e resolved at 30% over the card surface, kept opaque so it also works
+     on top of the glass surfaces. */
+  --border: #43442f;
+  --border-strong: #696b3e;
 
-  --text: #e9f2d3;
-  --text-muted: #9fb89f;
-  --text-inverted: #0f3d2b;
+  --text: #edefdd;
+  --text-muted: #a6aa8a;
+  --text-inverted: #232922;
 
-  /* In dark mode lime becomes the primary interactive colour: the deep green
-     is already the background, so it can no longer carry emphasis. */
+  /* In dark mode lime becomes the primary interactive colour: it is the only
+     token allowed to carry emphasis, so it never fills a large surface. */
   --primary: #cad225;
   --primary-hover: #d8e04a;
   --primary-active: #b8c018;
-  --on-primary: #0f3d2b;
+  --on-primary: #232922;
   --accent: #cad225;
-  --accent-soft: #2a3d14;
-  --on-accent: #e9f2d3;
+  --accent-secondary: #999e3c;
+  --accent-soft: #3a3d1c;
+  --on-accent: #edefdd;
 
+  /* Status tones are lightened from the canonical hex of DESIGN.md S4. The
+     canonical values are calibrated for text on white: over #33332a they land
+     at 2.4-4.0:1, below the AA floor that S4 rule 5 and S15 require. The soft
+     fills below are the dark counterparts of the light chips. */
   --success: #4ade80;
-  --success-soft: #14532d;
+  --success-soft: #1c3b23;
   --warning: #fbbf24;
-  --warning-soft: #4a3308;
+  --warning-soft: #40320f;
   --danger: #f87171;
-  --danger-soft: #4c1d1d;
+  --danger-soft: #43201d;
   --info: #38bdf8;
-  --info-soft: #0c4a60;
+  --info-soft: #123a44;
 
   --ring: #cad225;
 
@@ -130,6 +165,6 @@
   --shadow-lg: 0 12px 32px rgb(0 0 0 / 0.4);
   --shadow-pop: 0 16px 48px rgb(0 0 0 / 0.5);
 
-  --glass-bg: rgb(20 77 55 / 0.72);
-  --glass-border: rgb(46 107 81 / 0.8);
+  --glass-bg: rgb(51 51 42 / 0.72);
+  --glass-border: rgb(105 107 62 / 0.45);
 }

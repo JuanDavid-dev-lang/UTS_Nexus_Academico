@@ -1,4 +1,14 @@
 @import 'tailwindcss';
+
+/* Inter, self-hosted (DESIGN.md S5). Latin subset only - the app has no other
+   script - which keeps each weight around 23 kB. Bundling rather than linking
+   is not a preference: index.html's CSP has no font-src, so it falls back to
+   default-src 'self' and a remote font host would simply be blocked. */
+@import '@fontsource/inter/latin-400.css';
+@import '@fontsource/inter/latin-500.css';
+@import '@fontsource/inter/latin-600.css';
+@import '@fontsource/inter/latin-700.css';
+
 @import './tokens.css';
 
 /**
@@ -29,6 +39,7 @@
   --color-primary-active: var(--primary-active);
   --color-on-primary: var(--on-primary);
   --color-accent: var(--accent);
+  --color-accent-secondary: var(--accent-secondary);
   --color-accent-soft: var(--accent-soft);
   --color-on-accent: var(--on-accent);
 
@@ -46,10 +57,19 @@
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);
   --radius-lg: var(--radius-lg);
+  --radius-card: var(--radius-card);
   --radius-xl: var(--radius-xl);
 
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
+
+  /* The five roles of DESIGN.md S5 as utilities: text-h1 … text-caption.
+     Type is picked by role, never by an arbitrary step on a generic ramp. */
+  --text-h1: var(--type-h1);
+  --text-h2: var(--type-h2);
+  --text-h3: var(--type-h3);
+  --text-body: var(--type-body);
+  --text-caption: var(--type-caption);
 
   --shadow-sm: var(--shadow-sm);
   --shadow-md: var(--shadow-md);
@@ -72,7 +92,7 @@
     background-color: var(--bg);
     color: var(--text);
     font-family: var(--font-sans);
-    font-size: 14px;
+    font-size: var(--type-body);
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
@@ -115,7 +135,7 @@
   .surface-card {
     background-color: var(--surface);
     border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-card);
     box-shadow: var(--shadow-sm);
   }
 

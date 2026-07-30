@@ -181,7 +181,7 @@ export default function AttendancePage() {
       {subjectId && enrolled.data.length > 0 ? (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-sm">
+            <CardTitle className="flex items-center gap-2 text-body">
               <CalendarCheck className="size-4 text-primary" aria-hidden />
               Progreso de esta clase
             </CardTitle>
@@ -237,8 +237,8 @@ export default function AttendancePage() {
                 <Avatar name={student.fullName} src={student.photoUrl} size="sm" />
 
                 <div className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-sm font-medium text-text">{student.fullName}</span>
-                  <span className="truncate font-mono text-xs text-muted">{student.code}</span>
+                  <span className="truncate text-body font-medium text-text">{student.fullName}</span>
+                  <span className="truncate font-mono text-caption text-muted">{student.code}</span>
                 </div>
 
                 {rate !== undefined ? (

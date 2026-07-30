@@ -11,8 +11,8 @@ export function BootScreen({ message = 'Preparando tu espacio…' }: { message?:
     <div className="flex h-screen w-screen flex-col items-center justify-center gap-4 bg-bg">
       <Logo size={72} className="animate-pulse" alt="" />
       <div className="flex flex-col items-center gap-1">
-        <p className="text-sm font-semibold text-text">UTS Nexus Académico</p>
-        <p className="text-xs text-muted">{message}</p>
+        <p className="text-body font-semibold text-text">UTS Nexus Académico</p>
+        <p className="text-caption text-muted">{message}</p>
       </div>
     </div>
   );

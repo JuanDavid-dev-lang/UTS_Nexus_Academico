@@ -20,8 +20,8 @@ export function PageHeader({
   return (
     <header className={cn('flex flex-wrap items-start justify-between gap-3', className)}>
       <div className="flex min-w-0 flex-col gap-0.5">
-        <h2 className="text-xl font-bold tracking-tight text-text">{title}</h2>
-        {subtitle ? <p className="text-sm text-muted">{subtitle}</p> : null}
+        <h1 className="text-h1 font-bold tracking-tight text-text">{title}</h1>
+        {subtitle ? <p className="text-body text-muted">{subtitle}</p> : null}
       </div>
       {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
     </header>
@@ -38,7 +38,8 @@ export function PageContainer({
 }) {
   return (
     <div className={cn('scrollbar-slim h-full overflow-y-auto', className)}>
-      <div className="mx-auto flex max-w-[1600px] flex-col gap-6 p-6">{children}</div>
+      {/* p-6 / gap-4 are DESIGN.md S7's 24px page padding and 16px gap. */}
+      <div className="mx-auto flex max-w-[1600px] flex-col gap-4 p-6">{children}</div>
     </div>
   );
 }

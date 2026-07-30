@@ -29,16 +29,99 @@ class AppColors {
   static const infoSoft = Color(0xFFCFF4FA);
   static const accentSoft = Color(0xFFF1F6CE); // Lima suave
 
-  // Ámbar oscuro para texto de riesgo medio (contraste AA)
+  // Ámbar oscuro para texto de riesgo medio (contraste AA sobre fondo claro)
   static const warningText = Color(0xFFB45309);
 
-  // Neutros para modo oscuro (verde profundo + lima)
-  static const bgDark = Color(0xFF0F3D2B);
-  static const surfaceDark = Color(0xFF164D38);
-  static const surfaceAltDark = Color(0xFF1E5B44);
-  static const borderDark = Color(0xFF2E6B51);
-  static const textDark = Color(0xFFE9F2D3); // Lima muy claro (letra)
-  static const textMutedDark = Color(0xFF9FB89F);
+  // Acento secundario (DESIGN.md §4): hover de botones secundarios, iconos
+  // relevantes pero inactivos, barras de progreso secundarias.
+  static const accentSecondary = Color(0xFF999E3C);
+
+  // ── Modo oscuro — escala oliva (DESIGN.md §4) ──────────────────────────
+  // El modo oscuro anterior pintaba las superficies con el verde institucional
+  // y el texto en lima: las capas no se distinguían entre sí y los bloques de
+  // texto competían con los botones. Ahora las superficies son oliva neutro y
+  // la lima queda reservada a la interacción.
+  //
+  // La elevación la marca el contraste tonal, nunca el acento:
+  // bgDark → surfaceDark → surfaceAltDark → borderDark.
+  static const bgDark = Color(0xFF232922); // Fondo base
+  static const surfaceDark = Color(0xFF33332A); // Cards / paneles (elevación 1)
+  static const surfaceAltDark = Color(0xFF37382C); // Flotantes (elevación 2)
+  // DESIGN.md admite el tono de borde al 25–35% en divisores sutiles; este es
+  // #696B3E resuelto al 30% sobre la superficie de card.
+  static const borderDark = Color(0xFF43442F);
+  static const borderStrongDark = Color(0xFF696B3E);
+  static const textDark = Color(0xFFEDEFDD); // Crema-lima, no lima puro
+  static const textMutedDark = Color(0xFFA6AA8A);
+
+  // Semánticos en oscuro. Los hex canónicos de §4 están calibrados para texto
+  // sobre blanco: sobre #33332A caen a 2.4–4.0:1, por debajo del mínimo AA que
+  // exigen la regla 5 de §4 y §15. Se aclaran para conservar el significado
+  // (verde = éxito, rojo = peligro) cumpliendo contraste.
+  static const successDark = Color(0xFF4ADE80);
+  static const warningDark = Color(0xFFFBBF24);
+  static const dangerDark = Color(0xFFF87171);
+  static const infoDark = Color(0xFF38BDF8);
+
+  // Fondos suaves para badges en oscuro (contrapartida de los chips claros).
+  static const successSoftDark = Color(0xFF1C3B23);
+  static const warningSoftDark = Color(0xFF40320F);
+  static const dangerSoftDark = Color(0xFF43201D);
+  static const infoSoftDark = Color(0xFF123A44);
+  static const accentSoftDark = Color(0xFF3A3D1C);
+}
+
+/// Estado semántico: éxito, advertencia, peligro, información.
+///
+/// Existe para que una pantalla no tenga que elegir a mano el par
+/// (color de texto, fondo suave) según el tema. Los chips claros de §4 sobre
+/// las superficies oliva no llegan a AA, así que cada tono tiene su versión
+/// oscura y se resuelve aquí, en un solo sitio.
+/// `brand` no es un estado: es énfasis de marca (etiqueta de rol, chip de
+/// identidad). Vive aquí para que esos realces se resuelvan por tema igual que
+/// los demás, en vez de fijar el verde institucional que el modo oscuro no lee.
+enum SemanticKind { success, warning, danger, info, brand }
+
+/// Par resuelto (color de texto/icono, fondo suave) para un estado semántico.
+class SemanticTone {
+  final Color fg;
+  final Color bg;
+  const SemanticTone(this.fg, this.bg);
+
+  static SemanticTone resolve(SemanticKind kind, bool isDark) {
+    switch (kind) {
+      case SemanticKind.success:
+        return isDark
+            ? const SemanticTone(
+                AppColors.successDark, AppColors.successSoftDark)
+            : const SemanticTone(AppColors.success, AppColors.successSoft);
+      case SemanticKind.warning:
+        return isDark
+            ? const SemanticTone(
+                AppColors.warningDark, AppColors.warningSoftDark)
+            // En claro el ámbar de marca no llega a AA como texto: se usa el
+            // ámbar oscuro para la letra y el de marca queda para indicadores.
+            : const SemanticTone(AppColors.warningText, AppColors.warningSoft);
+      case SemanticKind.danger:
+        return isDark
+            ? const SemanticTone(AppColors.dangerDark, AppColors.dangerSoftDark)
+            : const SemanticTone(AppColors.danger, AppColors.dangerSoft);
+      case SemanticKind.info:
+        return isDark
+            ? const SemanticTone(AppColors.infoDark, AppColors.infoSoftDark)
+            : const SemanticTone(AppColors.info, AppColors.infoSoft);
+      case SemanticKind.brand:
+        // El verde institucional desaparece sobre las superficies oliva; en
+        // oscuro la marca la lleva la lima, que §4 admite en badges pequeños.
+        return isDark
+            ? const SemanticTone(AppColors.lime, AppColors.accentSoftDark)
+            : const SemanticTone(AppColors.primary, AppColors.accentSoft);
+    }
+  }
+
+  /// Resuelve contra el tema activo.
+  static SemanticTone of(BuildContext context, SemanticKind kind) =>
+      resolve(kind, Theme.of(context).brightness == Brightness.dark);
 }
 
 /// Espaciado y radios (DESIGN.md §7).
@@ -48,6 +131,59 @@ class AppSpacing {
   static const double radiusCard = 18;
   static const double radiusInput = 12;
   static const double radiusPill = 999;
+
+  /// Relleno estándar de página: 24 a los lados, más aire al final para que la
+  /// última tarjeta no quede pegada a la barra de navegación.
+  static const EdgeInsets pagePadding =
+      EdgeInsets.fromLTRB(page, page, page, page + gap);
+}
+
+/// Escala tipográfica (DESIGN.md §5): cinco pasos, uno por rol.
+///
+/// Antes cada pantalla elegía su tamaño a mano y convivían dieciocho valores
+/// distintos, varios con medio punto. Un tamaño fuera de esta escala es un
+/// error, no una variante.
+class AppType {
+  /// Título de página.
+  static const h1 = TextStyle(fontSize: 36, fontWeight: FontWeight.w800);
+
+  /// Sección principal.
+  static const h2 = TextStyle(fontSize: 30, fontWeight: FontWeight.w700);
+
+  /// Subsección o título de tarjeta.
+  static const h3 = TextStyle(fontSize: 24, fontWeight: FontWeight.w700);
+
+  /// Texto general.
+  static const body = TextStyle(fontSize: 16, fontWeight: FontWeight.w400);
+
+  /// Texto general con énfasis (etiquetas de botón, valores destacados).
+  static const bodyStrong = TextStyle(fontSize: 16, fontWeight: FontWeight.w600);
+
+  /// Metadatos, etiquetas y notas al pie.
+  static const caption = TextStyle(fontSize: 13, fontWeight: FontWeight.w400);
+
+  /// Metadatos con énfasis (insignias, encabezados de columna).
+  static const captionStrong =
+      TextStyle(fontSize: 13, fontWeight: FontWeight.w600);
+
+  /// El `TextTheme` de Material mapeado a la escala, para que los widgets del
+  /// framework (diálogos, menús, snackbars) hereden los mismos tamaños.
+  static const textTheme = TextTheme(
+    displayLarge: h1,
+    displayMedium: h1,
+    headlineLarge: h1,
+    headlineMedium: h2,
+    headlineSmall: h3,
+    titleLarge: h3,
+    titleMedium: bodyStrong,
+    titleSmall: bodyStrong,
+    bodyLarge: body,
+    bodyMedium: body,
+    bodySmall: caption,
+    labelLarge: bodyStrong,
+    labelMedium: captionStrong,
+    labelSmall: captionStrong,
+  );
 }
 
 /// Devuelve (color de texto, fondo suave, emoji, etiqueta) para un nivel de
@@ -59,21 +195,25 @@ class RiskStyle {
   final String label;
   const RiskStyle(this.color, this.background, this.emoji, this.label);
 
-  static RiskStyle of(String nivel) {
+  static RiskStyle of(String nivel, {bool isDark = false}) {
     switch (nivel.toUpperCase()) {
       case 'ALTO':
       case 'HIGH':
-        return const RiskStyle(
-            AppColors.danger, AppColors.dangerSoft, '🔴', 'Riesgo Alto');
+        final t = SemanticTone.resolve(SemanticKind.danger, isDark);
+        return RiskStyle(t.fg, t.bg, '🔴', 'Riesgo Alto');
       case 'MEDIO':
       case 'MEDIUM':
-        return const RiskStyle(
-            AppColors.warningText, AppColors.warningSoft, '🟡', 'Riesgo Medio');
+        final t = SemanticTone.resolve(SemanticKind.warning, isDark);
+        return RiskStyle(t.fg, t.bg, '🟡', 'Riesgo Medio');
       default:
-        return const RiskStyle(
-            AppColors.success, AppColors.successSoft, '🟢', 'Sin riesgo');
+        final t = SemanticTone.resolve(SemanticKind.success, isDark);
+        return RiskStyle(t.fg, t.bg, '🟢', 'Sin riesgo');
     }
   }
+
+  /// Resuelve contra el tema activo.
+  static RiskStyle from(BuildContext context, String nivel) =>
+      of(nivel, isDark: Theme.of(context).brightness == Brightness.dark);
 }
 
 class AppTheme {
@@ -85,8 +225,11 @@ class AppTheme {
       primary: AppColors.primary,
       onPrimary: Colors.white,
       secondary: AppColors.secondary,
+      onSecondary: AppColors.text,
       error: AppColors.danger,
       surface: AppColors.surface,
+      onSurface: AppColors.text,
+      outline: AppColors.border,
     );
     return _base(scheme, AppColors.bg, AppColors.surface, AppColors.border,
         AppColors.text);
@@ -98,10 +241,16 @@ class AppTheme {
       brightness: Brightness.dark,
     ).copyWith(
       primary: AppColors.lime, // La lima es el acento principal en oscuro
-      onPrimary: AppColors.bgDark, // Texto verde oscuro sobre lima
-      secondary: AppColors.lime,
-      error: AppColors.danger,
+      onPrimary: AppColors.bgDark, // Texto oliva oscuro sobre lima
+      // Oliva apagado, no lima otra vez: DESIGN.md §4 limita a dos tonos de
+      // lima/oliva visibles por pantalla y el primario ya gasta uno.
+      secondary: AppColors.accentSecondary,
+      onSecondary: AppColors.bgDark,
+      error: AppColors.dangerDark,
+      onError: AppColors.bgDark,
       surface: AppColors.surfaceDark,
+      onSurface: AppColors.textDark,
+      outline: AppColors.borderStrongDark,
     );
     return _base(scheme, AppColors.bgDark, AppColors.surfaceDark,
         AppColors.borderDark, AppColors.textDark);
@@ -113,12 +262,22 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: bg,
+      // Inter va empaquetada; Roboto es el respaldo declarado por DESIGN.md §5
+      // y además la fuente del sistema en Android, así que un fallo de carga
+      // degrada a algo previsible en vez de a la fuente genérica del motor.
+      fontFamily: 'Inter',
+      fontFamilyFallback: const ['Roboto'],
+      textTheme: AppType.textTheme.apply(
+        bodyColor: text,
+        displayColor: text,
+      ),
       appBarTheme: AppBarTheme(
         backgroundColor: surface,
         foregroundColor: text,
         elevation: 0,
         centerTitle: false,
         scrolledUnderElevation: 0.5,
+        titleTextStyle: AppType.h3.copyWith(color: text),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -145,7 +304,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppSpacing.radiusInput),
           ),
-          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+          textStyle: AppType.bodyStrong.copyWith(fontWeight: FontWeight.w700),
         ),
       ),
       navigationRailTheme: NavigationRailThemeData(
@@ -153,7 +312,7 @@ class AppTheme {
         indicatorColor: scheme.primary.withValues(alpha: 0.16),
         selectedIconTheme: IconThemeData(color: scheme.primary),
         selectedLabelTextStyle:
-            TextStyle(color: scheme.primary, fontWeight: FontWeight.w600),
+            AppType.captionStrong.copyWith(color: scheme.primary),
         unselectedIconTheme: IconThemeData(color: text.withValues(alpha: 0.7)),
       ),
       navigationBarTheme: NavigationBarThemeData(

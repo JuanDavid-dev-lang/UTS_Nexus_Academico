@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/api_error.dart';
 import '../../core/services/api_client.dart';
 import '../../core/services/schedule_repository.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/widgets/ui_kit.dart';
 
 final scheduleProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
@@ -79,7 +80,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
             });
           }
           return ReorderableListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: AppSpacing.pagePadding,
             itemCount: _items.length,
             // onReorderItem ya entrega el índice corregido tras retirar el
             // elemento, así que el ajuste manual de newIndex sobra.
@@ -95,7 +96,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
               return Card(
                 key: ValueKey(item['_id'] ?? i),
                 child: ListTile(
-                  leading: const Icon(Icons.drag_handle),
+                  leading: const Icon(Icons.drag_handle_outlined),
                   title: Text('${_dayName((item['dayOfWeek'] ?? 1) as int)} ${item['startTime'] ?? ''} - ${item['endTime'] ?? ''}'),
                   subtitle: Text('${item['classroom'] ?? ''} • ${item['modality'] ?? ''} • ${item['durationMinutes'] ?? 90} min'),
                   trailing: Text(subject.length > 6 ? subject.substring(0, 6) : subject),
