@@ -17,7 +17,7 @@ export function Avatar({
   size?: 'sm' | 'md' | 'lg';
   className?: string;
 }) {
-  const sizes = { sm: 'size-7 text-[10px]', md: 'size-9 text-xs', lg: 'size-12 text-sm' };
+  const sizes = { sm: 'size-7 text-caption', md: 'size-9 text-caption', lg: 'size-12 text-body' };
 
   return (
     <AvatarPrimitive.Root
@@ -92,8 +92,8 @@ export function TabsTrigger({
   return (
     <TabsPrimitive.Trigger
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium',
-        'text-muted transition-all duration-150',
+        'inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-caption font-medium',
+        'text-muted transition-all duration-200 ease-out',
         'hover:text-text',
         'data-[state=active]:bg-surface data-[state=active]:text-text data-[state=active]:shadow-sm',
         className,
@@ -131,7 +131,7 @@ export function Tooltip({
         <TooltipPrimitive.Content
           side={side}
           sideOffset={6}
-          className="z-50 flex items-center gap-2 rounded-md bg-text px-2.5 py-1.5 text-xs font-medium text-bg shadow-md"
+          className="z-50 flex items-center gap-2 rounded-md bg-text px-2.5 py-1.5 text-caption font-medium text-bg shadow-md"
         >
           {content}
           {shortcut ? <Kbd className="border-bg/30 text-bg/80">{shortcut}</Kbd> : null}
@@ -146,7 +146,7 @@ export function Kbd({ children, className }: { children: React.ReactNode; classN
   return (
     <kbd
       className={cn(
-        'rounded border border-border px-1.5 py-0.5 font-mono text-[10px] font-medium text-muted',
+        'rounded border border-border px-1.5 py-0.5 font-mono text-caption font-medium text-muted',
         className,
       )}
     >
@@ -185,7 +185,7 @@ export function Progress({
       className={cn('h-1.5 w-full overflow-hidden rounded-full bg-surface-alt', className)}
     >
       <div
-        className={cn('h-full rounded-full transition-[width] duration-500 ease-out', tones[tone])}
+        className={cn('h-full rounded-full transition-[width] duration-200 ease-out', tones[tone])}
         style={{ width: `${clamped}%` }}
       />
     </div>

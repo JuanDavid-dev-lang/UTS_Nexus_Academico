@@ -33,7 +33,7 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
         title: const Text('Directorio'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.upload_file),
+            icon: const Icon(Icons.upload_file_outlined),
             tooltip: 'Importar lista',
             onPressed: _openImportSheet,
           ),
@@ -41,7 +41,7 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
       ),
       body: students.when(
         loading: () => ListView(
-          padding: const EdgeInsets.all(16),
+          padding: AppSpacing.pagePadding,
           children: List.generate(
             8,
             (_) => const Padding(
@@ -71,7 +71,10 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
           return Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                // Cabecera fija sobre la lista: mismo horizontal que
+                // AppSpacing.pagePadding para que el buscador no baile.
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.page, 12, AppSpacing.page, 8),
                 child: TextField(
                   onChanged: (value) => setState(() => _query = value),
                   decoration: const InputDecoration(
@@ -87,7 +90,7 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     '${filtered.length} de ${items.length} estudiantes',
-                    style: TextStyle(fontSize: 12, color: muted),
+                    style: AppType.caption.copyWith(color: muted),
                   ),
                 ),
               ),
@@ -100,7 +103,7 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
                             : 'Sin coincidencias para "$_query".',
                       )
                     : ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                        padding: AppSpacing.pagePadding,
                         itemCount: filtered.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 10),
                         itemBuilder: (_, index) =>
@@ -133,20 +136,20 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('Importar estudiantes',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+              Text('Importar estudiantes',
+                  style: AppType.h3.copyWith(fontWeight: FontWeight.w800)),
               const SizedBox(height: 6),
               const Text(
                 'Pega una fila por estudiante, separando los campos con comas. '
                 'La primera línea es la cabecera y se ignora.',
-                style: TextStyle(fontSize: 13),
+                style: AppType.caption,
               ),
               const SizedBox(height: 14),
               TextField(
                 controller: controller,
                 minLines: 6,
                 maxLines: 10,
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 12.5),
+                style: AppType.caption.copyWith(fontFamily: 'monospace'),
                 decoration: const InputDecoration(
                   hintText: 'cedula,nombres,correo,programa\n'
                       '1098765432,Ana Rodríguez,ana@uts.edu.co,Sistemas',
@@ -237,8 +240,8 @@ class _StudentTile extends StatelessWidget {
             backgroundColor: primary.withValues(alpha: 0.12),
             child: Text(
               _initials(student.fullName),
-              style: TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w700, color: primary),
+              style: AppType.captionStrong
+                  .copyWith(fontWeight: FontWeight.w700, color: primary),
             ),
           ),
           const SizedBox(width: 12),
@@ -249,8 +252,7 @@ class _StudentTile extends StatelessWidget {
                 Text(student.fullName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 14.5)),
+                    style: AppType.bodyStrong),
                 const SizedBox(height: 2),
                 Text(
                   [
@@ -259,7 +261,7 @@ class _StudentTile extends StatelessWidget {
                   ].join(' · '),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, color: muted),
+                  style: AppType.caption.copyWith(color: muted),
                 ),
               ],
             ),

@@ -29,7 +29,7 @@ class ProfilePage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Perfil')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
+        padding: AppSpacing.pagePadding,
         children: [
           Center(
             child: Column(
@@ -39,8 +39,7 @@ class ProfilePage extends ConsumerWidget {
                   backgroundColor: primary.withValues(alpha: 0.12),
                   child: Text(
                     _initials(user?.fullName ?? 'U'),
-                    style: TextStyle(
-                      fontSize: 26,
+                    style: AppType.h2.copyWith(
                       fontWeight: FontWeight.w800,
                       color: primary,
                     ),
@@ -50,18 +49,13 @@ class ProfilePage extends ConsumerWidget {
                 Text(
                   user?.fullName ?? 'Sin sesión',
                   textAlign: TextAlign.center,
-                  style:
-                      const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                  style: AppType.h3.copyWith(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 4),
                 Text(user?.email ?? '',
-                    style: TextStyle(fontSize: 13, color: muted)),
+                    style: AppType.caption.copyWith(color: muted)),
                 const SizedBox(height: 10),
-                StatusPill(
-                  roleLabel(user?.role),
-                  color: primary,
-                  background: primary.withValues(alpha: 0.12),
-                ),
+                StatusPill(roleLabel(user?.role), kind: SemanticKind.brand),
               ],
             ),
           ),
@@ -72,8 +66,7 @@ class ProfilePage extends ConsumerWidget {
               children: [
                 Text(
                   'CONEXIÓN',
-                  style: TextStyle(
-                    fontSize: 10.5,
+                  style: AppType.captionStrong.copyWith(
                     letterSpacing: 0.8,
                     fontWeight: FontWeight.w700,
                     color: muted,
@@ -87,16 +80,19 @@ class ProfilePage extends ConsumerWidget {
                           ? Icons.check_circle_outline
                           : Icons.error_outline,
                       size: 18,
-                      color: connection.isUsable
-                          ? AppColors.success
-                          : AppColors.warningText,
+                      color: SemanticTone.of(
+                        context,
+                        connection.isUsable
+                            ? SemanticKind.success
+                            : SemanticKind.warning,
+                      ).fg,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         connection.baseUrl ?? 'Sin servidor',
-                        style: const TextStyle(
-                            fontSize: 13, fontFamily: 'monospace'),
+                        style: AppType.caption
+                            .copyWith(fontFamily: 'monospace'),
                       ),
                     ),
                   ],
@@ -104,7 +100,7 @@ class ProfilePage extends ConsumerWidget {
                 if (connection.detail != null) ...[
                   const SizedBox(height: 6),
                   Text(connection.detail!,
-                      style: TextStyle(fontSize: 12, color: muted)),
+                      style: AppType.caption.copyWith(color: muted)),
                 ],
               ],
             ),
@@ -116,7 +112,7 @@ class ProfilePage extends ConsumerWidget {
               foregroundColor: Colors.white,
             ),
             onPressed: () => _confirmLogout(context, ref),
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout_outlined),
             label: const Text('Cerrar sesión'),
           ),
         ],

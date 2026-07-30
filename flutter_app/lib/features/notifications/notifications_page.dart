@@ -41,14 +41,14 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                     height: 18,
                     width: 18,
                     child: CircularProgressIndicator(strokeWidth: 2.2))
-                : const Icon(Icons.radar),
+                : const Icon(Icons.radar_outlined),
             onPressed: _scanning ? null : _scanRisks,
           ),
         ],
       ),
       body: notifications.when(
         loading: () => ListView(
-          padding: const EdgeInsets.all(16),
+          padding: AppSpacing.pagePadding,
           children: List.generate(
             6,
             (_) => const Padding(
@@ -82,7 +82,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               await ref.read(notificationsProvider.future);
             },
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              padding: AppSpacing.pagePadding,
               children: [
                 Row(
                   children: [
@@ -194,44 +194,19 @@ class _NotificationCard extends StatelessWidget {
     required this.onMarkRead,
   });
 
-  static const _presentation = <String,
-      (IconData, Color, Color, String)>{
-    'RISK': (
-      Icons.warning_amber_rounded,
-      AppColors.danger,
-      AppColors.dangerSoft,
-      'Riesgo'
-    ),
-    'GRADE': (
-      Icons.school_outlined,
-      AppColors.info,
-      AppColors.infoSoft,
-      'Notas'
-    ),
+  /// Icono, significado y etiqueta por tipo. El tipo declara su *tono*, no sus
+  /// colores: el par exacto lo resuelve [SemanticTone] contra el tema activo.
+  static const _presentation = <String, (IconData, SemanticKind, String)>{
+    'RISK': (Icons.warning_amber_outlined, SemanticKind.danger, 'Riesgo'),
+    'GRADE': (Icons.school_outlined, SemanticKind.info, 'Notas'),
     'ATTENDANCE': (
       Icons.event_busy_outlined,
-      AppColors.warningText,
-      AppColors.warningSoft,
+      SemanticKind.warning,
       'Asistencia'
     ),
-    'CLASS': (
-      Icons.menu_book_outlined,
-      AppColors.info,
-      AppColors.infoSoft,
-      'Clase'
-    ),
-    'EXAM': (
-      Icons.assignment_outlined,
-      AppColors.info,
-      AppColors.infoSoft,
-      'Examen'
-    ),
-    'DEADLINE': (
-      Icons.timer_outlined,
-      AppColors.warningText,
-      AppColors.warningSoft,
-      'Fecha límite'
-    ),
+    'CLASS': (Icons.menu_book_outlined, SemanticKind.info, 'Clase'),
+    'EXAM': (Icons.assignment_outlined, SemanticKind.info, 'Examen'),
+    'DEADLINE': (Icons.timer_outlined, SemanticKind.warning, 'Fecha límite'),
   };
 
   @override
@@ -240,13 +215,11 @@ class _NotificationCard extends StatelessWidget {
     final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
     final unread = notification.isUnread && !read;
 
-    final (icon, color, background, label) = _presentation[notification.type] ??
-        (
-          Icons.notifications_outlined,
-          AppColors.info,
-          AppColors.infoSoft,
-          'Actividad'
-        );
+    final (icon, kind, label) = _presentation[notification.type] ??
+        (Icons.notifications_outlined, SemanticKind.info, 'Actividad');
+    final tone = SemanticTone.of(context, kind);
+    final color = tone.fg;
+    final background = tone.bg;
 
     return AppCard(
       padding: const EdgeInsets.all(14),
@@ -273,8 +246,7 @@ class _NotificationCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         notification.title,
-                        style: TextStyle(
-                          fontSize: 14.5,
+                        style: AppType.bodyStrong.copyWith(
                           fontWeight:
                               unread ? FontWeight.w800 : FontWeight.w600,
                         ),
@@ -294,16 +266,16 @@ class _NotificationCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   notification.message,
-                  style: TextStyle(fontSize: 13, color: muted, height: 1.35),
+                  style: AppType.caption.copyWith(color: muted, height: 1.35),
                 ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    StatusPill(label, color: color, background: background),
+                    StatusPill(label, kind: kind),
                     const SizedBox(width: 8),
                     Text(
                       _relative(notification.createdAt),
-                      style: TextStyle(fontSize: 11, color: muted),
+                      style: AppType.caption.copyWith(color: muted),
                     ),
                   ],
                 ),

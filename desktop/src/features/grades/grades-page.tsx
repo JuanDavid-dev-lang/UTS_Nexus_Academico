@@ -103,7 +103,7 @@ export default function GradesPage() {
         cell: (row) => (
           <div className="flex min-w-0 flex-col">
             <span className="truncate font-medium">{row.fullName}</span>
-            <span className="truncate font-mono text-xs text-muted">{row.code}</span>
+            <span className="truncate font-mono text-caption text-muted">{row.code}</span>
           </div>
         ),
       },
@@ -218,7 +218,7 @@ export default function GradesPage() {
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Promedio del grupo</CardDescription>
-              <CardTitle className="font-mono text-2xl">{formatGrade(stats.average)}</CardTitle>
+              <CardTitle className="font-mono text-h3">{formatGrade(stats.average)}</CardTitle>
             </CardHeader>
             <CardContent>
               <Progress
@@ -232,7 +232,7 @@ export default function GradesPage() {
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Aprobando</CardDescription>
-              <CardTitle className="font-mono text-2xl text-success">{stats.passing}</CardTitle>
+              <CardTitle className="font-mono text-h3 text-success">{stats.passing}</CardTitle>
             </CardHeader>
             <CardContent>
               <Progress value={(stats.passing / rows.length) * 100} tone="success" />
@@ -242,7 +242,7 @@ export default function GradesPage() {
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Reprobando</CardDescription>
-              <CardTitle className="font-mono text-2xl text-danger">{stats.failing}</CardTitle>
+              <CardTitle className="font-mono text-h3 text-danger">{stats.failing}</CardTitle>
             </CardHeader>
             <CardContent>
               <Progress value={(stats.failing / rows.length) * 100} tone="danger" />
@@ -252,9 +252,9 @@ export default function GradesPage() {
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Con los 3 cortes completos</CardDescription>
-              <CardTitle className="font-mono text-2xl">
+              <CardTitle className="font-mono text-h3">
                 {stats.complete}
-                <span className="text-base text-muted"> / {rows.length}</span>
+                <span className="text-body text-muted"> / {rows.length}</span>
               </CardTitle>
             </CardHeader>
             <CardContent>

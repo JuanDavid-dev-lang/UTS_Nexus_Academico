@@ -44,9 +44,9 @@ export function Toaster() {
               <span className="mt-0.5 shrink-0">{icon}</span>
 
               <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <p className="text-sm font-semibold text-text">{toast.title}</p>
+                <p className="text-body font-semibold text-text">{toast.title}</p>
                 {toast.description ? (
-                  <p className="text-xs leading-relaxed text-muted" data-selectable>
+                  <p className="text-caption leading-relaxed text-muted" data-selectable>
                     {toast.description}
                   </p>
                 ) : null}
@@ -57,7 +57,7 @@ export function Toaster() {
                       toast.action?.onClick();
                       dismiss(toast.id);
                     }}
-                    className="mt-1 self-start text-xs font-semibold text-primary hover:underline"
+                    className="mt-1 self-start text-caption font-semibold text-primary hover:underline"
                   >
                     {toast.action.label}
                   </button>

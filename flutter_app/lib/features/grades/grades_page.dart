@@ -46,7 +46,10 @@ class _GradesPageState extends ConsumerState<GradesPage> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            // Cabecera fija sobre la lista: el horizontal debe ser el mismo de
+            // AppSpacing.pagePadding o el selector queda desalineado del listado.
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.page, 12, AppSpacing.page, 8),
             child: subjects.when(
               loading: () => const SkeletonBox(height: 48, radius: 12),
               error: (_, __) => const SizedBox.shrink(),
@@ -86,7 +89,7 @@ class _GradesPageState extends ConsumerState<GradesPage> {
           Expanded(
             child: rows.when(
               loading: () => ListView(
-                padding: const EdgeInsets.all(16),
+                padding: AppSpacing.pagePadding,
                 children: List.generate(
                   7,
                   (_) => const Padding(
@@ -129,7 +132,7 @@ class _GradesPageState extends ConsumerState<GradesPage> {
                     await ref.read(consolidatedProvider(_subjectId).future);
                   },
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                    padding: AppSpacing.pagePadding,
                     children: [
                       _Summary(rows: items),
                       const SizedBox(height: 14),
@@ -140,7 +143,7 @@ class _GradesPageState extends ConsumerState<GradesPage> {
                       const SizedBox(height: 6),
                       Text(
                         'En cursiva, los cortes con componentes pendientes de calificar.',
-                        style: TextStyle(fontSize: 11.5, color: muted),
+                        style: AppType.caption.copyWith(color: muted),
                       ),
                     ],
                   ),
@@ -175,7 +178,7 @@ class _Summary extends StatelessWidget {
             label: 'Promedio',
             value: average == 0 ? '—' : average.toStringAsFixed(2),
             hint: 'del grupo',
-            valueColor: average >= 3 ? AppColors.success : AppColors.danger,
+            tone: average >= 3 ? SemanticKind.success : SemanticKind.danger,
           ),
         ),
         const SizedBox(width: 10),
@@ -184,7 +187,7 @@ class _Summary extends StatelessWidget {
             label: 'Aprobando',
             value: '$passing',
             hint: 'de ${graded.length}',
-            valueColor: AppColors.success,
+            tone: SemanticKind.success,
           ),
         ),
         const SizedBox(width: 10),
@@ -193,7 +196,7 @@ class _Summary extends StatelessWidget {
             label: 'Completos',
             value: '$complete',
             hint: 'los 3 cortes',
-            valueColor: AppColors.info,
+            tone: SemanticKind.info,
           ),
         ),
       ],
@@ -225,25 +228,21 @@ class _GradeRow extends StatelessWidget {
                     Text(row.fullName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w600, fontSize: 14.5)),
+                        style: AppType.bodyStrong),
                     Text(row.code,
-                        style: TextStyle(fontSize: 11.5, color: muted)),
+                        style: AppType.caption.copyWith(color: muted)),
                   ],
                 ),
               ),
               if (hasGrades)
                 StatusPill(
                   row.passed ? 'Aprobando' : 'Reprobando',
-                  color: row.passed ? AppColors.success : AppColors.danger,
-                  background:
-                      row.passed ? AppColors.successSoft : AppColors.dangerSoft,
+                  kind: row.passed ? SemanticKind.success : SemanticKind.danger,
                 ),
               const SizedBox(width: 10),
               Text(
                 hasGrades ? row.finalGrade.toStringAsFixed(2) : '—',
-                style: TextStyle(
-                  fontSize: 19,
+                style: AppType.h3.copyWith(
                   fontWeight: FontWeight.w800,
                   color: !hasGrades
                       ? muted
@@ -261,12 +260,11 @@ class _GradeRow extends StatelessWidget {
                     child: Column(
                       children: [
                         Text('C${cut.cut}',
-                            style: TextStyle(fontSize: 10.5, color: muted)),
+                            style: AppType.caption.copyWith(color: muted)),
                         const SizedBox(height: 3),
                         Text(
                           cut.grade.toStringAsFixed(1),
-                          style: TextStyle(
-                            fontSize: 14,
+                          style: AppType.bodyStrong.copyWith(
                             fontWeight: FontWeight.w700,
                             fontStyle: cut.complete
                                 ? FontStyle.normal

@@ -1,5 +1,4 @@
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QMainWindow,
     QWidget,
@@ -66,7 +65,8 @@ class MainWindow(QMainWindow):
 
         brand = QLabel("UTS Académico")
         brand.setObjectName("AppTitle")
-        brand.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
+        # Sin setFont: fijaba Segoe UI en duro y anulaba tanto la escala de
+        # #AppTitle como la familia Inter que carga el tema.
         subtitle = QLabel("Espacio docente")
         subtitle.setStyleSheet(f"color: {Theme.TEXT_MUTED};")
         side_layout.addWidget(brand)
@@ -117,7 +117,7 @@ class MainWindow(QMainWindow):
         header_layout.setContentsMargins(20, 18, 20, 18)
 
         self.page_title = QLabel("Panel")
-        self.page_title.setObjectName("SectionTitle")
+        self.page_title.setObjectName("PageTitle")
         self.page_subtitle = QLabel("Resumen académico y control operativo")
         self.page_subtitle.setObjectName("SectionSubtitle")
 

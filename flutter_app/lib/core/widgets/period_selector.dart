@@ -28,7 +28,7 @@ class PeriodSelector extends ConsumerWidget {
             child: Row(
               children: [
                 if (option == period)
-                  Icon(Icons.check,
+                  Icon(Icons.check_outlined,
                       size: 18, color: Theme.of(context).colorScheme.primary)
                 else
                   const SizedBox(width: 18),
@@ -44,7 +44,7 @@ class PeriodSelector extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(period, style: const TextStyle(fontWeight: FontWeight.w700)),
-            const Icon(Icons.arrow_drop_down),
+            const Icon(Icons.arrow_drop_down_outlined),
           ],
         ),
       ),

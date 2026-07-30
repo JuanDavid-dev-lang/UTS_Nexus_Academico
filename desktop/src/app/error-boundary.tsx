@@ -39,13 +39,13 @@ export class AppErrorBoundary extends Component<Props, State> {
         </span>
 
         <div className="flex max-w-md flex-col items-center gap-2 text-center">
-          <h1 className="text-lg font-bold text-text">La aplicación encontró un problema</h1>
-          <p className="text-sm text-muted">
+          <h1 className="text-h3 font-bold text-text">La aplicación encontró un problema</h1>
+          <p className="text-body text-muted">
             Puedes volver a la pantalla anterior. Si el problema se repite, reinicia la aplicación.
           </p>
           <pre
             data-selectable
-            className="mt-2 max-h-32 w-full overflow-auto rounded-lg bg-surface-alt p-3 text-left font-mono text-[11px] text-muted"
+            className="mt-2 max-h-32 w-full overflow-auto rounded-lg bg-surface-alt p-3 text-left font-mono text-caption text-muted"
           >
             {error.message}
           </pre>

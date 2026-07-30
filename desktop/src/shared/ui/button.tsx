@@ -13,7 +13,7 @@ import { cn } from '@/shared/lib/cn';
 const buttonVariants = cva(
   cn(
     'inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium',
-    'transition-[background-color,border-color,color,box-shadow,transform] duration-150',
+    'transition-[background-color,border-color,color,box-shadow,transform] duration-200 ease-out',
     'active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50',
     '[&_svg]:pointer-events-none [&_svg]:shrink-0',
   ),
@@ -28,9 +28,9 @@ const buttonVariants = cva(
         link: 'text-primary underline-offset-4 hover:underline',
       },
       size: {
-        sm: 'h-8 rounded-md px-3 text-xs [&_svg]:size-3.5',
-        md: 'h-10 rounded-lg px-4 text-sm [&_svg]:size-4',
-        lg: 'h-11 rounded-lg px-6 text-sm [&_svg]:size-4',
+        sm: 'h-8 rounded-md px-3 text-caption [&_svg]:size-3.5',
+        md: 'h-10 rounded-lg px-4 text-body [&_svg]:size-4',
+        lg: 'h-11 rounded-lg px-6 text-body [&_svg]:size-4',
         icon: 'size-9 rounded-lg [&_svg]:size-4',
       },
       block: {

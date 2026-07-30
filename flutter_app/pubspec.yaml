@@ -30,3 +30,18 @@ flutter:
 
   assets:
     - assets/logo.png
+
+  # Inter (DESIGN.md §5). Se empaqueta en vez de descargarse en caliente: la app
+  # se usa con la red del campus y una fuente que llega tarde provoca un salto
+  # de texto en el primer arranque. Solo los cuatro pesos que la interfaz usa.
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Inter-ExtraBold.ttf
+          weight: 800

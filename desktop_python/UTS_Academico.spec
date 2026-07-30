@@ -5,7 +5,9 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    # Inter viaja dentro del ejecutable: sin esto load_fonts() no encuentra
+    # nada al empaquetar y la app cae a la fuente del sistema.
+    datas=[('assets/fonts', 'assets/fonts')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

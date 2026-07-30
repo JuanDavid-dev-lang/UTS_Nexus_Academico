@@ -184,7 +184,7 @@ export default function ReportsPage() {
         ))}
       </div>
 
-      <p className="flex items-center gap-2 text-xs text-muted">
+      <p className="flex items-center gap-2 text-caption text-muted">
         <FolderOpen className="size-3.5" aria-hidden />
         Los archivos se guardan en tu carpeta de Descargas.
       </p>

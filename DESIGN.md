@@ -99,9 +99,67 @@ Cada pantalla debe responder tres preguntas:
 | **Información** | `#0E7490` | 🟦 | Mensajes informativos, tooltips |
 
 > **Marca UTS:** verde `#144D37` como color **dominante** y lima `#CAD225` como
-> **acento / lettering**. En **modo oscuro** el fondo es verde profundo
-> (`#0F3D2B`) y el lettering es lima. Ambos modos (claro y oscuro) están
-> disponibles y se pueden alternar desde Configuración.
+> **acento / lettering**. Ambos modos (claro y oscuro) están disponibles y se
+> pueden alternar desde Configuración.
+
+### Modo oscuro — paleta oliva/lima
+
+El modo oscuro anterior (fondo verde `#0F3D2B` + texto lima `#E9F2D3`) generaba
+poco contraste tonal entre capas y saturaba la vista con lima en zonas grandes
+de texto. Se reemplaza por una **escala oliva neutra** (basada en la paleta de
+referencia) para las superficies, dejando el lima **exclusivamente como acento
+puntual** — nunca como color de texto extenso ni de fondo.
+
+| Rol | Hex | Muestra | Uso |
+|-----|-----|---------|-----|
+| **Fondo base** | `#232922` | ⬛ | Fondo general de la app (variante aún más oscura de `#33332A`, evita el "gris carbón" genérico) |
+| **Superficie / Cards** | `#33332A` | ⬛ | Tarjetas, paneles, modales — un paso de elevación sobre el fondo |
+| **Superficie elevada** | `#37382C` | ⬛ | Elementos flotantes: dropdowns, tooltips, popovers (elevación 2) |
+| **Bordes / Divisores** | `#696B3E` | 🟫 | Bordes de inputs, separadores, líneas de tabla — usar al 100% en bordes finos o 25–35% opacidad en divisores sutiles |
+| **Acento secundario** | `#999E3C` | 🟩 | Hover de botones secundarios, iconos inactivos-pero-relevantes, barras de progreso secundarias |
+| **Acento primario** | `#CAD225` | 🟢 | Botón primario, link activo, tab seleccionada, foco — **uso puntual, nunca en bloques de texto** |
+| **Texto principal** | `#EDEFDD` | ⬜ | Crema-lima muy suave (no lima puro) — contraste alto sin fatiga visual |
+| **Texto secundario** | `#A6AA8A` | ⬜ | Descripciones, captions, metadatos |
+
+```
+/* Modo oscuro — revisado */
+--dark-bg:              #232922   /* fondo base */
+--dark-surface:         #33332A   /* cards / paneles (elevación 1) */
+--dark-surface-raised:  #37382C   /* dropdowns / tooltips (elevación 2) */
+--dark-border:          #696B3E   /* bordes y divisores */
+--dark-accent-secondary:#999E3C   /* hover, iconos secundarios */
+--dark-primary:         #CAD225   /* acento primario — uso puntual */
+--dark-text:            #EDEFDD   /* texto principal */
+--dark-text-muted:      #A6AA8A   /* texto secundario */
+
+/* Semánticos en modo oscuro.
+   Los hex de la paleta principal están calibrados para texto sobre blanco.
+   Medidos sobre la superficie de card (#33332A) dan 3.9:1 (éxito), 4.0:1
+   (advertencia), 2.6:1 (peligro) y 2.4:1 (información): por debajo del 4.5:1
+   que exigen la regla 5 de esta sección y §15. Se usan aclarados, que conservan
+   el significado (verde = éxito, rojo = peligro) y sí cumplen AA.
+   Los hex originales siguen siendo válidos como relleno sólido con texto
+   oscuro encima (badges, barras), donde el contraste lo aporta la letra. */
+--dark-success:  #4ADE80   /* 7.3:1 sobre #33332A */
+--dark-warning:  #FBBF24   /* 7.6:1 */
+--dark-danger:   #F87171   /* 4.6:1 */
+--dark-info:     #38BDF8   /* 6.0:1 */
+
+/* Fondos suaves de badge en oscuro (contrapartida de los chips claros) */
+--dark-success-soft: #1C3B23
+--dark-warning-soft: #40320F
+--dark-danger-soft:  #43201D
+--dark-info-soft:    #123A44
+--dark-accent-soft:  #3A3D1C
+```
+
+**Reglas de uso (para evitar sobrecarga visual):**
+
+1. **Máximo dos tonos de lima/oliva visibles por pantalla.** Si el botón primario ya usa `--dark-primary`, los demás acentos de esa vista van en `--dark-accent-secondary` o `--dark-border`, no en lima otra vez.
+2. **El lima (`#CAD225`) nunca es color de fondo de superficies grandes** (cards, sidebars, headers completos) en modo oscuro — solo botones, badges pequeños, indicadores de selección y focus rings.
+3. **Jerarquía de elevación por contraste tonal, no por brillo del acento:** fondo (`#232922`) → card (`#33332A`) → elemento flotante (`#37382C`) → borde (`#696B3E`). El lima se reserva para el último nivel: interacción.
+4. **Texto siempre en `--dark-text` o `--dark-text-muted`**, nunca en lima puro, para no competir visualmente con los CTAs.
+5. Verificar contraste **AA** (mínimo 4.5:1 para texto body) en cada combinación antes de shippear; `--dark-text` sobre `--dark-bg` y `--dark-surface` ya cumple holgadamente.
 
 ### Neutros
 
@@ -126,10 +184,10 @@ Cada pantalla debe responder tres preguntas:
 --color-text:         #12271E
 --color-text-muted:   #5B6B61
 
-/* Modo oscuro */
---dark-bg:            #0F3D2B   /* verde profundo */
---dark-surface:       #164D38
---dark-text:          #E9F2D3   /* lettering lima claro */
+/* Modo oscuro — ver la escala oliva completa más arriba */
+--dark-bg:            #232922
+--dark-surface:       #33332A
+--dark-text:          #EDEFDD
 --dark-primary:       #CAD225   /* lima como acento principal */
 ```
 

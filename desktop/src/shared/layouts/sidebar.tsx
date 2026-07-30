@@ -66,8 +66,8 @@ export function Sidebar({
         <Logo size={36} className="shrink-0" alt="" />
         {!collapsed ? (
           <div className="flex min-w-0 flex-col">
-            <span className="truncate text-sm font-bold leading-tight text-text">UTS Nexus</span>
-            <span className="truncate text-[11px] leading-tight text-muted">Académico</span>
+            <span className="truncate text-body font-bold leading-tight text-text">UTS Nexus</span>
+            <span className="truncate text-caption leading-tight text-muted">Académico</span>
           </div>
         ) : null}
       </div>
@@ -83,8 +83,8 @@ export function Sidebar({
               end={item.to === '/'}
               className={({ isActive }) =>
                 cn(
-                  'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium',
-                  'transition-colors duration-150',
+                  'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-body font-medium',
+                  'transition-colors duration-200 ease-out',
                   collapsed && 'justify-center px-0',
                   isActive
                     ? 'bg-primary/10 text-primary'
@@ -106,7 +106,7 @@ export function Sidebar({
                   {badgeCount > 0 ? (
                     <span
                       className={cn(
-                        'grid min-w-5 place-items-center rounded-full bg-danger px-1.5 text-[10px] font-bold text-white',
+                        'grid min-w-5 place-items-center rounded-full bg-danger px-1.5 text-caption font-bold text-white',
                         collapsed && 'absolute right-2 top-1 min-w-4 px-1',
                       )}
                     >
@@ -135,7 +135,7 @@ export function Sidebar({
         onClick={onToggle}
         aria-label={collapsed ? 'Expandir menú' : 'Contraer menú'}
         className={cn(
-          'flex items-center gap-2 border-t border-border px-4 py-3 text-xs font-medium text-muted',
+          'flex items-center gap-2 border-t border-border px-4 py-3 text-caption font-medium text-muted',
           'transition-colors hover:bg-surface-alt hover:text-text',
           collapsed && 'justify-center px-0',
         )}
