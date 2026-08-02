@@ -84,6 +84,7 @@ class _UtsAppState extends ConsumerState<UtsApp> {
         switch (entity) {
           case 'student':
             ref.invalidate(studentsProvider);
+            ref.invalidate(filteredStudentsProvider);
             ref.invalidate(dashboardProvider);
           case 'subject':
             ref.invalidate(subjectsProvider);
@@ -97,6 +98,9 @@ class _UtsAppState extends ConsumerState<UtsApp> {
             ref.invalidate(scheduleProvider);
           case 'enrollment':
             ref.invalidate(studentsProvider);
+            // La matrícula es justo lo que define la lista por materia.
+            ref.invalidate(filteredStudentsProvider);
+            ref.invalidate(subjectRosterProvider);
             ref.invalidate(dashboardProvider);
           default:
             ref.invalidate(dashboardProvider);

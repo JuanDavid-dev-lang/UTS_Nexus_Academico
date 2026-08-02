@@ -1,24 +1,109 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { StudentModel } from '../../models/student.model.js';
-import { SubjectModel } from '../../models/subject.model.js';
-import { GroupModel } from '../../models/group.model.js';
 import { auth, requireRole } from '../../middlewares/auth.js';
 import { emitSync } from '../../shared/socket.js';
-import { getProfessorScope } from '../../shared/professor-scope.js';
+import {
+  getProfessorScope,
+  getEnrolledStudentIds,
+  professorOwnsStudent,
+} from '../../shared/professor-scope.js';
 
 export const studentRouter = Router();
 
 studentRouter.use(auth);
 
-studentRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (_req, res, next) => {
+/** Neutraliza los metacaracteres para que el texto buscado se trate como literal. */
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Intersección de dos conjuntos de ids, preservando el orden del primero. */
+function intersect(a: string[], b: string[]): string[] {
+  const allowed = new Set(b);
+  return a.filter(id => allowed.has(id));
+}
+
+/**
+ * Listado de estudiantes.
+ *
+ * Sin filtros devuelve el ámbito completo del rol; con `subjectId` o `groupId`
+ * devuelve solo la lista de esa asignatura o grupo. Un docente nunca escapa de
+ * su propio ámbito: los filtros se intersectan con él, no lo reemplazan.
+ */
+studentRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
+    const query = z
+      .object({
+        subjectId: z.string().optional(),
+        groupId: z.string().optional(),
+        period: z.string().optional(),
+        q: z.string().trim().optional(),
+      })
+      .parse(req.query);
+
     const filter: Record<string, unknown> = { deletedAt: null };
-    if (_req.user?.role === 'PROFESSOR') {
-      const scope = await getProfessorScope(_req.user.id);
-      filter._id = { $in: scope.studentIds };
+    const isProfessor = req.user?.role === 'PROFESSOR';
+
+    let allowedIds: string[] | null = null;
+    if (isProfessor) {
+      const scope = await getProfessorScope(req.user!.id);
+      allowedIds = scope.studentIds;
     }
+
+    if (query.subjectId || query.groupId || query.period) {
+      const enrolled = await getEnrolledStudentIds({
+        subjectId: query.subjectId,
+        groupId: query.groupId,
+        period: query.period,
+        // Acota la matrícula al docente autenticado: un id de materia ajeno
+        // deja de devolver nada en vez de filtrar la lista de otro profesor.
+        professorId: isProfessor ? req.user!.id : undefined,
+      });
+      allowedIds = allowedIds ? intersect(allowedIds, enrolled) : enrolled;
+    }
+
+    if (allowedIds) filter._id = { $in: allowedIds };
+
+    if (query.q) {
+      const term = new RegExp(escapeRegex(query.q), 'i');
+      filter.$or = [{ fullName: term }, { code: term }];
+    }
+
     const items = await StudentModel.find(filter).sort({ code: 1, fullName: 1 }).limit(1000).lean();
+    res.json({ ok: true, items });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Búsqueda en el directorio global, para matricular en una materia nueva.
+ *
+ * Es deliberadamente más amplia que `GET /` — un docente tiene que poder
+ * encontrar a un estudiante que aún no es suyo — y por eso devuelve solo la
+ * identidad mínima: ni notas, ni asistencia, ni riesgo. Exige tres caracteres
+ * y acota el resultado para que no sirva como volcado del padrón.
+ */
+studentRouter.get('/search', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
+  try {
+    const query = z
+      .object({
+        q: z.string().trim().min(3, 'Escribe al menos 3 caracteres para buscar'),
+        limit: z.coerce.number().int().min(1).max(50).default(20),
+      })
+      .parse(req.query);
+
+    const term = new RegExp(escapeRegex(query.q), 'i');
+    const items = await StudentModel.find({
+      deletedAt: null,
+      $or: [{ fullName: term }, { code: term }],
+    })
+      .select('code fullName program photoUrl')
+      .sort({ code: 1 })
+      .limit(query.limit)
+      .lean();
+
     res.json({ ok: true, items });
   } catch (err) {
     next(err);
@@ -27,6 +112,9 @@ studentRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (
 
 studentRouter.get('/:id', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
+    if (req.user?.role === 'PROFESSOR' && !(await professorOwnsStudent(req.user.id, String(req.params.id)))) {
+      return res.status(403).json({ ok: false, message: 'Estudiante fuera de tus asignaturas' });
+    }
     const item = await StudentModel.findOne({ _id: req.params.id, deletedAt: null }).lean();
     if (!item) return res.status(404).json({ ok: false, message: 'Not found' });
     res.json({ ok: true, item });
@@ -81,6 +169,10 @@ studentRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), as
 
 studentRouter.patch('/:id', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
+    if (req.user?.role === 'PROFESSOR' && !(await professorOwnsStudent(req.user.id, String(req.params.id)))) {
+      return res.status(403).json({ ok: false, message: 'Estudiante fuera de tus asignaturas' });
+    }
+
     const body = z.object({
       fullName: z.string().min(3).optional(),
       email: z.string().email().optional(),

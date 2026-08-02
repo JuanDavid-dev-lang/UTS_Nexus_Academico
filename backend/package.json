@@ -33,6 +33,7 @@
     "zod": "^3.24.3"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
@@ -43,8 +44,10 @@
     "@types/pdfkit": "^0.17.6",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
-    "eslint": "^9.29.0",
+    "eslint": "^10.8.0",
+    "globals": "^17.8.0",
     "tsx": "^4.19.4",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.65.0"
   }
 }

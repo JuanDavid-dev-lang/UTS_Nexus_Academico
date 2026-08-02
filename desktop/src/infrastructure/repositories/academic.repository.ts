@@ -5,6 +5,7 @@
  * domain types. Any calculation here would be a second source of truth
  * competing with the backend's grading engine.
  */
+import { z } from 'zod';
 import { http } from '@/core/api/http-client';
 import { itemResponse, itemsResponse, okResponse } from '@/domain/schemas/common';
 import {
@@ -14,9 +15,11 @@ import {
   enrollmentSchema,
   gradeSchema,
   groupSchema,
+  studentDirectoryEntrySchema,
   studentSchema,
   subjectSchema,
   type GradeInput,
+  type RosterRow,
   type StudentInput,
   type SubjectInput,
 } from '@/domain/schemas/academic';
@@ -40,6 +43,9 @@ const gradeResponse = itemResponse(gradeSchema);
 const attendanceResponse = itemsResponse(attendanceSchema);
 const attendanceItemResponse = itemResponse(attendanceSchema);
 const enrollmentsResponse = itemsResponse(enrollmentSchema);
+const enrollmentResponse = itemResponse(enrollmentSchema);
+const directoryResponse = itemsResponse(studentDirectoryEntrySchema);
+const importResponse = z.object({ ok: z.literal(true), count: z.number() });
 
 function scopeToQuery(scope: Scope): Record<string, string | undefined> {
   return {
@@ -51,8 +57,22 @@ function scopeToQuery(scope: Scope): Record<string, string | undefined> {
 }
 
 export const studentRepository: StudentRepository = {
-  async list() {
-    return (await http.get('/students', { schema: studentsResponse })).items;
+  async list(scope?: Scope & { q?: string }) {
+    const data = await http.get('/students', {
+      schema: studentsResponse,
+      query: scope ? { ...scopeToQuery(scope), q: scope.q } : undefined,
+    });
+    return data.items;
+  },
+
+  async search(q: string) {
+    // El backend exige tres caracteres; cortar aquí evita el viaje y el 400.
+    if (q.trim().length < 3) return [];
+    const data = await http.get('/students/search', {
+      schema: directoryResponse,
+      query: { q: q.trim() },
+    });
+    return data.items;
   },
 
   async create(input: StudentInput) {
@@ -104,6 +124,19 @@ export const enrollmentRepository: EnrollmentRepository = {
       query: scopeToQuery(scope),
     });
     return data.items;
+  },
+
+  async enroll(input: { studentId: string; groupId: string }) {
+    return (await http.post('/enrollments', input, { schema: enrollmentResponse })).item;
+  },
+
+  async importRoster(input: { groupId: string; students: RosterRow[] }) {
+    const data = await http.post('/enrollments/bulk', input, { schema: importResponse });
+    return data.count;
+  },
+
+  async remove(id: string) {
+    await http.delete(`/enrollments/${id}`, { schema: okResponse });
   },
 };
 

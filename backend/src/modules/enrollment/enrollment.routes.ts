@@ -6,7 +6,6 @@ import { StudentModel } from '../../models/student.model.js';
 import { auth, requireRole } from '../../middlewares/auth.js';
 import { auditChange } from '../../shared/audit.js';
 import { emitToUser } from '../../shared/socket.js';
-import { getProfessorScope } from '../../shared/professor-scope.js';
 
 export const enrollmentRouter = Router();
 enrollmentRouter.use(auth);

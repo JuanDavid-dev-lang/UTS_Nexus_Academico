@@ -26,6 +26,7 @@ import { normalizeServerUrl, env } from '@/core/config/env';
 import { toast } from '@/state/toast.store';
 import { modKeyLabel } from '@/shared/hooks/use-hotkeys';
 import { cn } from '@/shared/lib/cn';
+import { UpdateCard } from './components/update-card';
 
 const THEME_OPTIONS: { value: ThemePreference; label: string; description: string; Icon: typeof Sun }[] =
   [
@@ -195,6 +196,8 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <UpdateCard />
 
       <Card>
         <CardHeader>

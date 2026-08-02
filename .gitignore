@@ -26,3 +26,9 @@ releases/
 flutter_app/android/key.properties
 flutter_app/android/*.jks
 flutter_app/android/*.keystore
+
+# Clave privada de firma del actualizador de escritorio. Si se filtra, un
+# tercero puede publicar actualizaciones falsas que las apps instaladas
+# aceptarian como oficiales.
+*.key
+!*.key.pub

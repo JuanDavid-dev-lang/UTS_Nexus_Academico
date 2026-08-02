@@ -26,8 +26,24 @@ class AcademicRepository {
     return _items(response.data).map(Subject.fromJson).toList();
   }
 
-  Future<List<Student>> students() async {
-    final response = await _api.get('/students');
+  /// Estudiantes visibles.
+  ///
+  /// Con [subjectId] devuelve solo los matriculados en esa asignatura. El
+  /// recorte lo hace el backend contra la matrícula: filtrar aquí una lista ya
+  /// mezclada daría el conjunto equivocado en cuanto alguien repita materia.
+  Future<List<Student>> students({String? subjectId, String? groupId}) async {
+    final response = await _api.get('/students', query: {
+      if (subjectId != null) 'subjectId': subjectId,
+      if (groupId != null) 'groupId': groupId,
+    });
+    return _items(response.data).map(Student.fromJson).toList();
+  }
+
+  /// Directorio global por nombre o cédula. Devuelve solo identidad, sin notas.
+  Future<List<Student>> searchStudents(String term) async {
+    if (term.trim().length < 3) return const [];
+    final response =
+        await _api.get('/students/search', query: {'q': term.trim()});
     return _items(response.data).map(Student.fromJson).toList();
   }
 

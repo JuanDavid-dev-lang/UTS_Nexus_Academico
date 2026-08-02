@@ -24,6 +24,10 @@ dirs = "5"
 # Cross-platform "reveal in file manager" without shelling out per OS.
 opener = "0.7"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
+# Signed auto-update against the GitHub Releases manifest, plus the restart the
+# updater needs once the new installer has been applied.
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 
 [features]
 # This feature is used for production builds where `devPath` points to the filesystem.

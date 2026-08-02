@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { BookOpen, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { BookOpen, Pencil, Plus, Search, Trash2, Users } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -31,6 +31,7 @@ import { useCurrentUser, useUserRole } from '@/state/session.store';
 import { can } from '@/core/auth/permissions';
 import { currentPeriod, recentPeriods } from '@/shared/lib/format';
 import { subjectInputSchema, type Subject, type SubjectInput } from '@/domain/schemas/academic';
+import { RosterImportDialog } from './components/roster-import-dialog';
 
 const EMPTY: SubjectInput = { name: '', code: '', period: currentPeriod(), credits: 3 };
 
@@ -42,6 +43,7 @@ export default function SubjectsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Subject | null>(null);
   const [deleting, setDeleting] = useState<Subject | null>(null);
+  const [rosterFor, setRosterFor] = useState<Subject | null>(null);
   const [values, setValues] = useState<SubjectInput>(EMPTY);
   const [errors, setErrors] = useState<Partial<Record<keyof SubjectInput, string>>>({});
 
@@ -213,6 +215,18 @@ export default function SubjectsPage() {
 
                   <div className="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                     {canWrite ? (
+                      <Tooltip content="Estudiantes de la materia">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Estudiantes de ${subject.name}`}
+                          onClick={() => setRosterFor(subject)}
+                        >
+                          <Users aria-hidden />
+                        </Button>
+                      </Tooltip>
+                    ) : null}
+                    {canWrite ? (
                       <Tooltip content="Editar">
                         <Button
                           variant="ghost"
@@ -247,6 +261,15 @@ export default function SubjectsPage() {
           </section>
         ))
       )}
+
+      {rosterFor ? (
+        <RosterImportDialog
+          open
+          onOpenChange={(next) => !next && setRosterFor(null)}
+          subjectId={rosterFor._id}
+          subjectName={rosterFor.name}
+        />
+      ) : null}
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent

@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { SubjectModel } from '../../models/subject.model.js';
 import { auth, requireRole } from '../../middlewares/auth.js';
 import { emitSync } from '../../shared/socket.js';
-import { getProfessorScope } from '../../shared/professor-scope.js';
 
 export const subjectRouter = Router();
 
