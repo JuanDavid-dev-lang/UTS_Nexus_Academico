@@ -14,6 +14,7 @@ import 'features/dashboard/dashboard_page.dart';
 import 'features/notifications/notifications_page.dart';
 import 'features/profile/profile_page.dart';
 import 'features/attendance/attendance_page.dart';
+import 'features/attendance/scan_sheet_page.dart';
 import 'features/reports/reports_page.dart';
 import 'features/schedule/schedule_page.dart';
 import 'features/settings/settings_page.dart';
@@ -48,6 +49,7 @@ final router = GoRouter(
         ),
         GoRoute(path: '/grades', builder: (_, __) => const GradesPage()),
         GoRoute(path: '/attendance', builder: (_, __) => const AttendancePage()),
+        GoRoute(path: '/attendance/scan', builder: (_, __) => const ScanSheetPage()),
         GoRoute(path: '/schedule', builder: (_, __) => const SchedulePage()),
         GoRoute(path: '/ai', builder: (_, __) => const AiPage()),
         GoRoute(path: '/reports', builder: (_, __) => const ReportsPage()),

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarCheck, Check, X } from 'lucide-react';
+import { CalendarCheck, Camera, Check, X } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -27,6 +27,7 @@ import { can } from '@/core/auth/permissions';
 import { currentPeriod, formatPercent, recentPeriods, toIsoDate } from '@/shared/lib/format';
 import { cn } from '@/shared/lib/cn';
 import { toast } from '@/state/toast.store';
+import { SheetScanDialog } from './components/sheet-scan-dialog';
 
 /**
  * Attendance roll call.
@@ -39,6 +40,7 @@ export default function AttendancePage() {
   const [period, setPeriod] = useState(currentPeriod());
   const [subjectId, setSubjectId] = useState('');
   const [date, setDate] = useState(toIsoDate());
+  const [scanOpen, setScanOpen] = useState(false);
 
   const user = useCurrentUser();
   const role = useUserRole();
@@ -118,14 +120,24 @@ export default function AttendancePage() {
         title="Asistencia"
         subtitle="Registra la asistencia de una clase; cada marca se guarda al instante"
         actions={
-          canWrite && enrolled.data.length > 0 ? (
-            <Button variant="secondary" onClick={markAllPresent}>
-              <Check aria-hidden />
-              Marcar todos presentes
-            </Button>
+          canWrite ? (
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={() => setScanOpen(true)}>
+                <Camera aria-hidden />
+                Importar desde una foto
+              </Button>
+              {enrolled.data.length > 0 ? (
+                <Button variant="secondary" onClick={markAllPresent}>
+                  <Check aria-hidden />
+                  Marcar todos presentes
+                </Button>
+              ) : null}
+            </div>
           ) : null
         }
       />
+
+      <SheetScanDialog open={scanOpen} onOpenChange={setScanOpen} />
 
       <div className="flex flex-wrap items-end gap-3">
         <Field label="Periodo" className="w-36">

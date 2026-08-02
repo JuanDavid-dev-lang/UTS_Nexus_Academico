@@ -67,6 +67,11 @@ final filteredStudentsProvider = FutureProvider<List<Student>>((ref) {
   return ref.watch(academicRepositoryProvider).students(subjectId: subjectId);
 });
 
+/// Grupos del docente. Cambian poco, así que se cachean durante la sesión.
+final groupsProvider = FutureProvider<List<Group>>((ref) {
+  return ref.watch(academicRepositoryProvider).groups();
+});
+
 final risksProvider = FutureProvider<List<RiskItem>>((ref) {
   return ref.watch(academicRepositoryProvider).risks();
 });

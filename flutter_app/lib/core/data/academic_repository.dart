@@ -31,6 +31,12 @@ class AcademicRepository {
   /// Con [subjectId] devuelve solo los matriculados en esa asignatura. El
   /// recorte lo hace el backend contra la matrícula: filtrar aquí una lista ya
   /// mezclada daría el conjunto equivocado en cuanto alguien repita materia.
+
+  Future<List<Group>> groups() async {
+    final response = await _api.get('/groups');
+    return _items(response.data).map(Group.fromJson).toList();
+  }
+
   Future<List<Student>> students({String? subjectId, String? groupId}) async {
     final response = await _api.get('/students', query: {
       if (subjectId != null) 'subjectId': subjectId,

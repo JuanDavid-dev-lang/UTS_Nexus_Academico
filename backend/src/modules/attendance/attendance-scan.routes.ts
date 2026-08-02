@@ -189,6 +189,17 @@ attendanceScanRouter.post('/scan/confirm', requireRole('ADMIN', 'PROFESSOR'), as
       });
     }
 
+    // Dos columnas con la misma fecha se pisarían entre sí: el índice único es
+    // (estudiante, materia, fecha), así que la segunda sobrescribiría a la
+    // primera y una de las dos clases desaparecería sin aviso.
+    const dias = body.fechas.map(fecha => fecha.toISOString().slice(0, 10));
+    if (new Set(dias).size !== dias.length) {
+      return res.status(400).json({
+        ok: false,
+        message: 'Hay columnas con la misma fecha. Cada columna tiene que ser una clase distinta.',
+      });
+    }
+
     const descuadradas = body.filas.filter(fila => fila.presentes.length !== body.fechas.length);
     if (descuadradas.length > 0) {
       return res.status(400).json({
