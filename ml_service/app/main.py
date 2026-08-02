@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 import os
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 
 from .bootstrap import generate
 from .model import RiskModel, rules_fallback
@@ -190,3 +190,65 @@ def train(request: TrainingRequest) -> TrainingResponse:
         candidate=candidate.metrics,
         incumbent=incumbent,
     )
+
+
+@app.post("/vision/attendance-sheet")
+async def leer_planilla_asistencia(file: UploadFile = File(...)) -> dict:
+    """
+    Interpreta la foto de una planilla de asistencia.
+
+    Devuelve una PROPUESTA, no un resultado: cada fila trae su confianza y sus
+    avisos para que el docente la revise antes de que se guarde nada. Este
+    servicio no escribe en ninguna base; solo mira una imagen y describe lo que
+    cree ver.
+    """
+    contenido = await file.read()
+    if not contenido:
+        raise HTTPException(status_code=400, detail="El archivo llegó vacío.")
+
+    # 12 MB cubre de sobra la foto de un celular; por encima es un envío erróneo.
+    if len(contenido) > 12 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="La imagen supera los 12 MB.")
+
+    try:
+        from .vision import decodificar, leer_planilla
+
+        planilla = leer_planilla(decodificar(contenido))
+    except ImportError as error:
+        # OpenCV ausente: el servicio sigue vivo para el resto de endpoints.
+        logger.warning("Dependencias de visión no instaladas: %s", error)
+        raise HTTPException(
+            status_code=503,
+            detail="El servidor no tiene instalado el lector de planillas.",
+        ) from error
+    except ValueError as error:
+        # Foto ilegible: es culpa de la imagen, no del servidor.
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+    return {
+        "ok": True,
+        "columnasFecha": planilla.columnas_fecha,
+        "avisos": planilla.avisos,
+        "alto": planilla.alto,
+        "ancho": planilla.ancho,
+        "filas": [
+            {
+                "indice": fila.indice,
+                "cedula": fila.cedula,
+                "cedulaConfianza": fila.cedula_confianza,
+                "nombre": fila.nombre,
+                "nombreConfianza": fila.nombre_confianza,
+                "avisos": fila.avisos,
+                "celdas": [
+                    {
+                        "columna": celda.columna,
+                        "presente": celda.presente,
+                        "tinta": celda.tinta,
+                        "dudosa": celda.dudosa,
+                    }
+                    for celda in fila.celdas
+                ],
+            }
+            for fila in planilla.filas
+        ],
+    }

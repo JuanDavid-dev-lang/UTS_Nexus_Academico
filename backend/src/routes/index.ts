@@ -8,6 +8,7 @@ import { aiRouter } from '../modules/ai/ai.routes.js';
 import { gradeRouter } from '../modules/grades/grade.routes.js';
 import { enrollmentRouter } from '../modules/enrollment/enrollment.routes.js';
 import { attendanceRouter } from '../modules/attendance/attendance.routes.js';
+import { attendanceScanRouter } from '../modules/attendance/attendance-scan.routes.js';
 import { activityRouter } from '../modules/activities/activity.routes.js';
 import { notificationRouter } from '../modules/notifications/notification.routes.js';
 import { scheduleRouter } from '../modules/schedules/schedule.routes.js';
@@ -27,6 +28,9 @@ apiRouter.use('/analytics', analyticsRouter);
 apiRouter.use('/ai', aiRouter);
 apiRouter.use('/grades', gradeRouter);
 apiRouter.use('/enrollments', enrollmentRouter);
+// El escáner va antes: sus rutas son más específicas y si `attendanceRouter`
+// llegara a definir un comodín, se las tragaría.
+apiRouter.use('/attendance', attendanceScanRouter);
 apiRouter.use('/attendance', attendanceRouter);
 apiRouter.use('/activities', activityRouter);
 apiRouter.use('/notifications', notificationRouter);
