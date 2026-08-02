@@ -163,9 +163,26 @@ def _ordenar_esquinas(puntos: np.ndarray) -> np.ndarray:
     )
 
 
+def aplanar_iluminacion(gris: np.ndarray) -> np.ndarray:
+    """
+    Quita la sombra de la hoja antes de buscar nada en ella.
+
+    Se estima el fondo con un cierre morfológico de núcleo grande —que se come
+    la letra y las líneas y deja solo el degradado de luz— y se divide la imagen
+    por él. Lo que queda es la hoja como si estuviera iluminada de forma pareja.
+
+    Sin esto, la sombra de una persiana atravesando el papel produce bordes tan
+    marcados como las propias líneas de la tabla, y la cuadrícula se pierde: en
+    la foto que motivó este cambio se detectaban 2 líneas verticales de 4.
+    """
+    nucleo = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (41, 41))
+    fondo = cv2.morphologyEx(gris, cv2.MORPH_CLOSE, nucleo)
+    return cv2.divide(gris, fondo, scale=255)
+
+
 def _binarizar(gris: np.ndarray) -> np.ndarray:
     """
-    Umbral adaptativo.
+    Umbral adaptativo sobre la imagen ya sin sombras.
 
     Un umbral fijo no sirve: la foto de un salón tiene una esquina iluminada por
     la ventana y la otra en sombra, y cualquier corte global convierte media hoja
@@ -193,15 +210,22 @@ def _lineas(binaria: np.ndarray, horizontal: bool) -> np.ndarray:
     return cv2.dilate(erosionada, nucleo, iterations=1)
 
 
-def _posiciones(proyeccion: np.ndarray, minimo: int) -> list[int]:
-    """Agrupa picos contiguos de una proyección en una sola coordenada."""
+def _posiciones(proyeccion: np.ndarray, minimo: int, separacion: int = 3) -> list[int]:
+    """
+    Agrupa picos contiguos de una proyección en una sola coordenada.
+
+    `separacion` es la distancia por debajo de la cual dos picos se consideran la
+    misma línea. Importa más de lo que parece: una raya a bolígrafo fotografiada
+    tiene grosor, y sus dos bordes se detectan como picos separados —se vieron a
+    12 px de distancia— que sin agrupar convierten una columna en dos.
+    """
     activos = np.where(proyeccion > minimo)[0]
     if activos.size == 0:
         return []
 
     grupos: list[list[int]] = [[int(activos[0])]]
     for valor in activos[1:]:
-        if valor - grupos[-1][-1] <= 3:
+        if valor - grupos[-1][-1] <= separacion:
             grupos[-1].append(int(valor))
         else:
             grupos.append([int(valor)])
@@ -216,14 +240,22 @@ def detectar_rejilla(imagen: np.ndarray) -> tuple[list[int], list[int]]:
     líneas, esto devuelve listas cortas y el llamador debe rechazar la foto en vez
     de inventarse una tabla que no existe.
     """
-    gris = _a_gris(imagen)
+    gris = aplanar_iluminacion(_a_gris(imagen))
     binaria = _binarizar(gris)
 
     horizontales = _lineas(binaria, horizontal=True)
     verticales = _lineas(binaria, horizontal=False)
 
-    filas = _posiciones(horizontales.sum(axis=1) // 255, minimo=imagen.shape[1] // 3)
-    columnas = _posiciones(verticales.sum(axis=0) // 255, minimo=imagen.shape[0] // 3)
+    # El mínimo es 1/6 del lado, no 1/3. Una raya trazada a mano sobre papel
+    # arrugado se interrumpe en los pliegues, y exigir que cubra un tercio de la
+    # hoja de forma continua descarta líneas que están perfectamente visibles.
+    # Las dos líneas de una misma raya se funden con una separación proporcional
+    # al tamaño de la imagen, no con los 3 px fijos de antes.
+    separacion_h = max(imagen.shape[0] // 100, 4)
+    separacion_v = max(imagen.shape[1] // 100, 4)
+
+    filas = _posiciones(horizontales.sum(axis=1) // 255, imagen.shape[1] // 6, separacion_h)
+    columnas = _posiciones(verticales.sum(axis=0) // 255, imagen.shape[0] // 6, separacion_v)
     return filas, columnas
 
 
@@ -240,6 +272,9 @@ def _tinta(celda: np.ndarray) -> float:
     if interior.size == 0:
         return 0.0
 
+    # Se espera recibir un recorte de una hoja YA aplanada. Aplanar aquí, celda a
+    # celda, sale peor: el núcleo de 41 px es mayor que la propia celda y en vez
+    # de quitar la sombra amplifica el ruido del papel.
     binaria = _binarizar(_a_gris(interior))
     return float(np.count_nonzero(binaria) / interior.size)
 
@@ -396,6 +431,13 @@ def leer_planilla(imagen: np.ndarray) -> PlanillaLeida:
     """
     avisos: list[str] = []
     recta = enderezar(imagen)
+
+    # La hoja se aplana una sola vez, a escala de página. Sobre esta versión se
+    # miden las marcas: la sombra de una persiana o el relieve de un pliegue
+    # dejan de contar como tinta. El OCR sigue leyendo el original, que conserva
+    # el contraste del bolígrafo.
+    plano = cv2.cvtColor(aplanar_iluminacion(_a_gris(recta)), cv2.COLOR_GRAY2BGR)
+
     filas_y, columnas_x = detectar_rejilla(recta)
 
     if len(filas_y) < 3 or len(columnas_x) < 4:
@@ -434,7 +476,7 @@ def leer_planilla(imagen: np.ndarray) -> PlanillaLeida:
         # Una planilla impresa trae muchas filas de más para poder añadir gente a
         # mano. Devolverlas como "sin identificar" llenaría la pantalla de
         # revisión de basura y escondería los pocos casos que sí hay que mirar.
-        identidad = recta[arriba:abajo, columnas_x[0] : columnas_x[2]]
+        identidad = plano[arriba:abajo, columnas_x[0] : columnas_x[2]]
         if _tinta(identidad) < UMBRAL_TINTA / 2:
             vacias += 1
             continue
@@ -443,6 +485,20 @@ def leer_planilla(imagen: np.ndarray) -> PlanillaLeida:
         crudo_nombre, confianza_nombre = _lector.leer(recorte(1, 2))
 
         cedula = _solo_digitos(crudo_cedula)
+
+        # Segundo filtro de fila vacía, y el que de verdad decide: si no hay NI
+        # cédula NI nombre, ahí no hay ningún estudiante.
+        #
+        # No basta con mirar la tinta. En una hoja arrugada un pliegue proyecta
+        # sombra y llega a medir 0.0173 mientras la equis auténtica mide 0.0048:
+        # la arruga tiene más tinta aparente que la marca, así que por densidad
+        # es imposible distinguirlas. Preguntar por la identidad sí funciona,
+        # porque una sombra no forma dígitos ni letras. Sin este filtro, una foto
+        # con pliegues proponía asistencias en filas donde no hay nadie.
+        if not cedula and not crudo_nombre.strip():
+            vacias += 1
+            continue
+
         fila_avisos: list[str] = []
 
         if not cedula:
@@ -454,7 +510,7 @@ def leer_planilla(imagen: np.ndarray) -> PlanillaLeida:
 
         celdas: list[Celda] = []
         for columna in range(2, len(columnas_x) - 1):
-            casilla = recta[arriba:abajo, columnas_x[columna] : columnas_x[columna + 1]]
+            casilla = plano[arriba:abajo, columnas_x[columna] : columnas_x[columna + 1]]
             tinta = _tinta(casilla)
             celdas.append(
                 Celda(

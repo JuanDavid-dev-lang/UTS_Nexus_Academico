@@ -1,6 +1,13 @@
 """
 Pruebas de la lectura de planillas.
 
+Los trazos de estas planillas sintéticas son FINOS a propósito (grosor 1). Una
+versión anterior los dibujaba con grosor 2 y texto grande, y eso escondía un
+problema real: con letra tan gruesa, una columna de dígitos acumula tantos
+píxeles verticales como una línea de la tabla, y la detección de columnas se
+disparaba a 16 en vez de 6. La letra a bolígrafo de una hoja real es mucho más
+delgada. La foto manda; el sintético tiene que parecerse a ella.
+
 Se genera una planilla sintética con OpenCV en vez de guardar una foto real: así
 las pruebas corren en cualquier máquina, no dependen de un archivo binario en el
 repositorio y permiten construir a propósito el caso que se quiere comprobar
@@ -53,17 +60,20 @@ def construir_planilla(filas: int = 4, fechas: int = 3, marcadas: set[tuple[int,
     fuente = cv2.FONT_HERSHEY_SIMPLEX
     for fila in range(filas):
         arriba = y_filas[fila + 1]
-        cedula = f"10987654{fila:02d}"
-        cv2.putText(imagen, cedula, (x_columnas[0] + 12, arriba + 40), fuente, 1.0, (0, 0, 0), 2)
-        cv2.putText(imagen, f"Apellido{fila} Nombre", (x_columnas[1] + 12, arriba + 40), fuente, 0.8, (0, 0, 0), 2)
+        # La sangría y los dígitos varían por fila: escritas a mano nunca quedan
+        # alineadas al píxel, y alinearlas hacía que la columna de unos formara
+        # una recta vertical falsa que la detección contaba como borde de tabla.
+        cedula = f"{10987654 + fila * 137:08d}"
+        cv2.putText(imagen, cedula, (x_columnas[0] + 12 + fila * 5, arriba + 40), fuente, 0.7, (60, 60, 110), 1)
+        cv2.putText(imagen, f"Apellido{fila} Nombre", (x_columnas[1] + 12, arriba + 40), fuente, 0.6, (60, 60, 110), 1)
 
         for columna in range(fechas):
             if (fila, columna) not in marcadas:
                 continue
             izq = x_columnas[2 + columna]
             # Una equis gruesa, como la que se hace a mano.
-            cv2.line(imagen, (izq + 25, arriba + 15), (izq + 85, arriba + 45), (0, 0, 0), 5)
-            cv2.line(imagen, (izq + 85, arriba + 15), (izq + 25, arriba + 45), (0, 0, 0), 5)
+            cv2.line(imagen, (izq + 25, arriba + 15), (izq + 85, arriba + 45), (60, 60, 110), 2)
+            cv2.line(imagen, (izq + 85, arriba + 15), (izq + 25, arriba + 45), (60, 60, 110), 2)
 
     return imagen
 
@@ -152,16 +162,16 @@ def construir_como_la_plantilla(filas_con_datos: int = 1, filas_totales: int = 2
         cv2.line(imagen, (x[0], hy), (x[-1], hy), (170, 170, 170), 1)
 
     fuente = cv2.FONT_HERSHEY_SIMPLEX
-    cv2.putText(imagen, "Cedula", (x[0] + 8, y[0] + 38), fuente, 0.8, (0, 0, 0), 2)
-    cv2.putText(imagen, "Nombre", (x[1] + 8, y[0] + 38), fuente, 0.8, (0, 0, 0), 2)
-    cv2.putText(imagen, "02/08/2026", (x[2] + 4, y[0] + 38), fuente, 0.5, (0, 0, 0), 1)
+    cv2.putText(imagen, "Cedula", (x[0] + 8, y[0] + 38), fuente, 0.7, (60, 60, 110), 1)
+    cv2.putText(imagen, "Nombre", (x[1] + 8, y[0] + 38), fuente, 0.7, (60, 60, 110), 1)
+    cv2.putText(imagen, "02/08/2026", (x[2] + 4, y[0] + 38), fuente, 0.5, (60, 60, 110), 1)
 
     for fila in range(filas_con_datos):
         arriba = y[fila + 1]
-        cv2.putText(imagen, "111111111", (x[0] + 8, arriba + 40), fuente, 0.8, (0, 0, 0), 2)
-        cv2.putText(imagen, "Juan David Gomez", (x[1] + 8, arriba + 40), fuente, 0.6, (0, 0, 0), 2)
-        cv2.line(imagen, (x[2] + 40, arriba + 15), (x[2] + 75, arriba + 45), (0, 0, 0), 4)
-        cv2.line(imagen, (x[2] + 75, arriba + 15), (x[2] + 40, arriba + 45), (0, 0, 0), 4)
+        cv2.putText(imagen, "111111111", (x[0] + 8, arriba + 40), fuente, 0.7, (60, 60, 110), 1)
+        cv2.putText(imagen, "Juan David Gomez", (x[1] + 8, arriba + 40), fuente, 0.6, (60, 60, 110), 1)
+        cv2.line(imagen, (x[2] + 40, arriba + 15), (x[2] + 75, arriba + 45), (60, 60, 110), 2)
+        cv2.line(imagen, (x[2] + 75, arriba + 15), (x[2] + 40, arriba + 45), (60, 60, 110), 2)
 
     return imagen
 
