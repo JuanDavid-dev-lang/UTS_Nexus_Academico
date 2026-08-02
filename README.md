@@ -11,7 +11,7 @@
 [![Flutter](https://img.shields.io/badge/Flutter-3-02569B?logo=flutter&logoColor=white)](https://flutter.dev/)
 [![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?logo=mongodb&logoColor=white)](https://www.mongodb.com/atlas)
 [![Socket.io](https://img.shields.io/badge/Socket.io-4-010101?logo=socket.io&logoColor=white)](https://socket.io/)
-[![License](https://img.shields.io/badge/Licencia-MIT-blue)](LICENSE)
+[![License](https://img.shields.io/badge/Licencia-PolyForm%20Noncommercial-1c6b4c)](LICENSE)
 
 *Un backend. Una base de datos. Tres interfaces. Todo sincronizado en tiempo real.*
 
@@ -723,12 +723,31 @@ ML_ENABLED=1
 
 ## Licencia
 
-Publicado bajo licencia **MIT** — ver [`LICENSE`](LICENSE).
+**PolyForm Noncommercial 1.0.0** — ver [`LICENSE`](LICENSE).
 
-Los derechos son de las **Unidades Tecnológicas de Santander**, y el desarrollo
-es del **Grupo CIAI**. La licencia MIT permite usar, copiar, modificar y
-redistribuir el proyecto, con o sin fines comerciales, con una sola condición:
-conservar el aviso de copyright y el texto de la licencia en las copias.
+Los derechos son de las **Unidades Tecnológicas de Santander**; el desarrollo,
+del **Grupo CIAI**.
+
+**Qué se permite.** Usar, copiar, modificar y redistribuir el proyecto para
+cualquier fin **no comercial**: docencia, estudio, investigación, proyectos
+personales y uso por parte de instituciones educativas, organismos públicos y
+entidades sin ánimo de lucro. La licencia nombra explícitamente a las
+instituciones educativas y públicas como uso permitido, así que las UTS y
+cualquier otra institución pueden usarlo y adaptarlo sin pedir permiso.
+
+**Qué no.** Venderlo, cobrar por él, ofrecerlo como servicio de pago o
+incorporarlo a un producto comercial. Para cualquiera de esas cosas hace falta
+una autorización aparte de las UTS.
+
+**No es código abierto.** Aunque el código esté publicado y se pueda leer,
+restringir el uso comercial excluye al proyecto de la definición de la OSI, que
+exige no discriminar ningún campo de uso. Es *source-available*, no open source
+— la diferencia importa si alguien lo cita en un trabajo o en una convocatoria.
+
+Se eligió PolyForm y no una licencia Creative Commons porque las CC no están
+pensadas para software y la propia Creative Commons desaconseja usarlas con
+código. PolyForm Noncommercial está redactada para software y su identificador
+SPDX es `PolyForm-Noncommercial-1.0.0`.
 
 El software se entrega **sin garantía**. Los cálculos académicos —notas,
 asistencia y riesgo— siguen el reglamento de las UTS, pero la responsabilidad
