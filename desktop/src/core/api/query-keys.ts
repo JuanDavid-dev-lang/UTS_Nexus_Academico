@@ -15,7 +15,11 @@ export const queryKeys = {
 
   students: {
     all: ['students'] as const,
-    list: () => ['students', 'list'] as const,
+    list: (scope?: Scope & { q?: string }) =>
+      scope ? (['students', 'list', scope] as const) : (['students', 'list'] as const),
+    // El directorio global no se invalida con el resto: es una búsqueda, no una
+    // vista del estado del docente.
+    search: (q: string) => ['students', 'search', q] as const,
   },
 
   subjects: {

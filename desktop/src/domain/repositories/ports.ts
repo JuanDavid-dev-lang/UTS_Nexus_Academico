@@ -15,7 +15,9 @@ import type {
   GradeInput,
   Group,
   RiskItem,
+  RosterRow,
   Student,
+  StudentDirectoryEntry,
   StudentInput,
   Subject,
   SubjectInput,
@@ -43,7 +45,14 @@ export interface AuthRepository {
 }
 
 export interface StudentRepository {
-  list(): Promise<Student[]>;
+  /**
+   * Sin ámbito devuelve los estudiantes visibles para el rol; con `subjectId`
+   * o `groupId`, solo los de esa asignatura. El backend intersecta el filtro
+   * con el ámbito del docente, así que pedir una materia ajena no devuelve nada.
+   */
+  list(scope?: Scope & { q?: string }): Promise<Student[]>;
+  /** Directorio global por nombre o cédula, para matricular en una materia nueva. */
+  search(q: string): Promise<StudentDirectoryEntry[]>;
   create(input: StudentInput): Promise<Student>;
   update(id: string, input: Partial<StudentInput>): Promise<Student>;
   remove(id: string): Promise<void>;
@@ -63,6 +72,15 @@ export interface GroupRepository {
 
 export interface EnrollmentRepository {
   list(scope: Scope): Promise<Enrollment[]>;
+  /** Matricula a un estudiante que ya existe en el sistema. */
+  enroll(input: { studentId: string; groupId: string }): Promise<Enrollment>;
+  /**
+   * Importa una lista completa: crea o actualiza cada estudiante por cédula y
+   * lo matricula en el grupo. Devuelve cuántos quedaron matriculados.
+   */
+  importRoster(input: { groupId: string; students: RosterRow[] }): Promise<number>;
+  /** Retira una matrícula (baja lógica, no borra al estudiante). */
+  remove(id: string): Promise<void>;
 }
 
 export interface GradeRepository {

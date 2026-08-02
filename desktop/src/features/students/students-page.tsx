@@ -7,6 +7,7 @@ import {
   DataTable,
   ErrorState,
   Input,
+  NativeSelect,
   PageContainer,
   PageHeader,
   SkeletonTable,
@@ -21,6 +22,7 @@ import {
   useStudents,
   useUpdateStudent,
 } from '@/features/students/hooks/use-students';
+import { useSubjects } from '@/features/subjects/hooks/use-subjects';
 import { useDebounce } from '@/shared/hooks/use-debounce';
 import { useUserRole } from '@/state/session.store';
 import { can } from '@/core/auth/permissions';
@@ -34,12 +36,17 @@ export default function StudentsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Student | undefined>(undefined);
   const [deleting, setDeleting] = useState<Student | null>(null);
+  const [subjectFilter, setSubjectFilter] = useState(searchParams.get('materia') ?? '');
 
   const role = useUserRole();
   const canWrite = can(role, 'students.write');
   const canDelete = can(role, 'students.delete');
 
-  const students = useStudents();
+  // Filtrar por materia se hace en el backend, no aquí: la lista de una
+  // asignatura sale de la matrícula, y recortar en el cliente una lista ya
+  // mezclada daría el conjunto equivocado en cuanto un estudiante repita materia.
+  const subjects = useSubjects();
+  const students = useStudents(subjectFilter ? { subjectId: subjectFilter } : undefined);
   const createStudent = useCreateStudent();
   const updateStudent = useUpdateStudent();
   const deleteStudent = useDeleteStudent();
@@ -155,11 +162,29 @@ export default function StudentsPage() {
     setSearchParams(value ? { buscar: value } : {}, { replace: true });
   }
 
+  function handleSubjectFilter(value: string) {
+    setSubjectFilter(value);
+    // La materia también viaja en la URL para poder enlazar a una lista concreta.
+    setSearchParams(
+      {
+        ...(query ? { buscar: query } : {}),
+        ...(value ? { materia: value } : {}),
+      },
+      { replace: true },
+    );
+  }
+
   return (
     <PageContainer>
       <PageHeader
         title="Estudiantes"
-        subtitle={`${students.data?.length ?? 0} estudiantes en tu alcance académico`}
+        subtitle={
+          subjectFilter
+            ? `${students.data?.length ?? 0} matriculados en ${
+                subjects.data?.find((subject) => subject._id === subjectFilter)?.name ?? 'la materia'
+              }`
+            : `${students.data?.length ?? 0} estudiantes en tu alcance académico`
+        }
         actions={
           canWrite ? (
             <Button
@@ -176,18 +201,34 @@ export default function StudentsPage() {
         }
       />
 
-      <div className="relative max-w-md">
-        <Search
-          className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted"
-          aria-hidden
-        />
-        <Input
-          value={query}
-          onChange={(event) => handleSearch(event.target.value)}
-          placeholder="Buscar por nombre, cédula, correo o programa…"
-          aria-label="Buscar estudiantes"
-          className="pl-9"
-        />
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative min-w-0 flex-1 sm:max-w-md">
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted"
+            aria-hidden
+          />
+          <Input
+            value={query}
+            onChange={(event) => handleSearch(event.target.value)}
+            placeholder="Buscar por nombre, cédula, correo o programa…"
+            aria-label="Buscar estudiantes"
+            className="pl-9"
+          />
+        </div>
+
+        <NativeSelect
+          className="w-full sm:w-64"
+          aria-label="Filtrar por materia"
+          value={subjectFilter}
+          onChange={(event) => handleSubjectFilter(event.target.value)}
+        >
+          <option value="">Todas mis materias</option>
+          {(subjects.data ?? []).map((subject) => (
+            <option key={subject._id} value={subject._id}>
+              {subject.name}
+            </option>
+          ))}
+        </NativeSelect>
       </div>
 
       {students.isPending ? (
