@@ -22,6 +22,7 @@ from app.vision.sheet import (
     _tinta,
     decodificar,
     detectar_rejilla,
+    extraer_fecha,
     enderezar,
     leer_planilla,
 )
@@ -213,3 +214,59 @@ def test_funciona_con_grupos_de_cualquier_tamano(cuantos):
 
     assert len(planilla.filas) == cuantos
     assert all(fila.celdas[0].presente for fila in planilla.filas)
+
+
+# ── Regresiones halladas con una planilla manuscrita real ───────────────────
+
+def test_una_marca_fina_de_boligrafo_cuenta_como_asistencia():
+    """
+    El umbral de tinta estaba calibrado a ojo contra trazos gruesos de prueba y
+    dejaba fuera una equis de bolígrafo real, que midió 0.0113. El sistema decía
+    'no asistió' de alguien que sí fue: el error más grave posible aquí, porque
+    una asistencia dada por buena no la revisa nadie.
+    """
+    imagen = np.full((120, 200, 3), 255, dtype=np.uint8)
+    cv2.rectangle(imagen, (10, 10), (190, 110), (0, 0, 0), 1)
+    # Grosor 2, como sale una equis a bolígrafo en una foto reducida.
+    cv2.line(imagen, (80, 40), (120, 80), (40, 40, 90), 2)
+    cv2.line(imagen, (120, 40), (80, 80), (40, 40, 90), 2)
+
+    assert _tinta(imagen[12:108, 12:188]) >= UMBRAL_TINTA
+
+
+def test_los_fragmentos_se_ordenan_como_se_leen():
+    """
+    El OCR devuelve los trozos en el orden en que los encuentra, no en el que
+    están escritos. Estas coordenadas son las que devolvió de verdad la cabecera
+    «asistencia 02/08/2026»: al agruparlas por bandas fijas, y=50 caía al otro
+    lado de la frontera y la fecha salía como «/2026 asistencia 02 /08».
+    """
+    from app.vision.sheet import ordenar_por_lectura
+
+    def caja(x, y, texto):
+        return ([[x - 20, y - 10], [x + 20, y - 10], [x + 20, y + 10], [x - 20, y + 10]], texto, 0.9)
+
+    desordenado = [
+        caja(102.2, 52.5, "asistencia"),
+        caja(292.0, 51.0, "/08"),
+        caja(358.8, 50.0, "/2026"),
+        caja(235.8, 55.0, "02"),
+    ]
+
+    leido = " ".join(d[1] for d in ordenar_por_lectura(desordenado, tolerancia=28))
+    assert leido == "asistencia 02 /08 /2026"
+    assert extraer_fecha(leido) == "2026-08-02"
+
+
+def test_dos_renglones_no_se_mezclan_al_ordenar():
+    """Un nombre largo que ocupa dos líneas debe leerse línea por línea."""
+    from app.vision.sheet import ordenar_por_lectura
+
+    def caja(x, y, texto):
+        return ([[x - 20, y - 8], [x + 20, y - 8], [x + 20, y + 8], [x - 20, y + 8]], texto, 0.9)
+
+    mezclado = [caja(200, 70, "Vargas"), caja(60, 30, "Juan"), caja(60, 70, "Gomez"), caja(200, 30, "David")]
+
+    assert [d[1] for d in ordenar_por_lectura(mezclado, tolerancia=15)] == [
+        "Juan", "David", "Gomez", "Vargas",
+    ]

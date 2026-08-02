@@ -34,13 +34,24 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 # Debajo de esta proporción de píxeles oscuros, la celda se considera vacía.
-# Calibrado en alto: una sombra o el pliegue del papel manchan poco, y preferimos
-# proponer "no asistió" —que el docente corrige de un clic— antes que inventar
-# una asistencia que nadie revisó.
-UMBRAL_TINTA = 0.045
+#
+# Calibrado midiendo una planilla real escrita a bolígrafo, no a ojo. Los valores
+# observados fueron:
+#
+#     celda vacía      0.0000 – 0.0001
+#     equis a mano     0.0113
+#     texto escrito    0.0184 – 0.0531
+#
+# Es decir, hay un factor de cien entre vacío y escrito. El primer valor que puse
+# —0.045— caía DENTRO del rango escrito y daba por ausente a quien sí había
+# asistido: el error más grave posible aquí, porque nadie revisa una asistencia
+# que el sistema dio por buena. Se sitúa en 0.004, con margen amplio a ambos
+# lados: casi 3× por debajo de la equis y 40× por encima del ruido del papel.
+UMBRAL_TINTA = 0.004
 
-# Por debajo de esto, la celda es ambigua y se marca para revisión obligatoria.
-UMBRAL_DUDA = 0.075
+# Entre este valor y el anterior la marca existe pero es tenue; se propone como
+# presente y además se señala, para que la revisión mire ahí primero.
+UMBRAL_DUDA = 0.010
 
 # Una cédula colombiana tiene entre 6 y 10 dígitos. Fuera de ese rango, el OCR
 # se equivocó o esa fila no es un estudiante (una cabecera, un total).
@@ -233,6 +244,54 @@ def _tinta(celda: np.ndarray) -> float:
     return float(np.count_nonzero(binaria) / interior.size)
 
 
+def _centro(deteccion) -> Optional[tuple[float, float]]:
+    """Centro (x, y) de la caja de un fragmento, o `None` si no es utilizable."""
+    try:
+        puntos = deteccion[0]
+        xs = [float(punto[0]) for punto in puntos]
+        ys = [float(punto[1]) for punto in puntos]
+        return (sum(xs) / len(xs), sum(ys) / len(ys))
+    except (TypeError, IndexError, ValueError):
+        return None
+
+
+def ordenar_por_lectura(detecciones: list, tolerancia: float) -> list:
+    """
+    Reordena los fragmentos reconocidos como se leerían: por renglones, y dentro
+    de cada renglón de izquierda a derecha.
+
+    Se agrupan por cercanía vertical en vez de redondear la altura a bandas
+    fijas. Redondear parece equivalente y no lo es: en una cabecera real los
+    fragmentos de una misma línea caían en y=50, 51, 52.5 y 55, y el borde de la
+    banda pasaba justo por en medio, así que «/2026» se separaba del resto y la
+    fecha salía como «/2026 asistencia 02 /08». Agrupar por distancia no tiene
+    fronteras arbitrarias donde partirse.
+    """
+    conCentro = [(d, _centro(d)) for d in detecciones]
+    utiles = [(d, c) for d, c in conCentro if c is not None]
+    if not utiles:
+        return detecciones
+
+    utiles.sort(key=lambda par: par[1][1])
+
+    renglones: list[list[tuple]] = [[utiles[0]]]
+    for deteccion, centro in utiles[1:]:
+        referencia = renglones[-1][0][1][1]
+        if abs(centro[1] - referencia) <= tolerancia:
+            renglones[-1].append((deteccion, centro))
+        else:
+            renglones.append([(deteccion, centro)])
+
+    ordenado: list = []
+    for renglon in renglones:
+        renglon.sort(key=lambda par: par[1][0])
+        ordenado.extend(deteccion for deteccion, _ in renglon)
+
+    # Los fragmentos sin caja se conservan al final en vez de descartarlos.
+    ordenado.extend(d for d, c in conCentro if c is None)
+    return ordenado
+
+
 class LectorTexto:
     """
     Envoltura del OCR.
@@ -280,8 +339,16 @@ class LectorTexto:
         if not resultado:
             return "", 0.0
 
-        partes = [str(linea[1]) for linea in resultado]
-        confianzas = [float(linea[2]) for linea in resultado if len(linea) > 2]
+        # El motor devuelve los fragmentos en el orden en que los encontró, que no
+        # es el orden en que están escritos: «asistencia 02/08/2026» llegaba como
+        # «asistencia /08 /2026 02» y la fecha se volvía ilegible. Se reordenan
+        # por posición antes de unirlos. La tolerancia sale del alto del recorte:
+        # una celda de una línea tiene que agruparse entera aunque la letra vaya
+        # inclinada.
+        ordenado = ordenar_por_lectura(resultado, tolerancia=max(recorte.shape[0] / 3, 10))
+
+        partes = [str(linea[1]) for linea in ordenado]
+        confianzas = [float(linea[2]) for linea in ordenado if len(linea) > 2]
         media = sum(confianzas) / len(confianzas) if confianzas else 0.0
         return " ".join(partes).strip(), media
 
