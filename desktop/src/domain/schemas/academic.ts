@@ -240,6 +240,8 @@ export const escaneoPlanillaSchema = z.object({
   subjectId: z.string(),
   period: z.string(),
   columnasFecha: z.number().int(),
+  /** Una por columna, leida de la cabecera. `null` donde no se pudo. */
+  fechasSugeridas: z.array(z.string().nullable()).default([]),
   avisos: z.array(z.string()),
   filas: z.array(filaEscaneadaSchema),
   ausentesDeLaFoto: z.array(matriculadoSchema),

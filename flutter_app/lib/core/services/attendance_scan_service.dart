@@ -96,6 +96,8 @@ class FilaEscaneada {
 class EscaneoPlanilla {
   final String groupId;
   final int columnasFecha;
+  /// Una por columna, leída de la cabecera. `null` donde no se pudo.
+  final List<DateTime?> fechasSugeridas;
   final List<String> avisos;
   final List<FilaEscaneada> filas;
   final List<Matriculado> matriculados;
@@ -103,6 +105,7 @@ class EscaneoPlanilla {
   const EscaneoPlanilla({
     required this.groupId,
     required this.columnasFecha,
+    required this.fechasSugeridas,
     required this.avisos,
     required this.filas,
     required this.matriculados,
@@ -111,6 +114,9 @@ class EscaneoPlanilla {
   factory EscaneoPlanilla.fromJson(Map<String, dynamic> json) => EscaneoPlanilla(
         groupId: json['groupId'] as String? ?? '',
         columnasFecha: (json['columnasFecha'] as num?)?.toInt() ?? 0,
+        fechasSugeridas: ((json['fechasSugeridas'] as List?) ?? const [])
+            .map((f) => f == null ? null : DateTime.tryParse(f.toString()))
+            .toList(),
         avisos: ((json['avisos'] as List?) ?? const []).map((a) => a.toString()).toList(),
         filas: ((json['filas'] as List?) ?? const [])
             .whereType<Map>()

@@ -228,6 +228,7 @@ async def leer_planilla_asistencia(file: UploadFile = File(...)) -> dict:
     return {
         "ok": True,
         "columnasFecha": planilla.columnas_fecha,
+        "fechasSugeridas": planilla.fechas_sugeridas,
         "avisos": planilla.avisos,
         "alto": planilla.alto,
         "ancho": planilla.ancho,

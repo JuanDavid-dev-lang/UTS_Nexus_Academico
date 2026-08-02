@@ -66,10 +66,13 @@ class _ScanSheetPageState extends ConsumerState<ScanSheetPage> {
       if (!mounted) return;
       setState(() {
         _escaneo = resultado;
-        // Vacías a propósito: rellenarlas con una fecha plausible convertiría la
-        // confirmación en un trámite y guardar una clase en la fecha equivocada
-        // es un error que nadie detecta después.
-        _fechas = List<DateTime?>.filled(resultado.columnasFecha, null);
+        // Se prellenan con lo que decía la cabecera, pero hay que confirmarlas:
+        // prellenar no es lo mismo que dar por buena una fecha inventada, y el
+        // aviso de arriba dice cuáles no se pudieron leer.
+        _fechas = List<DateTime?>.generate(
+          resultado.columnasFecha,
+          (i) => i < resultado.fechasSugeridas.length ? resultado.fechasSugeridas[i] : null,
+        );
         _paso = _Paso.revisar;
       });
     } catch (error) {

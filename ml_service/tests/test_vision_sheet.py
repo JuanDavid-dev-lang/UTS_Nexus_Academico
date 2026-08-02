@@ -130,3 +130,70 @@ def test_decodificar_reduce_las_fotos_enormes():
 
     imagen = decodificar(buffer.tobytes())
     assert imagen.shape[1] == 2000
+
+
+# ── Formato real: cabecera con la fecha y filas de sobra en blanco ───────────
+
+def construir_como_la_plantilla(filas_con_datos: int = 1, filas_totales: int = 20):
+    """Reproduce la plantilla que usa el docente: 3 columnas y muchas filas vacías."""
+    ancho = ANCHO_CEDULA + ANCHO_NOMBRE + ANCHO_FECHA + 40
+    alto = ALTO_FILA * (filas_totales + 1) + 40
+    imagen = np.full((alto, ancho, 3), 255, dtype=np.uint8)
+
+    x = [20, 20 + ANCHO_CEDULA, 20 + ANCHO_CEDULA + ANCHO_NOMBRE]
+    x.append(x[-1] + ANCHO_FECHA)
+    y = [20 + ALTO_FILA * i for i in range(filas_totales + 2)]
+
+    # Gris claro, como las líneas de una hoja de cálculo impresa.
+    for vx in x:
+        cv2.line(imagen, (vx, y[0]), (vx, y[-1]), (170, 170, 170), 1)
+    for hy in y:
+        cv2.line(imagen, (x[0], hy), (x[-1], hy), (170, 170, 170), 1)
+
+    fuente = cv2.FONT_HERSHEY_SIMPLEX
+    cv2.putText(imagen, "Cedula", (x[0] + 8, y[0] + 38), fuente, 0.8, (0, 0, 0), 2)
+    cv2.putText(imagen, "Nombre", (x[1] + 8, y[0] + 38), fuente, 0.8, (0, 0, 0), 2)
+    cv2.putText(imagen, "02/08/2026", (x[2] + 4, y[0] + 38), fuente, 0.5, (0, 0, 0), 1)
+
+    for fila in range(filas_con_datos):
+        arriba = y[fila + 1]
+        cv2.putText(imagen, "111111111", (x[0] + 8, arriba + 40), fuente, 0.8, (0, 0, 0), 2)
+        cv2.putText(imagen, "Juan David Gomez", (x[1] + 8, arriba + 40), fuente, 0.6, (0, 0, 0), 2)
+        cv2.line(imagen, (x[2] + 40, arriba + 15), (x[2] + 75, arriba + 45), (0, 0, 0), 4)
+        cv2.line(imagen, (x[2] + 75, arriba + 15), (x[2] + 40, arriba + 45), (0, 0, 0), 4)
+
+    return imagen
+
+
+def test_las_filas_en_blanco_no_llegan_a_la_revision():
+    imagen = construir_como_la_plantilla(filas_con_datos=1, filas_totales=20)
+    planilla = leer_planilla(imagen)
+
+    # 19 filas vacías no pueden convertirse en 19 avisos de "sin identificar".
+    assert len(planilla.filas) == 1
+    assert any("blanco" in aviso for aviso in planilla.avisos)
+
+
+def test_lee_la_marca_de_la_unica_columna():
+    planilla = leer_planilla(construir_como_la_plantilla(filas_con_datos=2))
+
+    assert planilla.columnas_fecha == 1
+    assert all(fila.celdas[0].presente for fila in planilla.filas)
+
+
+@pytest.mark.parametrize(
+    "texto,esperado",
+    [
+        ("asistencia 02/08/2026", "2026-08-02"),
+        ("02-08-2026", "2026-08-02"),
+        ("2/8/26", "2026-08-02"),
+        ("Asistencia", None),
+        ("32/08/2026", None),
+    ],
+)
+def test_la_fecha_se_lee_como_dia_mes_anio(texto, esperado):
+    from app.vision.sheet import extraer_fecha
+
+    # 02/08/2026 es 2 de agosto. Leerlo como 8 de febrero desfasaría medio
+    # semestre de asistencias sin que nadie lo notara.
+    assert extraer_fecha(texto) == esperado

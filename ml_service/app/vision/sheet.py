@@ -24,6 +24,7 @@ nivel de confianza, y es el docente quien la confirma o la corrige.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -74,6 +75,9 @@ class PlanillaLeida:
     filas: list[FilaLeida]
     columnas_fecha: int
     avisos: list[str]
+    # Fechas leídas de la cabecera, una por columna. `None` donde no se pudo.
+    # Son sugerencias: el cliente las muestra y la persona confirma.
+    fechas_sugeridas: list[Optional[str]]
     # Alto y ancho tras enderezar, para que el cliente pueda dibujar encima.
     alto: int
     ancho: int
@@ -162,9 +166,16 @@ def _binarizar(gris: np.ndarray) -> np.ndarray:
 
 
 def _lineas(binaria: np.ndarray, horizontal: bool) -> np.ndarray:
-    """Aísla las rectas largas de la tabla erosionando con un núcleo alargado."""
-    largo = binaria.shape[1] // 25 if horizontal else binaria.shape[0] // 25
-    largo = max(largo, 10)
+    """
+    Aísla las rectas largas de la tabla erosionando con un núcleo alargado.
+
+    El núcleo es corto a propósito (1/40 del lado). Una plantilla de hoja de
+    cálculo impresa trae líneas gris claro y discontinuas al fotografiarlas; un
+    núcleo largo exige un trazo continuo que esas líneas no tienen, y la tabla
+    entera se pierde.
+    """
+    largo = binaria.shape[1] // 40 if horizontal else binaria.shape[0] // 40
+    largo = max(largo, 8)
     forma = (largo, 1) if horizontal else (1, largo)
     nucleo = cv2.getStructuringElement(cv2.MORPH_RECT, forma)
     erosionada = cv2.erode(binaria, nucleo, iterations=1)
@@ -282,6 +293,32 @@ def _solo_digitos(texto: str) -> str:
     return "".join(caracter for caracter in texto if caracter.isdigit())
 
 
+# Fechas como las escribe la cabecera: «asistencia 02/08/2026», «2-8-26».
+_FECHA = re.compile(r"(\d{1,2})\s*[/\-.]\s*(\d{1,2})\s*[/\-.]\s*(\d{2,4})")
+
+
+def extraer_fecha(texto: str) -> Optional[str]:
+    """
+    Saca una fecha de la cabecera de una columna y la devuelve como ISO.
+
+    Se interpreta SIEMPRE como día/mes/año, que es la convención colombiana.
+    Leer «02/08/2026» como 8 de febrero en vez de 2 de agosto guardaría medio
+    semestre de asistencias con seis meses de desfase, y nadie lo notaría hasta
+    que los porcentajes no cuadraran.
+    """
+    encontrado = _FECHA.search(texto or "")
+    if not encontrado:
+        return None
+
+    dia, mes, anio = (int(parte) for parte in encontrado.groups())
+    if anio < 100:
+        anio += 2000
+    if not (1 <= dia <= 31 and 1 <= mes <= 12 and 2000 <= anio <= 2100):
+        return None
+
+    return f"{anio:04d}-{mes:02d}-{dia:02d}"
+
+
 def leer_planilla(imagen: np.ndarray) -> PlanillaLeida:
     """
     Interpreta la foto completa.
@@ -306,7 +343,17 @@ def leer_planilla(imagen: np.ndarray) -> PlanillaLeida:
     if columnas_fecha < 1:
         raise ValueError("La planilla no tiene ninguna columna de fechas.")
 
+    # Cabecera: de la tercera columna en adelante lleva la fecha de cada clase.
+    cabecera_arriba, cabecera_abajo = filas_y[0], filas_y[1]
+    fechas_sugeridas: list[Optional[str]] = []
+    for columna in range(2, len(columnas_x) - 1):
+        titulo, _ = _lector.leer(
+            recta[cabecera_arriba:cabecera_abajo, columnas_x[columna] : columnas_x[columna + 1]]
+        )
+        fechas_sugeridas.append(extraer_fecha(titulo))
+
     filas: list[FilaLeida] = []
+    vacias = 0
 
     for indice in range(1, len(filas_y) - 1):
         arriba, abajo = filas_y[indice], filas_y[indice + 1]
@@ -316,6 +363,14 @@ def leer_planilla(imagen: np.ndarray) -> PlanillaLeida:
 
         def recorte(desde: int, hasta: int) -> np.ndarray:
             return recta[arriba:abajo, columnas_x[desde] : columnas_x[hasta]]
+
+        # Una planilla impresa trae muchas filas de más para poder añadir gente a
+        # mano. Devolverlas como "sin identificar" llenaría la pantalla de
+        # revisión de basura y escondería los pocos casos que sí hay que mirar.
+        identidad = recta[arriba:abajo, columnas_x[0] : columnas_x[2]]
+        if _tinta(identidad) < UMBRAL_TINTA / 2:
+            vacias += 1
+            continue
 
         crudo_cedula, confianza_cedula = _lector.leer(recorte(0, 1))
         crudo_nombre, confianza_nombre = _lector.leer(recorte(1, 2))
@@ -364,10 +419,21 @@ def leer_planilla(imagen: np.ndarray) -> PlanillaLeida:
     if not filas:
         raise ValueError("Se reconoció una tabla, pero ninguna fila con estudiantes.")
 
+    if vacias:
+        avisos.append(f"Se omitieron {vacias} fila(s) en blanco de la planilla.")
+
+    sin_fecha = sum(1 for fecha in fechas_sugeridas if fecha is None)
+    if sin_fecha:
+        avisos.append(
+            f"No se pudo leer la fecha de {sin_fecha} columna(s) en la cabecera. "
+            "Hay que indicarlas a mano."
+        )
+
     return PlanillaLeida(
         filas=filas,
         columnas_fecha=columnas_fecha,
         avisos=avisos,
+        fechas_sugeridas=fechas_sugeridas,
         alto=recta.shape[0],
         ancho=recta.shape[1],
     )

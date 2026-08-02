@@ -89,10 +89,12 @@ export function SheetScanDialog({ open, onOpenChange }: Props) {
       const resultado = await attendanceScanRepository.escanear({ groupId, archivo: file });
       setEscaneo(resultado);
       setFilas(resultado.filas);
-      // Las fechas empiezan vacías a propósito. Rellenarlas con algo plausible
-      // haría que confirmarlas fuera un trámite, y guardar una clase en la fecha
-      // equivocada es un error silencioso que nadie detecta después.
-      setFechas(Array.from({ length: resultado.columnasFecha }, () => ''));
+      // Se prellenan con lo que decía la cabecera de la planilla, pero hay que
+      // confirmarlas igual: el aviso de arriba dice cuáles no se pudieron leer.
+      // Prellenar no es lo mismo que dar por buena una fecha inventada.
+      setFechas(
+        Array.from({ length: resultado.columnasFecha }, (_, i) => resultado.fechasSugeridas[i] ?? ''),
+      );
       setPaso('revisar');
     } catch (causa) {
       setError(causa instanceof Error ? causa.message : 'No se pudo leer la planilla.');

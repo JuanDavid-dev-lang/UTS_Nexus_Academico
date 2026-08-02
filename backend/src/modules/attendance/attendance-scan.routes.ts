@@ -82,6 +82,8 @@ attendanceScanRouter.post(
 
       let lectura: {
         columnasFecha: number;
+        /** Una por columna; `null` donde la cabecera no era legible. */
+        fechasSugeridas: (string | null)[];
         avisos: string[];
         filas: {
           indice: number;
@@ -132,6 +134,10 @@ attendanceScanRouter.post(
         subjectId: String(group.subjectId),
         period: group.period,
         columnasFecha: lectura.columnasFecha,
+        // Fechas leidas de la cabecera. Son sugerencias: el cliente las muestra
+        // y una persona confirma. Guardar una clase en la fecha equivocada es
+        // un error que no se nota hasta que el porcentaje no cuadra.
+        fechasSugeridas: lectura.fechasSugeridas ?? [],
         avisos: [...lectura.avisos, ...cruce.avisos],
         filas: cruce.filas,
         ausentesDeLaFoto: cruce.ausentesDeLaFoto,
