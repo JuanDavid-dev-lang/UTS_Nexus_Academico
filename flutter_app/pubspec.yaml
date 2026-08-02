@@ -19,6 +19,8 @@ dependencies:
   socket_io_client: ^2.0.3+1
   path_provider: ^2.1.6
   share_plus: ^13.3.0
+  package_info_plus: ^10.2.1
+  open_filex: ^4.7.0
 
 dev_dependencies:
   flutter_test:

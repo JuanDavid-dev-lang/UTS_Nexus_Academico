@@ -6,6 +6,7 @@ import '../../core/network/connection_controller.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/theme_controller.dart';
 import '../../core/widgets/ui_kit.dart';
+import 'widgets/update_section.dart';
 
 /// Ajustes.
 ///
@@ -163,6 +164,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               },
             ),
           ),
+          const SizedBox(height: 22),
+          _SectionLabel('Actualizaciones', muted: muted),
+          const UpdateSection(),
           const SizedBox(height: 22),
           _SectionLabel('Cuenta', muted: muted),
           AppCard(

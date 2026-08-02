@@ -29,9 +29,20 @@
       "csp": "default-src 'self'; img-src 'self' data: https: asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:*"
     }
   },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "dialog": false,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENCQUFFRkRDNUE4NUY4NjMKUldSaitJVmEzTytxeTlaeSs1VXBUbUpRWDhaelpudmhpMitCUUxOQUEzK3hrK2hqZ1haY1JtdW0K",
+      "endpoints": [
+        "https://github.com/JuanDavid-dev-lang/UTS_Nexus_Academico/releases/latest/download/latest.json"
+      ]
+    }
+  },
   "bundle": {
     "active": true,
     "targets": ["nsis", "msi", "app", "dmg", "deb", "appimage"],
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

@@ -1,5 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Actualización dentro de la app: descarga el APK del Release y se lo
+         entrega al instalador del sistema. Android sigue pidiéndole permiso
+         explícito al usuario la primera vez; este permiso solo habilita a que
+         se le pueda preguntar. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <application
         android:label="UTS Nexus Académico"
         android:name="${applicationName}"
