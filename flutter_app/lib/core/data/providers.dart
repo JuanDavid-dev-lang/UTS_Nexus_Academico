@@ -54,6 +54,19 @@ final studentsProvider = FutureProvider<List<Student>>((ref) {
   return ref.watch(academicRepositoryProvider).students();
 });
 
+/// Materia por la que está filtrado el directorio. `null` = todas las del docente.
+final studentSubjectFilterProvider = StateProvider<String?>((ref) => null);
+
+/// Directorio acotado a la materia seleccionada.
+///
+/// El recorte lo hace el backend contra la matrícula. Filtrar en el cliente la
+/// lista completa parece equivalente y no lo es: el listado global no dice a qué
+/// materia pertenece cada estudiante, así que no hay nada por lo que filtrar.
+final filteredStudentsProvider = FutureProvider<List<Student>>((ref) {
+  final subjectId = ref.watch(studentSubjectFilterProvider);
+  return ref.watch(academicRepositoryProvider).students(subjectId: subjectId);
+});
+
 final risksProvider = FutureProvider<List<RiskItem>>((ref) {
   return ref.watch(academicRepositoryProvider).risks();
 });

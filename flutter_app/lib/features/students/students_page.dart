@@ -24,7 +24,9 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final students = ref.watch(studentsProvider);
+    final students = ref.watch(filteredStudentsProvider);
+    final subjects = ref.watch(subjectsProvider).valueOrNull ?? const <Subject>[];
+    final subjectFilter = ref.watch(studentSubjectFilterProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
 
@@ -53,7 +55,7 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
         error: (error, _) => StateView.error(
           ApiError.from(error).message,
           action: FilledButton(
-            onPressed: () => ref.invalidate(studentsProvider),
+            onPressed: () => ref.invalidate(filteredStudentsProvider),
             child: const Text('Reintentar'),
           ),
         ),
@@ -84,6 +86,35 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
                   ),
                 ),
               ),
+              if (subjects.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.page, 0, AppSpacing.page, 8),
+                  child: DropdownButtonFormField<String?>(
+                    initialValue: subjectFilter,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Materia',
+                      isDense: true,
+                    ),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('Todas mis materias'),
+                      ),
+                      ...subjects.map(
+                        (subject) => DropdownMenuItem<String?>(
+                          value: subject.id,
+                          child: Text(subject.name,
+                              overflow: TextOverflow.ellipsis),
+                        ),
+                      ),
+                    ],
+                    onChanged: (value) => ref
+                        .read(studentSubjectFilterProvider.notifier)
+                        .state = value,
+                  ),
+                ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 18),
                 child: Align(
