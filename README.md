@@ -21,6 +21,7 @@
 
 ## Índice
 
+- [Licencia](#licencia)
 - [Visión general](#visión-general)
 - [Arquitectura](#arquitectura)
 - [Stack tecnológico](#stack-tecnológico)
@@ -41,7 +42,7 @@
 
 ## Visión general
 
-**UTS Nexus Académico** integra en una sola plataforma la gestión de notas, asistencia, riesgo académico y reportes de la Universidad de Santander, con soporte para docentes, administradores y estudiantes desde tres aplicaciones independientes que comparten un backend central y una base de datos en la nube.
+**UTS Nexus Académico** integra en una sola plataforma la gestión de notas, asistencia, riesgo académico y reportes de las Unidades Tecnológicas de Santander, con soporte para docentes, administradores y estudiantes desde tres aplicaciones independientes que comparten un backend central y una base de datos en la nube.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -720,9 +721,24 @@ ML_ENABLED=1
 
 ---
 
+## Licencia
+
+Publicado bajo licencia **MIT** — ver [`LICENSE`](LICENSE).
+
+Los derechos son de las **Unidades Tecnológicas de Santander**, y el desarrollo
+es del **Grupo CIAI**. La licencia MIT permite usar, copiar, modificar y
+redistribuir el proyecto, con o sin fines comerciales, con una sola condición:
+conservar el aviso de copyright y el texto de la licencia en las copias.
+
+El software se entrega **sin garantía**. Los cálculos académicos —notas,
+asistencia y riesgo— siguen el reglamento de las UTS, pero la responsabilidad
+sobre las notas reportadas es de cada docente y de la institución.
+
+---
+
 <div align="center">
 
-**Universidad de Santander (UTS) · Bucaramanga, Colombia**
+**Unidades Tecnológicas de Santander · Bucaramanga, Colombia**
 
 Desarrollado con Clean Architecture · DDD · Single Source of Truth
 

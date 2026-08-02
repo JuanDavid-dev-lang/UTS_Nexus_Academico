@@ -2,6 +2,7 @@
   "name": "uts-nexus-desktop",
   "private": true,
   "version": "2.0.0",
+  "license": "MIT",
   "type": "module",
   "description": "UTS Nexus Academico - Desktop client (Tauri 2 + React 19)",
   "scripts": {

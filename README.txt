@@ -1,6 +1,6 @@
 ======================================================================
   UTS NEXUS ACADÉMICO
-  Plataforma académica unificada — Universidad de Santander (UTS)
+  Plataforma académica unificada — Unidades Tecnológicas de Santander (UTS)
 ======================================================================
 
 Una sola plataforma, tres aplicaciones que hablan con un backend central

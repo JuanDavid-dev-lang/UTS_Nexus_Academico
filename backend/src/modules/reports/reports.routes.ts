@@ -41,7 +41,9 @@ function drawHeader(doc: any, title: string) {
   doc.roundedRect(32, 26, 58, 58, 12).fillAndStroke('#74d3b2', '#74d3b2');
   doc.fillColor('#081115').font('Helvetica-Bold').fontSize(24).text('UTS', 44, 48);
   doc.fillColor('#0b1115').font('Helvetica-Bold').fontSize(22).text(title, 108, 38);
-  doc.fillColor('#9fb0bb').font('Helvetica').fontSize(10).text('Universidad de Santander', 108, 64);
+  // "Universidad de Santander" es OTRA institución (UDES). Estos PDF son actas
+  // que el docente entrega, así que el nombre tiene que ser el correcto.
+  doc.fillColor('#9fb0bb').font('Helvetica').fontSize(10).text('Unidades Tecnológicas de Santander', 108, 64);
   doc.moveTo(32, 94).lineTo(562, 94).strokeColor('#23323c').lineWidth(1).stroke();
   doc.moveDown(1.8);
 }
