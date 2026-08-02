@@ -197,3 +197,19 @@ def test_la_fecha_se_lee_como_dia_mes_anio(texto, esperado):
     # 02/08/2026 es 2 de agosto. Leerlo como 8 de febrero desfasaría medio
     # semestre de asistencias sin que nadie lo notara.
     assert extraer_fecha(texto) == esperado
+
+
+@pytest.mark.parametrize("cuantos", [10, 20, 50])
+def test_funciona_con_grupos_de_cualquier_tamano(cuantos):
+    """
+    Los grupos van de 10 a 50 estudiantes.
+
+    Importa porque la foto se reduce a 2000 px de ancho: en una planilla de 50
+    filas cada renglón queda mucho más fino que en una de 10, y el filtro que
+    descarta "líneas demasiado juntas" podría comerse filas reales.
+    """
+    imagen = construir_como_la_plantilla(filas_con_datos=cuantos, filas_totales=cuantos + 3)
+    planilla = leer_planilla(decodificar(cv2.imencode(".jpg", imagen)[1].tobytes()))
+
+    assert len(planilla.filas) == cuantos
+    assert all(fila.celdas[0].presente for fila in planilla.filas)
