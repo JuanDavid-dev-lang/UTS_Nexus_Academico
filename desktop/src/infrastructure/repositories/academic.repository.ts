@@ -15,10 +15,12 @@ import {
   enrollmentSchema,
   gradeSchema,
   groupSchema,
+  escaneoPlanillaSchema,
   studentDirectoryEntrySchema,
   studentSchema,
   subjectSchema,
   type GradeInput,
+  type EscaneoPlanilla,
   type RosterRow,
   type StudentInput,
   type SubjectInput,
@@ -188,5 +190,43 @@ export const attendanceRepository: AttendanceRepository = {
       misses: data.summary.misses,
       attendanceRate: data.summary.attendanceRate,
     };
+  },
+};
+
+/**
+ * Escaneo de planillas de asistencia.
+ *
+ * Se mantiene aparte del `attendanceRepository` porque el flujo es distinto:
+ * primero se propone y después se confirma, y entre ambos pasos hay una persona
+ * revisando. Mezclarlo con el registro directo invitaría a saltarse ese paso.
+ */
+export const attendanceScanRepository = {
+  /** Sube la foto y devuelve la propuesta. No guarda nada. */
+  async escanear(input: { groupId: string; archivo: File }): Promise<EscaneoPlanilla> {
+    const formulario = new FormData();
+    formulario.append('groupId', input.groupId);
+    formulario.append('file', input.archivo);
+    return http.post('/attendance/scan', formulario, {
+      schema: escaneoPlanillaSchema,
+      // Interpretar una foto tarda mucho más que una consulta normal.
+      timeoutMs: 90_000,
+    });
+  },
+
+  /** Guarda lo ya revisado. Devuelve cuántos registros se escribieron. */
+  async confirmar(input: {
+    groupId: string;
+    fechas: string[];
+    durationMinutes: number;
+    filas: { studentId: string; presentes: boolean[] }[];
+  }): Promise<{ guardados: number; clases: number; estudiantes: number }> {
+    return http.post('/attendance/scan/confirm', input, {
+      schema: z.object({
+        ok: z.literal(true),
+        guardados: z.number(),
+        clases: z.number(),
+        estudiantes: z.number(),
+      }),
+    });
   },
 };

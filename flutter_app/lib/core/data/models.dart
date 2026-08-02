@@ -266,3 +266,26 @@ class SubjectStudent {
     return row.passed;
   }
 }
+
+/// Grupo de una materia. La asistencia y la matrícula cuelgan del grupo, no de
+/// la materia: una materia con dos grupos tiene dos listas distintas.
+class Group {
+  final String id;
+  final String name;
+  final String? subjectId;
+  final String period;
+
+  const Group({
+    required this.id,
+    required this.name,
+    required this.subjectId,
+    required this.period,
+  });
+
+  factory Group.fromJson(Map<String, dynamic> json) => Group(
+        id: (json['_id'] ?? json['id'] ?? '').toString(),
+        name: (json['name'] ?? '').toString(),
+        subjectId: json['subjectId']?.toString(),
+        period: (json['period'] ?? '').toString(),
+      );
+}

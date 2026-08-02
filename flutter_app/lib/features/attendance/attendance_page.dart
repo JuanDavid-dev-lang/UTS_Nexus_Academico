@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/services/api_client.dart';
 import '../../core/services/auth_controller.dart';
 import '../../core/theme/app_theme.dart';
@@ -109,6 +110,16 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
       appBar: AppBar(
         title: const Text('Asistencia'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.document_scanner_outlined),
+            tooltip: 'Importar desde una foto',
+            onPressed: () async {
+              final importado = await context.push<bool>('/attendance/scan');
+              // Solo se recarga si de verdad se guardó algo: volver sin
+              // importar no debería costar una consulta.
+              if (importado == true && mounted) await _load();
+            },
+          ),
           DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: _period,

@@ -132,8 +132,12 @@ async function performRequest(
 ): Promise<Response> {
   const { method = 'GET', body, query, anonymous, timeoutMs, signal } = options;
 
+  // Un FormData viaja tal cual: el navegador tiene que poner el Content-Type
+  // porque incluye el `boundary`, y fijarlo a mano rompe el multipart.
+  const esFormulario = body instanceof FormData;
+
   const headers: Record<string, string> = { Accept: 'application/json' };
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (body !== undefined && !esFormulario) headers['Content-Type'] = 'application/json';
 
   if (!anonymous) {
     const accessToken = tokenService.getAccessToken();
@@ -147,7 +151,7 @@ async function performRequest(
   const response = await fetch(buildUrl(path, query), {
     method,
     headers,
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    ...(body !== undefined ? { body: esFormulario ? (body as FormData) : JSON.stringify(body) } : {}),
     signal: composedSignal,
   });
 
