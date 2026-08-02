@@ -43,8 +43,10 @@ async function main() {
   // connectDbOrThrow ya valida MONGODB_URI y fija strictQuery.
   await connectDbOrThrow();
 
-  const admin = await upsertUser({ email: 'admin@uts.edu.co', fullName: 'Administrador UTS', role: 'ADMIN' });
-  const coordinator = await upsertUser({ email: 'coordinador@uts.edu.co', fullName: 'Coordinador UTS', role: 'COORDINATOR' });
+  // Se crean por su efecto: la demo necesita las tres cuentas, pero solo la del
+  // docente se referencia más abajo.
+  await upsertUser({ email: 'admin@uts.edu.co', fullName: 'Administrador UTS', role: 'ADMIN' });
+  await upsertUser({ email: 'coordinador@uts.edu.co', fullName: 'Coordinador UTS', role: 'COORDINATOR' });
   const professor = await upsertUser({ email: 'docente@uts.edu.co', fullName: 'Docente Demo UTS', role: 'PROFESSOR' });
 
   await ProfessorModel.findOneAndUpdate(

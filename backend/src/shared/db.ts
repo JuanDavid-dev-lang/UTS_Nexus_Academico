@@ -100,7 +100,7 @@ export async function connectDbOrThrow(): Promise<void> {
   } catch (error) {
     status = 'error';
     lastError = explain(error);
-    throw new Error(lastError);
+    throw new Error(lastError, { cause: error });
   }
 }
 
