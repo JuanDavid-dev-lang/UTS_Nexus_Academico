@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "UTS Nexus Académico",
-  "version": "2.3.3",
+  "version": "2.3.4",
   "identifier": "co.edu.uts.nexus.academico",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -35,7 +35,7 @@
       "dialog": false,
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENCQUFFRkRDNUE4NUY4NjMKUldSaitJVmEzTytxeTlaeSs1VXBUbUpRWDhaelpudmhpMitCUUxOQUEzK3hrK2hqZ1haY1JtdW0K",
       "endpoints": [
-        "https://github.com/JuanDavid-dev-lang/UTS_Nexus_Academico/releases/latest/download/latest.json"
+        "https://github.com/JuanDavid-dev-lang/UTS_Nexus_Releases/releases/latest/download/latest.json"
       ]
     }
   },

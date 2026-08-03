@@ -5,7 +5,15 @@
 # The Android job then attaches its APK to that same release, which is where the
 # mobile client looks for it.
 #
+# The release does NOT live in this repository. This one is private; the one
+# named below is public and holds nothing but the installers. An updater has to
+# reach its manifest without credentials, and a token shipped inside a `.exe` or
+# an `.apk` is not a secret — anyone who installs the app can read it out of the
+# binary. Splitting them is what lets the source stay private while the
+# installers stay downloadable, which is what an installer is for.
+#
 # Required repository secrets:
+#   RELEASES_TOKEN                      write access to the releases repository
 #   TAURI_SIGNING_PRIVATE_KEY           minisign private key (updater signature)
 #   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password ("" if generated without one)
 #   ANDROID_KEYSTORE_BASE64             upload keystore, base64-encoded
@@ -28,12 +36,37 @@ on:
 permissions:
   contents: write
 
+env:
+  # Repositorio público de instaladores. Los clientes consultan su `latest.json`
+  # y sus assets; nunca este. Si cambia, hay que cambiarlo también en
+  # `desktop/src-tauri/tauri.conf.json` y en
+  # `flutter_app/lib/core/services/update_service.dart`.
+  REPO_RELEASES_OWNER: JuanDavid-dev-lang
+  REPO_RELEASES_NAME: UTS_Nexus_Releases
+
 jobs:
   desktop:
     name: Escritorio (Windows)
     runs-on: windows-latest
     steps:
+      # Historia completa: el cuerpo de la release sale de la anotación de la
+      # etiqueta, y con un checkout superficial esa anotación no se descarga.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # En el repositorio de instaladores la etiqueta la crea la API y nace sin
+      # mensaje, así que hay que llevárselo desde aquí. Sin esto la release sale
+      # con el cuerpo vacío y no cuenta nada de lo que trae.
+      - name: Leer el mensaje de la etiqueta
+        id: etiqueta
+        shell: bash
+        run: |
+          {
+            echo 'cuerpo<<FIN_DEL_MENSAJE'
+            git for-each-ref --format='%(contents)' "refs/tags/${{ github.ref_name }}"
+            echo 'FIN_DEL_MENSAJE'
+          } >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v4
         with:
@@ -60,13 +93,20 @@ jobs:
       - name: Compilar, firmar y publicar
         uses: tauri-apps/tauri-action@v0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # El token del propio repositorio no sirve: la release se crea en otro.
+          GITHUB_TOKEN: ${{ secrets.RELEASES_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: desktop
+          owner: ${{ env.REPO_RELEASES_OWNER }}
+          repo: ${{ env.REPO_RELEASES_NAME }}
           tagName: ${{ github.ref_name }}
           releaseName: UTS Nexus Académico ${{ github.ref_name }}
+          releaseBody: ${{ steps.etiqueta.outputs.cuerpo }}
+          # El commit de este repositorio no existe en el de instaladores, así
+          # que la etiqueta tiene que nacer de su rama principal.
+          releaseCommitish: main
           releaseDraft: false
           prerelease: false
           # Genera y sube `latest.json`, el manifiesto que consulta el updater.
@@ -131,10 +171,12 @@ jobs:
       - name: Adjuntar el APK al release
         uses: softprops/action-gh-release@v2
         with:
+          # El mismo release que acaba de crear el trabajo de escritorio, en el
+          # repositorio público de instaladores.
+          repository: ${{ env.REPO_RELEASES_OWNER }}/${{ env.REPO_RELEASES_NAME }}
+          token: ${{ secrets.RELEASES_TOKEN }}
           tag_name: ${{ github.ref_name }}
           files: flutter_app/build/app/outputs/flutter-apk/uts-nexus-academico-${{ github.ref_name }}.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Borrar credenciales del runner
         if: always()

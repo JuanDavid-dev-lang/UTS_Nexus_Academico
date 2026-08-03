@@ -5,6 +5,31 @@ la firma antes de instalar; el móvil descarga el APK y se lo entrega al instala
 Android. Esta guía cubre lo que hay que configurar una vez y lo que hay que hacer en
 cada publicación.
 
+## Dos repositorios, y por qué
+
+| Repositorio | Visibilidad | Contenido |
+|---|---|---|
+| `UTS_Nexus_Academico` | privado | el código |
+| `UTS_Nexus_Releases` | público | solo los instaladores |
+
+Un actualizador tiene que poder leer el manifiesto **sin credenciales**. La tentación
+es meter un token en la app para que lea el repositorio privado, y no funciona: ese
+token viaja dentro del `.exe` y del `.apk`, y sacarlo es un `strings` o descompilar el
+APK. Sería entregarle la llave del repositorio a todo el que instale la app.
+
+Separarlos resuelve las dos cosas a la vez: el código queda privado y los instaladores
+siguen siendo descargables, que es exactamente para lo que existe un instalador.
+
+Quien publica en el repositorio público es el workflow, con `RELEASES_TOKEN`. Ese
+secreto vive en el runner de Actions y no entra en ningún binario.
+
+Si algún día cambia el nombre del repositorio de instaladores hay que tocarlo en tres
+sitios, y los tres tienen que coincidir:
+
+- `.github/workflows/release.yml` → `REPO_RELEASES_OWNER` / `REPO_RELEASES_NAME`
+- `desktop/src-tauri/tauri.conf.json` → `plugins.updater.endpoints`
+- `flutter_app/lib/core/services/update_service.dart` → `_releasesApi`
+
 ---
 
 ## 1. Configuración inicial (una sola vez)
@@ -48,6 +73,7 @@ En GitHub: **Settings → Secrets and variables → Actions → New repository s
 
 | Secreto | Valor |
 |---------|-------|
+| `RELEASES_TOKEN` | token con `contents: write` sobre `UTS_Nexus_Releases` |
 | `TAURI_SIGNING_PRIVATE_KEY` | contenido íntegro de `uts-nexus-updater.key` |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | vacío (la clave se generó sin contraseña) |
 | `ANDROID_KEYSTORE_BASE64` | `base64 -w0 flutter_app/android/upload-keystore.jks` |

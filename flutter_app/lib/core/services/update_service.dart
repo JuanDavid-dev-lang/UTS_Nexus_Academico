@@ -6,8 +6,13 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// Repositorio público que publica los instaladores como assets de un Release.
+///
+/// No es el del código, que es privado. Un updater tiene que poder leer el
+/// listado sin credenciales, y meter un token dentro del APK no lo esconde: se
+/// saca descompilándolo en un minuto. El código queda privado y los
+/// instaladores públicos, que es para lo que existe un instalador.
 const _releasesApi =
-    'https://api.github.com/repos/JuanDavid-dev-lang/UTS_Nexus_Academico/releases/latest';
+    'https://api.github.com/repos/JuanDavid-dev-lang/UTS_Nexus_Releases/releases/latest';
 
 /// Una versión disponible y el archivo que hay que descargar para instalarla.
 class AppRelease {
