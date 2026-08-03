@@ -134,6 +134,40 @@ jobs:
           # Genera y sube `latest.json`, el manifiesto que consulta el updater.
           includeUpdaterJson: true
 
+      # ── Espejo de la publicación en este mismo repositorio ─────────────────
+      #
+      # Las versiones 2.3.3 y anteriores llevan grabada dentro del binario la
+      # dirección de ESTE repositorio como servidor de actualizaciones. Cuando
+      # era privado, eso era un 404 y esas instalaciones quedaban muertas: no
+      # hay forma de cambiarle la dirección a un `.exe` ya instalado.
+      #
+      # Ahora que es público, publicar aquí el mismo manifiesto las devuelve a
+      # la vida. El `latest.json` se copia tal cual del repositorio de
+      # instaladores, así que apunta a sus assets y conserva su firma: no se
+      # firma nada dos veces ni se abre una segunda cadena de confianza.
+      #
+      # Esto se puede quitar el día que no quede nadie con una versión anterior
+      # a la 2.3.4 instalada. Antes no.
+      - name: Traer el manifiesto recién publicado
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL -o latest.json \
+            "https://github.com/${{ env.REPO_RELEASES_OWNER }}/${{ env.REPO_RELEASES_NAME }}/releases/download/${{ github.ref_name }}/latest.json"
+
+      - name: Publicar el espejo aquí
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: UTS Nexus Académico Alfa ${{ github.ref_name }}
+          body: ${{ steps.etiqueta.outputs.cuerpo }}
+          files: |
+            latest.json
+            desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+            desktop/src-tauri/target/release/bundle/nsis/*-setup.exe.sig
+            desktop/src-tauri/target/release/bundle/msi/*.msi
+            desktop/src-tauri/target/release/bundle/msi/*.msi.sig
+
       # La página de descargas no mira la publicación de GitHub: sus botones
       # llevan un archivo de Dropbox, que se sobrescribe aquí. Va después de
       # publicar porque si la compilación o la firma fallan no hay nada que
@@ -221,6 +255,15 @@ jobs:
           # repositorio público de instaladores.
           repository: ${{ env.REPO_RELEASES_OWNER }}/${{ env.REPO_RELEASES_NAME }}
           token: ${{ secrets.RELEASES_TOKEN }}
+          tag_name: ${{ github.ref_name }}
+          files: flutter_app/build/app/outputs/flutter-apk/uts-nexus-academico-${{ github.ref_name }}.apk
+
+      # El APK también al espejo: el móvil de la 2.3.3 y anteriores lista los
+      # assets por la API de este repositorio y busca el que termina en `.apk`.
+      # Sin él encuentra la publicación pero no qué descargar.
+      - name: Adjuntar el APK al espejo
+        uses: softprops/action-gh-release@v2
+        with:
           tag_name: ${{ github.ref_name }}
           files: flutter_app/build/app/outputs/flutter-apk/uts-nexus-academico-${{ github.ref_name }}.apk
 

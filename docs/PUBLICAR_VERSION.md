@@ -9,19 +9,35 @@ cada publicación.
 
 | Repositorio | Visibilidad | Contenido |
 |---|---|---|
-| `UTS_Nexus_Academico` | privado | el código |
+| `UTS_Nexus_Academico` | público | el código, y un espejo de cada publicación |
 | `UTS_Nexus_Releases` | público | solo los instaladores |
 
 Un actualizador tiene que poder leer el manifiesto **sin credenciales**. La tentación
-es meter un token en la app para que lea el repositorio privado, y no funciona: ese
+es meter un token en la app para que lea un repositorio privado, y no funciona: ese
 token viaja dentro del `.exe` y del `.apk`, y sacarlo es un `strings` o descompilar el
 APK. Sería entregarle la llave del repositorio a todo el que instale la app.
 
-Separarlos resuelve las dos cosas a la vez: el código queda privado y los instaladores
-siguen siendo descargables, que es exactamente para lo que existe un instalador.
+La separación nació de ahí, cuando el código era privado: los instaladores en un
+repositorio aparte, descargables sin credenciales. Quien publica en él es el workflow,
+con `RELEASES_TOKEN`, un secreto que vive en el runner y no entra en ningún binario.
 
-Quien publica en el repositorio público es el workflow, con `RELEASES_TOKEN`. Ese
-secreto vive en el runner de Actions y no entra en ningún binario.
+### El espejo, y por qué hay que mantenerlo
+
+Las versiones **2.3.3 y anteriores** llevan grabada dentro del binario la dirección de
+`UTS_Nexus_Academico` como servidor de actualizaciones. Mientras fue privado eso era un
+404, y esas instalaciones quedaron muertas: la dirección va compilada, no hay forma de
+cambiársela a un `.exe` ya instalado. Solo se salía reinstalando a mano.
+
+Por eso el workflow publica **la misma release en los dos sitios**. El `latest.json` del
+espejo se copia tal cual del repositorio de instaladores: apunta a sus assets y conserva
+su firma, así que no se firma nada dos veces ni se abre una segunda cadena de confianza.
+
+El espejo se puede retirar el día que no quede nadie con una versión anterior a la 2.3.4
+instalada. Antes, no: quitarlo vuelve a dejar sin salida a quien no se haya actualizado.
+
+> **Si el código vuelve a ser privado**, el espejo deja de servir y esas versiones
+> vuelven a quedarse sin actualizaciones. Volver atrás tampoco recupera la privacidad:
+> los clones, los forks y las cachés de lo ya publicado siguen ahí.
 
 Si algún día cambia el nombre del repositorio de instaladores hay que tocarlo en tres
 sitios, y los tres tienen que coincidir:
