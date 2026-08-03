@@ -44,9 +44,14 @@ async function upsertUser(input: {
   return UserModel.findOneAndUpdate(
     { email: input.email },
     {
+      // La contraseña va en $set, no en $setOnInsert. Con $setOnInsert solo se
+      // escribía al CREAR la cuenta, así que volver a sembrar no la cambiaba: un
+      // despliegue que ya existía conservaba para siempre la contraseña con la
+      // que nació. Cuando esa contraseña resultó estar publicada en el
+      // repositorio, ejecutar el seed parecía rotarla y no rotaba nada.
+      $set: { passwordHash },
       $setOnInsert: {
         email: input.email,
-        passwordHash,
         role: input.role,
         fullName: input.fullName,
         photoUrl: input.photoUrl ?? null,
@@ -300,7 +305,8 @@ async function main() {
     ),
   ]);
 
-  console.log('Seed completado. Cuentas creadas:');
+  console.log('Seed completado. Cuentas creadas o ACTUALIZADAS:');
+  console.log('  (ejecutar el seed restablece la contraseña de las cuatro cuentas)');
   console.log('  admin@uts.edu.co · coordinador@uts.edu.co · docente@uts.edu.co · estudiante@uts.edu.co');
 
   if (generada) {
