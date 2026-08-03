@@ -17,7 +17,15 @@ import { FACULTADES, NIVELES, PROGRAMAS, SEDES } from '../../domains/catalog/uts
  * que hace que un aviso sin filtros llegue a toda la institución.
  */
 export const announcementRouter = Router();
+
+// `auth` NO rechaza a quien no manda cabecera: solo rellena req.user cuando hay
+// un token válido y deja pasar en caso contrario. Quien exige sesión de verdad
+// es `requireRole`, así que va en TODAS las rutas, también en las de lectura.
+// Sin él, el listado de avisos respondía 200 a cualquiera sin autenticar.
 announcementRouter.use(auth);
+
+/** Roles con sesión iniciada. Leer un aviso no distingue entre ellos. */
+const CON_SESION = ['ADMIN', 'PROFESSOR', 'COORDINATOR', 'STUDENT'] as const;
 
 const IDS_PROGRAMA = PROGRAMAS.map(p => p.id);
 
@@ -37,7 +45,7 @@ function alcanceDe(ficha: { sede?: string | null; facultad?: string | null; prog
 }
 
 /** Avisos visibles para quien pregunta. */
-announcementRouter.get('/', async (req, res, next) => {
+announcementRouter.get('/', requireRole(...CON_SESION), async (req, res, next) => {
   try {
     // La administración ve todo, incluidos los programados y los caducados:
     // necesita poder revisar lo que publicó, no solo lo vigente.
@@ -133,7 +141,7 @@ announcementRouter.patch('/:id', requireRole('ADMIN'), async (req, res, next) =>
 });
 
 /** Marca como leído para quien pregunta. Idempotente. */
-announcementRouter.post('/:id/leido', async (req, res, next) => {
+announcementRouter.post('/:id/leido', requireRole(...CON_SESION), async (req, res, next) => {
   try {
     const item = await AnnouncementModel.findOneAndUpdate(
       { _id: req.params.id, deletedAt: null },
