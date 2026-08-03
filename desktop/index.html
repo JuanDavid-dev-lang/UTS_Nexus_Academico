@@ -3,10 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta
-      http-equiv="Content-Security-Policy"
-      content="default-src 'self'; img-src 'self' data: https: asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:*"
-    />
+    <!--
+      La CSP NO va aquí. La sirve Tauri como cabecera a partir de
+      `app.security.csp` de `tauri.conf.json`, que además le añade los hashes de
+      `script-src` que calcula al empaquetar.
+
+      Cuando existían las dos, el navegador aplicaba la intersección: bastaba
+      con que este `<meta>` se quedara atrás para que la cabecera correcta
+      dejara de servir de nada. Fue exactamente lo que pasó — el `connect-src`
+      de aquí no tenía `https:`, así que el login contra el servidor de
+      producción moría con «No hay conexión con el servidor» mientras el health
+      check, que va por Rust y no por el WebView, seguía diciendo «En línea».
+
+      Una sola definición, en `tauri.conf.json`.
+    -->
     <title>UTS Nexus Académico</title>
   </head>
   <body>
