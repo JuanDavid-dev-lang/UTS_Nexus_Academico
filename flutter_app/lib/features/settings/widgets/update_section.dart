@@ -27,6 +27,10 @@ class _UpdateSectionState extends State<UpdateSection> {
   AppRelease? _release;
   String _installed = '';
   String? _error;
+  /// Un fallo que nadie pidió —el de la comprobación al abrir Ajustes— se
+  /// cuenta en gris: la app funciona igual y no hay nada que hacer con la
+  /// noticia. Pintar de rojo lo que nadie preguntó enseña a ignorar los rojos.
+  bool _errorDiscreto = false;
   int _received = 0;
   int _total = 0;
 
@@ -38,10 +42,10 @@ class _UpdateSectionState extends State<UpdateSection> {
     }).catchError((_) {
       if (mounted) setState(() => _installed = 'desconocida');
     });
-    _check();
+    _check(pedida: false);
   }
 
-  Future<void> _check() async {
+  Future<void> _check({bool pedida = true}) async {
     if (!_service.isSupported) {
       setState(() => _phase = _Phase.unsupported);
       return;
@@ -61,6 +65,7 @@ class _UpdateSectionState extends State<UpdateSection> {
       if (!mounted) return;
       setState(() {
         _error = error.message;
+        _errorDiscreto = !pedida;
         _phase = _Phase.failed;
       });
     }
@@ -222,6 +227,15 @@ class _UpdateSectionState extends State<UpdateSection> {
         ];
 
       case _Phase.failed:
+        if (_errorDiscreto) {
+          return [
+            Text(
+              'No se pudo comprobar si hay una versión nueva. La aplicación '
+              'funciona igual; vuelve a intentarlo cuando quieras.',
+              style: AppType.caption.copyWith(color: muted),
+            ),
+          ];
+        }
         return [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,

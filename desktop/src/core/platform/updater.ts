@@ -42,7 +42,12 @@ export async function checkForUpdate(): Promise<UpdateInfo | null> {
   if (!isDesktop) return null;
 
   const { check } = await updaterApi();
-  const update = await check();
+  let update: Awaited<ReturnType<typeof check>>;
+  try {
+    update = await check();
+  } catch (causa) {
+    throw new Error(explicarFallo(causa));
+  }
   if (!update) return null;
 
   return {
@@ -51,6 +56,37 @@ export async function checkForUpdate(): Promise<UpdateInfo | null> {
     notes: update.body ?? '',
     date: update.date ?? null,
   };
+}
+
+/**
+ * Traduce el fallo del plugin a algo que sirva para actuar.
+ *
+ * Los comandos de Tauri rechazan con una **cadena**, no con un `Error`. La
+ * pantalla comprobaba `instanceof Error` y caía siempre al texto de reserva,
+ * así que el motivo real —el único dato útil— no llegaba nunca a verse: daba
+ * igual no tener red que estar mirando un servidor que ya no publica.
+ *
+ * El detalle original se conserva al final. Un mensaje amable que se come la
+ * causa deja a quien lo lee sin nada que hacer, y a quien lo mantiene sin nada
+ * que mirar.
+ */
+function explicarFallo(causa: unknown): string {
+  const detalle = causa instanceof Error ? causa.message : String(causa ?? '');
+  const texto = detalle.toLowerCase();
+
+  if (/network|dns|connect|timed out|timeout|unreachable|error sending request/.test(texto)) {
+    return `Sin conexión con el servidor de actualizaciones. ${detalle}`;
+  }
+  // 404 sobre el manifiesto: la publicación existe pero no trae `latest.json`,
+  // o esta versión lo busca donde ya nadie lo pone. Se sale de ahí instalando a
+  // mano; seguir pulsando el botón no lo arregla.
+  if (/404|not found/.test(texto)) {
+    return `Esta versión busca las actualizaciones donde ya no se publican. Descarga la última desde la página de descargas. (${detalle})`;
+  }
+  if (/signature|pubkey|verify/.test(texto)) {
+    return `La firma de la actualización no se pudo verificar, así que no se instaló. (${detalle})`;
+  }
+  return detalle || 'No se pudo consultar el servidor de actualizaciones.';
 }
 
 /**

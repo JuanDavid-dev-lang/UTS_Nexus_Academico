@@ -57,6 +57,27 @@ int compareVersions(String a, String b) {
   return 0;
 }
 
+/// Traduce el fallo de red a algo que sirva para actuar.
+///
+/// «No se pudo consultar» a secas deja igual a quien está sin cobertura que a
+/// quien tiene una versión que mira donde ya nadie publica: el primero espera y
+/// se le arregla solo, el segundo puede seguir pulsando el botón para siempre.
+String _porQueFallo(DioException error) {
+  final codigo = error.response?.statusCode;
+  if (codigo == 404) {
+    return 'Esta versión busca las actualizaciones donde ya no se publican. '
+        'Descarga la última desde la página de descargas.';
+  }
+  if (codigo == 403) {
+    return 'GitHub está limitando las consultas desde esta red. '
+        'Vuelve a intentarlo en un rato.';
+  }
+  if (codigo != null) {
+    return 'El servidor de actualizaciones respondió $codigo.';
+  }
+  return 'Sin conexión con el servidor de actualizaciones.';
+}
+
 /// Búsqueda e instalación de actualizaciones desde GitHub Releases.
 ///
 /// Solo tiene sentido en Android: en iOS y en escritorio el instalador lo
@@ -94,10 +115,7 @@ class UpdateService {
     try {
       response = await _dio.get<dynamic>(_releasesApi);
     } on DioException catch (error) {
-      throw ApiUpdateException(
-        'No se pudo consultar el servidor de actualizaciones.',
-        cause: error,
-      );
+      throw ApiUpdateException(_porQueFallo(error), cause: error);
     }
 
     final data = response.data;

@@ -84,10 +84,20 @@ export function UpdateCard() {
           </div>
         )}
 
-        {status === 'error' && error && (
+        {/* Un fallo que nadie pidió se cuenta en gris y en una línea: la
+            aplicación funciona igual y no hay nada que hacer con la noticia.
+            El que responde al botón va entero, porque hay alguien esperando. */}
+        {status === 'error' && error?.discreto && (
+          <p className="text-caption text-muted">
+            No se pudo comprobar si hay una versión nueva. La aplicación funciona
+            igual; vuelve a intentarlo cuando quieras.
+          </p>
+        )}
+
+        {status === 'error' && error && !error.discreto && (
           <p className="flex items-start gap-2 text-body text-danger">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
-            {error}
+            {error.mensaje}
           </p>
         )}
 
