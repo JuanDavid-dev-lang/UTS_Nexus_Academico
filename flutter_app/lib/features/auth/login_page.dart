@@ -187,6 +187,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
                   const SizedBox(height: 10),
                   TextButton(
+                    onPressed: () => context.push('/registro'),
+                    child: const Text('Registrarme como docente'),
+                  ),
+                  TextButton(
                     onPressed: () => context.go('/recovery'),
                     child: const Text('¿Olvidaste tu contraseña?'),
                   ),

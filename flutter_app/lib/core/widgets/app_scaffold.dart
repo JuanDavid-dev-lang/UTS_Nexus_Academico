@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../features/tutorial/tutorial_page.dart';
 import 'package:go_router/go_router.dart';
 
 import '../theme/app_theme.dart';
@@ -83,6 +84,11 @@ const secondaryDestinations = <NavDestination>[
     icon: Icons.description_outlined,
   ),
   NavDestination(
+    route: '/avisos',
+    label: 'Avisos',
+    icon: Icons.campaign_outlined,
+  ),
+  NavDestination(
     route: '/notifications',
     label: 'Notificaciones',
     icon: Icons.notifications_outlined,
@@ -120,9 +126,30 @@ int _indexForRoute(List<NavDestination> destinations, String route) {
   return best;
 }
 
-class AppScaffold extends StatelessWidget {
+/// Envoltorio de las pantallas con sesión.
+///
+/// Es stateful solo por el tutorial: hace falta un punto que se ejecute una vez
+/// tras el primer fotograma con sesión iniciada, y este envuelve a todas las
+/// pantallas sin repetir el enganche en cada una.
+class AppScaffold extends StatefulWidget {
   final Widget child;
   const AppScaffold({super.key, required this.child});
+
+  @override
+  State<AppScaffold> createState() => _AppScaffoldState();
+}
+
+class _AppScaffoldState extends State<AppScaffold> {
+  @override
+  void initState() {
+    super.initState();
+    // Se lanza tras el primer fotograma: navegar durante el build dejaría el
+    // árbol a medio construir.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (await tutorialVisto()) return;
+      if (mounted) context.push('/tutorial');
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -150,7 +177,7 @@ class AppScaffold extends StatelessWidget {
               ],
             ),
             const VerticalDivider(width: 1),
-            Expanded(child: child),
+            Expanded(child: widget.child),
           ],
         ),
       );
@@ -161,7 +188,7 @@ class AppScaffold extends StatelessWidget {
     final isSecondary = primaryIndex < 0;
 
     return Scaffold(
-      body: child,
+      body: widget.child,
       bottomNavigationBar: NavigationBar(
         // En una pantalla secundaria se resalta "Más", que es desde donde llegó.
         selectedIndex: isSecondary ? primaryDestinations.length : primaryIndex,

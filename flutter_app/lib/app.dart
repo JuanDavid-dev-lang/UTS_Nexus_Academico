@@ -15,6 +15,9 @@ import 'features/notifications/notifications_page.dart';
 import 'features/profile/profile_page.dart';
 import 'features/attendance/attendance_page.dart';
 import 'features/attendance/scan_sheet_page.dart';
+import 'features/announcements/announcements_page.dart';
+import 'features/auth/register_page.dart';
+import 'features/tutorial/tutorial_page.dart';
 import 'features/reports/reports_page.dart';
 import 'features/schedule/schedule_page.dart';
 import 'features/settings/settings_page.dart';
@@ -28,6 +31,10 @@ final router = GoRouter(
   routes: [
     GoRoute(path: '/login', builder: (_, __) => const LoginPage()),
     GoRoute(path: '/recovery', builder: (_, __) => const RecoveryPage()),
+    // Fuera del shell autenticado: quien se registra todavía no tiene sesión,
+    // y el tutorial se abre en pantalla completa sobre cualquier estado.
+    GoRoute(path: '/registro', builder: (_, __) => const RegisterPage()),
+    GoRoute(path: '/tutorial', builder: (_, __) => const TutorialPage()),
     ShellRoute(
       builder: (_, __, child) => AppScaffold(child: child),
       routes: [
@@ -50,6 +57,7 @@ final router = GoRouter(
         GoRoute(path: '/grades', builder: (_, __) => const GradesPage()),
         GoRoute(path: '/attendance', builder: (_, __) => const AttendancePage()),
         GoRoute(path: '/attendance/scan', builder: (_, __) => const ScanSheetPage()),
+        GoRoute(path: '/avisos', builder: (_, __) => const AnnouncementsPage()),
         GoRoute(path: '/schedule', builder: (_, __) => const SchedulePage()),
         GoRoute(path: '/ai', builder: (_, __) => const AiPage()),
         GoRoute(path: '/reports', builder: (_, __) => const ReportsPage()),

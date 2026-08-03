@@ -165,6 +165,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ),
           ),
           const SizedBox(height: 22),
+          _SectionLabel('Ayuda', muted: muted),
+          AppCard(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            child: ListTile(
+              leading: const Icon(Icons.school_outlined),
+              title: const Text('Ver el tutorial'),
+              subtitle: const Text('Un recorrido por las secciones de la app'),
+              trailing: const Icon(Icons.chevron_right_outlined),
+              onTap: () => context.push('/tutorial'),
+            ),
+          ),
+          const SizedBox(height: 22),
           _SectionLabel('Actualizaciones', muted: muted),
           const UpdateSection(),
           const SizedBox(height: 22),
