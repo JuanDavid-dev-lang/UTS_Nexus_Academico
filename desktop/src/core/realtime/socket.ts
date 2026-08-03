@@ -18,6 +18,7 @@ export type SyncEntity =
   | 'grade'
   | 'attendance'
   | 'notification'
+  | 'announcement'
   | 'enrollment';
 
 export type SyncStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
@@ -32,6 +33,9 @@ const INVALIDATION_MAP: Record<SyncEntity, readonly (readonly unknown[])[]> = {
   grade: [queryKeys.grades.all, queryKeys.analytics.all],
   attendance: [queryKeys.attendance.all, queryKeys.analytics.all],
   notification: [queryKeys.notifications.all],
+  // Sin esta entrada el aviso se guardaba y se emitía el evento, pero ninguna
+  // pantalla abierta se enteraba: al docente no le aparecía hasta que recargara.
+  announcement: [queryKeys.announcements.all],
   // Matricular cambia también quién sale en la lista de una materia, así que la
   // caché de estudiantes tiene que caer con ella.
   enrollment: [queryKeys.enrollments.all, queryKeys.students.all, queryKeys.analytics.all],

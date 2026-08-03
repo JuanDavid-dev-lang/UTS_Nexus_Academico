@@ -9,6 +9,7 @@ import { useSession } from '@/state/session.store';
 import { useSync } from '@/state/sync.store';
 import { connectRealtime } from '@/core/realtime/socket';
 import { watchSystemTheme } from '@/state/theme.store';
+import { UpdatePrompt } from '@/features/updates/update-prompt';
 
 /**
  * Builds the query client.
@@ -86,6 +87,9 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider delayDuration={400} skipDelayDuration={300}>
         {children}
+        {/* Fuera del router: la versión nueva se avisa también en el login, que
+            es donde se queda quien no puede entrar por culpa de la vieja. */}
+        <UpdatePrompt />
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

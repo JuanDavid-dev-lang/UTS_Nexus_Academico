@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Megaphone, Users } from 'lucide-react';
+import { AlertTriangle, Megaphone, Users } from 'lucide-react';
 import {
   Button,
   Dialog,
@@ -13,9 +13,14 @@ import {
 } from '@/shared/ui';
 import { avisoRepository, registroRepository } from '@/infrastructure/repositories/academic.repository';
 import type { FacultadId, SedeId, TipoAviso } from '@/domain/schemas/academic';
+import { queryKeys } from '@/core/api/query-keys';
 import { toast } from '@/state/toast.store';
 
 type Props = { open: boolean; onOpenChange: (open: boolean) => void };
+
+/** Mínimos que exige el backend. Repetirlos aquí es lo que permite decirlos antes. */
+const MINIMO_TITULO = 4;
+const MINIMO_CUERPO = 10;
 
 const VACIO = {
   titulo: '',
@@ -55,7 +60,7 @@ export function AnnouncementComposer({ open, onOpenChange }: Props) {
   const publicar = useMutation({
     mutationFn: () => avisoRepository.create(valores),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['avisos'] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.announcements.all });
       toast.success('Aviso publicado');
       setValores(VACIO);
       onOpenChange(false);
@@ -71,6 +76,44 @@ export function AnnouncementComposer({ open, onOpenChange }: Props) {
     return partes.length === 0 ? 'Toda la institución' : partes.join(' + ');
   }, [valores]);
 
+  // Cuántos docentes cumplen de verdad los tres criterios. Contar sedes,
+  // facultades y programas marcados no dice nada: se combinan con Y, así que
+  // marcar más casillas puede reducir el alcance a cero.
+  const destinatarios = useQuery({
+    queryKey: [
+      ...queryKeys.announcements.all,
+      'destinatarios',
+      valores.sedes,
+      valores.facultades,
+      valores.programas,
+    ],
+    queryFn: () =>
+      avisoRepository.destinatarios({
+        sedes: valores.sedes,
+        facultades: valores.facultades,
+        programas: valores.programas,
+      }),
+    enabled: open,
+    // Cada casilla que se marca cambia la clave. Sin conservar el recuento
+    // anterior, la línea desaparece y reaparece en cada clic y el bloque salta.
+    placeholderData: previo => previo,
+  });
+
+  const tituloCorto = valores.titulo.trim().length < MINIMO_TITULO;
+  const cuerpoCorto = valores.cuerpo.trim().length < MINIMO_CUERPO;
+
+  /**
+   * Por qué no se puede publicar todavía.
+   *
+   * El botón se deshabilitaba sin decir nada y el motivo real —el contenido no
+   * llega al mínimo— no estaba escrito en ninguna parte de la pantalla.
+   */
+  const impedimento = tituloCorto
+    ? `El título necesita al menos ${MINIMO_TITULO} caracteres.`
+    : cuerpoCorto
+      ? `El contenido necesita al menos ${MINIMO_CUERPO} caracteres.`
+      : null;
+
   function alternar<T extends string>(lista: T[], valor: T): T[] {
     return lista.includes(valor) ? lista.filter(x => x !== valor) : [...lista, valor];
   }
@@ -83,7 +126,15 @@ export function AnnouncementComposer({ open, onOpenChange }: Props) {
         className="max-w-2xl"
       >
         <div className="flex flex-col gap-4">
-          <Field label="Título">
+          {/* El requisito se enseña desde el principio como pista y solo pasa a
+              error cuando ya se escribió algo: señalar en rojo un campo que
+              todavía no se ha tocado es regañar por no haber empezado. */}
+          <Field
+            label="Título"
+            required
+            hint={`Mínimo ${MINIMO_TITULO} caracteres.`}
+            error={valores.titulo.length > 0 && tituloCorto ? `Faltan caracteres: mínimo ${MINIMO_TITULO}.` : undefined}
+          >
             {props => (
               <Input
                 {...props}
@@ -94,7 +145,12 @@ export function AnnouncementComposer({ open, onOpenChange }: Props) {
             )}
           </Field>
 
-          <Field label="Contenido">
+          <Field
+            label="Contenido"
+            required
+            hint={`Mínimo ${MINIMO_CUERPO} caracteres.`}
+            error={valores.cuerpo.length > 0 && cuerpoCorto ? `Faltan caracteres: mínimo ${MINIMO_CUERPO}.` : undefined}
+          >
             {props => (
               <Textarea
                 {...props}
@@ -141,6 +197,28 @@ export function AnnouncementComposer({ open, onOpenChange }: Props) {
               Sin marcar nada llega a todos. Cada criterio que marcas lo restringe más, y se
               combinan entre sí: sede <em>y</em> facultad, no sede <em>o</em> facultad.
             </p>
+
+            {destinatarios.data && (
+              <p
+                className={`mb-3 flex items-center gap-1.5 text-caption ${
+                  destinatarios.data.alcanzados === 0 ? 'text-danger' : 'text-muted'
+                }`}
+              >
+                {destinatarios.data.alcanzados === 0 ? (
+                  <>
+                    <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
+                    Con este alcance no lo recibiría ningún docente. Suelta algún criterio.
+                  </>
+                ) : (
+                  <>
+                    Lo recibirán <strong className="font-semibold text-text">
+                      {destinatarios.data.alcanzados}
+                    </strong>{' '}
+                    de {destinatarios.data.total} docentes.
+                  </>
+                )}
+              </p>
+            )}
 
             {catalogo.data && (
               <div className="flex flex-col gap-3">
@@ -201,15 +279,19 @@ export function AnnouncementComposer({ open, onOpenChange }: Props) {
           </div>
 
           <DialogFooter>
+            {impedimento && (
+              <p className="mr-auto flex items-center gap-1.5 text-caption text-muted">
+                <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
+                {impedimento}
+              </p>
+            )}
             <Button variant="ghost" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
             <Button
               variant="primary"
               loading={publicar.isPending}
-              disabled={
-                publicar.isPending || valores.titulo.trim().length < 4 || valores.cuerpo.trim().length < 10
-              }
+              disabled={publicar.isPending || impedimento !== null}
               onClick={() => publicar.mutate()}
             >
               <Megaphone className="size-4" aria-hidden />

@@ -7,6 +7,7 @@ import 'core/services/realtime_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
 import 'core/widgets/app_scaffold.dart';
+import 'core/widgets/update_prompt.dart';
 import 'features/ai/ai_page.dart';
 import 'features/auth/login_page.dart';
 import 'features/auth/recovery_page.dart';
@@ -26,7 +27,13 @@ import 'features/subjects/subjects_page.dart';
 import 'features/subjects/subject_detail_page.dart';
 import 'features/grades/grades_page.dart';
 
+/// Navigator raíz. Lo necesita [UpdateGate]: el `builder` de `MaterialApp` se
+/// dibuja por encima del Navigator del router, así que desde su contexto no hay
+/// ninguno al que pedirle un diálogo.
+final rootNavigatorKey = GlobalKey<NavigatorState>();
+
 final router = GoRouter(
+  navigatorKey: rootNavigatorKey,
   initialLocation: '/login',
   routes: [
     GoRoute(path: '/login', builder: (_, __) => const LoginPage()),
@@ -106,6 +113,13 @@ class _UtsAppState extends ConsumerState<UtsApp> {
             ref.invalidate(dashboardProvider);
           case 'schedule':
             ref.invalidate(scheduleProvider);
+          // Sin este caso el aviso caía en `default`, que solo recarga el
+          // panel: el docente con la pantalla de avisos abierta no lo veía
+          // aparecer hasta que la recargara a mano.
+          case 'announcement':
+            ref.invalidate(avisosProvider);
+          case 'notification':
+            ref.invalidate(notificationsProvider);
           case 'enrollment':
             ref.invalidate(studentsProvider);
             // La matrícula es justo lo que define la lista por materia.
@@ -144,6 +158,13 @@ class _UtsAppState extends ConsumerState<UtsApp> {
       darkTheme: AppTheme.dark,
       themeMode: ref.watch(themeModeProvider),
       routerConfig: router,
+      // Envuelve todas las rutas: la versión nueva se avisa también en el
+      // login, que es donde se queda quien no puede entrar por culpa de la
+      // vieja. Va aquí y no dentro del shell porque necesita un Navigator.
+      builder: (_, child) => UpdateGate(
+        navigatorKey: rootNavigatorKey,
+        child: child ?? const SizedBox.shrink(),
+      ),
     );
   }
 }

@@ -95,6 +95,50 @@ const cuerpo = z.object({
   fijado: z.boolean().default(false),
 });
 
+/**
+ * Docentes que pueden llegar a leer un aviso.
+ *
+ * No es `estado: 'APROBADO'`: las fichas anteriores a que existiera ese campo
+ * no lo tienen, y `$eq` no encuentra lo que falta. Como el login solo cierra el
+ * paso a `PENDIENTE` y `RECHAZADO`, ese es el criterio que de verdad decide, y
+ * `$nin` sí incluye a quien no tiene el campo.
+ */
+const DOCENTES_ACTIVOS = { deletedAt: null, estado: { $nin: ['PENDIENTE', 'RECHAZADO'] } };
+
+/** Filtro sobre las fichas de docente equivalente al alcance de un aviso. */
+function docentesEnAlcance(alcance: { sedes: string[]; facultades: string[]; programas: string[] }) {
+  const filtro: Record<string, unknown> = { ...DOCENTES_ACTIVOS };
+  if (alcance.sedes.length) filtro.sede = { $in: alcance.sedes };
+  if (alcance.facultades.length) filtro.facultad = { $in: alcance.facultades };
+  if (alcance.programas.length) filtro.programas = { $in: alcance.programas };
+  return filtro;
+}
+
+/**
+ * Cuántos docentes recibirían un aviso con este alcance.
+ *
+ * Existe porque los tres criterios se combinan con Y y eso se nota tarde: se
+ * marcaban cuatro programas creyendo ampliar el alcance y el aviso no le
+ * llegaba a nadie, sin que nada lo dijera. Es la misma condición que aplica
+ * `alcanceDe` al leer, resuelta antes de publicar en vez de después.
+ */
+announcementRouter.post('/destinatarios', requireRole('ADMIN'), async (req, res, next) => {
+  try {
+    const alcance = cuerpo
+      .pick({ sedes: true, facultades: true, programas: true })
+      .parse(req.body ?? {});
+
+    const [alcanzados, total] = await Promise.all([
+      ProfessorModel.countDocuments(docentesEnAlcance(alcance)),
+      ProfessorModel.countDocuments(DOCENTES_ACTIVOS),
+    ]);
+
+    res.json({ ok: true, alcanzados, total });
+  } catch (err) {
+    next(err);
+  }
+});
+
 announcementRouter.post('/', requireRole('ADMIN'), async (req, res, next) => {
   try {
     const datos = cuerpo.parse(req.body);
@@ -116,6 +160,9 @@ announcementRouter.post('/', requireRole('ADMIN'), async (req, res, next) => {
       after: item.toObject(),
     });
     emitSync('sync:update', { entity: 'announcement', action: 'create', id: item.id });
+    // Poblado como en el listado: si aquí se devuelve el ObjectId a secas, el
+    // cliente recibe un aviso con una forma distinta de la que ya conoce.
+    await item.populate('autorId', 'fullName');
     res.status(201).json({ ok: true, item });
   } catch (err) {
     next(err);

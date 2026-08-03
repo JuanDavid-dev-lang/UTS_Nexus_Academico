@@ -60,6 +60,12 @@ export const queryKeys = {
     list: () => ['notifications', 'list'] as const,
   },
 
+  // Los avisos usaban la clave literal `['avisos']` escrita en cada pantalla, y
+  // por eso el mapa de invalidación en tiempo real no podía referirse a ellos.
+  announcements: {
+    all: ['avisos'] as const,
+  },
+
   assistant: {
     all: ['assistant'] as const,
     status: () => ['assistant', 'status'] as const,

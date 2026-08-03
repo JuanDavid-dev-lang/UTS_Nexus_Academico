@@ -297,6 +297,15 @@ export const avisoRepository = {
     return (await http.post('/avisos', input, { schema: itemResponse(avisoSchema) })).item;
   },
 
+  /** Cuántos docentes recibirían un aviso con este alcance, antes de publicarlo. */
+  async destinatarios(
+    alcance: Pick<AvisoInput, 'sedes' | 'facultades' | 'programas'>,
+  ): Promise<{ alcanzados: number; total: number }> {
+    return http.post('/avisos/destinatarios', alcance, {
+      schema: z.object({ ok: z.literal(true), alcanzados: z.number(), total: z.number() }),
+    });
+  },
+
   async marcarLeido(id: string): Promise<void> {
     await http.post(`/avisos/${id}/leido`, undefined, { schema: okResponse });
   },

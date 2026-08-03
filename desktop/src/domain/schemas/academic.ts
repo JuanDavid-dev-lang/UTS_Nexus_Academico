@@ -322,6 +322,21 @@ export type Solicitud = z.infer<typeof solicitudSchema>;
 export const tipoAviso = z.enum(['INFORMATIVO', 'IMPORTANTE', 'URGENTE']);
 export type TipoAviso = z.infer<typeof tipoAviso>;
 
+/**
+ * Autor del aviso.
+ *
+ * El listado lo devuelve poblado (`{ fullName }`) y la respuesta de crear traía
+ * el ObjectId a secas: Mongoose no puebla lo que acaba de insertar. Aceptar
+ * solo la forma poblada hacía que publicar terminara siempre en «El servidor
+ * respondió en un formato inesperado» — con el aviso ya guardado, así que el
+ * administrador reintentaba y salían duplicados. Las dos formas valen y se
+ * normalizan a una: sin nombre, no hay autor que mostrar.
+ */
+const autorAviso = z
+  .union([z.object({ fullName: z.string() }).partial(), z.string(), z.null()])
+  .optional()
+  .transform(valor => (valor && typeof valor === 'object' ? valor : null));
+
 export const avisoSchema = mongoDoc.extend({
   titulo: z.string(),
   cuerpo: z.string(),
@@ -334,7 +349,7 @@ export const avisoSchema = mongoDoc.extend({
   fijado: z.boolean().optional().default(false),
   leido: z.boolean().optional().default(false),
   lecturas: z.number().optional().default(0),
-  autorId: z.object({ fullName: z.string() }).partial().nullable().optional(),
+  autorId: autorAviso,
 });
 export type Aviso = z.infer<typeof avisoSchema>;
 

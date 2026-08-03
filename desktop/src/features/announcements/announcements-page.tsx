@@ -15,6 +15,7 @@ import {
   Tooltip,
 } from '@/shared/ui';
 import { avisoRepository } from '@/infrastructure/repositories/academic.repository';
+import { queryKeys } from '@/core/api/query-keys';
 import type { Aviso, TipoAviso } from '@/domain/schemas/academic';
 import { useUserRole } from '@/state/session.store';
 import { toast } from '@/state/toast.store';
@@ -47,17 +48,17 @@ export default function AnnouncementsPage() {
   const [abierto, setAbierto] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
-  const avisos = useQuery({ queryKey: ['avisos'], queryFn: () => avisoRepository.list() });
+  const avisos = useQuery({ queryKey: queryKeys.announcements.all, queryFn: () => avisoRepository.list() });
 
   const marcarLeido = useMutation({
     mutationFn: (id: string) => avisoRepository.marcarLeido(id),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['avisos'] }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.announcements.all }),
   });
 
   const borrar = useMutation({
     mutationFn: (id: string) => avisoRepository.remove(id),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['avisos'] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.announcements.all });
       toast.success('Aviso eliminado');
       setBorrando(null);
     },
