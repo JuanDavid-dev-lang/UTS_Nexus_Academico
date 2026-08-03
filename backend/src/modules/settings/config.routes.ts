@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { auth, requireRole } from '../../middlewares/auth.js';
+import { identificar, requireRole } from '../../middlewares/auth.js';
 import { ConfigModel } from '../../models/config.model.js';
 
 export const configRouter = Router();
-configRouter.use(auth);
+configRouter.use(identificar);
 
 configRouter.get('/', requireRole('ADMIN', 'COORDINATOR'), async (_req, res, next) => {
   try {

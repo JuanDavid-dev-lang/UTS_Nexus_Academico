@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { StudentModel } from '../../models/student.model.js';
-import { auth, requireRole } from '../../middlewares/auth.js';
+import { identificar, requireRole } from '../../middlewares/auth.js';
 import { emitSync } from '../../shared/socket.js';
 import {
   getProfessorScope,
@@ -11,7 +11,7 @@ import {
 
 export const studentRouter = Router();
 
-studentRouter.use(auth);
+studentRouter.use(identificar);
 
 /** Neutraliza los metacaracteres para que el texto buscado se trate como literal. */
 function escapeRegex(value: string): string {

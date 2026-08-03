@@ -1,16 +1,22 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { auth, requireRole } from '../../middlewares/auth.js';
+import { exigirSesion, identificar, requireRole } from '../../middlewares/auth.js';
 import { RiskFeedbackModel } from '../../models/risk-feedback.model.js';
 import { computeAcademicRecords } from '../../shared/academic.service.js';
 import { getProfessorScope } from '../../shared/professor-scope.js';
 import { mlStatus, predictRisk, toFeatures, trainModel } from './ml.service.js';
 
 export const mlRouter = Router();
-mlRouter.use(auth);
+mlRouter.use(identificar);
 
-/** Estado y métricas del modelo. */
-mlRouter.get('/status', async (_req, res, next) => {
+/**
+ * Estado y métricas del modelo.
+ *
+ * `exigirSesion` y no solo `identificar`: sin él esto respondía 200 a cualquiera
+ * en internet con la versión del modelo, cuándo se entrenó y con cuántas
+ * muestras. No es un dato de nadie, pero tampoco es asunto de quien pasa por ahí.
+ */
+mlRouter.get('/status', exigirSesion, async (_req, res, next) => {
   try {
     res.json({ ok: true, ...(await mlStatus()) });
   } catch (err) {

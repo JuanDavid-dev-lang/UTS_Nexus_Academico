@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/services/update_service.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/version.dart';
 import '../../../core/widgets/ui_kit.dart';
 
 enum _Phase { checking, upToDate, available, downloading, unsupported, failed }
@@ -109,7 +110,7 @@ class _UpdateSectionState extends State<UpdateSection> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Versión instalada ${_installed.isEmpty ? '…' : _installed}',
+                  'Versión instalada ${nombreVersion(_installed)}',
                   style: AppType.body,
                 ),
               ),
@@ -187,7 +188,7 @@ class _UpdateSectionState extends State<UpdateSection> {
       case _Phase.available:
         return [
           StatusPill(
-            'Versión ${_release!.version} disponible',
+            '${nombreVersion(_release!.version)} disponible',
             kind: SemanticKind.info,
           ),
           if (_release!.notes.isNotEmpty) ...[

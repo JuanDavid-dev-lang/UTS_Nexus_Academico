@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { GradeModel } from '../../models/grade.model.js';
 import { StudentModel } from '../../models/student.model.js';
-import { auth, requireRole } from '../../middlewares/auth.js';
+import { identificar, requireRole } from '../../middlewares/auth.js';
 import { auditChange } from '../../shared/audit.js';
 import { emitToUser } from '../../shared/socket.js';
 import { getProfessorScope } from '../../shared/professor-scope.js';
@@ -14,7 +14,7 @@ import {
 } from '../../domains/grading/grading.service.js';
 
 export const gradeRouter = Router();
-gradeRouter.use(auth);
+gradeRouter.use(identificar);
 
 const componenteEnum = z.enum(['TRABAJOS', 'PARCIALES', 'AUTOEVALUACION']);
 const corteEnum = z.union([z.literal(1), z.literal(2), z.literal(3)]);

@@ -118,7 +118,11 @@ jobs:
           owner: ${{ env.REPO_RELEASES_OWNER }}
           repo: ${{ env.REPO_RELEASES_NAME }}
           tagName: ${{ github.ref_name }}
-          releaseName: UTS Nexus Académico ${{ github.ref_name }}
+          # La etapa va en el nombre a propósito: quien abre la página de
+          # publicaciones tiene que saber que instala algo en construcción sin
+          # tener que deducirlo del número. Al pasar a beta o a estable hay que
+          # cambiarla aquí y en los dos archivos `version` de los clientes.
+          releaseName: UTS Nexus Académico Alfa ${{ github.ref_name }}
           releaseBody: ${{ steps.etiqueta.outputs.cuerpo }}
           # El commit de este repositorio no existe en el de instaladores, así
           # que la etiqueta tiene que nacer de su rama principal.

@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { UserModel } from '../../models/user.model.js';
 import { ProfessorModel } from '../../models/professor.model.js';
 import { ConfigModel } from '../../models/config.model.js';
-import { auth, requireRole } from '../../middlewares/auth.js';
+import { identificar, requireRole } from '../../middlewares/auth.js';
 import { auditChange } from '../../shared/audit.js';
 import { emitSync } from '../../shared/socket.js';
 import {
@@ -147,7 +147,7 @@ registrationRouter.post('/', async (req, res, next) => {
 });
 
 // ── Administración ──────────────────────────────────────────────────────────
-registrationRouter.use(auth);
+registrationRouter.use(identificar);
 
 /** Estado del interruptor y cuántas solicitudes esperan. */
 registrationRouter.get('/estado', requireRole('ADMIN', 'COORDINATOR'), async (_req, res, next) => {

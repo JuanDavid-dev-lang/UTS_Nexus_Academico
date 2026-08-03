@@ -3,12 +3,12 @@ import { z } from 'zod';
 import { EnrollmentModel } from '../../models/enrollment.model.js';
 import { GroupModel } from '../../models/group.model.js';
 import { StudentModel } from '../../models/student.model.js';
-import { auth, requireRole } from '../../middlewares/auth.js';
+import { identificar, requireRole } from '../../middlewares/auth.js';
 import { auditChange } from '../../shared/audit.js';
 import { emitToUser } from '../../shared/socket.js';
 
 export const enrollmentRouter = Router();
-enrollmentRouter.use(auth);
+enrollmentRouter.use(identificar);
 
 /** Verifica que el grupo pertenezca al profesor autenticado (o que sea ADMIN/COORDINATOR). */
 async function assertGroupOwnership(req: any, groupId: string) {

@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { UserModel } from '../../models/user.model.js';
 import { SessionModel } from '../../models/session.model.js';
 import { ProfessorModel } from '../../models/professor.model.js';
-import { auth } from '../../middlewares/auth.js';
+import { exigirSesion, identificar } from '../../middlewares/auth.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../shared/jwt.js';
 import { daysFromNow, hashToken } from '../../shared/security.js';
 import type { Role } from '../../shared/types.js';
@@ -229,8 +229,7 @@ authRouter.post('/recovery/reset', async (req, res, next) => {
   }
 });
 
-authRouter.get('/me', auth, async (req, res) => {
-  if (!req.user) return res.status(401).json({ ok: false, message: 'Unauthorized' });
-  const user = await UserModel.findById(req.user.id).lean();
+authRouter.get('/me', identificar, exigirSesion, async (req, res) => {
+  const user = await UserModel.findById(req.user!.id).lean();
   res.json({ ok: true, user });
 });

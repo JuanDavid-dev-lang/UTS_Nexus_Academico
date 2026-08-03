@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { auth, requireRole } from '../../middlewares/auth.js';
+import { exigirSesion, identificar, requireRole } from '../../middlewares/auth.js';
 import { GradeModel } from '../../models/grade.model.js';
 import { AttendanceModel } from '../../models/attendance.model.js';
 import { StudentModel } from '../../models/student.model.js';
@@ -22,10 +22,12 @@ import {
 } from './assistant.service.js';
 
 export const aiRouter = Router();
-aiRouter.use(auth);
+aiRouter.use(identificar);
 
 /** Estado del asistente de IA local (Ollama): ¿está activo y disponible? */
-aiRouter.get('/status', async (_req, res) => {
+// `exigirSesion`: contar si hay un servicio de IA local encendido y con qué
+// modelo es reconocimiento gratis para quien no ha iniciado sesión.
+aiRouter.get('/status', exigirSesion, async (_req, res) => {
   if (!env.AI_ENABLED) {
     return res.json({ ok: true, enabled: false, available: false, message: 'IA desactivada (AI_ENABLED=0).' });
   }

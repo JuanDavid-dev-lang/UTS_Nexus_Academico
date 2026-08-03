@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { auth, requireRole } from '../../middlewares/auth.js';
+import { identificar, requireRole } from '../../middlewares/auth.js';
 import { ProfessorModel } from '../../models/professor.model.js';
 import { emitSync } from '../../shared/socket.js';
 
 export const professorRouter = Router();
-professorRouter.use(auth);
+professorRouter.use(identificar);
 
 professorRouter.get('/', requireRole('ADMIN', 'COORDINATOR'), async (_req, res, next) => {
   try {

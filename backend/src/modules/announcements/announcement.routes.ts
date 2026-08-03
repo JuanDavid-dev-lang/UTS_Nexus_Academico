@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { AnnouncementModel } from '../../models/announcement.model.js';
 import { ProfessorModel } from '../../models/professor.model.js';
-import { auth, requireRole } from '../../middlewares/auth.js';
+import { identificar, requireRole } from '../../middlewares/auth.js';
 import { auditChange } from '../../shared/audit.js';
 import { emitSync } from '../../shared/socket.js';
 import { FACULTADES, NIVELES, PROGRAMAS, SEDES } from '../../domains/catalog/uts.js';
@@ -18,11 +18,11 @@ import { FACULTADES, NIVELES, PROGRAMAS, SEDES } from '../../domains/catalog/uts
  */
 export const announcementRouter = Router();
 
-// `auth` NO rechaza a quien no manda cabecera: solo rellena req.user cuando hay
-// un token válido y deja pasar en caso contrario. Quien exige sesión de verdad
-// es `requireRole`, así que va en TODAS las rutas, también en las de lectura.
-// Sin él, el listado de avisos respondía 200 a cualquiera sin autenticar.
-announcementRouter.use(auth);
+// `identificar` solo rellena `req.user`; no cierra el paso. Quien exige sesión
+// es `exigirSesion` o `requireRole`, y va en TODAS las rutas, también en las de
+// lectura. Sin él, el listado de avisos respondía 200 a cualquiera sin
+// autenticar.
+announcementRouter.use(identificar);
 
 /** Roles con sesión iniciada. Leer un aviso no distingue entre ellos. */
 const CON_SESION = ['ADMIN', 'PROFESSOR', 'COORDINATOR', 'STUDENT'] as const;

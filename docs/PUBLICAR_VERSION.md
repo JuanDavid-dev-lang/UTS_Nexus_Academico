@@ -134,9 +134,48 @@ Mover la carpeta en Dropbox no rompe nada; borrar los archivos y volver a subirl
 
 ---
 
-## 2. Publicar una versión
+## 2. Etapas: alfa, beta, estable
 
-### 2.1 Subir el número de versión
+El número de versión y la etapa contestan preguntas distintas y por eso se
+guardan separados.
+
+El **número** (`2.3.6`) dice cuánto ha cambiado desde la anterior. Lo consume el
+actualizador, que compara versiones y no entiende de adjetivos: tiene que seguir
+siendo semver limpio o deja de ofrecer nada.
+
+La **etapa** dice en qué punto está el producto, y va dirigida a quien lo
+instala. No es lo mismo la 2.3.6 de algo terminado que la 2.3.6 de algo que
+todavía se está armando. Se muestran juntos —«Alfa 2.3.6»— y se guardan aparte.
+
+**Hoy estamos en `alfa`.**
+
+| Etapa | Qué significa |
+|---|---|
+| `alfa` | Se usa de verdad, pero puede cambiar de forma entre versiones. Cosas que faltan y cosas que se rompen. |
+| `beta` | Completa en funciones. Se arreglan fallos, no se añaden capacidades. |
+| `estable` | La etiqueta desaparece del nombre: se ve solo el número. |
+
+Para cambiar de etapa hay que tocar **tres sitios**, y los tres tienen que
+coincidir:
+
+| Dónde | Qué |
+|---|---|
+| `desktop/src/core/version.ts` | `export const ETAPA` |
+| `flutter_app/lib/core/version.dart` | `const String etapa` |
+| `.github/workflows/release.yml` | `releaseName:` del trabajo de escritorio |
+
+En `estable` la etiqueta queda vacía y el nombre vuelve a ser solo el número, sin
+tocar ningún otro sitio.
+
+Lo que **no** hay que hacer es meter la etapa dentro del número (`2.3.6-alfa`).
+El actualizador de Tauri y el `versionCode` de Android comparan versiones, y un
+sufijo ahí cambia el orden de una forma que ninguno de los dos promete respetar.
+
+---
+
+## 3. Publicar una versión
+
+### 3.1 Subir el número de versión
 
 El actualizador compara la versión publicada con la que lleva el binario instalado. Si
 no se sube, no se ofrece nada. Hay que tocar **los dos** archivos:
@@ -149,7 +188,7 @@ no se sube, no se ofrece nada. Hay que tocar **los dos** archivos:
 En el móvil hay que subir también el `+N` (el `versionCode`): Android rechaza instalar
 un APK cuyo `versionCode` no sea mayor que el instalado.
 
-### 2.2 Etiquetar y empujar
+### 3.2 Etiquetar y empujar
 
 ```bash
 git commit -am "chore: version X.Y.Z"
@@ -171,7 +210,7 @@ Los pasos de Dropbox **fallan en rojo** si algo va mal en vez de avisar y seguir
 release publicado con Dropbox sin actualizar deja la página repartiendo la versión
 anterior en silencio, que es peor que un workflow en rojo.
 
-### 2.3 Comprobar
+### 3.3 Comprobar
 
 - El Release tiene `latest.json`, el `.msi`/`.exe` con su `.sig`, y el `.apk`.
 - El workflow terminó en verde, incluidos los dos pasos de Dropbox.
@@ -186,7 +225,7 @@ distinto; vacío es lo normal y significa «usá el que trae escrito la página�
 
 ---
 
-## 3. Cómo lo ve el usuario
+## 4. Cómo lo ve el usuario
 
 **Escritorio.** `Configuración → Actualizaciones` comprueba al abrir la pantalla.
 Si hay versión nueva, muestra el número y las notas; al pulsar *Instalar y reiniciar*
@@ -202,7 +241,7 @@ falla en silencio dentro de la tarjeta si no hay red.
 
 ---
 
-## 4. iOS
+## 5. iOS
 
 **No hay versión de iOS y no se puede construir desde este equipo.** Tres motivos, en
 orden de dureza:

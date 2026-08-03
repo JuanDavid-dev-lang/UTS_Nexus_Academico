@@ -10,7 +10,20 @@ declare global {
   }
 }
 
-export const auth: RequestHandler = (req, res, next) => {
+/**
+ * Dice **quién** es quien llama. No decide si puede pasar.
+ *
+ * Sin cabecera `Authorization` deja seguir con `req.user` vacío, porque hay
+ * rutas legítimamente anónimas —el catálogo del formulario de registro, los
+ * enlaces de descarga de la página— que cuelgan de routers donde el resto sí
+ * exige sesión.
+ *
+ * Se llamaba `auth`, y ese nombre costó caro: parece una puerta y no lo es.
+ * Cualquier ruta que solo lo llevara quedaba abierta a internet, y así estuvo
+ * el listado de avisos hasta que se detectó. **Quien corta es `exigirSesion` o
+ * `requireRole`, y uno de los dos tiene que ir en todas las rutas.**
+ */
+export const identificar: RequestHandler = (req, res, next) => {
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) return next();
   try {
@@ -26,6 +39,19 @@ export const auth: RequestHandler = (req, res, next) => {
   } catch {
     return res.status(401).json({ ok: false, message: 'Invalid token' });
   }
+};
+
+/**
+ * Exige sesión, sin mirar el rol.
+ *
+ * Para lo que cualquier usuario autenticado puede ver pero un desconocido no:
+ * el estado del modelo de riesgo, el del asistente. Sin esto había que poner un
+ * `requireRole` con la lista entera de roles, y una lista de roles es algo que
+ * se olvida de actualizar.
+ */
+export const exigirSesion: RequestHandler = (req, res, next) => {
+  if (!req.user) return res.status(401).json({ ok: false, message: 'Unauthorized' });
+  next();
 };
 
 export const requireRole =

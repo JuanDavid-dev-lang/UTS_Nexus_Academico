@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { ScheduleModel } from '../../models/schedule.model.js';
-import { auth, requireRole } from '../../middlewares/auth.js';
+import { identificar, requireRole } from '../../middlewares/auth.js';
 import { emitSync } from '../../shared/socket.js';
 
 export const scheduleRouter = Router();
-scheduleRouter.use(auth);
+scheduleRouter.use(identificar);
 
 scheduleRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (_req, res, next) => {
   try {

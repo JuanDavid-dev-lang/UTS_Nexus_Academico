@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { auth, requireRole } from '../../middlewares/auth.js';
+import { identificar, requireRole } from '../../middlewares/auth.js';
 import { StudentModel } from '../../models/student.model.js';
 import { SubjectModel } from '../../models/subject.model.js';
 import { getProfessorScope } from '../../shared/professor-scope.js';
@@ -7,7 +7,7 @@ import { computeAcademicRecords, type AcademicFilter, type AcademicRecord } from
 
 export const analyticsRouter = Router();
 
-analyticsRouter.use(auth);
+analyticsRouter.use(identificar);
 
 /** Construye el filtro académico según el rol (profesor / estudiante / admin). */
 async function scopedFilter(req: any): Promise<AcademicFilter> {

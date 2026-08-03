@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { ActivityModel } from '../../models/activity.model.js';
-import { auth, requireRole } from '../../middlewares/auth.js';
+import { identificar, requireRole } from '../../middlewares/auth.js';
 import { emitSync } from '../../shared/socket.js';
 import { getProfessorScope } from '../../shared/professor-scope.js';
 
 export const activityRouter = Router();
-activityRouter.use(auth);
+activityRouter.use(identificar);
 
 activityRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (_req, res, next) => {
   try {

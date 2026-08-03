@@ -32,12 +32,20 @@ set -euo pipefail
 archivo="${1:?Falta el archivo local}"
 enlace="${2:?Falta el enlace compartido de Dropbox}"
 
+# Sin credenciales se avisa y se sale bien.
+#
+# La release ya está publicada cuando esto corre. Tumbar el trabajo porque
+# todavía nadie ha configurado Dropbox marcaría en rojo una publicación que
+# salió perfecta, y a la tercera vez nadie mira los rojos. Con credenciales
+# puestas sí se falla: ahí un error significa que algo se rompió.
+faltan=''
 for variable in DROPBOX_APP_KEY DROPBOX_APP_SECRET DROPBOX_REFRESH_TOKEN; do
-  if [ -z "${!variable:-}" ]; then
-    echo "::error::Falta el secreto $variable; el instalador no llegó a Dropbox."
-    exit 1
-  fi
+  [ -z "${!variable:-}" ] && faltan="$faltan $variable"
 done
+if [ -n "$faltan" ]; then
+  echo "::warning::Dropbox sin configurar (falta:$faltan). La release está publicada, pero la página de descargas sigue repartiendo el archivo anterior."
+  exit 0
+fi
 
 if [ ! -f "$archivo" ]; then
   echo "::error::No existe el archivo $archivo"

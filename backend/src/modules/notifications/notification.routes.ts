@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { NotificationModel } from '../../models/notification.model.js';
-import { auth, requireRole } from '../../middlewares/auth.js';
+import { identificar, requireRole } from '../../middlewares/auth.js';
 import { emitSync, emitToUser } from '../../shared/socket.js';
 import { generateRiskNotifications } from './risk-notifier.service.js';
 
 export const notificationRouter = Router();
-notificationRouter.use(auth);
+notificationRouter.use(identificar);
 
 notificationRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR', 'STUDENT'), async (_req, res, next) => {
   try {

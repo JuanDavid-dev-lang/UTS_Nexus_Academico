@@ -2,13 +2,13 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { AttendanceModel } from '../../models/attendance.model.js';
 import { ScheduleModel } from '../../models/schedule.model.js';
-import { auth, requireRole } from '../../middlewares/auth.js';
+import { identificar, requireRole } from '../../middlewares/auth.js';
 import { auditChange } from '../../shared/audit.js';
 import { emitSync } from '../../shared/socket.js';
 import { getProfessorScope } from '../../shared/professor-scope.js';
 
 export const attendanceRouter = Router();
-attendanceRouter.use(auth);
+attendanceRouter.use(identificar);
 
 attendanceRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR', 'STUDENT'), async (_req, res, next) => {
   try {

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import PDFDocument from 'pdfkit';
 import ExcelJS from 'exceljs';
-import { auth, requireRole } from '../../middlewares/auth.js';
+import { identificar, requireRole } from '../../middlewares/auth.js';
 import { StudentModel } from '../../models/student.model.js';
 import { GradeModel } from '../../models/grade.model.js';
 import { AttendanceModel } from '../../models/attendance.model.js';
@@ -10,7 +10,7 @@ import { GroupModel } from '../../models/group.model.js';
 import { computeAcademicRecords } from '../../shared/academic.service.js';
 
 export const reportsRouter = Router();
-reportsRouter.use(auth);
+reportsRouter.use(identificar);
 
 type ReportFilters = {
   period?: string;

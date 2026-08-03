@@ -21,7 +21,7 @@ En la consola de AWS → **EC2 → Lanzar instancia**:
 
 | Opción | Valor | Por qué |
 |---|---|---|
-| Imagen | Ubuntu Server 24.04 LTS | El script está probado contra ella |
+| Imagen | Amazon Linux 2023 | Es la que corre hoy en producción |
 | Tipo | `t3.small` | Ver la nota de memoria más abajo |
 | Almacenamiento | 20 GB gp3 | Las imágenes de Docker con OpenCV ocupan |
 | Par de claves | crear uno nuevo | Es la única forma de entrar por SSH |
@@ -54,11 +54,17 @@ cambian el dominio, el certificado y la configuración de los clientes.
 ## 3. Instalar
 
 ```bash
-ssh -i tu-clave.pem ubuntu@LA_IP
+ssh -i tu-clave.pem ec2-user@LA_IP
 git clone https://github.com/JuanDavid-dev-lang/UTS_Nexus_Academico.git
 cd UTS_Nexus_Academico/deploy
 ./instalar.sh
 ```
+
+> **El usuario depende de la imagen.** Amazon Linux entra como `ec2-user`;
+> Ubuntu, como `ubuntu`. Equivocarse no da un error que lo diga: responde
+> `Permission denied (publickey)`, igual que si la clave estuviera mal, y se
+> pierde el rato buscando en el sitio equivocado. La instancia que está en
+> producción es Amazon Linux 2023.
 
 El script instala Docker, averigua la IP pública, deriva un dominio
 `52-1-2-3.sslip.io`, **genera los secretos JWT por su cuenta** —no los imprime

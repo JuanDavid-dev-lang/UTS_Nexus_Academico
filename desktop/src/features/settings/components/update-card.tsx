@@ -9,6 +9,7 @@ import {
   CardTitle,
   Progress,
 } from '@/shared/ui';
+import { nombreVersion } from '@/core/version';
 import { useAppUpdate } from '../hooks/use-app-update';
 
 function formatBytes(bytes: number): string {
@@ -31,7 +32,8 @@ export function UpdateCard() {
           Actualizaciones
         </CardTitle>
         <CardDescription>
-          Versión instalada <strong className="font-semibold text-text">{installed || '…'}</strong>
+          Versión instalada{' '}
+          <strong className="font-semibold text-text">{nombreVersion(installed)}</strong>
         </CardDescription>
       </CardHeader>
 

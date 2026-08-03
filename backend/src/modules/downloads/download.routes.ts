@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { ConfigModel } from '../../models/config.model.js';
-import { auth, requireRole } from '../../middlewares/auth.js';
+import { identificar, requireRole } from '../../middlewares/auth.js';
 import { auditChange } from '../../shared/audit.js';
 
 /**
@@ -108,7 +108,7 @@ downloadRouter.get('/', async (_req, res, next) => {
   }
 });
 
-downloadRouter.put('/', auth, requireRole('ADMIN'), async (req, res, next) => {
+downloadRouter.put('/', identificar, requireRole('ADMIN'), async (req, res, next) => {
   try {
     const enlaces = cuerpo.parse(req.body);
 

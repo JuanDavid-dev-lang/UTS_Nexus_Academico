@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { AttendanceModel } from '../../models/attendance.model.js';
 import { GroupModel } from '../../models/group.model.js';
 import { StudentModel } from '../../models/student.model.js';
-import { auth, requireRole } from '../../middlewares/auth.js';
+import { identificar, requireRole } from '../../middlewares/auth.js';
 import { auditChange } from '../../shared/audit.js';
 import { emitSync } from '../../shared/socket.js';
 import { getEnrolledStudentIds, getProfessorScope } from '../../shared/professor-scope.js';
@@ -25,7 +25,7 @@ import { env } from '../../shared/env.js';
  * proceso que hace que el dato sea confiable.
  */
 export const attendanceScanRouter = Router();
-attendanceScanRouter.use(auth);
+attendanceScanRouter.use(identificar);
 
 const upload = multer({
   storage: multer.memoryStorage(),

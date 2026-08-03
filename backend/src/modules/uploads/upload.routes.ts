@@ -2,13 +2,13 @@ import { Router } from 'express';
 import multer from 'multer';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { auth, requireRole } from '../../middlewares/auth.js';
+import { identificar, requireRole } from '../../middlewares/auth.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
 const uploadDir = path.resolve(process.cwd(), 'uploads');
 
 export const uploadRouter = Router();
-uploadRouter.use(auth);
+uploadRouter.use(identificar);
 
 uploadRouter.post('/image', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), upload.single('file'), async (req, res, next) => {
   try {
