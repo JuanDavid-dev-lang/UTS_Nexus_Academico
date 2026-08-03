@@ -34,6 +34,42 @@ export type AppConfig = z.infer<typeof schema>;
  */
 const DEFAULT_SERVER_URL = 'https://3-14-147-55.sslip.io';
 
+/**
+ * Direcciones que fueron el valor de fábrica en versiones anteriores.
+ *
+ * La app guarda el servidor elegido y, al arrancar, ese valor guardado tiene
+ * prioridad sobre el de fábrica —lo correcto cuando alguien lo cambió a
+ * propósito—. El problema es que las versiones anteriores GRABABAN su propio
+ * valor por defecto en el primer arranque, así que quien venía de la 2.0 o la
+ * 2.1 se quedaba clavado en `localhost` para siempre: actualizar no cambiaba
+ * nada, porque el residuo ganaba siempre y la app reportaba que no encontraba
+ * el backend.
+ *
+ * Si lo guardado coincide con un valor de fábrica antiguo, no fue una decisión
+ * de nadie: es un resto, y se descarta en favor del actual. Una dirección que
+ * el usuario haya escrito a mano nunca va a estar en esta lista.
+ */
+const DEFAULTS_SUPERADOS = new Set(['http://127.0.0.1:4000', 'http://localhost:4000']);
+
+/**
+ * Servidor con el que arrancar: el guardado, salvo que sea un residuo.
+ *
+ * Devuelve también si hubo migración, para poder decírselo a la persona en vez
+ * de cambiarle la configuración a sus espaldas.
+ */
+export function resolverServidorInicial(guardado: string | null | undefined): {
+  serverUrl: string;
+  migrado: boolean;
+} {
+  if (!guardado) return { serverUrl: DEFAULT_SERVER_URL, migrado: false };
+
+  const normalizado = normalizeServerUrl(guardado);
+  if (DEFAULTS_SUPERADOS.has(normalizado) && normalizado !== DEFAULT_SERVER_URL) {
+    return { serverUrl: DEFAULT_SERVER_URL, migrado: true };
+  }
+  return { serverUrl: normalizado, migrado: false };
+}
+
 function readEnv(key: string, fallback: string): string {
   const value = import.meta.env[key as keyof ImportMetaEnv];
   return typeof value === 'string' && value.length > 0 ? value : fallback;

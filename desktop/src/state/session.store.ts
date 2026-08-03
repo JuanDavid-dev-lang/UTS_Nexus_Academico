@@ -9,8 +9,9 @@ import { create } from 'zustand';
 import { authRepository } from '@/infrastructure/repositories/auth.repository';
 import { tokenService } from '@/core/auth/token.service';
 import { setServerUrl } from '@/core/api/http-client';
-import { DEFAULT_SERVER_URL, normalizeServerUrl } from '@/core/config/env';
+import { DEFAULT_SERVER_URL, normalizeServerUrl, resolverServidorInicial } from '@/core/config/env';
 import { toAppError } from '@/core/api/errors';
+import { toast } from '@/state/toast.store';
 import type { User } from '@/domain/schemas/auth';
 
 type SessionStatus = 'booting' | 'anonymous' | 'authenticated';
@@ -36,9 +37,20 @@ export const useSession = create<SessionState>((set, get) => ({
 
   async bootstrap() {
     const storedServer = await tokenService.getServerUrl();
-    const serverUrl = normalizeServerUrl(storedServer ?? DEFAULT_SERVER_URL);
+    const { serverUrl, migrado } = resolverServidorInicial(storedServer);
     setServerUrl(serverUrl);
     set({ serverUrl });
+
+    if (migrado) {
+      // Se reescribe el valor guardado para no repetir la migración en cada
+      // arranque, y se avisa: cambiarle a alguien la dirección del servidor en
+      // silencio es la clase de cosa que después nadie sabe explicar.
+      await tokenService.setServerUrl(serverUrl);
+      toast.info(
+        'Servidor actualizado',
+        `La versión anterior apuntaba a tu equipo. Ahora usa ${serverUrl}; puedes cambiarlo en Configuración.`,
+      );
+    }
 
     await tokenService.hydrate();
     if (!tokenService.getAccessToken()) {
