@@ -19,12 +19,42 @@ ENTORNO="$AQUI/.env"
 echo "── UTS Nexus Académico · instalación del servidor ─────────────────"
 
 # ── Docker ──────────────────────────────────────────────────────────────
+# Se soportan las dos familias porque la imagen de la instancia no siempre es la
+# que uno cree haber elegido: Amazon Linux y Ubuntu se parecen al entrar por SSH
+# y solo se distinguen por el gestor de paquetes y el usuario por defecto.
+if command -v dnf >/dev/null 2>&1; then
+  FAMILIA="amazon"
+elif command -v apt-get >/dev/null 2>&1; then
+  FAMILIA="debian"
+else
+  echo "Sistema no reconocido: no encuentro ni dnf ni apt-get."
+  exit 1
+fi
+echo "Sistema     : $FAMILIA"
+
+command -v git >/dev/null 2>&1 || {
+  echo "Instalando git…"
+  [ "$FAMILIA" = "amazon" ] && sudo dnf install -y -q git || sudo apt-get install -y -qq git
+}
+
 if ! command -v docker >/dev/null 2>&1; then
   echo "Instalando Docker…"
-  curl -fsSL https://get.docker.com | sudo sh
-  sudo usermod -aG docker "$USER"
-  echo "   Docker instalado. Vas a tener que cerrar sesión y volver a entrar"
-  echo "   para usarlo sin sudo. Por ahora sigo con sudo."
+  if [ "$FAMILIA" = "amazon" ]; then
+    # En Amazon Linux 2023 el script de get.docker.com no está soportado; el
+    # paquete del repositorio sí, pero no trae el plugin de compose.
+    sudo dnf install -y -q docker
+    sudo systemctl enable --now docker
+    sudo mkdir -p /usr/local/lib/docker/cli-plugins
+    sudo curl -fsSL \
+      "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)" \
+      -o /usr/local/lib/docker/cli-plugins/docker-compose
+    sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+  else
+    curl -fsSL https://get.docker.com | sudo sh
+  fi
+  sudo usermod -aG docker "$USER" || true
+  echo "   Docker instalado. Para usarlo sin sudo hay que reconectar por SSH;"
+  echo "   mientras tanto este script sigue con sudo."
 fi
 
 DOCKER="docker"
@@ -83,12 +113,25 @@ EOF
 fi
 
 # ── Cortafuegos ─────────────────────────────────────────────────────────
+# Amazon Linux no trae ufw y no hace falta: el grupo de seguridad de AWS ya
+# filtra antes de que el paquete llegue a la instancia. En Ubuntu se activa
+# como segunda barrera por si el grupo se abre de más algún día.
 if command -v ufw >/dev/null 2>&1; then
   sudo ufw allow 22/tcp  >/dev/null 2>&1 || true
   sudo ufw allow 80/tcp  >/dev/null 2>&1 || true
   sudo ufw allow 443/tcp >/dev/null 2>&1 || true
   sudo ufw --force enable >/dev/null 2>&1 || true
-  echo "Cortafuegos: abiertos 22, 80 y 443. El 4000 y el 8100 NO se exponen."
+  echo "Cortafuegos : abiertos 22, 80 y 443"
+else
+  echo "Cortafuegos : lo gestiona el grupo de seguridad de AWS"
+fi
+
+# El disco de 8 GB por defecto se llena construyendo estas imágenes. Se avisa
+# antes de empezar, no cuando falle a mitad de la compilación.
+LIBRES=$(df -BG --output=avail / | tail -1 | tr -dc '0-9')
+echo "Disco libre : ${LIBRES} GB"
+if [ "${LIBRES:-0}" -lt 6 ]; then
+  echo "   Quedan menos de 6 GB. Liberá espacio con:  $DOCKER system prune -af"
 fi
 
 # ── Arranque ────────────────────────────────────────────────────────────
