@@ -167,7 +167,7 @@ registrationRouter.patch('/estado', requireRole('ADMIN'), async (req, res, next)
   try {
     const { abierto } = z.object({ abierto: z.boolean() }).parse(req.body);
 
-    await ConfigModel.findOneAndUpdate(
+    const fila = await ConfigModel.findOneAndUpdate(
       { key: CLAVE_REGISTRO },
       { $set: { value: abierto } },
       { upsert: true, new: true },
@@ -177,7 +177,10 @@ registrationRouter.patch('/estado', requireRole('ADMIN'), async (req, res, next)
       actorId: req.user?.id,
       action: 'UPDATE',
       entity: 'Configuracion',
-      entityId: CLAVE_REGISTRO,
+      // El id de la fila, no su clave: `entityId` es un ObjectId en el modelo
+      // de auditoría. Pasarle 'registro_docentes_abierto' reventaba el guardado
+      // con un CastError, y con él la petición entera.
+      entityId: fila.id,
       after: { abierto },
     });
 
