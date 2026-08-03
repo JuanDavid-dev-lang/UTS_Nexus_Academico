@@ -84,10 +84,10 @@ ARRANQUE RÁPIDO (backend + datos demo + prueba automática)
 ----------------------------------------------------------------------
 CREDENCIALES DE DEMO (tras el seed)
 ----------------------------------------------------------------------
-  Administrador : admin@uts.edu.co        / (la que genere el seed)
-  Coordinación  : coordinador@uts.edu.co  / (la que genere el seed)
-  Docente       : docente@uts.edu.co      / (la que genere el seed)
-  Estudiante    : estudiante@uts.edu.co   / (la que genere el seed)
+  Administrador : admin@uts.edu.co / (la que genere el seed)
+  Coordinación  : coordinador@uts.edu.co / (la que genere el seed)
+  Docente       : docente@uts.edu.co / (la que genere el seed)
+  Estudiante    : estudiante@uts.edu.co / (la que genere el seed)
 
 
 ----------------------------------------------------------------------

@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
+import { randomBytes } from 'node:crypto';
 import { connectDbOrThrow } from '../shared/db.js';
 import { UserModel } from '../models/user.model.js';
 import { ProfessorModel } from '../models/professor.model.js';
@@ -13,7 +14,24 @@ import { ActivityModel } from '../models/activity.model.js';
 import { ScheduleModel } from '../models/schedule.model.js';
 import { NotificationModel } from '../models/notification.model.js';
 
-const password = '(la que genere el seed)';
+/**
+ * Contraseña de las cuentas sembradas.
+ *
+ * Antes estaba escrita aquí, y eso la publicaba: este archivo vive en un
+ * repositorio abierto, así que cualquier instalación del proyecto tenía las
+ * mismas credenciales conocidas por todo el mundo. Mientras el servidor estaba
+ * en la red del campus el riesgo era acotado; con el backend en internet
+ * significaba que cualquiera podía entrar como docente.
+ *
+ * Ahora se toma de `SEED_PASSWORD` y, si no está, se genera una al azar y se
+ * muestra UNA vez al terminar. Dos instalaciones distintas nunca comparten
+ * contraseña, y la que sale por pantalla no queda escrita en ningún archivo.
+ */
+const password =
+  process.env.SEED_PASSWORD ??
+  `Uts-${randomBytes(9).toString('base64url')}`;
+
+const generada = !process.env.SEED_PASSWORD;
 
 async function upsertUser(input: {
   email: string;
@@ -282,13 +300,20 @@ async function main() {
     ),
   ]);
 
-  console.log('Seed completado');
-  console.log({
-    admin: 'admin@uts.edu.co / (la que genere el seed)',
-    coordinator: 'coordinador@uts.edu.co / (la que genere el seed)',
-    professor: 'docente@uts.edu.co / (la que genere el seed)',
-    student: 'estudiante@uts.edu.co / (la que genere el seed)',
-  });
+  console.log('Seed completado. Cuentas creadas:');
+  console.log('  admin@uts.edu.co · coordinador@uts.edu.co · docente@uts.edu.co · estudiante@uts.edu.co');
+
+  if (generada) {
+    // Se imprime una sola vez y no se guarda en ningún sitio. Si se pierde, se
+    // vuelve a sembrar con SEED_PASSWORD o se cambia desde la aplicación.
+    console.log('\n  ┌─────────────────────────────────────────────────────────┐');
+    console.log(`  │  Contraseña generada:  ${password.padEnd(32)} │`);
+    console.log('  └─────────────────────────────────────────────────────────┘');
+    console.log('  Anótala ahora: no vuelve a mostrarse ni queda escrita en disco.');
+    console.log('  Para fijarla tú:  SEED_PASSWORD="…" npm run seed\n');
+  } else {
+    console.log('  Contraseña: la indicada en SEED_PASSWORD.\n');
+  }
 
   await mongoose.disconnect();
 }

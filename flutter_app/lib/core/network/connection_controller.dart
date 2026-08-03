@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../config.dart';
 import '../services/api_client.dart';
 import '../services/realtime_service.dart';
 import 'server_discovery.dart';
@@ -59,11 +60,15 @@ class ServerConnectionState {
 ///
 /// Orden de intentos:
 ///   1. El último servidor que funcionó (guardado en el dispositivo).
-///   2. Barrido automático de la red local.
-///   3. Entrada manual, como último recurso, desde Ajustes.
+///   2. El servidor de producción que trae la app de fábrica.
+///   3. Barrido de la red local, por si hay un despliegue propio en el campus.
+///   4. Entrada manual, como último recurso, desde Ajustes.
 ///
-/// El paso 1 hace que el arranque habitual sea instantáneo: solo se barre la red
-/// la primera vez, o cuando cambia de red y la dirección guardada ya no responde.
+/// El paso 2 es el que hace que la app funcione recién instalada. Antes se
+/// pasaba directamente al barrido, que fuera de la red del campus no encuentra
+/// nada y dejaba al docente frente a una casilla pidiéndole una dirección IP.
+/// El barrido se conserva después, no antes: sigue sirviendo a quien tenga el
+/// backend en su propia red, pero ya no es el camino habitual.
 class ConnectionController extends StateNotifier<ServerConnectionState> {
   ConnectionController()
       : super(const ServerConnectionState(phase: ConnectionPhase.checking));
@@ -93,6 +98,10 @@ class ConnectionController extends StateNotifier<ServerConnectionState> {
     final saved = await _savedServer();
     if (saved != null && await _tryUrl(saved)) return;
 
+    // El de fábrica antes del barrido: es el que responde en el 99% de los
+    // casos y evita un escaneo de 254 direcciones que no va a encontrar nada.
+    if (await _tryUrl(AppConfig.defaultWsBaseUrl)) return;
+
     await discover();
   }
 
@@ -101,10 +110,15 @@ class ConnectionController extends StateNotifier<ServerConnectionState> {
     final uri = Uri.tryParse(baseUrl);
     if (uri == null || uri.host.isEmpty) return false;
 
-    final server = await ServerDiscovery.probe(
-      uri.host,
-      port: uri.hasPort ? uri.port : ServerDiscovery.defaultPort,
-    );
+    // El puerto sale del propio esquema cuando no viene escrito: en
+    // `https://servidor` es el 443, no el 4000 del despliegue local. Asumir
+    // siempre 4000 construía una dirección que nunca responde.
+    final seguro = uri.scheme == 'https';
+    final puerto = uri.hasPort
+        ? uri.port
+        : (seguro ? 443 : ServerDiscovery.defaultPort);
+
+    final server = await ServerDiscovery.probe(uri.host, port: puerto, seguro: seguro);
     if (server == null) return false;
 
     _apply(server.baseUrl);

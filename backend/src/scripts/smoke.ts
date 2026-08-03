@@ -67,9 +67,16 @@ async function main() {
   }
 
   console.log('\n2) Autenticación por rol');
-  const docente = await login('docente@uts.edu.co', '(la que genere el seed)');
+  // La contraseña ya no está escrita en el código: el seed genera una distinta
+  // por instalación. Se pasa por entorno para poder probar cualquier despliegue.
+  const clave = process.env.SEED_PASSWORD ?? '';
+  if (!clave) {
+    console.error('\n⛔ Indica la contraseña sembrada:  SEED_PASSWORD="…" npm run smoke\n');
+    process.exit(1);
+  }
+  const docente = await login('docente@uts.edu.co', clave);
   ok('Login docente', !!docente);
-  const estudiante = await login('estudiante@uts.edu.co', '(la que genere el seed)');
+  const estudiante = await login('estudiante@uts.edu.co', clave);
   ok('Login estudiante', !!estudiante);
   if (!docente) {
     console.log('\n⛔ Sin token de docente no se puede continuar. Corre: npm run seed\n');

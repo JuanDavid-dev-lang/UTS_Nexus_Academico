@@ -21,7 +21,18 @@ const schema = z.object({
 
 export type AppConfig = z.infer<typeof schema>;
 
-const DEFAULT_SERVER_URL = 'http://127.0.0.1:4000';
+/**
+ * Servidor al que apunta la aplicación recién instalada.
+ *
+ * Es el de producción, no `localhost`. Antes, cada docente que instalaba el
+ * `.exe` se encontraba con una pantalla pidiéndole una dirección IP que no
+ * tenía por qué conocer; ahora la app funciona nada más abrirla y el campo
+ * sigue existiendo en Configuración para quien necesite otro servidor.
+ *
+ * Se puede cambiar en tiempo de compilación con `VITE_SERVER_URL`, que es lo
+ * que usa el desarrollo local contra `http://127.0.0.1:4000`.
+ */
+const DEFAULT_SERVER_URL = 'https://3-14-147-55.sslip.io';
 
 function readEnv(key: string, fallback: string): string {
   const value = import.meta.env[key as keyof ImportMetaEnv];

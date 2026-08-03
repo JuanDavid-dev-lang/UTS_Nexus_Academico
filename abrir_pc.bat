@@ -87,8 +87,8 @@ python main.py
 echo.
 echo ----------------------------------------------------------------------
 echo  Credenciales de demo:
-echo    Administrador : admin@uts.edu.co      / (la que genere el seed)
-echo    Docente       : docente@uts.edu.co    / (la que genere el seed)
+echo    Administrador : admin@uts.edu.co / (la que genere el seed)
+echo    Docente       : docente@uts.edu.co / (la que genere el seed)
 echo ----------------------------------------------------------------------
 echo.
 endlocal

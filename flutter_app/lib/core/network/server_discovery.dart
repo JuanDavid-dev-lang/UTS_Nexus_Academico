@@ -27,14 +27,33 @@ class DiscoveredServer {
   /// Milisegundos que tardó en responder. Ordena los candidatos.
   final int latencyMs;
 
+  /// `true` si se alcanzó por HTTPS. El barrido de la red local siempre es
+  /// texto plano; el servidor de producción, siempre cifrado.
+  final bool seguro;
+
   const DiscoveredServer({
     required this.host,
     required this.port,
     required this.databaseStatus,
     required this.latencyMs,
+    this.seguro = false,
   });
 
-  String get baseUrl => 'http://$host:$port';
+  /// URL completa del servidor.
+  ///
+  /// El esquema forma parte del hallazgo, no se asume: el backend de producción
+  /// está detrás de HTTPS en el puerto 443, y dar por hecho `http://…:4000`
+  /// —como se hacía cuando solo existía el despliegue del campus— construía una
+  /// dirección que no responde.
+  ///
+  /// El puerto se omite cuando es el propio del esquema, para que la dirección
+  /// que se guarda y se muestra sea la que una persona reconocería.
+  String get baseUrl {
+    final esquema = seguro ? 'https' : 'http';
+    final implicito = seguro ? 443 : 80;
+    return port == implicito ? '$esquema://$host' : '$esquema://$host:$port';
+  }
+
   String get apiBaseUrl => '$baseUrl/api/v1';
 
   /// Un servidor sin base de datos responde, pero no sirve para trabajar.
@@ -83,15 +102,20 @@ class ServerDiscovery {
   /// No basta con que algo responda en el puerto 4000: cualquier servicio podría
   /// estar ahí. Se exige que devuelva JSON con `ok: true`, que es la firma de
   /// nuestro `/health`.
-  static Future<DiscoveredServer?> probe(String host, {int port = defaultPort}) async {
+  static Future<DiscoveredServer?> probe(
+    String host, {
+    int port = defaultPort,
+    bool seguro = false,
+  }) async {
     final stopwatch = Stopwatch()..start();
     final client = HttpClient()
       ..connectionTimeout = probeTimeout
       ..idleTimeout = probeTimeout;
 
     try {
+      final esquema = seguro ? 'https' : 'http';
       final request = await client
-          .getUrl(Uri.parse('http://$host:$port/health'))
+          .getUrl(Uri.parse('$esquema://$host:$port/health'))
           .timeout(probeTimeout);
       final response = await request.close().timeout(probeTimeout);
 
@@ -110,6 +134,7 @@ class ServerDiscovery {
         port: port,
         databaseStatus: (decoded['db'] as String?) ?? 'unknown',
         latencyMs: stopwatch.elapsedMilliseconds,
+        seguro: seguro,
       );
     } catch (_) {
       return null;
