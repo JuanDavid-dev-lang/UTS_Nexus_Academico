@@ -1,0 +1,6 @@
+# Los scripts que corren en el runner de Actions tienen que llegar con saltos
+# de línea LF. Con CRLF, bash toma el retorno de carro como parte del comando y
+# falla con "$'\r': command not found", que no dice nada de lo que pasa. Aquí se
+# fuerza en el repositorio para que no dependa de la configuración de Git de
+# cada equipo.
+*.sh text eol=lf
