@@ -15,12 +15,20 @@ import {
   enrollmentSchema,
   gradeSchema,
   groupSchema,
+  avisoSchema,
+  catalogoSchema,
   escaneoPlanillaSchema,
+  solicitudSchema,
   studentDirectoryEntrySchema,
   studentSchema,
   subjectSchema,
   type GradeInput,
+  type Aviso,
+  type AvisoInput,
+  type Catalogo,
   type EscaneoPlanilla,
+  type SolicitudRegistro,
+  type Solicitud,
   type RosterRow,
   type StudentInput,
   type SubjectInput,
@@ -228,5 +236,72 @@ export const attendanceScanRepository = {
         estudiantes: z.number(),
       }),
     });
+  },
+};
+
+/**
+ * Registro de docentes y avisos institucionales.
+ *
+ * `catalogo` y `solicitar` van sin token a propósito: el formulario de registro
+ * los necesita antes de que exista la cuenta.
+ */
+export const registroRepository = {
+  async catalogo(): Promise<Catalogo> {
+    return http.get('/registro/catalogo', { schema: catalogoSchema, anonymous: true });
+  },
+
+  async solicitar(input: SolicitudRegistro): Promise<{ message: string }> {
+    return http.post('/registro', input, {
+      schema: z.object({ ok: z.literal(true), message: z.string() }),
+      anonymous: true,
+    });
+  },
+
+  async estado(): Promise<{ abierto: boolean; pendientes: number }> {
+    return http.get('/registro/estado', {
+      schema: z.object({ ok: z.literal(true), abierto: z.boolean(), pendientes: z.number() }),
+    });
+  },
+
+  async cambiarEstado(abierto: boolean): Promise<{ abierto: boolean }> {
+    return http.patch('/registro/estado', { abierto }, {
+      schema: z.object({ ok: z.literal(true), abierto: z.boolean() }),
+    });
+  },
+
+  async solicitudes(estado: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO' = 'PENDIENTE'): Promise<Solicitud[]> {
+    const data = await http.get('/registro/solicitudes', {
+      schema: itemsResponse(solicitudSchema),
+      query: { estado },
+    });
+    return data.items;
+  },
+
+  async decidir(id: string, decision: 'APROBADO' | 'RECHAZADO', motivo = ''): Promise<void> {
+    await http.patch(`/registro/solicitudes/${id}`, { decision, motivo }, { schema: okResponse });
+  },
+};
+
+export const avisoRepository = {
+  async list(): Promise<{ items: Aviso[]; sinLeer: number }> {
+    return http.get('/avisos', {
+      schema: z.object({
+        ok: z.literal(true),
+        items: z.array(avisoSchema),
+        sinLeer: z.number(),
+      }),
+    });
+  },
+
+  async create(input: AvisoInput): Promise<Aviso> {
+    return (await http.post('/avisos', input, { schema: itemResponse(avisoSchema) })).item;
+  },
+
+  async marcarLeido(id: string): Promise<void> {
+    await http.post(`/avisos/${id}/leido`, undefined, { schema: okResponse });
+  },
+
+  async remove(id: string): Promise<void> {
+    await http.delete(`/avisos/${id}`, { schema: okResponse });
   },
 };

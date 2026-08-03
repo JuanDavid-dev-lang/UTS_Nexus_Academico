@@ -248,3 +248,103 @@ export const escaneoPlanillaSchema = z.object({
   matriculados: z.array(matriculadoSchema),
 });
 export type EscaneoPlanilla = z.infer<typeof escaneoPlanillaSchema>;
+
+// ── Catálogo institucional y registro de docentes ───────────────────────────
+
+export const sedeId = z.enum(['BUCARAMANGA', 'PIEDECUESTA', 'VELEZ', 'BARRANCABERMEJA']);
+export const facultadId = z.enum(['SOCIOECONOMICAS', 'NATURALES_INGENIERIAS']);
+export const nivelId = z.enum(['TECNOLOGICO', 'PROFESIONAL']);
+
+export type SedeId = z.infer<typeof sedeId>;
+export type FacultadId = z.infer<typeof facultadId>;
+export type NivelId = z.infer<typeof nivelId>;
+
+export const programaSchema = z.object({
+  id: z.string(),
+  nombre: z.string(),
+  facultad: facultadId,
+  nivel: nivelId,
+});
+export type Programa = z.infer<typeof programaSchema>;
+
+const opcion = z.object({ id: z.string(), nombre: z.string() });
+
+/** Lo que necesita el formulario de registro. Se sirve sin autenticación. */
+export const catalogoSchema = z.object({
+  ok: z.literal(true),
+  abierto: z.boolean(),
+  sedes: z.array(opcion),
+  facultades: z.array(opcion),
+  niveles: z.array(opcion),
+  programas: z.array(programaSchema),
+});
+export type Catalogo = z.infer<typeof catalogoSchema>;
+
+export const solicitudRegistroSchema = z.object({
+  cedula: z.string().regex(/^\d{6,10}$/, 'La cédula debe tener entre 6 y 10 dígitos'),
+  nombres: z.string().min(2, 'Escribe tus nombres'),
+  apellidos: z.string().min(2, 'Escribe tus apellidos'),
+  sede: sedeId,
+  facultad: facultadId,
+  niveles: z.array(nivelId).min(1, 'Marca al menos un nivel'),
+  programas: z.array(z.string()).min(1, 'Elige al menos un programa'),
+  email: z.string().email('Correo inválido'),
+  password: z
+    .string()
+    .min(10, 'Mínimo 10 caracteres')
+    .regex(/[a-z]/, 'Incluye una minúscula')
+    .regex(/[A-Z]/, 'Incluye una mayúscula')
+    .regex(/\d/, 'Incluye un número'),
+});
+export type SolicitudRegistro = z.infer<typeof solicitudRegistroSchema>;
+
+/** Solicitud tal como la ve quien la revisa. */
+export const solicitudSchema = mongoDoc.extend({
+  cedula: z.string().nullable().optional(),
+  nombres: z.string().optional().default(''),
+  apellidos: z.string().optional().default(''),
+  sede: z.string().nullable().optional(),
+  facultad: z.string().nullable().optional(),
+  niveles: z.array(z.string()).optional().default([]),
+  programas: z.array(z.string()).optional().default([]),
+  estado: z.enum(['PENDIENTE', 'APROBADO', 'RECHAZADO']),
+  motivoRechazo: z.string().optional().default(''),
+  userId: z
+    .object({ _id: z.string(), email: z.string(), fullName: z.string() })
+    .partial()
+    .nullable()
+    .optional(),
+});
+export type Solicitud = z.infer<typeof solicitudSchema>;
+
+// ── Avisos ──────────────────────────────────────────────────────────────────
+
+export const tipoAviso = z.enum(['INFORMATIVO', 'IMPORTANTE', 'URGENTE']);
+export type TipoAviso = z.infer<typeof tipoAviso>;
+
+export const avisoSchema = mongoDoc.extend({
+  titulo: z.string(),
+  cuerpo: z.string(),
+  tipo: tipoAviso,
+  sedes: z.array(z.string()).optional().default([]),
+  facultades: z.array(z.string()).optional().default([]),
+  programas: z.array(z.string()).optional().default([]),
+  publicadoEn: z.string(),
+  expiraEn: z.string().nullable().optional(),
+  fijado: z.boolean().optional().default(false),
+  leido: z.boolean().optional().default(false),
+  lecturas: z.number().optional().default(0),
+  autorId: z.object({ fullName: z.string() }).partial().nullable().optional(),
+});
+export type Aviso = z.infer<typeof avisoSchema>;
+
+export const avisoInputSchema = z.object({
+  titulo: z.string().min(4, 'El título es demasiado corto').max(140),
+  cuerpo: z.string().min(10, 'Escribe el contenido').max(4000),
+  tipo: tipoAviso,
+  sedes: z.array(sedeId).default([]),
+  facultades: z.array(facultadId).default([]),
+  programas: z.array(z.string()).default([]),
+  fijado: z.boolean().default(false),
+});
+export type AvisoInput = z.infer<typeof avisoInputSchema>;

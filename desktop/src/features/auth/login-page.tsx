@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Server, ShieldCheck } from 'lucide-react';
 import { Logo } from '@/shared/ui/logo';
@@ -167,6 +168,13 @@ export default function LoginPage() {
               Entrar
             </Button>
           </form>
+
+          <p className="mt-4 text-center text-body text-muted">
+            ¿Eres docente y no tienes cuenta?{' '}
+            <Link to="/registro" className="font-semibold text-primary hover:underline">
+              Regístrate
+            </Link>
+          </p>
 
           <div className="mt-6 border-t border-border pt-4">
             <button

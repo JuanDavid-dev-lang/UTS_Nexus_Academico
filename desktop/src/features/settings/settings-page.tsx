@@ -27,6 +27,7 @@ import { toast } from '@/state/toast.store';
 import { modKeyLabel } from '@/shared/hooks/use-hotkeys';
 import { cn } from '@/shared/lib/cn';
 import { UpdateCard } from './components/update-card';
+import { RegistrationCard } from './components/registration-card';
 
 const THEME_OPTIONS: { value: ThemePreference; label: string; description: string; Icon: typeof Sun }[] =
   [
@@ -196,6 +197,29 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Tutorial</CardTitle>
+          <CardDescription>El recorrido guiado por las secciones de la aplicación</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              // Se borra la marca de visto y se recarga: el recorrido arranca
+              // solo al entrar, así que basta con volver a ese estado.
+              if (user?.id) localStorage.removeItem(`uts.tutorial.visto.${user.id}`);
+              navigate('/');
+              window.location.reload();
+            }}
+          >
+            Ver el tutorial otra vez
+          </Button>
+        </CardContent>
+      </Card>
+
+      <RegistrationCard />
 
       <UpdateCard />
 

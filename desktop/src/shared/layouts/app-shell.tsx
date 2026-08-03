@@ -1,5 +1,6 @@
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Tour, marcarTutorialVisto, tutorialVisto } from '@/features/tutorial/tour';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Sidebar } from '@/shared/layouts/sidebar';
 import { TopBar } from '@/shared/layouts/topbar';
@@ -7,6 +8,7 @@ import { CommandPalette } from '@/shared/layouts/command-palette';
 import { useHotkeys } from '@/shared/hooks/use-hotkeys';
 import { SkeletonStatGrid } from '@/shared/ui/skeleton';
 import { useTheme } from '@/state/theme.store';
+import { useSession } from '@/state/session.store';
 
 /** Title and subtitle per route, so the top bar always says where the user is. */
 const ROUTE_META: Record<string, { title: string; subtitle: string }> = {
@@ -25,6 +27,21 @@ const ROUTE_META: Record<string, { title: string; subtitle: string }> = {
 const FALLBACK_META = { title: 'UTS Nexus Académico', subtitle: 'Espacio docente' };
 
 export function AppShell() {
+  // El tutorial se ofrece una sola vez por persona, la primera vez que entra.
+  // Se guarda por usuario y no por instalación: en un equipo compartido, el
+  // segundo docente también tiene derecho a que se lo expliquen.
+  const usuarioTour = useSession((estado) => estado.user?.id);
+  const [tourAbierto, setTourAbierto] = useState(false);
+
+  useEffect(() => {
+    if (usuarioTour && !tutorialVisto(usuarioTour)) setTourAbierto(true);
+  }, [usuarioTour]);
+
+  function cerrarTour() {
+    if (usuarioTour) marcarTutorialVisto(usuarioTour);
+    setTourAbierto(false);
+  }
+
   const [collapsed, setCollapsed] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const location = useLocation();
@@ -87,6 +104,7 @@ export function AppShell() {
       </div>
 
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+      {tourAbierto && <Tour onFinish={cerrarTour} />}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import {
   BarChart3,
   Bell,
+  Megaphone,
   BookOpen,
   Bot,
   CalendarCheck,
@@ -38,6 +39,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/riesgo', label: 'Riesgo', icon: BarChart3, capability: 'analytics.risks' },
   { to: '/asistente', label: 'Asistente IA', icon: Bot, capability: 'assistant.use' },
   { to: '/reportes', label: 'Reportes', icon: FileSpreadsheet, capability: 'reports.export' },
+  { to: '/avisos', label: 'Avisos', icon: Megaphone },
   { to: '/notificaciones', label: 'Notificaciones', icon: Bell, badge: 'notifications' },
   { to: '/configuracion', label: 'Configuración', icon: Settings },
 ];
@@ -78,6 +80,7 @@ export function Sidebar({
 
           const link = (
             <NavLink
+              data-tour={`nav-${item.to}`}
               key={item.to}
               to={item.to}
               end={item.to === '/'}

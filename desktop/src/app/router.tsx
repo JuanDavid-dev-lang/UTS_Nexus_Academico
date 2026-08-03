@@ -12,6 +12,8 @@ import { BootScreen } from '@/app/boot-screen';
  * ever downloaded and executed.
  */
 const LoginPage = lazy(() => import('@/features/auth/login-page'));
+const AnnouncementsPage = lazy(() => import('@/features/announcements/announcements-page'));
+const RegisterPage = lazy(() => import('@/features/auth/register-page'));
 const DashboardPage = lazy(() => import('@/features/dashboard/dashboard-page'));
 const StudentsPage = lazy(() => import('@/features/students/students-page'));
 const SubjectsPage = lazy(() => import('@/features/subjects/subjects-page'));
@@ -44,7 +46,10 @@ function RedirectIfAuthenticated() {
 export const router = createBrowserRouter([
   {
     element: <RedirectIfAuthenticated />,
-    children: [{ path: '/login', element: <LoginPage /> }],
+    children: [
+      { path: '/login', element: <LoginPage /> },
+      { path: '/registro', element: <RegisterPage /> },
+    ],
   },
   {
     element: <RequireAuth />,
@@ -60,6 +65,7 @@ export const router = createBrowserRouter([
           { path: '/riesgo', element: <RiskPage /> },
           { path: '/asistente', element: <AssistantPage /> },
           { path: '/reportes', element: <ReportsPage /> },
+          { path: '/avisos', element: <AnnouncementsPage /> },
           { path: '/notificaciones', element: <NotificationsPage /> },
           { path: '/configuracion', element: <SettingsPage /> },
         ],
