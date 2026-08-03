@@ -30,21 +30,17 @@ const CAMPOS = [
     etiqueta: 'Android',
     ayuda: 'El paquete que termina en .apk',
   },
-  {
-    clave: 'admin' as const,
-    etiqueta: 'Panel de administración',
-    ayuda: 'El paquete que termina en .msi',
-  },
 ];
 
-const VACIO: EnlacesDescarga = { windows: '', android: '', admin: '' };
+const VACIO: EnlacesDescarga = { windows: '', android: '' };
 
 /**
  * A dónde apuntan los botones de la página pública de descargas.
  *
- * Están aquí y no en el HTML del sitio para que publicar una versión no
- * obligue a editar y desplegar la página: se pega el enlace nuevo, se guarda, y
- * quien entre a partir de ese momento se baja la versión nueva.
+ * Lo normal es dejarlos vacíos: la página trae escritos los archivos de Dropbox
+ * y el workflow de publicación los sobrescribe en su sitio, así que una versión
+ * nueva no cambia ningún enlace. Esto está aquí para el día en que haya que
+ * mandar las descargas a otro lado sin volver a desplegar la página.
  *
  * Solo se aceptan enlaces https de Dropbox o de GitHub. No es por comodidad:
  * el botón «Descargar» de una página pública es un sitio excelente para colar
@@ -105,11 +101,12 @@ export function DownloadsCard() {
 
       <CardContent className="flex flex-col gap-4">
         <p className="rounded-lg bg-surface-alt p-3 text-caption text-muted">
-          Cuando publiques una versión nueva, subí los archivos a Dropbox y pegá
-          aquí sus enlaces. Acordate de cambiar el <code>dl=0</code> del final
-          por <code>dl=1</code>: con <code>dl=0</code> se abre el visor de
-          Dropbox en vez de descargarse. Dejá un campo vacío para que ese botón
-          vuelva a la publicación de GitHub.
+          Vacío es lo normal: al publicar una versión, el archivo de Dropbox se
+          sobrescribe solo y el enlace de la página sigue sirviendo. Escribí algo
+          aquí únicamente para mandar ese botón a otro archivo; acordate de
+          cambiar el <code>dl=0</code> del final por <code>dl=1</code>, que con{' '}
+          <code>dl=0</code> se abre el visor de Dropbox en vez de descargarse.
+          Borrá el campo para volver al enlace escrito en la página.
         </p>
 
         {CAMPOS.map((campo, indice) => (

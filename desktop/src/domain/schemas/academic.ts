@@ -399,6 +399,5 @@ export const enlaceDescarga = z
 export const enlacesDescargaSchema = z.object({
   windows: enlaceDescarga,
   android: enlaceDescarga,
-  admin: enlaceDescarga,
 });
 export type EnlacesDescarga = z.infer<typeof enlacesDescargaSchema>;

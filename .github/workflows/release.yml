@@ -20,6 +20,13 @@
 #   ANDROID_KEYSTORE_PASSWORD           store password
 #   ANDROID_KEY_ALIAS                   key alias
 #   ANDROID_KEY_PASSWORD                key password
+#   DROPBOX_APP_KEY                     app de Dropbox (developers.dropbox.com)
+#   DROPBOX_APP_SECRET                  su secreto
+#   DROPBOX_REFRESH_TOKEN               token de refresco de la cuenta dueña
+#
+# Los dos instaladores se suben además a Dropbox, encima de los archivos a los
+# que apuntan los botones de la página de descargas. La página no consulta el
+# release: si esa subida falla, la página sigue repartiendo la versión anterior.
 #
 # Before tagging, bump BOTH versions so the clients see a newer release:
 #   desktop/src-tauri/tauri.conf.json  ->  "version"
@@ -43,6 +50,15 @@ env:
   # `flutter_app/lib/core/services/update_service.dart`.
   REPO_RELEASES_OWNER: JuanDavid-dev-lang
   REPO_RELEASES_NAME: UTS_Nexus_Releases
+
+  # Los mismos dos enlaces que llevan escritos los botones de la página de
+  # descargas. Cada trabajo escribe su instalador ENCIMA del archivo al que
+  # apunta el suyo, así que la página reparte la versión nueva sin tocar una
+  # línea de HTML. Si alguna vez cambian, hay que cambiarlos también en
+  # `index.html` del repositorio `utsnexus.github.io`: son enlaces públicos, no
+  # secretos, y por eso están a la vista.
+  DROPBOX_ENLACE_WINDOWS: 'https://www.dropbox.com/scl/fi/gxr7nuv4ntg7wx9zixooa/UTS.Nexus.Academico_2.3.2_x64-setup.exe?rlkey=qqd2vgvh8djqx728al5xhoyo2&st=hme974sn&dl=1'
+  DROPBOX_ENLACE_ANDROID: 'https://www.dropbox.com/scl/fi/i9ddtr4f05dgr58ghqq98/uts-nexus-academico-v2.3.2-1.apk?rlkey=aq72k96kbgokf9wbsxy9b6q9w&st=5qr9plvu&dl=1'
 
 jobs:
   desktop:
@@ -112,6 +128,30 @@ jobs:
           # Genera y sube `latest.json`, el manifiesto que consulta el updater.
           includeUpdaterJson: true
 
+      # La página de descargas no mira la publicación de GitHub: sus botones
+      # llevan un archivo de Dropbox, que se sobrescribe aquí. Va después de
+      # publicar porque si la compilación o la firma fallan no hay nada que
+      # subir, y va antes de terminar porque un release publicado con Dropbox
+      # sin actualizar es justo la situación que hay que ver en rojo.
+      - name: Sobrescribir el instalador en Dropbox
+        shell: bash
+        env:
+          DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
+          DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
+          DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
+        run: |
+          set -euo pipefail
+          # El nombre lleva el nombre del producto y la versión, así que se busca
+          # por el sufijo en vez de escribirlo: cambiar la versión no debe
+          # obligar a tocar el workflow.
+          instalador=$(find desktop/src-tauri/target/release/bundle/nsis \
+            -name '*-setup.exe' -print -quit)
+          if [ -z "$instalador" ]; then
+            echo "::error::No apareció ningún -setup.exe en el bundle de NSIS."
+            exit 1
+          fi
+          bash .github/scripts/subir-a-dropbox.sh "$instalador" "$DROPBOX_ENLACE_WINDOWS"
+
   android:
     name: Móvil (Android)
     runs-on: ubuntu-latest
@@ -177,6 +217,19 @@ jobs:
           token: ${{ secrets.RELEASES_TOKEN }}
           tag_name: ${{ github.ref_name }}
           files: flutter_app/build/app/outputs/flutter-apk/uts-nexus-academico-${{ github.ref_name }}.apk
+
+      # El botón de Android de la página baja este archivo de Dropbox, no el del
+      # release. Mismo trato que el de Windows: se escribe encima del archivo de
+      # siempre para no tener que cambiar el enlace.
+      - name: Sobrescribir el APK en Dropbox
+        env:
+          DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
+          DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
+          DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
+        run: |
+          bash .github/scripts/subir-a-dropbox.sh \
+            "flutter_app/build/app/outputs/flutter-apk/uts-nexus-academico-${{ github.ref_name }}.apk" \
+            "$DROPBOX_ENLACE_ANDROID"
 
       - name: Borrar credenciales del runner
         if: always()

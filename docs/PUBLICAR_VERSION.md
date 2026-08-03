@@ -80,10 +80,57 @@ En GitHub: **Settings → Secrets and variables → Actions → New repository s
 | `ANDROID_KEYSTORE_PASSWORD` | `storePassword` de `flutter_app/android/key.properties` |
 | `ANDROID_KEY_ALIAS` | `keyAlias` de ese mismo archivo |
 | `ANDROID_KEY_PASSWORD` | `keyPassword` de ese mismo archivo |
+| `DROPBOX_APP_KEY` | *App key* de la app de Dropbox (ver 1.3) |
+| `DROPBOX_APP_SECRET` | su *App secret* |
+| `DROPBOX_REFRESH_TOKEN` | token de refresco de la cuenta dueña de los archivos |
 
 El keystore de Android tiene la misma propiedad que la clave de Tauri: **Android no
 deja instalar una actualización firmada con un keystore distinto al de la versión
 instalada**. Si se pierde, los usuarios tienen que desinstalar y reinstalar.
+
+### 1.3 Dropbox: dar acceso al workflow
+
+La página de descargas (`utsnexus.github.io`) no manda a la gente al Release: sus dos
+botones llevan escrito un archivo concreto de Dropbox. Un enlace de Dropbox apunta a un
+archivo, no a «la última versión», así que el workflow escribe el instalador recién
+compilado **encima** de ese mismo archivo. El enlace no cambia y lo que entrega es lo
+nuevo.
+
+Consecuencia que conviene tener presente: el **nombre** del archivo se queda con el de
+la primera subida (`…2.3.2…`) aunque dentro vaya una versión posterior. Quien lo
+descargue verá ese nombre. Cambiarlo obliga a subir un archivo con otro nombre, sacar
+su enlace y actualizarlo en dos sitios: `index.html` de la página y
+`DROPBOX_ENLACE_*` en `.github/workflows/release.yml`.
+
+Para crear las credenciales:
+
+1. En <https://www.dropbox.com/developers/apps> → **Create app** → *Scoped access* →
+   *Full Dropbox* (los archivos no están en una carpeta de app).
+2. Pestaña **Permissions**: marcar `files.content.write`, `files.content.read` y
+   `sharing.read`. Guardar. Si se marcan *después* de generar el token, hay que
+   generarlo otra vez: los permisos quedan grabados en el token.
+3. Pestaña **Settings**: copiar *App key* y *App secret*.
+4. Conseguir el token de refresco. Abrir en el navegador, con la app key propia:
+
+   ```
+   https://www.dropbox.com/oauth2/authorize?client_id=APP_KEY&response_type=code&token_access_type=offline
+   ```
+
+   Autorizar, copiar el código que sale y canjearlo:
+
+   ```bash
+   curl -u APP_KEY:APP_SECRET \
+     -d grant_type=authorization_code -d code=EL_CODIGO \
+     https://api.dropbox.com/oauth2/token
+   ```
+
+   El `refresh_token` de la respuesta es el secreto. El `access_token` **no** sirve como
+   secreto: caduca a las cuatro horas. El workflow pide uno nuevo en cada ejecución.
+
+La ruta de los archivos dentro de Dropbox no se escribe en ningún sitio: el script
+`.github/scripts/subir-a-dropbox.sh` se la pregunta a la API a partir del propio enlace.
+Mover la carpeta en Dropbox no rompe nada; borrar los archivos y volver a subirlos, sí
+—serían archivos nuevos, con enlaces nuevos.
 
 ---
 
@@ -113,16 +160,29 @@ git push origin main --tags
 El workflow `.github/workflows/release.yml` se dispara con cualquier etiqueta `v*` y:
 
 1. Compila el escritorio en Windows, lo firma y crea el Release con `latest.json`.
-2. Compila el APK de release firmado y lo adjunta al mismo Release.
+2. Escribe ese `.exe` encima del archivo de Dropbox del botón de Windows.
+3. Compila el APK de release firmado y lo adjunta al mismo Release.
+4. Escribe ese `.apk` encima del archivo de Dropbox del botón de Android.
 
 Antes de compilar corre `typecheck`, los tests del escritorio, `flutter analyze` y
 `flutter test`: una versión que no pasa sus pruebas no llega a publicarse.
 
+Los pasos de Dropbox **fallan en rojo** si algo va mal en vez de avisar y seguir. Un
+release publicado con Dropbox sin actualizar deja la página repartiendo la versión
+anterior en silencio, que es peor que un workflow en rojo.
+
 ### 2.3 Comprobar
 
 - El Release tiene `latest.json`, el `.msi`/`.exe` con su `.sig`, y el `.apk`.
+- El workflow terminó en verde, incluidos los dos pasos de Dropbox.
+- Entrar a la página de descargas y bajar el `.exe`: el instalador tiene que ofrecer la
+  versión nueva (el nombre del archivo dirá la vieja, es lo esperado; ver 1.3).
 - Abrir el escritorio → **Configuración → Actualizaciones** → debe ofrecer la nueva.
 - Abrir el móvil → **Ajustes → Actualizaciones** → ídem.
+
+Nada de esto obliga a tocar los enlaces de la página. El campo *Enlaces de descarga* de
+**Configuración** en el escritorio existe solo para mandar un botón a otro archivo
+distinto; vacío es lo normal y significa «usá el que trae escrito la página».
 
 ---
 

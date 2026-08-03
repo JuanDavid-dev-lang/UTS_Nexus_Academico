@@ -7,11 +7,12 @@ import { auditChange } from '../../shared/audit.js';
 /**
  * Enlaces de descarga que enseña la página pública.
  *
- * Existen para que publicar una versión no obligue a editar el HTML del sitio.
- * La administración los cambia desde la app; la página los lee al cargar y, si
- * el servidor no responde, se queda con los que trae escritos —una página de
- * descargas que se queda en blanco porque la API está caída es peor que una con
- * enlaces de la versión anterior.
+ * Existen para poder mandar las descargas a otro sitio sin desplegar la página.
+ * En marcha normal están vacíos: el HTML ya trae los archivos de Dropbox que el
+ * workflow de publicación sobrescribe versión a versión. La administración los
+ * cambia desde la app; la página los lee al cargar y, si el servidor no
+ * responde, se queda con los que trae escritos —una página de descargas en
+ * blanco porque la API está caída es peor que una con enlaces de antes.
  */
 export const downloadRouter = Router();
 
@@ -55,21 +56,23 @@ const enlace = z
 const cuerpo = z.object({
   windows: enlace,
   android: enlace,
-  admin: enlace,
 });
 
 type Enlaces = z.infer<typeof cuerpo>;
 
 /**
- * A dónde apuntan mientras nadie los haya cambiado.
+ * Vacío mientras nadie los haya cambiado, y eso es deliberado.
  *
- * La publicación de GitHub siempre existe y siempre es la última, así que la
- * página funciona desde el primer día sin que nadie entre a configurarla.
+ * La página trae escritos los archivos de Dropbox, que el workflow de
+ * publicación sobrescribe en su sitio y por tanto nunca caducan. Si aquí
+ * hubiera un enlace por defecto, ganaría sobre el del HTML —la página aplica lo
+ * que le devuelva el servidor— y las descargas se irían a otro lado sin que
+ * nadie lo hubiera pedido. Un campo vacío no se aplica: es «no tengo nada mejor
+ * que lo tuyo».
  */
 const POR_DEFECTO: Enlaces = {
-  windows: 'https://github.com/JuanDavid-dev-lang/UTS_Nexus_Releases/releases/latest',
-  android: 'https://github.com/JuanDavid-dev-lang/UTS_Nexus_Releases/releases/latest',
-  admin: 'https://github.com/JuanDavid-dev-lang/UTS_Nexus_Releases/releases/latest',
+  windows: '',
+  android: '',
 };
 
 async function leer(): Promise<Enlaces> {
@@ -81,7 +84,6 @@ async function leer(): Promise<Enlaces> {
   return {
     windows: valores.windows || POR_DEFECTO.windows,
     android: valores.android || POR_DEFECTO.android,
-    admin: valores.admin || POR_DEFECTO.admin,
   };
 }
 
