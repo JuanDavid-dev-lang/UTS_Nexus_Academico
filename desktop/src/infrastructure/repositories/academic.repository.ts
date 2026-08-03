@@ -16,6 +16,7 @@ import {
   gradeSchema,
   groupSchema,
   avisoSchema,
+  enlacesDescargaSchema,
   catalogoSchema,
   escaneoPlanillaSchema,
   solicitudSchema,
@@ -25,6 +26,7 @@ import {
   type GradeInput,
   type Aviso,
   type AvisoInput,
+  type EnlacesDescarga,
   type Catalogo,
   type EscaneoPlanilla,
   type SolicitudRegistro,
@@ -312,5 +314,23 @@ export const avisoRepository = {
 
   async remove(id: string): Promise<void> {
     await http.delete(`/avisos/${id}`, { schema: okResponse });
+  },
+};
+
+/**
+ * Enlaces de la página pública de descargas.
+ *
+ * Viven en el servidor, no en el HTML del sitio, para que publicar una versión
+ * no obligue a editar y desplegar la página.
+ */
+const respuestaEnlaces = z.object({ ok: z.literal(true), enlaces: enlacesDescargaSchema });
+
+export const descargaRepository = {
+  async get(): Promise<EnlacesDescarga> {
+    return (await http.get('/descargas', { schema: respuestaEnlaces })).enlaces;
+  },
+
+  async save(enlaces: EnlacesDescarga): Promise<EnlacesDescarga> {
+    return (await http.put('/descargas', enlaces, { schema: respuestaEnlaces })).enlaces;
   },
 };

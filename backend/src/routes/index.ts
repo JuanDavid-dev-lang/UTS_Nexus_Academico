@@ -18,6 +18,7 @@ import { reportsRouter } from '../modules/reports/reports.routes.js';
 import { uploadRouter } from '../modules/uploads/upload.routes.js';
 import { professorRouter } from '../modules/professors/professor.routes.js';
 import { configRouter } from '../modules/settings/config.routes.js';
+import { downloadRouter } from '../modules/downloads/download.routes.js';
 import { mlRouter } from '../modules/ml/ml.routes.js';
 
 export const apiRouter = Router();
@@ -45,4 +46,7 @@ apiRouter.use('/reports', reportsRouter);
 apiRouter.use('/uploads', uploadRouter);
 apiRouter.use('/professors', professorRouter);
 apiRouter.use('/configurations', configRouter);
+// Sin `auth` delante: su GET lo consulta la página de descargas, que es un
+// sitio estático en otro dominio y no tiene sesión con la que presentarse.
+apiRouter.use('/descargas', downloadRouter);
 apiRouter.use('/ml', mlRouter);

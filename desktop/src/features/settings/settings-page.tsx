@@ -28,6 +28,7 @@ import { modKeyLabel } from '@/shared/hooks/use-hotkeys';
 import { cn } from '@/shared/lib/cn';
 import { UpdateCard } from './components/update-card';
 import { RegistrationCard } from './components/registration-card';
+import { DownloadsCard } from './components/downloads-card';
 
 const THEME_OPTIONS: { value: ThemePreference; label: string; description: string; Icon: typeof Sun }[] =
   [
@@ -220,6 +221,8 @@ export default function SettingsPage() {
       </Card>
 
       <RegistrationCard />
+
+      <DownloadsCard />
 
       <UpdateCard />
 
