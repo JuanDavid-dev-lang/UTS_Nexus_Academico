@@ -9,15 +9,35 @@ import { apiRouter } from './routes/index.js';
 import { swaggerSpec } from './shared/swagger.js';
 import { errorHandler } from './shared/error.js';
 import { dbStatus } from './shared/db.js';
-import { env } from './shared/env.js';
+import { esProduccion, origenesPermitidos } from './shared/env.js';
 
 export const app = express();
 
+// Detrás de un proxy inverso, sin esto Express ve la IP del proxy en todas las
+// peticiones: el limitador de tasa contaría a todo el mundo como un solo
+// cliente y bastaría un usuario para agotar el cupo de los demás.
+if (esProduccion) app.set('trust proxy', 1);
+
 app.use(helmet());
-app.use(cors({ origin: env.CLIENT_ORIGIN, credentials: true }));
+app.use(cors({ origin: origenesPermitidos(), credentials: true }));
 app.use(express.json({ limit: '2mb' }));
-app.use(morgan('dev'));
+app.use(morgan(esProduccion ? 'combined' : 'dev'));
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 250 }));
+
+// El login se limita aparte y mucho más fuerte que el resto de la API. En una
+// red local el riesgo de fuerza bruta era teórico; en internet es constante, y
+// el cupo general de 250 peticiones deja sitio de sobra para probar contraseñas.
+if (esProduccion) {
+  app.use(
+    '/api/v1/auth/login',
+    rateLimit({
+      windowMs: 15 * 60 * 1000,
+      limit: 10,
+      // Se cuenta por IP; un docente que se equivoca dos veces no se ve afectado.
+      message: { ok: false, message: 'Demasiados intentos. Espera unos minutos.' },
+    }),
+  );
+}
 app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/api/v1', apiRouter);

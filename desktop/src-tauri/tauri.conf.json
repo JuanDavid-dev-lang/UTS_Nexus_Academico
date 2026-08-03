@@ -26,7 +26,8 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' data: https: asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:*"
+      "_comentario_csp": "connect-src admite https: y wss: porque la dirección del servidor la elige cada institución y no se puede enumerar aquí. El http:// sigue restringido a la máquina local, así que un servidor remoto SOLO se puede usar con TLS: el propio CSP impide configurar por descuido un servidor en claro por el que viajarían las contraseñas.",
+      "csp": "default-src 'self'; img-src 'self' data: https: asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost https: wss: http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:*"
     }
   },
   "plugins": {

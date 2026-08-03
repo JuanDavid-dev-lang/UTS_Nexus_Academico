@@ -1,0 +1,26 @@
+# Proxy inverso con TLS automático.
+#
+# Caddy pide y renueva solo el certificado de Let's Encrypt. Con un nombre
+# sslip.io —del tipo 52-1-2-3.sslip.io, que resuelve a esa misma IP— el desafío
+# HTTP-01 funciona sin comprar dominio ni tocar DNS.
+#
+# Todo lo que llega por HTTP se redirige a HTTPS; Caddy lo hace por defecto.
+
+{$DOMINIO} {
+	encode zstd gzip
+
+	# Cabeceras que el backend no puede poner porque no ve la conexión TLS.
+	header {
+		# Un año de HSTS: una vez visitado, el navegador se niega a usar HTTP.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+
+	# El WebSocket de sincronización viaja por la misma ruta; Caddy conserva
+	# los encabezados de actualización de protocolo sin configuración extra.
+	reverse_proxy backend:4000 {
+		header_up X-Real-IP {remote_host}
+	}
+}

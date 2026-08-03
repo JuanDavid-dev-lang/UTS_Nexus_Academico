@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Política de red de la app.
+
+  Antes el manifiesto llevaba `usesCleartextTraffic="true"`, que permite HTTP sin
+  cifrar contra CUALQUIER servidor. Eso era aceptable mientras el backend vivía
+  en la red del campus; contra un servidor en internet significa que la
+  contraseña del docente y el token de sesión viajan legibles para cualquiera
+  que esté en el camino.
+
+  Aquí se invierte: por defecto se exige TLS, y el texto en claro queda
+  permitido solo contra direcciones que no salen del dispositivo o de la red
+  local. Así el desarrollo con el emulador sigue funcionando sin abrir la puerta
+  en producción.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- El propio teléfono. -->
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <!-- La máquina anfitriona vista desde el emulador de Android. -->
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

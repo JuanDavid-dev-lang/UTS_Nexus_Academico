@@ -32,3 +32,5 @@ flutter_app/android/*.keystore
 # aceptarian como oficiales.
 *.key
 !*.key.pub
+deploy/.env
+deploy/.env.*

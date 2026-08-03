@@ -1,0 +1,68 @@
+# Despliegue en una instancia EC2.
+#
+# Tres contenedores: el proxy que termina TLS, el backend y el servicio de
+# visión/riesgo. La base de datos NO está aquí: sigue en MongoDB Atlas, que ya
+# hace copias de seguridad y replicación mejor de lo que las haría una instancia
+# sola con un volumen.
+#
+# Ni el backend ni el servicio de Python publican puertos al exterior. Solo
+# Caddy escucha desde internet, y habla con ellos por la red interna de Docker.
+# Así el 4000 y el 8100 no existen desde fuera aunque el grupo de seguridad de
+# AWS se configure mal algún día.
+
+services:
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data      # certificados: si se pierde, Let's Encrypt limita reintentos
+      - caddy_config:/config
+    environment:
+      DOMINIO: ${DOMINIO:?falta DOMINIO en .env}
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      # Solo la red interna de Docker; nunca la interfaz pública.
+      HOST: 0.0.0.0
+      PORT: 4000
+      MONGODB_URI: ${MONGODB_URI:?falta MONGODB_URI}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?falta JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?falta JWT_REFRESH_SECRET}
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:?falta CLIENT_ORIGIN}
+      ML_BASE_URL: http://ml:8100
+      ML_ENABLED: "1"
+      # El asistente de IA necesita Ollama, que no cabe en una instancia pequeña.
+      AI_ENABLED: "0"
+      RISK_SCAN_INTERVAL_MIN: ${RISK_SCAN_INTERVAL_MIN:-60}
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      - ml
+
+  ml:
+    build:
+      context: ../ml_service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      # El modelo de riesgo se entrena en el arranque si no hay ninguno.
+      ML_SKIP_BOOTSTRAP: "0"
+    volumes:
+      - modelos:/app/models
+
+volumes:
+  caddy_data:
+  caddy_config:
+  uploads:
+  modelos:
