@@ -8,6 +8,8 @@ import { aiRouter } from '../modules/ai/ai.routes.js';
 import { gradeRouter } from '../modules/grades/grade.routes.js';
 import { enrollmentRouter } from '../modules/enrollment/enrollment.routes.js';
 import { attendanceRouter } from '../modules/attendance/attendance.routes.js';
+import { announcementRouter } from '../modules/announcements/announcement.routes.js';
+import { registrationRouter } from '../modules/registration/registration.routes.js';
 import { attendanceScanRouter } from '../modules/attendance/attendance-scan.routes.js';
 import { activityRouter } from '../modules/activities/activity.routes.js';
 import { notificationRouter } from '../modules/notifications/notification.routes.js';
@@ -30,6 +32,10 @@ apiRouter.use('/grades', gradeRouter);
 apiRouter.use('/enrollments', enrollmentRouter);
 // El escáner va antes: sus rutas son más específicas y si `attendanceRouter`
 // llegara a definir un comodín, se las tragaría.
+// El registro va sin auth en sus dos primeras rutas; el propio router aplica
+// el middleware a partir de la parte de administracion.
+apiRouter.use('/registro', registrationRouter);
+apiRouter.use('/avisos', announcementRouter);
 apiRouter.use('/attendance', attendanceScanRouter);
 apiRouter.use('/attendance', attendanceRouter);
 apiRouter.use('/activities', activityRouter);

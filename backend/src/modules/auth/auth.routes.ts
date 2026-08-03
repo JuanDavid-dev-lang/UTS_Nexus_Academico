@@ -82,6 +82,32 @@ authRouter.post('/login', async (req, res, next) => {
     const ok = await bcrypt.compare(body.password, user.passwordHash);
     if (!ok) return res.status(401).json({ ok: false, message: 'Invalid credentials' });
 
+    // Una cuenta llegada por autorregistro no abre nada hasta que se revisa.
+    // La comprobación va aquí, después de validar la contraseña: hacerlo antes
+    // permitiría averiguar qué correos están registrados probando cualquiera.
+    if (user.role === 'PROFESSOR') {
+      const ficha = await ProfessorModel.findOne({ userId: user._id, deletedAt: null })
+        .select('estado motivoRechazo')
+        .lean();
+
+      if (ficha?.estado === 'PENDIENTE') {
+        return res.status(403).json({
+          ok: false,
+          estado: 'PENDIENTE',
+          message: 'Tu registro está en revisión. Te avisaremos cuando lo aprueben.',
+        });
+      }
+      if (ficha?.estado === 'RECHAZADO') {
+        return res.status(403).json({
+          ok: false,
+          estado: 'RECHAZADO',
+          message: ficha.motivoRechazo
+            ? `Tu registro fue rechazado: ${ficha.motivoRechazo}`
+            : 'Tu registro fue rechazado. Contacta con la administración.',
+        });
+      }
+    }
+
     user.lastLoginAt = new Date();
     await user.save();
 

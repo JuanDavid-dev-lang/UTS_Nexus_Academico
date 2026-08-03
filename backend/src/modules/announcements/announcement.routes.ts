@@ -1,0 +1,173 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import { AnnouncementModel } from '../../models/announcement.model.js';
+import { ProfessorModel } from '../../models/professor.model.js';
+import { auth, requireRole } from '../../middlewares/auth.js';
+import { auditChange } from '../../shared/audit.js';
+import { emitSync } from '../../shared/socket.js';
+import { FACULTADES, NIVELES, PROGRAMAS, SEDES } from '../../domains/catalog/uts.js';
+
+/**
+ * Avisos institucionales.
+ *
+ * Los escribe la administración y los leen los docentes. El alcance se acota
+ * por sede, facultad o programa, y los tres criterios se combinan con Y: un
+ * aviso para «Bucaramanga + Ingenierías» llega a quien cumple las dos, no a
+ * quien cumple una. Dejar un criterio vacío significa «cualquiera», que es lo
+ * que hace que un aviso sin filtros llegue a toda la institución.
+ */
+export const announcementRouter = Router();
+announcementRouter.use(auth);
+
+const IDS_PROGRAMA = PROGRAMAS.map(p => p.id);
+
+/** Filtro de alcance para un docente concreto, a partir de su ficha. */
+function alcanceDe(ficha: { sede?: string | null; facultad?: string | null; programas?: string[] } | null) {
+  const ahora = new Date();
+  return {
+    deletedAt: null,
+    publicadoEn: { $lte: ahora },
+    $and: [
+      { $or: [{ expiraEn: null }, { expiraEn: { $gt: ahora } }] },
+      { $or: [{ sedes: { $size: 0 } }, { sedes: ficha?.sede ?? '—' }] },
+      { $or: [{ facultades: { $size: 0 } }, { facultades: ficha?.facultad ?? '—' }] },
+      { $or: [{ programas: { $size: 0 } }, { programas: { $in: ficha?.programas ?? [] } }] },
+    ],
+  };
+}
+
+/** Avisos visibles para quien pregunta. */
+announcementRouter.get('/', async (req, res, next) => {
+  try {
+    // La administración ve todo, incluidos los programados y los caducados:
+    // necesita poder revisar lo que publicó, no solo lo vigente.
+    const esGestor = req.user?.role === 'ADMIN' || req.user?.role === 'COORDINATOR';
+
+    let filtro: Record<string, unknown> = { deletedAt: null };
+    if (!esGestor) {
+      const ficha = await ProfessorModel.findOne({ userId: req.user?.id, deletedAt: null })
+        .select('sede facultad programas')
+        .lean();
+      filtro = alcanceDe(ficha);
+    }
+
+    const items = await AnnouncementModel.find(filtro)
+      .populate('autorId', 'fullName')
+      .sort({ fijado: -1, publicadoEn: -1 })
+      .limit(200)
+      .lean();
+
+    const yo = String(req.user?.id ?? '');
+    res.json({
+      ok: true,
+      items: items.map(item => ({
+        ...item,
+        leido: (item.leidoPor ?? []).some(id => String(id) === yo),
+        // La lista de lectores no se expone: quién abrió qué es información
+        // sobre las personas, no sobre el aviso.
+        leidoPor: undefined,
+        lecturas: (item.leidoPor ?? []).length,
+      })),
+      sinLeer: items.filter(item => !(item.leidoPor ?? []).some(id => String(id) === yo)).length,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const cuerpo = z.object({
+  titulo: z.string().trim().min(4, 'El título es demasiado corto.').max(140),
+  cuerpo: z.string().trim().min(10, 'Escribe el contenido del aviso.').max(4000),
+  tipo: z.enum(['INFORMATIVO', 'IMPORTANTE', 'URGENTE']).default('INFORMATIVO'),
+  sedes: z.array(z.enum(SEDES)).default([]),
+  facultades: z.array(z.enum(FACULTADES)).default([]),
+  programas: z.array(z.string().refine(id => IDS_PROGRAMA.includes(id), 'Programa desconocido.')).default([]),
+  publicadoEn: z.coerce.date().default(() => new Date()),
+  expiraEn: z.coerce.date().nullable().default(null),
+  fijado: z.boolean().default(false),
+});
+
+announcementRouter.post('/', requireRole('ADMIN'), async (req, res, next) => {
+  try {
+    const datos = cuerpo.parse(req.body);
+
+    if (datos.expiraEn && datos.expiraEn <= datos.publicadoEn) {
+      return res.status(400).json({
+        ok: false,
+        message: 'La fecha de caducidad tiene que ser posterior a la de publicación.',
+      });
+    }
+
+    const item = await AnnouncementModel.create({ ...datos, autorId: req.user?.id });
+
+    await auditChange({
+      actorId: req.user?.id,
+      action: 'CREATE',
+      entity: 'Aviso',
+      entityId: item.id,
+      after: item.toObject(),
+    });
+    emitSync('sync:update', { entity: 'announcement', action: 'create', id: item.id });
+    res.status(201).json({ ok: true, item });
+  } catch (err) {
+    next(err);
+  }
+});
+
+announcementRouter.patch('/:id', requireRole('ADMIN'), async (req, res, next) => {
+  try {
+    const datos = cuerpo.partial().parse(req.body);
+
+    const item = await AnnouncementModel.findOneAndUpdate(
+      { _id: req.params.id, deletedAt: null },
+      { $set: datos },
+      { new: true },
+    );
+    if (!item) return res.status(404).json({ ok: false, message: 'Aviso no encontrado.' });
+
+    emitSync('sync:update', { entity: 'announcement', action: 'update', id: item.id });
+    res.json({ ok: true, item });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** Marca como leído para quien pregunta. Idempotente. */
+announcementRouter.post('/:id/leido', async (req, res, next) => {
+  try {
+    const item = await AnnouncementModel.findOneAndUpdate(
+      { _id: req.params.id, deletedAt: null },
+      // $addToSet y no $push: abrir el aviso dos veces no cuenta como dos.
+      { $addToSet: { leidoPor: req.user?.id } },
+      { new: true },
+    );
+    if (!item) return res.status(404).json({ ok: false, message: 'Aviso no encontrado.' });
+
+    emitSync('sync:update', { entity: 'announcement', action: 'update', id: item.id });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+announcementRouter.delete('/:id', requireRole('ADMIN'), async (req, res, next) => {
+  try {
+    const item = await AnnouncementModel.findOneAndUpdate(
+      { _id: req.params.id, deletedAt: null },
+      { $set: { deletedAt: new Date(), status: 'DELETED' } },
+      { new: true },
+    );
+    if (!item) return res.status(404).json({ ok: false, message: 'Aviso no encontrado.' });
+
+    await auditChange({ actorId: req.user?.id, action: 'DELETE', entity: 'Aviso', entityId: item.id });
+    emitSync('sync:update', { entity: 'announcement', action: 'delete', id: item.id });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** Niveles del catálogo, para que el formulario de aviso no los invente. */
+announcementRouter.get('/catalogo/niveles', requireRole('ADMIN'), (_req, res) => {
+  res.json({ ok: true, niveles: NIVELES });
+});
