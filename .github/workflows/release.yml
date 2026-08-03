@@ -57,8 +57,10 @@ env:
   # línea de HTML. Si alguna vez cambian, hay que cambiarlos también en
   # `index.html` del repositorio `utsnexus.github.io`: son enlaces públicos, no
   # secretos, y por eso están a la vista.
-  DROPBOX_ENLACE_WINDOWS: 'https://www.dropbox.com/scl/fi/gxr7nuv4ntg7wx9zixooa/UTS.Nexus.Academico_2.3.2_x64-setup.exe?rlkey=qqd2vgvh8djqx728al5xhoyo2&st=hme974sn&dl=1'
-  DROPBOX_ENLACE_ANDROID: 'https://www.dropbox.com/scl/fi/i9ddtr4f05dgr58ghqq98/uts-nexus-academico-v2.3.2-1.apk?rlkey=aq72k96kbgokf9wbsxy9b6q9w&st=5qr9plvu&dl=1'
+  # Sin el parámetro `st=` que copia Dropbox al compartir: es un testigo temporal
+  # y caduca. `rlkey` es el que da acceso y no caduca.
+  DROPBOX_ENLACE_WINDOWS: 'https://www.dropbox.com/scl/fi/4vw1n63r2jlm4fiub80lu/UTS.Nexus.Academico_2.3.3_x64-setup.exe?rlkey=pozsm7rulk4osgtqj1tqvvc97&dl=1'
+  DROPBOX_ENLACE_ANDROID: 'https://www.dropbox.com/scl/fi/vfvmw36f8zrg6knm9hbkg/uts-nexus-academico-v2.3.3.apk?rlkey=nuo1sh6g09qsod1roeh1jgr1o&dl=1'
 
 jobs:
   desktop:

@@ -97,7 +97,7 @@ compilado **encima** de ese mismo archivo. El enlace no cambia y lo que entrega 
 nuevo.
 
 Consecuencia que conviene tener presente: el **nombre** del archivo se queda con el de
-la primera subida (`…2.3.2…`) aunque dentro vaya una versión posterior. Quien lo
+la primera subida (`…2.3.3…`) aunque dentro vaya una versión posterior. Quien lo
 descargue verá ese nombre. Cambiarlo obliga a subir un archivo con otro nombre, sacar
 su enlace y actualizarlo en dos sitios: `index.html` de la página y
 `DROPBOX_ENLACE_*` en `.github/workflows/release.yml`.
