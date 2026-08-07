@@ -193,7 +193,7 @@ export default function SubjectsPage() {
               <Badge>{items.length}</Badge>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-3 @2xl:grid-cols-2 @5xl:grid-cols-3">
               {items.map((subject, index) => (
                 <motion.article
                   key={subject._id}

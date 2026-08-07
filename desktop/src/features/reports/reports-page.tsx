@@ -153,7 +153,7 @@ export default function ReportsPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 @2xl:grid-cols-2">
         {REPORTS.map((report) => (
           <Card key={report.kind}>
             <CardHeader>

@@ -2,6 +2,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
   Check,
   LogOut,
+  Menu,
   Monitor,
   Moon,
   RefreshCw,
@@ -47,10 +48,13 @@ export function TopBar({
   title,
   subtitle,
   onOpenSearch,
+  onOpenNav,
 }: {
   title: string;
   subtitle: string;
   onOpenSearch: () => void;
+  /** Solo en ventanas estrechas, donde el menú lateral pasa a ser un cajón. */
+  onOpenNav?: () => void;
 }) {
   const user = useSession((state) => state.user);
   const logout = useSession((state) => state.logout);
@@ -69,7 +73,19 @@ export function TopBar({
   }
 
   return (
-    <header className="drag-region flex h-16 shrink-0 items-center gap-3 border-b border-border bg-surface px-6">
+    <header className="drag-region flex h-16 shrink-0 items-center gap-3 border-b border-border bg-surface px-4 xl:px-6">
+      {onOpenNav ? (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="no-drag shrink-0"
+          onClick={onOpenNav}
+          aria-label="Abrir menú"
+        >
+          <Menu aria-hidden />
+        </Button>
+      ) : null}
+
       <div className="flex min-w-0 flex-col">
         {/* Not a heading: this repeats the page title as window chrome, and the
             page body already carries the document's only h1. */}
@@ -83,14 +99,20 @@ export function TopBar({
       <button
         type="button"
         onClick={onOpenSearch}
+        aria-label="Buscar"
         className={cn(
-          'no-drag flex h-9 w-72 items-center gap-2 rounded-lg border border-border bg-bg px-3',
+          // El buscador cede ancho antes que el título: a 900px, 288px fijos
+          // empujaban el nombre de la pantalla fuera de la barra.
+          'no-drag flex h-9 w-9 items-center gap-2 rounded-lg border border-border bg-bg px-2',
+          'md:w-44 md:px-3 xl:w-72',
           'text-body text-muted transition-colors hover:border-border-strong hover:text-text',
         )}
       >
         <Search className="size-4 shrink-0" aria-hidden />
-        <span className="flex-1 text-left">Buscar…</span>
-        <Kbd>{modKeyLabel} K</Kbd>
+        <span className="hidden flex-1 text-left md:block">Buscar…</span>
+        <span className="hidden xl:block">
+          <Kbd>{modKeyLabel} K</Kbd>
+        </span>
       </button>
 
       <Tooltip content={sync.label}>
@@ -140,7 +162,9 @@ export function TopBar({
             className="no-drag flex items-center gap-2 rounded-lg py-1 pl-1 pr-2 transition-colors hover:bg-surface-alt"
           >
             <Avatar name={user?.fullName ?? 'Docente'} src={user?.photoUrl} size="sm" />
-            <span className="max-w-32 truncate text-caption font-semibold text-text">
+            {/* El avatar ya identifica la sesión; el nombre completo es lo
+                primero que sobra cuando la barra se queda sin sitio. */}
+            <span className="hidden max-w-32 truncate text-caption font-semibold text-text lg:block">
               {user?.fullName ?? 'Docente'}
             </span>
           </button>

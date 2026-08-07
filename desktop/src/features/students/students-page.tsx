@@ -217,7 +217,7 @@ export default function StudentsPage() {
         </div>
 
         <NativeSelect
-          className="w-full sm:w-64"
+          className="w-full @lg:w-64"
           aria-label="Filtrar por materia"
           value={subjectFilter}
           onChange={(event) => handleSubjectFilter(event.target.value)}

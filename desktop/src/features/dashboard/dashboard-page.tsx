@@ -141,7 +141,7 @@ export default function DashboardPage() {
           <ErrorState error={dashboard.error} onRetry={() => void dashboard.refetch()} />
         </Card>
       ) : (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="grid grid-cols-2 gap-4 @3xl:grid-cols-3 @6xl:grid-cols-6">
           <StatCard
             index={0}
             label="Promedio actual"
@@ -195,7 +195,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid gap-4 @5xl:grid-cols-3">
         <Card className="xl:col-span-2">
           <CardHeader>
             <CardTitle>Distribución de desempeño</CardTitle>

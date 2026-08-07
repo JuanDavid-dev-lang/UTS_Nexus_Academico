@@ -184,7 +184,7 @@ export default function RiskPage() {
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 @2xl:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Riesgo alto</CardDescription>

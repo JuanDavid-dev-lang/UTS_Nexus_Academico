@@ -214,7 +214,7 @@ export default function GradesPage() {
       </div>
 
       {rows.length > 0 ? (
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 @3xl:grid-cols-4">
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Promedio del grupo</CardDescription>

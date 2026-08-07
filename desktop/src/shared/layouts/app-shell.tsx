@@ -6,6 +6,7 @@ import { Sidebar } from '@/shared/layouts/sidebar';
 import { TopBar } from '@/shared/layouts/topbar';
 import { CommandPalette } from '@/shared/layouts/command-palette';
 import { useHotkeys } from '@/shared/hooks/use-hotkeys';
+import { LAYOUT_QUERIES, useMediaQuery } from '@/shared/hooks/use-media-query';
 import { SkeletonStatGrid } from '@/shared/ui/skeleton';
 import { useTheme } from '@/state/theme.store';
 import { useSession } from '@/state/session.store';
@@ -42,17 +43,42 @@ export function AppShell() {
     setTourAbierto(false);
   }
 
-  const [collapsed, setCollapsed] = useState(false);
-  const [paletteOpen, setPaletteOpen] = useState(false);
+  // La disposición la decide el ancho disponible, no una preferencia guardada.
+  // `override` es la excepción: si el docente contrae o expande a mano, esa
+  // decisión manda mientras no cambie el tramo de ancho.
+  const compact = useMediaQuery(LAYOUT_QUERIES.compact);
+  const narrow = useMediaQuery(LAYOUT_QUERIES.narrow);
+  const [override, setOverride] = useState<boolean | null>(null);
+
+  // Al cruzar un umbral se descarta el override: lo que el usuario decidió para
+  // una ventana ancha no tiene por qué valer en una estrecha.
+  useEffect(() => setOverride(null), [compact, narrow]);
+
+  const collapsed = override ?? compact;
+
+  // Por debajo de `narrow` el menú no cabe al lado del contenido: se abre por
+  // encima, como un cajón, y se cierra al navegar.
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const location = useLocation();
+  useEffect(() => setDrawerOpen(false), [location.pathname]);
+
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const navigate = useNavigate();
   const cycleTheme = useTheme((state) => state.cycle);
 
   const meta = ROUTE_META[location.pathname] ?? FALLBACK_META;
 
+  function toggleSidebar() {
+    if (narrow) {
+      setDrawerOpen((value) => !value);
+      return;
+    }
+    setOverride(!collapsed);
+  }
+
   useHotkeys({
     'mod+k': () => setPaletteOpen(true),
-    'mod+b': () => setCollapsed((value) => !value),
+    'mod+b': () => toggleSidebar(),
     'mod+shift+l': () => cycleTheme(),
     'mod+1': () => navigate('/'),
     'mod+2': () => navigate('/estudiantes'),
@@ -65,16 +91,40 @@ export function AppShell() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-bg">
-      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((value) => !value)} />
+      {/* Ancho o compacto: el menú ocupa su sitio en la fila. */}
+      {!narrow ? <Sidebar collapsed={collapsed} onToggle={toggleSidebar} /> : null}
+
+      {/* Estrecho: el menú se superpone. El fondo oscurecido es lo que permite
+          cerrarlo con un clic fuera, que es donde va la mano por costumbre. */}
+      {narrow && drawerOpen ? (
+        <>
+          <button
+            type="button"
+            aria-label="Cerrar menú"
+            onClick={() => setDrawerOpen(false)}
+            className="fixed inset-0 z-40 bg-black/40"
+          />
+          <div className="fixed inset-y-0 left-0 z-50 shadow-pop">
+            <Sidebar collapsed={false} onToggle={() => setDrawerOpen(false)} />
+          </div>
+        </>
+      ) : null}
 
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar
           title={meta.title}
           subtitle={meta.subtitle}
           onOpenSearch={() => setPaletteOpen(true)}
+          onOpenNav={narrow ? () => setDrawerOpen(true) : undefined}
         />
 
-        <main className="min-h-0 flex-1">
+        {/*
+          `@container` es lo que hace que el contenido mida el hueco que le
+          queda y no la ventana entera. Con los cortes de Tailwind por viewport,
+          una ventana de 1280px pedía seis columnas aunque el menú se hubiera
+          comido 264px y solo quedaran 1016.
+        */}
+        <main className="@container min-h-0 flex-1">
           {/*
             Page transitions are keyed on the pathname so React remounts the
             content. The fade is deliberately short: navigation should feel

@@ -115,7 +115,7 @@ export default function SettingsPage() {
             El tema se aplica de inmediato y se recuerda entre sesiones.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-3">
+        <CardContent className="grid gap-3 @xl:grid-cols-3">
           {THEME_OPTIONS.map((option) => {
             const active = preference === option.value;
             return (
