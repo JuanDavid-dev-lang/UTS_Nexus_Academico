@@ -5,6 +5,7 @@ import '../../core/data/models.dart';
 import '../../core/data/providers.dart';
 import '../../core/network/api_error.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
 
 /// Alertas académicas.
@@ -44,6 +45,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                 : const Icon(Icons.radar_outlined),
             onPressed: _scanning ? null : _scanRisks,
           ),
+          const SessionMenuButton(),
         ],
       ),
       body: notifications.when(

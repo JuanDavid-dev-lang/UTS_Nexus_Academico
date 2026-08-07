@@ -4,6 +4,7 @@ import '../../core/network/api_error.dart';
 import '../../core/services/api_client.dart';
 import '../../core/services/schedule_repository.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
 
 final scheduleProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
@@ -62,7 +63,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
             ),
           ),
           TextButton(onPressed: _saveOrder, child: const Text('Guardar orden')),
-          const SizedBox(width: 12),
+          const SessionMenuButton(),
         ],
       ),
       body: async.when(

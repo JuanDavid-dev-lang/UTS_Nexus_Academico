@@ -10,6 +10,7 @@ import '../../core/services/auth_controller.dart';
 import '../../core/services/auth_repository.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/period_selector.dart';
+import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
 
 final dashboardProvider = FutureProvider<DashboardData>((ref) async {
@@ -46,7 +47,7 @@ class DashboardPage extends ConsumerWidget {
             ),
           ],
         ),
-        actions: const [PeriodSelector()],
+        actions: const [PeriodSelector(), SessionMenuButton()],
       ),
       body: RefreshIndicator(
         onRefresh: () async {

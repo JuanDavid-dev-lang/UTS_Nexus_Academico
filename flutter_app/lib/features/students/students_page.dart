@@ -5,6 +5,7 @@ import '../../core/data/models.dart';
 import '../../core/data/providers.dart';
 import '../../core/network/api_error.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
 
 /// Directorio global de estudiantes.
@@ -39,6 +40,7 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
             tooltip: 'Importar lista',
             onPressed: _openImportSheet,
           ),
+          const SessionMenuButton(),
         ],
       ),
       body: students.when(

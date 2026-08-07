@@ -6,6 +6,7 @@ import '../../core/data/models.dart';
 import '../../core/data/providers.dart';
 import '../../core/network/api_error.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
 import '../students/student_detail_sheet.dart';
 
@@ -57,6 +58,7 @@ class _SubjectDetailPageState extends ConsumerState<SubjectDetailPage> {
               ),
           ],
         ),
+        actions: const [SessionMenuButton()],
       ),
       body: roster.when(
         loading: () => ListView(

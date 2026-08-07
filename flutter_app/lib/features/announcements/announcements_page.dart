@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/api_error.dart';
 import '../../core/services/avisos_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
 
 final avisosProvider = FutureProvider<ListadoAvisos>((ref) {
@@ -36,7 +37,10 @@ class AnnouncementsPage extends ConsumerWidget {
     final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Avisos')),
+      appBar: AppBar(
+        title: const Text('Avisos'),
+        actions: const [SessionMenuButton()],
+      ),
       body: avisos.when(
         loading: () => ListView(
           padding: AppSpacing.pagePadding,

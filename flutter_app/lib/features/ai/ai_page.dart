@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/session_menu.dart';
 import 'ai_service.dart';
 
 class AiPage extends ConsumerStatefulWidget {
@@ -63,6 +64,7 @@ class _AiPageState extends ConsumerState<AiPage> {
               icon: const Icon(Icons.delete_sweep_outlined),
               onPressed: () => ref.read(chatControllerProvider.notifier).clear(),
             ),
+          const SessionMenuButton(),
         ],
       ),
       body: Column(

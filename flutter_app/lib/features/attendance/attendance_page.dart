@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/services/api_client.dart';
 import '../../core/services/auth_controller.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/session_menu.dart';
 
 class AttendancePage extends ConsumerStatefulWidget {
   const AttendancePage({super.key});
@@ -135,6 +136,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
               },
             ),
           ),
+          const SessionMenuButton(),
         ],
       ),
       body: _loading

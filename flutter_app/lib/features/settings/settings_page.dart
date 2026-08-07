@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/network/connection_controller.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/theme_controller.dart';
+import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
 import 'widgets/update_section.dart';
 
@@ -42,7 +43,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Ajustes')),
+      appBar: AppBar(
+        title: const Text('Ajustes'),
+        actions: const [SessionMenuButton()],
+      ),
       body: ListView(
         padding: AppSpacing.pagePadding,
         children: [

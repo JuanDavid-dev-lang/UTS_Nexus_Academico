@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/tutorial/tutorial_page.dart';
 import 'package:go_router/go_router.dart';
 
 import '../theme/app_theme.dart';
+import 'session_menu.dart';
 
 /// Estructura de navegación.
 ///
@@ -131,15 +133,15 @@ int _indexForRoute(List<NavDestination> destinations, String route) {
 /// Es stateful solo por el tutorial: hace falta un punto que se ejecute una vez
 /// tras el primer fotograma con sesión iniciada, y este envuelve a todas las
 /// pantallas sin repetir el enganche en cada una.
-class AppScaffold extends StatefulWidget {
+class AppScaffold extends ConsumerStatefulWidget {
   final Widget child;
   const AppScaffold({super.key, required this.child});
 
   @override
-  State<AppScaffold> createState() => _AppScaffoldState();
+  ConsumerState<AppScaffold> createState() => _AppScaffoldState();
 }
 
-class _AppScaffoldState extends State<AppScaffold> {
+class _AppScaffoldState extends ConsumerState<AppScaffold> {
   @override
   void initState() {
     super.initState();
@@ -221,6 +223,9 @@ class _AppScaffoldState extends State<AppScaffold> {
       builder: (sheetContext) {
         final isDark = Theme.of(sheetContext).brightness == Brightness.dark;
         final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+        // El rojo canónico está calibrado para texto sobre blanco; en oscuro
+        // hay que aclararlo o cae por debajo del AA que exige DESIGN.md.
+        final danger = isDark ? AppColors.dangerDark : AppColors.danger;
 
         return SafeArea(
           child: Column(
@@ -253,6 +258,28 @@ class _AppScaffoldState extends State<AppScaffold> {
                     context.go(destination.route);
                   },
                 ),
+
+              // La sesión va abajo y separada: no es "otra sección más", y
+              // cerrarla por error al buscar Reportes sería caro.
+              const Divider(height: 20),
+              ListTile(
+                leading: const Icon(Icons.person_outline),
+                title: const Text('Mi perfil'),
+                selected: currentRoute == '/profile',
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  context.go('/profile');
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.logout_outlined, color: danger),
+                title:
+                    Text('Cerrar sesión', style: TextStyle(color: danger)),
+                onTap: () async {
+                  Navigator.of(sheetContext).pop();
+                  await confirmLogout(context, ref);
+                },
+              ),
               const SizedBox(height: 8),
             ],
           ),

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/network/connection_controller.dart';
 import '../../core/services/auth_controller.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
 
 /// Perfil del usuario.
@@ -38,7 +38,7 @@ class ProfilePage extends ConsumerWidget {
                   radius: 42,
                   backgroundColor: primary.withValues(alpha: 0.12),
                   child: Text(
-                    _initials(user?.fullName ?? 'U'),
+                    initialsOf(user?.fullName ?? 'U'),
                     style: AppType.h2.copyWith(
                       fontWeight: FontWeight.w800,
                       color: primary,
@@ -111,49 +111,15 @@ class ProfilePage extends ConsumerWidget {
               backgroundColor: AppColors.danger,
               foregroundColor: Colors.white,
             ),
-            onPressed: () => _confirmLogout(context, ref),
+            // El diálogo vive en `session_menu.dart`: el menú de la barra
+            // superior ofrece la misma acción, y dos copias del aviso acaban
+            // divergiendo justo en lo que importa —qué se borra exactamente—.
+            onPressed: () => confirmLogout(context, ref),
             icon: const Icon(Icons.logout_outlined),
             label: const Text('Cerrar sesión'),
           ),
         ],
       ),
     );
-  }
-
-  /// Cerrar sesión borra las credenciales guardadas: merece confirmación.
-  Future<void> _confirmLogout(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('¿Cerrar sesión?'),
-        content: const Text(
-          'Se borrarán tus credenciales guardadas en este dispositivo y '
-          'tendrás que ingresar de nuevo.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Cerrar sesión'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-    await ref.read(authControllerProvider.notifier).logout();
-    if (context.mounted) context.go('/login');
-  }
-
-  static String _initials(String name) {
-    final parts =
-        name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
-    if (parts.isEmpty) return '?';
-    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
-    return (parts[0][0] + parts[1][0]).toUpperCase();
   }
 }

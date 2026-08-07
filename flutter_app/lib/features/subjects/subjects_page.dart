@@ -7,6 +7,7 @@ import '../../core/data/providers.dart';
 import '../../core/network/api_error.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/period_selector.dart';
+import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
 
 /// Listado de materias — punto de entrada a los estudiantes.
@@ -26,7 +27,7 @@ class SubjectsPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mis materias'),
-        actions: const [PeriodSelector()],
+        actions: const [PeriodSelector(), SessionMenuButton()],
       ),
       body: RefreshIndicator(
         onRefresh: () async {
