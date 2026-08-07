@@ -19,14 +19,25 @@ gradeRouter.use(identificar);
 const componenteEnum = z.enum(['TRABAJOS', 'PARCIALES', 'AUTOEVALUACION']);
 const corteEnum = z.union([z.literal(1), z.literal(2), z.literal(3)]);
 
-/** Convierte documentos Nota en entradas para el motor de calificación. */
-function aNotasComponente(docs: Array<{ corte?: number; componentType?: string; score?: number }>): NotaComponente[] {
+/**
+ * Convierte documentos Nota en entradas para el motor de calificación.
+ *
+ * Arrastra `_id` y `label` además del puntaje: el motor no los necesita para
+ * calcular, pero son lo que permite que el consolidado devuelva de qué notas
+ * salió cada promedio y que el docente pueda corregir la que está mal sin
+ * buscarla en otra pantalla.
+ */
+function aNotasComponente(
+  docs: Array<{ _id?: unknown; corte?: number; componentType?: string; score?: number; label?: string }>
+): NotaComponente[] {
   return docs
     .filter(d => (d.corte === 1 || d.corte === 2 || d.corte === 3) && !!d.componentType)
     .map(d => ({
       corte: d.corte as CorteNumero,
       tipo: d.componentType as ComponenteTipo,
       score: Number(d.score ?? 0),
+      ...(d._id ? { id: String(d._id) } : {}),
+      ...(d.label ? { label: d.label } : {}),
     }));
 }
 

@@ -18,9 +18,10 @@ npm start                # servidor compilado
 npm run seed             # sembrar/resetear datos de demo (credenciales demo en README)
 npm run smoke            # smoke test E2E — requiere el servidor arriba
 npm run check:env        # valida .env sin imprimir secretos
+npm test                 # Vitest — dominio puro (tests/)
 npm run lint             # eslint
 ```
-No hay suite de tests unitarios en el backend; `npm run smoke` es la verificación end-to-end.
+`npm test` cubre `src/domains/` (grading, attendance, risk): funciones puras, sin base de datos ni servidor. Fija las reglas académicas —30/60/10, 33/33/34, aprobación en 3.0, asistencia ponderada por minutos— así que un cambio de pesos rompe una prueba en vez de cambiar notas en silencio. `npm run smoke` sigue siendo la verificación end-to-end y necesita el servidor arriba.
 
 ### Escritorio v2 (`desktop/` — Tauri 2 + React 19)
 ```bash

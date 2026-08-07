@@ -37,6 +37,21 @@ export type NotaComponente = {
   corte: CorteNumero;
   tipo: ComponenteTipo;
   score: number;
+  /**
+   * Identidad de la nota concreta. Son opcionales porque el motor calcula igual
+   * sin ellas —solo necesita `score`— pero sin ellas el cliente recibe un
+   * promedio anónimo: puede decir «Trabajos: 4.2 de 3 notas» y no cuáles, así
+   * que no hay forma de corregir la que está mal sin salir a otra pantalla.
+   */
+  id?: string;
+  label?: string;
+};
+
+/** Una nota tal y como se le muestra al docente dentro de su componente. */
+export type NotaDetalle = {
+  id: string;
+  label: string;
+  score: number;
 };
 
 export type ResumenComponente = {
@@ -48,6 +63,12 @@ export type ResumenComponente = {
   registros: number;
   /** Aporte del componente a la nota del corte (promedio * peso). */
   aporte: number;
+  /**
+   * Las notas que produjeron ese promedio, en el orden en que llegaron.
+   * `registros` es su cantidad: se conserva porque es lo que ya consumían los
+   * clientes y porque un resumen no debería obligar a contar un array.
+   */
+  notas: NotaDetalle[];
 };
 
 export type ResumenCorte = {
@@ -97,6 +118,14 @@ export function calcularCorte(corte: CorteNumero, notas: NotaComponente[]): Resu
       promedio: redondear(promedio),
       registros: registros.length,
       aporte: redondear(promedio * peso),
+      notas: registros.map((n, indice) => ({
+        // Sin id de origen se sintetiza uno estable dentro del corte: el cliente
+        // necesita una clave para listar, y una nota sin persistir todavía no
+        // tiene _id.
+        id: n.id ?? `${corte}-${tipo}-${indice}`,
+        label: n.label?.trim() || 'Nota',
+        score: n.score,
+      })),
     };
   });
 
