@@ -176,6 +176,82 @@ class CutSummary {
       );
 }
 
+/// Lo que falta por calificar de un componente dentro de un corte.
+class PendingComponent {
+  final String component;
+  final int missing;
+  final int total;
+
+  const PendingComponent({
+    required this.component,
+    required this.missing,
+    required this.total,
+  });
+
+  factory PendingComponent.fromJson(Map<String, dynamic> json) =>
+      PendingComponent(
+        component: _toStr(json['componente']),
+        missing: _toInt(json['faltan']),
+        total: _toInt(json['total']),
+      );
+}
+
+class PendingCut {
+  final int cut;
+  final int missing;
+  final List<PendingComponent> components;
+
+  const PendingCut({
+    required this.cut,
+    required this.missing,
+    required this.components,
+  });
+
+  factory PendingCut.fromJson(Map<String, dynamic> json) => PendingCut(
+        cut: _toInt(json['corte']),
+        missing: _toInt(json['faltan']),
+        components: ((json['componentes'] as List?) ?? const [])
+            .map((e) =>
+                PendingComponent.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+      );
+}
+
+/// Trabajo pendiente de una materia.
+///
+/// Un docente no persigue promedios: persigue el cierre de corte. Esto responde
+/// la pregunta de esa semana —«¿qué me falta?»— con datos que el motor ya
+/// distinguía y que hasta ahora solo servían para no dar falsos positivos de
+/// riesgo.
+class PendingSubject {
+  final String subjectId;
+  final String name;
+  final String code;
+  final int enrolled;
+  final int missing;
+  final List<PendingCut> cuts;
+
+  const PendingSubject({
+    required this.subjectId,
+    required this.name,
+    required this.code,
+    required this.enrolled,
+    required this.missing,
+    required this.cuts,
+  });
+
+  factory PendingSubject.fromJson(Map<String, dynamic> json) => PendingSubject(
+        subjectId: _toStr(json['subjectId']),
+        name: _toStr(json['name'], 'Materia'),
+        code: _toStr(json['code']),
+        enrolled: _toInt(json['matriculados']),
+        missing: _toInt(json['faltan']),
+        cuts: ((json['cortes'] as List?) ?? const [])
+            .map((e) => PendingCut.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+      );
+}
+
 /// Fila del consolidado: nota final por estudiante.
 ///
 /// El cliente NUNCA recalcula esto. La rúbrica 30/60/10 y los pesos 33/33/34

@@ -138,6 +138,9 @@ class _GradesPageState extends ConsumerState<GradesPage> {
                     children: [
                       _Summary(rows: items),
                       const SizedBox(height: 14),
+                      // En la semana de cierre "qué me falta" pesa más que
+                      // "cuánto sacó cada uno".
+                      _PendingBanner(subjectId: _subjectId),
                       for (final row in filtered) ...[
                         _GradeRow(
                           row: row,
@@ -146,8 +149,12 @@ class _GradesPageState extends ConsumerState<GradesPage> {
                           onTap: () => showGradeBreakdown(
                             context,
                             row,
-                            () => ref
-                                .invalidate(consolidatedProvider(_subjectId)),
+                            () {
+                              ref.invalidate(consolidatedProvider(_subjectId));
+                              // Quitar una nota devuelve ese componente a la
+                              // lista de pendientes.
+                              ref.invalidate(pendingGradesProvider(_subjectId));
+                            },
                           ),
                         ),
                         const SizedBox(height: 10),
@@ -165,6 +172,74 @@ class _GradesPageState extends ConsumerState<GradesPage> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Aviso de trabajo pendiente.
+///
+/// Se calla mientras carga, si falla o si no hay nada: es una ayuda, no el
+/// contenido de la pantalla, y un esqueleto aquí solo empujaría la lista hacia
+/// abajo al llegar.
+class _PendingBanner extends ConsumerWidget {
+  final String? subjectId;
+  const _PendingBanner({required this.subjectId});
+
+  static const _shortLabels = <String, String>{
+    'TRABAJOS': 'Trabajos',
+    'PARCIALES': 'Parciales',
+    'AUTOEVALUACION': 'Autoev.',
+  };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pending = ref.watch(pendingGradesProvider(subjectId));
+
+    return pending.maybeWhen(
+      orElse: () => const SizedBox.shrink(),
+      data: (items) {
+        final conFaltantes = items.where((s) => s.missing > 0).toList();
+        if (conFaltantes.isEmpty) return const SizedBox.shrink();
+
+        final tone = SemanticTone.of(context, SemanticKind.warning);
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.assignment_late_outlined,
+                        size: 18, color: tone.fg),
+                    const SizedBox(width: 8),
+                    Text('Te falta por calificar',
+                        style: AppType.bodyStrong.copyWith(color: tone.fg)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                for (final materia in conFaltantes) ...[
+                  Text('${materia.name} · ${materia.missing} notas',
+                      style: AppType.caption
+                          .copyWith(fontWeight: FontWeight.w600)),
+                  for (final corte
+                      in materia.cuts.where((cut) => cut.missing > 0))
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8, top: 2),
+                      child: Text(
+                        'Corte ${corte.cut}: '
+                        '${corte.components.where((c) => c.missing > 0).map((c) => '${_shortLabels[c.component] ?? c.component} ${c.missing}/${c.total}').join(' · ')}',
+                        style: AppType.caption,
+                      ),
+                    ),
+                  const SizedBox(height: 6),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

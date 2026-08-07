@@ -113,6 +113,8 @@ class _UtsAppState extends ConsumerState<UtsApp> {
             ref.invalidate(subjectRosterProvider);
           case 'grade':
             ref.invalidate(consolidatedGradesProvider);
+            // Guardar o borrar una nota cambia lo que falta por calificar.
+            ref.invalidate(pendingGradesProvider);
             ref.invalidate(dashboardProvider);
           case 'attendance':
             ref.invalidate(dashboardProvider);

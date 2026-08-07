@@ -18,6 +18,21 @@ export function useConsolidated(scope: Scope & { period: string }, enabled = tru
   });
 }
 
+/**
+ * Lo que queda por calificar en el periodo.
+ *
+ * Es la pregunta de la semana de cierre —«¿qué me falta?»— y la respuesta ya
+ * estaba en los datos: el motor distingue «0.0» de «sin calificar», pero esa
+ * distinción solo se usaba para no dar falsos positivos de riesgo.
+ */
+export function usePendingGrades(period: string, subjectId?: string) {
+  return useQuery({
+    queryKey: queryKeys.grades.pending(period, subjectId),
+    queryFn: () => gradeRepository.pending(period, subjectId),
+    enabled: Boolean(period),
+  });
+}
+
 export function useGrades(scope: Scope, enabled = true) {
   return useQuery({
     queryKey: queryKeys.grades.list(scope),

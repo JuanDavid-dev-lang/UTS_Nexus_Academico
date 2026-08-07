@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { GradeModel } from '../../models/grade.model.js';
 import { StudentModel } from '../../models/student.model.js';
+import { SubjectModel } from '../../models/subject.model.js';
+import { EnrollmentModel } from '../../models/enrollment.model.js';
 import { identificar, requireRole } from '../../middlewares/auth.js';
 import { auditChange } from '../../shared/audit.js';
 import { emitToUser } from '../../shared/socket.js';
@@ -106,6 +108,110 @@ gradeRouter.get('/consolidado', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR',
         };
       })
       .sort((a, b) => a.fullName.localeCompare(b.fullName));
+
+    res.json({ ok: true, period: query.period, items });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Qué falta por calificar, por materia y corte.
+ *
+ * El motor ya distinguía «0.0» de «sin calificar» —`calcularPromedioParcial`
+ * renormaliza sobre los cortes con nota justamente para eso— pero esa
+ * información se usaba solo para no dar falsos positivos de riesgo y después se
+ * tiraba. Un docente no persigue promedios: persigue el cierre de corte, y la
+ * pregunta que se hace en esa semana es «¿qué me falta?».
+ *
+ * Se cuenta sobre los MATRICULADOS, no sobre quienes ya tienen alguna nota: un
+ * estudiante sin ninguna nota es precisamente el que no puede faltar de esta
+ * lista, y contar sobre las notas existentes lo haría invisible.
+ */
+gradeRouter.get('/pendientes', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
+  try {
+    const query = z.object({
+      period: z.string().min(4),
+      subjectId: z.string().optional(),
+    }).parse(req.query);
+
+    const matriculaFiltro: Record<string, unknown> = {
+      deletedAt: null,
+      period: query.period,
+      enrollmentStatus: 'ACTIVE',
+    };
+    if (query.subjectId) matriculaFiltro.subjectId = query.subjectId;
+    if (req.user?.role === 'PROFESSOR') matriculaFiltro.professorId = req.user.id;
+
+    const matriculas = await EnrollmentModel.find(matriculaFiltro)
+      .select('studentId subjectId')
+      .lean();
+
+    if (!matriculas.length) {
+      return res.json({ ok: true, period: query.period, items: [] });
+    }
+
+    const subjectIds = [...new Set(matriculas.map(m => String(m.subjectId)))];
+
+    const notasFiltro: Record<string, unknown> = {
+      deletedAt: null,
+      period: query.period,
+      subjectId: { $in: subjectIds },
+    };
+    if (req.user?.role === 'PROFESSOR') notasFiltro.teacherId = req.user.id;
+
+    const [notas, materias] = await Promise.all([
+      GradeModel.find(notasFiltro).select('studentId subjectId corte componentType').lean(),
+      SubjectModel.find({ _id: { $in: subjectIds } }).select('name code').lean(),
+    ]);
+
+    const nombrePorMateria = new Map(materias.map(m => [String(m._id), m]));
+
+    // Clave (materia|estudiante|corte|componente) -> ya tiene al menos una nota.
+    const calificado = new Set(
+      notas.map(n => `${String(n.subjectId)}|${String(n.studentId)}|${n.corte}|${n.componentType}`)
+    );
+
+    const estudiantesPorMateria = new Map<string, Set<string>>();
+    for (const matricula of matriculas) {
+      const clave = String(matricula.subjectId);
+      if (!estudiantesPorMateria.has(clave)) estudiantesPorMateria.set(clave, new Set());
+      estudiantesPorMateria.get(clave)!.add(String(matricula.studentId));
+    }
+
+    const componentes: ComponenteTipo[] = ['TRABAJOS', 'PARCIALES', 'AUTOEVALUACION'];
+    const cortes: CorteNumero[] = [1, 2, 3];
+
+    const items = subjectIds
+      .map(subjectId => {
+        const estudiantes = [...(estudiantesPorMateria.get(subjectId) ?? [])];
+        const materia = nombrePorMateria.get(subjectId);
+
+        const detalle = cortes.map(corte => {
+          const porComponente = componentes.map(tipo => {
+            const faltan = estudiantes.filter(
+              studentId => !calificado.has(`${subjectId}|${studentId}|${corte}|${tipo}`)
+            ).length;
+            return { componente: tipo, faltan, total: estudiantes.length };
+          });
+          return {
+            corte,
+            faltan: porComponente.reduce((sum, c) => sum + c.faltan, 0),
+            componentes: porComponente,
+          };
+        });
+
+        return {
+          subjectId,
+          name: materia?.name ?? 'Materia',
+          code: materia?.code ?? '',
+          matriculados: estudiantes.length,
+          faltan: detalle.reduce((sum, c) => sum + c.faltan, 0),
+          cortes: detalle,
+        };
+      })
+      // Primero la materia con más trabajo pendiente: es por donde hay que empezar.
+      .sort((a, b) => b.faltan - a.faltan || a.name.localeCompare(b.name));
 
     res.json({ ok: true, period: query.period, items });
   } catch (err) {

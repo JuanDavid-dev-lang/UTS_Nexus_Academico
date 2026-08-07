@@ -29,6 +29,7 @@ import {
   useEnrolledStudents,
   useSaveGrade,
 } from '@/features/grades/hooks/use-grades';
+import { PendingGradesCard } from '@/features/grades/components/pending-grades-card';
 import { StudentBreakdownDialog } from '@/features/grades/components/student-breakdown-dialog';
 import { useSubjects } from '@/features/subjects/hooks/use-subjects';
 import { useCurrentUser, useUserRole } from '@/state/session.store';
@@ -281,6 +282,10 @@ export default function GradesPage() {
           </Card>
         </div>
       ) : null}
+
+      {/* Antes de la tabla: en la semana de cierre, "qué me falta" pesa más que
+          "cuánto sacó cada uno". */}
+      <PendingGradesCard period={period} subjectId={subjectId || undefined} />
 
       {consolidated.isPending ? (
         <SkeletonTable rows={8} columns={6} />

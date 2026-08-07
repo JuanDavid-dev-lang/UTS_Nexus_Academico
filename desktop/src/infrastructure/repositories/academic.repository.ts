@@ -12,6 +12,7 @@ import {
   attendanceSchema,
   attendanceSummarySchema,
   consolidatedResponseSchema,
+  pendingResponseSchema,
   enrollmentSchema,
   gradeSchema,
   groupSchema,
@@ -165,6 +166,14 @@ export const gradeRepository: GradeRepository = {
     const data = await http.get('/grades/consolidado', {
       schema: consolidatedResponseSchema,
       query: scopeToQuery(scope),
+    });
+    return data.items;
+  },
+
+  async pending(period: string, subjectId?: string) {
+    const data = await http.get('/grades/pendientes', {
+      schema: pendingResponseSchema,
+      query: { period, ...(subjectId ? { subjectId } : {}) },
     });
     return data.items;
   },

@@ -41,6 +41,10 @@ export const queryKeys = {
     all: ['grades'] as const,
     list: (scope: Scope) => ['grades', 'list', scope] as const,
     consolidated: (scope: Scope) => ['grades', 'consolidated', scope] as const,
+    // Cuelga de `grades.all` a propósito: guardar o borrar una nota cambia lo
+    // que falta, así que se invalida con el mismo gesto que el consolidado.
+    pending: (period: string, subjectId?: string) =>
+      ['grades', 'pending', period, subjectId ?? null] as const,
   },
 
   attendance: {

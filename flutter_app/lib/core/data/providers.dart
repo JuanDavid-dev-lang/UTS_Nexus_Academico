@@ -95,6 +95,15 @@ final consolidatedProvider =
       .consolidated(period: period, subjectId: subjectId);
 });
 
+/// Lo que queda por calificar en el periodo seleccionado.
+final pendingGradesProvider =
+    FutureProvider.family<List<PendingSubject>, String?>((ref, subjectId) {
+  final period = ref.watch(selectedPeriodProvider);
+  return ref
+      .watch(academicRepositoryProvider)
+      .pendingGrades(period: period, subjectId: subjectId);
+});
+
 /// Estudiantes de una materia, con sus notas y su nivel de riesgo ya cruzados.
 ///
 /// Es el corazón de la navegación por materia: el docente entra a "Cálculo I" y

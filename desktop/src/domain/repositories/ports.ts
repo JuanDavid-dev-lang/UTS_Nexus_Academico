@@ -10,6 +10,7 @@
 import type {
   Attendance,
   ConsolidatedRow,
+  PendingSubject,
   Enrollment,
   Grade,
   GradeInput,
@@ -86,6 +87,8 @@ export interface EnrollmentRepository {
 export interface GradeRepository {
   list(scope: Scope): Promise<Grade[]>;
   consolidated(scope: Scope & { period: string }): Promise<ConsolidatedRow[]>;
+  /** Lo que queda por calificar, contado sobre los matriculados. */
+  pending(period: string, subjectId?: string): Promise<PendingSubject[]>;
   save(input: GradeInput): Promise<Grade>;
   remove(id: string): Promise<void>;
 }

@@ -161,6 +161,40 @@ export const consolidatedResponseSchema = z.object({
   items: z.array(consolidatedRowSchema),
 });
 
+/**
+ * Lo que falta por calificar, por materia y corte.
+ *
+ * Se cuenta sobre los matriculados, no sobre quien ya tiene alguna nota: el
+ * estudiante sin ninguna es justo el que no puede faltar de esta cuenta.
+ */
+export const pendingComponentSchema = z.object({
+  componente: componentType,
+  faltan: numberish,
+  total: numberish,
+});
+
+export const pendingCutSchema = z.object({
+  corte: numberish,
+  faltan: numberish,
+  componentes: z.array(pendingComponentSchema),
+});
+
+export const pendingSubjectSchema = z.object({
+  subjectId: objectId,
+  name: z.string(),
+  code: z.string(),
+  matriculados: numberish,
+  faltan: numberish,
+  cortes: z.array(pendingCutSchema),
+});
+export type PendingSubject = z.infer<typeof pendingSubjectSchema>;
+
+export const pendingResponseSchema = z.object({
+  ok: z.literal(true),
+  period: z.string(),
+  items: z.array(pendingSubjectSchema),
+});
+
 // ── Attendance ──────────────────────────────────────────────────────────────
 export const attendanceSchema = mongoDoc.extend({
   studentId: objectId,

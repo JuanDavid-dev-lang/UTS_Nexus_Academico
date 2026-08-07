@@ -72,6 +72,21 @@ class AcademicRepository {
     return _items(response.data).map(ConsolidatedRow.fromJson).toList();
   }
 
+  /// Lo que queda por calificar en el periodo, por materia y corte.
+  ///
+  /// Se cuenta sobre los matriculados: el estudiante sin ninguna nota es justo
+  /// el que no puede quedar fuera de la cuenta.
+  Future<List<PendingSubject>> pendingGrades({
+    required String period,
+    String? subjectId,
+  }) async {
+    final response = await _api.get('/grades/pendientes', query: {
+      'period': period,
+      if (subjectId != null) 'subjectId': subjectId,
+    });
+    return _items(response.data).map(PendingSubject.fromJson).toList();
+  }
+
   Future<List<RiskItem>> risks() async {
     final response = await _api.get('/analytics/risks');
     return _items(response.data).map(RiskItem.fromJson).toList();
