@@ -4,7 +4,8 @@
  * Single source of truth for colour, spacing, radius, elevation and motion.
  * Values mirror DESIGN.md so desktop, mobile and web stay visually identical.
  *
- * Institutional palette: deep green #144D37 (dominant) + lime #CAD225 (accent).
+ * Institutional palette. Light mode: deep green #0B5D3B for action over neutral
+ * greys, gold #F4C430 as accent. Dark mode keeps the olive/lime scale.
  * One colour means exactly one thing; never re-use a semantic colour for
  * decoration.
  */
@@ -12,57 +13,85 @@
 :root {
   color-scheme: light;
 
-  /* Brand */
-  --brand-green: #144d37;
-  --brand-green-strong: #0f3d2b;
-  --brand-lime: #cad225;
+  /*
+   * Modo claro institucional.
+   *
+   * El tema claro anterior teñía de verde TODO —fondo #f4f7f1, superficies
+   * #eaf0e6, texto #12271e— y usaba el lima #cad225 como acento. Un tinte de
+   * marca aplicado a superficies grandes no comunica identidad, satura: el ojo
+   * no tiene ningún neutro donde descansar y cada card compite con la
+   * siguiente. El lima encima es el color más luminoso de la paleta y en claro
+   * no puede llevar texto ni rellenar nada grande.
+   *
+   * Ahora los neutros son neutros y el verde aparece solo donde hay una acción.
+   * El oro sustituye al lima como acento: mismo papel de "mírame", sin el
+   * chillido, y con texto oscuro encima llega a 9.4:1.
+   */
 
-  /* Semantic surfaces */
-  --bg: #f4f7f1;
-  --bg-subtle: #eaf0e6;
+  /* Brand */
+  --brand-green: #0b5d3b;
+  --brand-green-strong: #08472e;
+  --brand-gold: #f4c430;
+
+  /* Semantic surfaces - neutros de verdad, sin tinte de marca */
+  --bg: #f7f8fa;
+  --bg-subtle: #f1f3f5;
   --surface: #ffffff;
-  --surface-alt: #eaf0e6;
-  --surface-hover: #e2ebdd;
-  --border: #d8e2d4;
-  --border-strong: #b9cbb2;
+  --surface-alt: #f1f3f5;
+  --surface-hover: #eceff3;
+  --border: #e4e7ec;
+  --border-strong: #d0d5dd;
 
   /* Text */
-  --text: #12271e;
-  --text-muted: #5b6b61;
+  --text: #1f2937;
+  /*
+   * El escalón más claro de la guía (#98a2b3) se queda en 2.8:1 sobre blanco.
+   * Este token no es decorativo: lo llevan subtítulos, ayudas de campo y
+   * leyendas, que son texto real y tienen que pasar AA. Se usa el escalón
+   * inmediatamente superior, 5.3:1.
+   */
+  --text-muted: #667085;
   --text-inverted: #ffffff;
 
   /* Interactive */
-  --primary: #144d37;
-  --primary-hover: #1c6b4c;
-  --primary-active: #0f3d2b;
+  --primary: #0b5d3b;
+  --primary-hover: #0e7549;
+  --primary-active: #08472e;
   --on-primary: #ffffff;
-  --accent: #cad225;
-  --accent-secondary: #999e3c;
-  --accent-soft: #f1f6ce;
-  --on-accent: #12271e;
+  --accent: #f4c430;
+  --accent-secondary: #c79e00;
+  --accent-soft: #fff8d9;
+  --on-accent: #1f2937;
 
-  /* Status - each has a solid tone for text/icon and a soft tone for fills */
-  --success: #16a34a;
-  --success-soft: #dcfce7;
-  --warning: #b45309;
-  --warning-soft: #fef3c7;
-  --danger: #dc2626;
-  --danger-soft: #fee2e2;
-  --info: #0e7490;
-  --info-soft: #cff4fa;
+  /*
+   * Status - tono sólido para texto/icono y tono suave para relleno.
+   *
+   * Los hex de la guía (#12b76a, #f79009, #2e90fa) están elegidos como color de
+   * RELLENO: sobre blanco caen a 2.2-3.1:1 y como texto son ilegibles. Se toma
+   * el escalón 700 de esa misma rampa, que conserva el tono y pasa AA. El rojo
+   * sí se queda en el valor de la guía porque ya llega a 4.8:1.
+   */
+  --success: #067647;
+  --success-soft: #ecfdf3;
+  --warning: #b54708;
+  --warning-soft: #fffaeb;
+  --danger: #d92d20;
+  --danger-soft: #fef3f2;
+  --info: #175cd3;
+  --info-soft: #eff8ff;
 
   /* Focus ring - must stay visible on every surface */
-  --ring: #1c6b4c;
+  --ring: #0b5d3b;
 
-  /* Elevation */
-  --shadow-sm: 0 1px 2px rgb(18 39 30 / 0.06);
-  --shadow-md: 0 4px 16px rgb(18 39 30 / 0.08);
-  --shadow-lg: 0 12px 32px rgb(18 39 30 / 0.12);
-  --shadow-pop: 0 16px 48px rgb(18 39 30 / 0.18);
+  /* Elevation - sombras neutras y suaves, no verdosas */
+  --shadow-sm: 0 1px 2px rgb(16 24 40 / 0.05);
+  --shadow-md: 0 4px 12px rgb(16 24 40 / 0.08);
+  --shadow-lg: 0 12px 32px rgb(16 24 40 / 0.12);
+  --shadow-pop: 0 16px 48px rgb(16 24 40 / 0.18);
 
   /* Glass surfaces */
   --glass-bg: rgb(255 255 255 / 0.72);
-  --glass-border: rgb(216 226 212 / 0.8);
+  --glass-border: rgb(228 231 236 / 0.8);
 
   /* Radius scale. --radius-card is the one DESIGN.md S7 fixes at 18px; the rest
      is the surrounding ramp for smaller and larger corners. */

@@ -5,32 +5,46 @@ import 'package:flutter/material.dart';
 /// Implementa los tokens de DESIGN.md: paleta institucional, colores
 /// semánticos, espaciado y radios. Un color = un significado.
 class AppColors {
-  // Marca UTS (DESIGN.md §4): verde #144D37 dominante + lima #CAD225 acento.
-  static const primary = Color(0xFF144D37); // Verde institucional
-  static const secondary = Color(0xFFCAD225); // Lima (acento / lettering)
-  static const lime = Color(0xFFCAD225);
-  static const success = Color(0xFF16A34A); // Aprobado / riesgo bajo
-  static const warning = Color(0xFFD97706); // Riesgo medio (ámbar, ≠ lima)
-  static const danger = Color(0xFFDC2626); // Riesgo alto / error
-  static const info = Color(0xFF0E7490); // Informativo
+  // ── Modo claro — institucional ─────────────────────────────────────────
+  // El tema claro anterior teñía de verde todo: fondo #F4F7F1, superficies
+  // #EAF0E6, texto #12271E, y el lima #CAD225 como acento. Un tinte de marca
+  // sobre superficies grandes no comunica identidad, satura: el ojo no tiene
+  // ningún neutro donde descansar. Ahora los neutros son neutros y el verde
+  // aparece solo donde hay una acción. El oro sustituye al lima como acento:
+  // mismo papel de «mírame», sin el chillido.
+  static const primary = Color(0xFF0B5D3B); // Verde institucional
+  static const secondary = Color(0xFFF4C430); // Oro (acento en claro)
+  static const lime = Color(0xFFCAD225); // Solo modo oscuro
+  // Semilla histórica del esquema oscuro. `ColorScheme.fromSeed` deriva de ella
+  // los tonos que el `copyWith` no fija (contenedores, surfaceTint, terciarios),
+  // así que si el oscuro tomara la semilla de `primary` cambiaría al repintar el
+  // claro. Se conserva aparte justamente para que no lo haga.
+  static const seedDark = Color(0xFF144D37);
+  static const success = Color(0xFF067647); // Aprobado / riesgo bajo
+  static const warning = Color(0xFFB54708); // Riesgo medio (ámbar, ≠ oro)
+  static const danger = Color(0xFFD92D20); // Riesgo alto / error
+  static const info = Color(0xFF175CD3); // Informativo
 
   // Neutros (claro)
-  static const bg = Color(0xFFF4F7F1); // Fondo general (tinte verde suave)
+  static const bg = Color(0xFFF7F8FA); // Fondo general
   static const surface = Color(0xFFFFFFFF); // Cards
-  static const surfaceAlt = Color(0xFFEAF0E6); // Cabeceras / chips
-  static const border = Color(0xFFD8E2D4); // Bordes sutiles
-  static const text = Color(0xFF12271E); // Texto principal (verdoso)
-  static const textMuted = Color(0xFF5B6B61); // Texto secundario
+  static const surfaceAlt = Color(0xFFF1F3F5); // Cabeceras / chips
+  static const border = Color(0xFFE4E7EC); // Bordes sutiles
+  static const text = Color(0xFF1F2937); // Texto principal
+  // El escalón más claro de la guía (#98A2B3) se queda en 2.8:1 sobre blanco.
+  // Este token lo llevan subtítulos y ayudas de campo, que son texto real y
+  // tienen que pasar AA: se usa el inmediatamente superior, 5.3:1.
+  static const textMuted = Color(0xFF667085); // Texto secundario
 
   // Fondos suaves para badges
-  static const successSoft = Color(0xFFDCFCE7);
-  static const warningSoft = Color(0xFFFEF3C7);
-  static const dangerSoft = Color(0xFFFEE2E2);
-  static const infoSoft = Color(0xFFCFF4FA);
-  static const accentSoft = Color(0xFFF1F6CE); // Lima suave
+  static const successSoft = Color(0xFFECFDF3);
+  static const warningSoft = Color(0xFFFFFAEB);
+  static const dangerSoft = Color(0xFFFEF3F2);
+  static const infoSoft = Color(0xFFEFF8FF);
+  static const accentSoft = Color(0xFFFFF8D9); // Oro suave
 
   // Ámbar oscuro para texto de riesgo medio (contraste AA sobre fondo claro)
-  static const warningText = Color(0xFFB45309);
+  static const warningText = Color(0xFFB54708);
 
   // Acento secundario (DESIGN.md §4): hover de botones secundarios, iconos
   // relevantes pero inactivos, barras de progreso secundarias.
@@ -237,7 +251,7 @@ class AppTheme {
 
   static ThemeData get dark {
     final scheme = ColorScheme.fromSeed(
-      seedColor: AppColors.primary,
+      seedColor: AppColors.seedDark,
       brightness: Brightness.dark,
     ).copyWith(
       primary: AppColors.lime, // La lima es el acento principal en oscuro
