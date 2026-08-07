@@ -34,6 +34,23 @@ export const env = {
   ML_BASE_URL: process.env.ML_BASE_URL ?? 'http://127.0.0.1:8100',
   /** '0' lo desactiva y el backend usa solo el motor de reglas. */
   ML_ENABLED: !['0', 'false', 'no'].includes((process.env.ML_ENABLED ?? '1').toLowerCase()),
+  // ── Correo saliente ────────────────────────────────────────────────────
+  // Sin SMTP_HOST el envío queda desactivado y se registra en el log, igual
+  // que hace el servicio ML: una instalación local no debería tener que
+  // configurar un servidor de correo para arrancar.
+  SMTP_HOST: process.env.SMTP_HOST ?? '',
+  SMTP_PORT: Number(process.env.SMTP_PORT ?? 587),
+  SMTP_USER: process.env.SMTP_USER ?? '',
+  SMTP_PASS: process.env.SMTP_PASS ?? '',
+  SMTP_FROM: process.env.SMTP_FROM ?? 'UTS Nexus Académico <no-reply@uts.edu.co>',
+  /** `1` fuerza TLS directo (puerto 465). Por defecto STARTTLS. */
+  SMTP_SECURE: ['1', 'true', 'yes'].includes((process.env.SMTP_SECURE ?? '').toLowerCase()),
+
+  /** Repositorio público de instaladores que se consulta para avisar de versiones. */
+  RELEASES_REPO: process.env.RELEASES_REPO ?? 'JuanDavid-dev-lang/UTS_Nexus_Releases',
+  /** Horas entre comprobaciones de versión nueva. 0 = desactivado. */
+  RELEASE_CHECK_INTERVAL_H: Number(process.env.RELEASE_CHECK_INTERVAL_H ?? 0),
+
   /** `production` activa las comprobaciones de abajo. */
   NODE_ENV: process.env.NODE_ENV ?? 'development',
 };

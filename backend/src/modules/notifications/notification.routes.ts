@@ -4,6 +4,7 @@ import { NotificationModel } from '../../models/notification.model.js';
 import { identificar, requireRole } from '../../middlewares/auth.js';
 import { emitSync, emitToUser } from '../../shared/socket.js';
 import { generateRiskNotifications } from './risk-notifier.service.js';
+import { notificarVersionNueva } from './release-notifier.service.js';
 
 export const notificationRouter = Router();
 notificationRouter.use(identificar);
@@ -28,6 +29,22 @@ notificationRouter.post('/risks/scan', requireRole('ADMIN', 'PROFESSOR', 'COORDI
       teacherId: req.user?.role === 'PROFESSOR' ? req.user.id : undefined,
       period,
     });
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Comprueba si hay versión nueva y avisa al claustro.
+ *
+ * Solo ADMIN: manda un correo a todos los docentes aprobados, y eso no es una
+ * acción que deba poder disparar cualquiera. Existe además del temporizador
+ * para poder anunciar una publicación en el momento, sin esperar al ciclo.
+ */
+notificationRouter.post('/version/check', requireRole('ADMIN'), async (_req, res, next) => {
+  try {
+    const result = await notificarVersionNueva();
     res.json({ ok: true, ...result });
   } catch (err) {
     next(err);

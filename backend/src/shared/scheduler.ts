@@ -6,8 +6,53 @@
  */
 import { env } from './env.js';
 import { generateRiskNotifications } from '../modules/notifications/risk-notifier.service.js';
+import { notificarVersionNueva } from '../modules/notifications/release-notifier.service.js';
 
 let timer: NodeJS.Timeout | null = null;
+let releaseTimer: NodeJS.Timeout | null = null;
+
+/**
+ * Comprobación periódica de versión nueva.
+ *
+ * Se separa del escaneo de riesgo porque su ritmo es otro: el riesgo interesa
+ * cada pocas horas, una publicación cada varias. Compartir intervalo obligaría
+ * a elegir el más agresivo de los dos y a consultar GitHub sin motivo.
+ */
+export function startReleaseWatcher() {
+  if (releaseTimer) return;
+  const horas = env.RELEASE_CHECK_INTERVAL_H;
+  if (!horas || horas <= 0) {
+    console.log('Aviso de versiones desactivado (RELEASE_CHECK_INTERVAL_H=0).');
+    return;
+  }
+
+  const run = async () => {
+    try {
+      const resultado = await notificarVersionNueva();
+      if (!resultado.sinCambios) {
+        console.log(
+          `[version] ${resultado.version}: ${resultado.avisados} docentes avisados` +
+            (resultado.correoEnviado ? ' (correo enviado).' : ' (sin correo).')
+        );
+      }
+    } catch (err) {
+      console.error('[version] fallo comprobando publicaciones:', err);
+    }
+  };
+
+  releaseTimer = setInterval(run, horas * 60 * 60 * 1000);
+  console.log(`Aviso de versiones activo cada ${horas} h.`);
+  // Diferido como el de riesgo: el arranque no debe esperar a una petición
+  // de red hacia fuera.
+  setTimeout(run, 30 * 1000);
+}
+
+export function stopReleaseWatcher() {
+  if (releaseTimer) {
+    clearInterval(releaseTimer);
+    releaseTimer = null;
+  }
+}
 
 export function startScheduler() {
   if (timer) return;
