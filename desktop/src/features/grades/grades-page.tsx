@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Save } from 'lucide-react';
+import { ListTree, Plus, Save } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -29,6 +29,7 @@ import {
   useEnrolledStudents,
   useSaveGrade,
 } from '@/features/grades/hooks/use-grades';
+import { StudentBreakdownDialog } from '@/features/grades/components/student-breakdown-dialog';
 import { useSubjects } from '@/features/subjects/hooks/use-subjects';
 import { useCurrentUser, useUserRole } from '@/state/session.store';
 import { can } from '@/core/auth/permissions';
@@ -56,6 +57,7 @@ export default function GradesPage() {
   const [period, setPeriod] = useState(currentPeriod());
   const [subjectId, setSubjectId] = useState('');
   const [captureOpen, setCaptureOpen] = useState(false);
+  const [desglose, setDesglose] = useState<ConsolidatedRow | null>(null);
 
   const user = useCurrentUser();
   const role = useUserRole();
@@ -150,6 +152,22 @@ export default function GradesPage() {
           ) : (
             <Badge tone="warning">En curso</Badge>
           ),
+      },
+      {
+        key: 'breakdown',
+        header: '',
+        width: '48px',
+        align: 'center',
+        cell: (row) => (
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={`Ver el desglose de ${row.fullName}`}
+            onClick={() => setDesglose(row)}
+          >
+            <ListTree className="size-4" aria-hidden />
+          </Button>
+        ),
       },
     ],
     [],
@@ -290,6 +308,13 @@ export default function GradesPage() {
         students={enrolled.data}
         onSave={(input) => saveGrade.mutate(input, { onSuccess: () => setCaptureOpen(false) })}
         saving={saveGrade.isPending}
+      />
+
+      {/* La fila del consolidado dice cuánto sacó; esto, de qué notas salió. */}
+      <StudentBreakdownDialog
+        row={desglose}
+        onOpenChange={(open) => !open && setDesglose(null)}
+        canWrite={canWrite}
       />
     </PageContainer>
   );

@@ -95,21 +95,84 @@ class Enrollment {
 }
 
 /// Resumen de un corte, tal como lo calcula el motor del backend.
+/// Una nota concreta dentro de un componente, con el motivo que le puso el
+/// docente («Taller 2», «Parcial 1»).
+class GradeDetail {
+  final String id;
+  final String label;
+  final double score;
+
+  const GradeDetail({
+    required this.id,
+    required this.label,
+    required this.score,
+  });
+
+  factory GradeDetail.fromJson(Map<String, dynamic> json) => GradeDetail(
+        id: _toStr(json['id']),
+        label: _toStr(json['label'], 'Nota'),
+        score: _toDouble(json['score']),
+      );
+}
+
+/// Un componente del corte (trabajos 30%, parciales 60%, autoevaluación 10%).
+///
+/// El promedio es la suma de [notes] dividida por su cantidad. Se trae la lista
+/// completa para poder mostrar la cuenta: un componente reducido a un número y
+/// un contador no deja ver cuál de las notas está mal digitada.
+class ComponentSummary {
+  final String type;
+  final double weight;
+  final double average;
+  final int count;
+  final List<GradeDetail> notes;
+
+  const ComponentSummary({
+    required this.type,
+    required this.weight,
+    required this.average,
+    required this.count,
+    required this.notes,
+  });
+
+  factory ComponentSummary.fromJson(Map<String, dynamic> json) =>
+      ComponentSummary(
+        type: _toStr(json['tipo']),
+        weight: _toDouble(json['peso']),
+        average: _toDouble(json['promedio']),
+        count: _toInt(json['registros']),
+        // Ausente si el servidor es anterior a este campo: se ve sin desglose,
+        // no revienta.
+        notes: ((json['notas'] as List?) ?? const [])
+            .map((e) => GradeDetail.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+      );
+}
+
 class CutSummary {
   final int cut;
+  final double weight;
   final double grade;
   final bool complete;
+  final List<ComponentSummary> components;
 
   const CutSummary({
     required this.cut,
+    required this.weight,
     required this.grade,
     required this.complete,
+    required this.components,
   });
 
   factory CutSummary.fromJson(Map<String, dynamic> json) => CutSummary(
         cut: _toInt(json['corte']),
+        weight: _toDouble(json['peso']),
         grade: _toDouble(json['nota']),
         complete: json['completo'] == true,
+        components: ((json['componentes'] as List?) ?? const [])
+            .map((e) =>
+                ComponentSummary.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
       );
 }
 

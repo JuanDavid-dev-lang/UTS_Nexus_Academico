@@ -143,6 +143,14 @@ class AcademicRepository {
     });
   }
 
+  /// Elimina una nota concreta.
+  ///
+  /// Quitar una nota recalcula el promedio de su componente y, con él, la nota
+  /// del corte y la final: es una corrección, no un borrado cosmético.
+  Future<void> deleteGrade(String id) async {
+    await _api.delete('/grades/$id');
+  }
+
   /// Descarga un reporte como bytes.
   ///
   /// La versión anterior pedía el archivo y descartaba la respuesta, mostrando

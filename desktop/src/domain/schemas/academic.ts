@@ -111,6 +111,14 @@ export const gradeInputSchema = z.object({
 });
 export type GradeInput = z.infer<typeof gradeInputSchema>;
 
+/** Una nota concreta dentro de un componente, con el motivo que le puso el docente. */
+export const gradeDetailSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  score: numberish,
+});
+export type GradeDetail = z.infer<typeof gradeDetailSchema>;
+
 /** Per-component breakdown returned by the canonical grading engine. */
 export const componentSummarySchema = z.object({
   tipo: componentType,
@@ -118,6 +126,12 @@ export const componentSummarySchema = z.object({
   promedio: numberish,
   registros: numberish,
   aporte: numberish,
+  /*
+   * Las notas que produjeron el promedio. Opcional con defecto vacío porque un
+   * servidor anterior a este campo sigue respondiendo sin él: el consolidado se
+   * vería sin desglose, no fallaría el contrato.
+   */
+  notas: z.array(gradeDetailSchema).optional().default([]),
 });
 
 export const cutSummarySchema = z.object({

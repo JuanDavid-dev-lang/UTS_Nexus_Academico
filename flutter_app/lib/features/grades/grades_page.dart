@@ -8,6 +8,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/period_selector.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
+import 'grade_breakdown_sheet.dart';
 
 /// Se conserva el nombre por compatibilidad con las invalidaciones que dispara
 /// la sincronización en tiempo real.
@@ -138,7 +139,17 @@ class _GradesPageState extends ConsumerState<GradesPage> {
                       _Summary(rows: items),
                       const SizedBox(height: 14),
                       for (final row in filtered) ...[
-                        _GradeRow(row: row),
+                        _GradeRow(
+                          row: row,
+                          // Tocar la fila abre de qué notas sale cada promedio,
+                          // que es donde se corrige la que está mal digitada.
+                          onTap: () => showGradeBreakdown(
+                            context,
+                            row,
+                            () => ref
+                                .invalidate(consolidatedProvider(_subjectId)),
+                          ),
+                        ),
                         const SizedBox(height: 10),
                       ],
                       const SizedBox(height: 6),
@@ -207,7 +218,8 @@ class _Summary extends StatelessWidget {
 
 class _GradeRow extends StatelessWidget {
   final ConsolidatedRow row;
-  const _GradeRow({required this.row});
+  final VoidCallback onTap;
+  const _GradeRow({required this.row, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -216,6 +228,7 @@ class _GradeRow extends StatelessWidget {
     final hasGrades = row.finalGrade > 0;
 
     return AppCard(
+      onTap: onTap,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

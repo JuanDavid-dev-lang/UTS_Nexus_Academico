@@ -77,3 +77,26 @@ export function useSaveGrade() {
     },
   });
 }
+
+/**
+ * Borra una nota concreta de un componente.
+ *
+ * Quitar una nota cambia el promedio del componente y con él la del corte y la
+ * final, así que invalida lo mismo que guardarla. El riesgo también: un taller
+ * mal puesto puede ser justo lo que tenía a alguien marcado.
+ */
+export function useDeleteGrade() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => gradeRepository.remove(id),
+    onSuccess() {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.grades.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all });
+      toast.success('Nota eliminada');
+    },
+    onError(error) {
+      toast.fromError(error, 'No se pudo eliminar la nota');
+    },
+  });
+}
