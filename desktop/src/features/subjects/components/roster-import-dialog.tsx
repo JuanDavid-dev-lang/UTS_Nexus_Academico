@@ -15,6 +15,8 @@ import {
 } from '@/shared/ui';
 import { NativeSelect } from '@/shared/ui';
 import { parseRoster } from '@/domain/roster/parse-roster';
+import { enrollmentRepository } from '@/infrastructure/repositories/academic.repository';
+import { toast } from '@/state/toast.store';
 import { useStudents, useStudentSearch } from '@/features/students/hooks/use-students';
 import { useDebounce } from '@/shared/hooks/use-debounce';
 import { useEnrollStudent, useImportRoster } from '../hooks/use-enrollment';
@@ -39,6 +41,7 @@ export function RosterImportDialog({ open, onOpenChange, subjectId, subjectName 
   const [text, setText] = useState('');
   const [term, setTerm] = useState('');
   const [chosenGroup, setChosenGroup] = useState('');
+  const [leyendo, setLeyendo] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const debouncedTerm = useDebounce(term, 300);
@@ -64,9 +67,72 @@ export function RosterImportDialog({ open, onOpenChange, subjectId, subjectName 
 
   const parsed = useMemo(() => parseRoster(text), [text]);
 
+  /**
+   * Un CSV se lee aquí; un PDF o una foto los interpreta el servidor.
+   *
+   * El resultado del reconocimiento cae en el MISMO cuadro de texto que la
+   * lista pegada a mano, y por eso pasa por la misma revisión antes de
+   * importarse. Es deliberado: una cédula mal leída no da error, crea un
+   * estudiante que no existe y lo matricula, y eso se descubre semanas después
+   * cuando alguien no aparece en el consolidado.
+   */
   async function handleFile(file: File | undefined) {
     if (!file) return;
-    setText(await file.text());
+
+    const esTexto = /\.(csv|txt|tsv)$/i.test(file.name);
+    if (esTexto) {
+      setText(await file.text());
+      return;
+    }
+
+    if (!groupId) {
+      toast.warning('Elige primero el grupo', 'La lista se importa a un grupo concreto.');
+      return;
+    }
+
+    setLeyendo(true);
+    try {
+      const lectura = await enrollmentRepository.scanRoster(groupId, file);
+
+      /*
+       * Se vuelca como texto para que el docente lo corrija donde ya sabe
+       * corregir. Sin marcas dentro de la línea: `parseRoster` divide por
+       * delimitador y cualquier anotación acabaría dentro del programa del
+       * último estudiante. Las dudosas se nombran en el aviso, que es donde no
+       * estorban.
+       */
+      setText(
+        lectura.filas
+          .map((fila) =>
+            [fila.code, fila.fullName, fila.email ?? '', fila.program ?? '']
+              .filter(Boolean)
+              .join(';'),
+          )
+          .join('\n'),
+      );
+
+      const dudosas = lectura.filas.filter((fila) => fila.confianza < 0.7);
+      if (dudosas.length > 0) {
+        toast.warning(
+          `${lectura.filas.length} filas leídas, ${dudosas.length} dudosas`,
+          `Revisa: ${dudosas
+            .slice(0, 3)
+            .map((fila) => fila.fullName || fila.code || 'fila sin datos')
+            .join(', ')}${dudosas.length > 3 ? '…' : ''}`,
+        );
+      } else {
+        toast.success(
+          `${lectura.filas.length} estudiantes leídos`,
+          lectura.origen === 'pdf-texto'
+            ? 'El PDF traía texto, así que no hubo reconocimiento que pueda fallar.'
+            : 'Revisa la lista antes de importar.',
+        );
+      }
+    } catch (error) {
+      toast.fromError(error, 'No se pudo leer el archivo');
+    } finally {
+      setLeyendo(false);
+    }
   }
 
   function close() {
@@ -122,13 +188,24 @@ export function RosterImportDialog({ open, onOpenChange, subjectId, subjectName 
               <input
                 ref={fileInput}
                 type="file"
-                accept=".csv,.txt,.tsv"
+                accept=".csv,.txt,.tsv,.pdf,image/*"
                 className="hidden"
-                onChange={(event) => void handleFile(event.target.files?.[0])}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  // Se limpia para que elegir el mismo archivo otra vez vuelva
+                  // a disparar el evento.
+                  event.target.value = '';
+                  void handleFile(file);
+                }}
               />
-              <Button variant="secondary" size="sm" onClick={() => fileInput.current?.click()}>
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={leyendo}
+                onClick={() => fileInput.current?.click()}
+              >
                 <FileUp className="size-4" aria-hidden />
-                Abrir archivo CSV
+                Abrir CSV, PDF o foto
               </Button>
               <span className="text-caption text-muted">o pega la lista abajo</span>
             </div>

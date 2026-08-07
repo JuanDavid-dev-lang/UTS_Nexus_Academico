@@ -81,6 +81,25 @@ export interface EnrollmentRepository {
    * lo matricula en el grupo. Devuelve cuántos quedaron matriculados.
    */
   importRoster(input: { groupId: string; students: RosterRow[] }): Promise<number>;
+  /**
+   * Lee un listado desde un PDF o una foto. Solo PROPONE: la escritura sigue
+   * siendo `importRoster`, con lo que el docente ya revisó.
+   */
+  scanRoster(
+    groupId: string,
+    file: File,
+  ): Promise<{
+    origen: string;
+    avisos: string[];
+    filas: Array<{
+      code: string;
+      fullName: string;
+      email?: string;
+      program?: string;
+      confianza: number;
+      avisos: string[];
+    }>;
+  }>;
   /** Retira una matrícula (baja lógica, no borra al estudiante). */
   remove(id: string): Promise<void>;
 }

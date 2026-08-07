@@ -70,6 +70,11 @@ python -m venv .venv
 - `GET /students/search` es el directorio global (identidad mínima: cédula, nombre, programa) y existe para poder matricular a alguien que aún no es tuyo. Exige 3 caracteres y tope de 50. **No devuelve notas, asistencia ni riesgo** — si algún día hace falta más campo, revisa primero si no estás filtrando el expediente de un estudiante ajeno.
 - Los endpoints por id (`GET /students/:id`, `PATCH /students/:id`) comprueban el alcance con `professorOwnsStudent()`. Filtrar solo el listado deja la ficha accesible a quien copie un id.
 
+### Importación de listados
+Un listado de estudiantes se puede pegar como texto, subir como CSV o **leer de un PDF o una foto**. Los dos últimos pasan por `POST /enrollments/import/scan`, que reenvía el archivo a `/vision/roster` del servicio ML y devuelve una **propuesta con confianza por fila** — nunca escribe. La escritura sigue siendo `POST /enrollments/bulk` con lo que el docente ya revisó, y en el escritorio la lectura cae en el mismo cuadro de texto que la lista pegada a mano para que pase por la misma revisión.
+
+Un PDF con capa de texto se lee tal cual (confianza 1.0, sin reconocimiento que pueda fallar); uno escaneado pide que lo manden como foto en vez de adivinar. **Separar proponer de escribir no es ceremonia**: una cédula mal reconocida no da error, crea un estudiante que no existe y lo matricula, y eso se descubre semanas después cuando alguien no aparece en el consolidado.
+
 ### Modelo de datos
 `Estudiante` existe globalmente por cédula. `Matrícula` lo vincula a un grupo de una materia en un semestre (`2026-1`/`2026-2`). Nota atómica por (estudiante, materia, corte, componente). Asistencia registra minutos reales por clase.
 

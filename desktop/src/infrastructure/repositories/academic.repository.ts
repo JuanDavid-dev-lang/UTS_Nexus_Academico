@@ -6,7 +6,7 @@
  * competing with the backend's grading engine.
  */
 import { z } from 'zod';
-import { http } from '@/core/api/http-client';
+import { http, request } from '@/core/api/http-client';
 import { itemResponse, itemsResponse, okResponse } from '@/domain/schemas/common';
 import {
   attendanceSchema,
@@ -59,6 +59,29 @@ const enrollmentsResponse = itemsResponse(enrollmentSchema);
 const enrollmentResponse = itemResponse(enrollmentSchema);
 const directoryResponse = itemsResponse(studentDirectoryEntrySchema);
 const importResponse = z.object({ ok: z.literal(true), count: z.number() });
+
+/**
+ * Propuesta de listado leído de un PDF o una foto.
+ *
+ * Cada fila trae su confianza porque no todas valen lo mismo: un PDF con capa
+ * de texto llega en 1.0 —no hubo reconocimiento que pueda fallar— y una foto
+ * llega con lo que el OCR crea. Esa diferencia es la que decide qué revisar.
+ */
+const rosterScanResponse = z.object({
+  ok: z.literal(true),
+  origen: z.string(),
+  avisos: z.array(z.string()).default([]),
+  filas: z.array(
+    z.object({
+      code: z.string(),
+      fullName: z.string(),
+      email: z.string().optional(),
+      program: z.string().optional(),
+      confianza: z.number(),
+      avisos: z.array(z.string()).default([]),
+    }),
+  ),
+});
 
 function scopeToQuery(scope: Scope): Record<string, string | undefined> {
   return {
@@ -146,6 +169,27 @@ export const enrollmentRepository: EnrollmentRepository = {
   async importRoster(input: { groupId: string; students: RosterRow[] }) {
     const data = await http.post('/enrollments/bulk', input, { schema: importResponse });
     return data.count;
+  },
+
+  /**
+   * Lee un listado desde un PDF o una foto. Solo PROPONE.
+   *
+   * La escritura sigue siendo `importRoster`, con lo que el docente revisó: una
+   * cédula mal reconocida no da error, crea un estudiante que no existe y lo
+   * matricula.
+   */
+  async scanRoster(groupId: string, file: File) {
+    const body = new FormData();
+    body.append('groupId', groupId);
+    body.append('file', file);
+    return request('/enrollments/import/scan', {
+      method: 'POST',
+      body,
+      schema: rosterScanResponse,
+      // El reconocimiento de una hoja tarda: el tiempo normal de petición se
+      // queda corto y cortaría una lectura que iba bien.
+      timeoutMs: 90_000,
+    });
   },
 
   async remove(id: string) {

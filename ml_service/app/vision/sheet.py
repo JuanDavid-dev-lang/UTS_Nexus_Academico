@@ -387,6 +387,60 @@ class LectorTexto:
         media = sum(confianzas) / len(confianzas) if confianzas else 0.0
         return " ".join(partes).strip(), media
 
+    def leer_lineas(self, imagen: np.ndarray) -> list[tuple[str, float]]:
+        """
+        Devuelve el texto agrupado por renglones, cada uno con su confianza.
+
+        `leer` junta toda la página en una sola cadena, que sirve para una celda
+        pero no para un listado: en una lista de estudiantes el renglón ES el
+        registro, y perder esa separación deja treinta cédulas y treinta nombres
+        revueltos sin forma de emparejarlos.
+        """
+        self._cargar()
+        if self._motor is None or imagen.size == 0:
+            return []
+
+        try:
+            resultado, _ = self._motor(imagen)
+        except Exception as error:  # pragma: no cover
+            logger.warning("Fallo leyendo la imagen: %s", error)
+            return []
+
+        if not resultado:
+            return []
+
+        # La tolerancia sale del alto de la imagen: en una hoja de treinta filas
+        # los renglones están mucho más juntos que en el recorte de una celda.
+        tolerancia = max(imagen.shape[0] / 60, 8)
+        conCentro = [(d, _centro(d)) for d in resultado]
+        utiles = [(d, c) for d, c in conCentro if c is not None]
+        if not utiles:
+            return []
+
+        utiles.sort(key=lambda par: par[1][1])
+
+        renglones: list[list[tuple]] = [[utiles[0]]]
+        for deteccion, centro in utiles[1:]:
+            referencia = renglones[-1][0][1][1]
+            if abs(centro[1] - referencia) <= tolerancia:
+                renglones[-1].append((deteccion, centro))
+            else:
+                renglones.append([(deteccion, centro)])
+
+        lineas: list[tuple[str, float]] = []
+        for renglon in renglones:
+            renglon.sort(key=lambda par: par[1][0])
+            # Separador ancho entre fragmentos: es lo que después permite
+            # distinguir columnas sin conocer su posición exacta.
+            texto = "   ".join(str(d[1]) for d, _ in renglon).strip()
+            confianzas_fila = [float(d[2]) for d, _ in renglon if len(d) > 2]
+            media_fila = (
+                sum(confianzas_fila) / len(confianzas_fila) if confianzas_fila else 0.0
+            )
+            if texto:
+                lineas.append((texto, media_fila))
+        return lineas
+
 
 _lector = LectorTexto()
 
