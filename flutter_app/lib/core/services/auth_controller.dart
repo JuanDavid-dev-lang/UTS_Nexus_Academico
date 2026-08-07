@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../data/offline_cache.dart';
 import '../models/auth_user.dart';
 import 'connection_settings.dart';
 import 'api_client.dart';
@@ -112,6 +113,10 @@ class AuthController extends StateNotifier<AuthState> {
 
   Future<void> logout() async {
     await _storage.clear();
+    // Los datos cacheados de un docente no pueden quedar legibles para el
+    // siguiente que entre en el mismo teléfono. En un equipo compartido —que es
+    // lo normal en una sala de profesores— eso sería filtrar notas y cédulas.
+    await OfflineCache.clear();
     ApiClient.instance.setTokens(accessToken: null, refreshToken: null);
     _realtime.dispose();
     state = const AuthState(loading: false);

@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 
 import '../services/api_client.dart';
 import 'models.dart';
+import 'offline_cache.dart';
+import 'offline_status.dart';
 
 /// Acceso a la API académica.
 ///
@@ -21,9 +23,39 @@ class AcademicRepository {
         .toList();
   }
 
-  Future<List<Subject>> subjects() async {
-    final response = await _api.get('/subjects');
-    return _items(response.data).map(Subject.fromJson).toList();
+  /// Lee del servidor y, si no hay red, de lo último que sí llegó.
+  ///
+  /// Solo cubre LECTURAS. Una escritura no puede resolverse con lo cacheado: si
+  /// una nota no llegó al servidor, no está puesta, y fingir que sí es peor que
+  /// fallar. Que las escrituras esperen a tener red es una limitación conocida
+  /// y declarada, no un descuido.
+  Future<List<T>> _leerConCache<T>(
+    String clave,
+    Future<Response<dynamic>> Function() peticion,
+    T Function(Map<String, dynamic>) parsear,
+  ) async {
+    try {
+      final response = await peticion();
+      final items = _items(response.data);
+      await OfflineCache.save(clave, items);
+      OfflineStatus.instance.marcarEnLinea();
+      return items.map(parsear).toList();
+    } catch (error) {
+      final guardado = await OfflineCache.read(clave);
+      // Sin nada guardado no se puede disimular: el error sube y la pantalla
+      // muestra su estado de error, que es la verdad.
+      if (guardado == null) rethrow;
+
+      OfflineStatus.instance.marcarDesdeCache(guardado.guardadoEn);
+      return (guardado.dato as List)
+          .whereType<Map>()
+          .map((e) => parsear(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+  }
+
+  Future<List<Subject>> subjects() {
+    return _leerConCache('subjects', () => _api.get('/subjects'), Subject.fromJson);
   }
 
   /// Estudiantes visibles.
@@ -32,17 +64,19 @@ class AcademicRepository {
   /// recorte lo hace el backend contra la matrícula: filtrar aquí una lista ya
   /// mezclada daría el conjunto equivocado en cuanto alguien repita materia.
 
-  Future<List<Group>> groups() async {
-    final response = await _api.get('/groups');
-    return _items(response.data).map(Group.fromJson).toList();
+  Future<List<Group>> groups() {
+    return _leerConCache('groups', () => _api.get('/groups'), Group.fromJson);
   }
 
-  Future<List<Student>> students({String? subjectId, String? groupId}) async {
-    final response = await _api.get('/students', query: {
-      if (subjectId != null) 'subjectId': subjectId,
-      if (groupId != null) 'groupId': groupId,
-    });
-    return _items(response.data).map(Student.fromJson).toList();
+  Future<List<Student>> students({String? subjectId, String? groupId}) {
+    return _leerConCache(
+      'students.${subjectId ?? "todas"}.${groupId ?? "todos"}',
+      () => _api.get('/students', query: {
+        if (subjectId != null) 'subjectId': subjectId,
+        if (groupId != null) 'groupId': groupId,
+      }),
+      Student.fromJson,
+    );
   }
 
   /// Directorio global por nombre o cédula. Devuelve solo identidad, sin notas.
@@ -64,12 +98,15 @@ class AcademicRepository {
   Future<List<ConsolidatedRow>> consolidated({
     required String period,
     String? subjectId,
-  }) async {
-    final response = await _api.get('/grades/consolidado', query: {
-      'period': period,
-      if (subjectId != null) 'subjectId': subjectId,
-    });
-    return _items(response.data).map(ConsolidatedRow.fromJson).toList();
+  }) {
+    return _leerConCache(
+      'consolidado.$period.${subjectId ?? "todas"}',
+      () => _api.get('/grades/consolidado', query: {
+        'period': period,
+        if (subjectId != null) 'subjectId': subjectId,
+      }),
+      ConsolidatedRow.fromJson,
+    );
   }
 
   /// Lo que queda por calificar en el periodo, por materia y corte.
@@ -87,9 +124,8 @@ class AcademicRepository {
     return _items(response.data).map(PendingSubject.fromJson).toList();
   }
 
-  Future<List<RiskItem>> risks() async {
-    final response = await _api.get('/analytics/risks');
-    return _items(response.data).map(RiskItem.fromJson).toList();
+  Future<List<RiskItem>> risks() {
+    return _leerConCache('risks', () => _api.get('/analytics/risks'), RiskItem.fromJson);
   }
 
   /// Anota qué se hizo con un estudiante en riesgo.

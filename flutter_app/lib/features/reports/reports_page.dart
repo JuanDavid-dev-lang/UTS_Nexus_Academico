@@ -8,7 +8,9 @@ import 'package:share_plus/share_plus.dart';
 import '../../core/data/models.dart';
 import '../../core/data/providers.dart';
 import '../../core/network/api_error.dart';
+import '../../core/data/offline_status.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/offline_banner.dart';
 import '../../core/widgets/period_selector.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
@@ -66,83 +68,96 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         title: const Text('Reportes'),
         actions: const [PeriodSelector(), SessionMenuButton()],
       ),
-      body: ListView(
-        padding: AppSpacing.pagePadding,
-        children: [
-          AppCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      // El PDF y el Excel los genera el servidor: no hay nada guardado que
+      // exportar. Decirlo antes evita que el docente prepare un reporte y
+      // descubra el fallo al pulsar «descargar».
+      body: ref.watch(offlineStatusProvider).valueOrNull != null
+          ? const RequiereConexion(
+              que: 'Los reportes',
+              detalle:
+                  'El PDF y el Excel se arman en el servidor con los datos del '
+                  'periodo, así que necesitan red para generarse.',
+            )
+          : ListView(
+              padding: AppSpacing.pagePadding,
               children: [
-                Text('Alcance',
-                    style: AppType.bodyStrong
-                        .copyWith(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 4),
-                Text(
-                  'Los documentos se generan solo con los datos que tienes '
-                  'autorizados a ver.',
-                  style: AppType.caption.copyWith(color: muted),
-                ),
-                const SizedBox(height: 14),
-                subjects.when(
-                  loading: () => const SkeletonBox(height: 48, radius: 12),
-                  error: (_, __) => Text('No se pudieron cargar las materias',
-                      style: AppType.caption.copyWith(color: muted)),
-                  data: (items) => DropdownButtonFormField<String?>(
-                    initialValue: _subjectId,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Materia',
-                      isDense: true,
-                    ),
-                    items: [
-                      const DropdownMenuItem(
-                        value: null,
-                        child: Text('Todas las materias'),
+                AppCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Alcance',
+                          style: AppType.bodyStrong
+                              .copyWith(fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Los documentos se generan solo con los datos que tienes '
+                        'autorizados a ver.',
+                        style: AppType.caption.copyWith(color: muted),
                       ),
-                      for (final subject in items)
-                        DropdownMenuItem(
-                          value: subject.id,
-                          child: Text(
-                            '${subject.name} (${subject.code})',
-                            overflow: TextOverflow.ellipsis,
+                      const SizedBox(height: 14),
+                      subjects.when(
+                        loading: () =>
+                            const SkeletonBox(height: 48, radius: 12),
+                        error: (_, __) => Text(
+                            'No se pudieron cargar las materias',
+                            style: AppType.caption.copyWith(color: muted)),
+                        data: (items) => DropdownButtonFormField<String?>(
+                          initialValue: _subjectId,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Materia',
+                            isDense: true,
                           ),
+                          items: [
+                            const DropdownMenuItem(
+                              value: null,
+                              child: Text('Todas las materias'),
+                            ),
+                            for (final subject in items)
+                              DropdownMenuItem(
+                                value: subject.id,
+                                child: Text(
+                                  '${subject.name} (${subject.code})',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                          ],
+                          onChanged: (value) =>
+                              setState(() => _subjectId = value),
                         ),
+                      ),
                     ],
-                    onChanged: (value) => setState(() => _subjectId = value),
                   ),
+                ),
+                const SizedBox(height: 18),
+                for (final report in _reports) ...[
+                  _ReportCard(
+                    title: report.title,
+                    description: report.description,
+                    busyKey: _busy,
+                    kind: report.kind,
+                    onDownload: (format) =>
+                        _download(report.kind, format, report.title),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                const SizedBox(height: 4),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline, size: 15, color: muted),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Al terminar se abre la hoja de compartir para que guardes el '
+                        'archivo donde prefieras.',
+                        style: AppType.caption.copyWith(color: muted),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 18),
-          for (final report in _reports) ...[
-            _ReportCard(
-              title: report.title,
-              description: report.description,
-              busyKey: _busy,
-              kind: report.kind,
-              onDownload: (format) =>
-                  _download(report.kind, format, report.title),
-            ),
-            const SizedBox(height: 12),
-          ],
-          const SizedBox(height: 4),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.info_outline, size: 15, color: muted),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'Al terminar se abre la hoja de compartir para que guardes el '
-                  'archivo donde prefieras.',
-                  style: AppType.caption.copyWith(color: muted),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
     );
   }
 
@@ -150,7 +165,8 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     setState(() => _busy = '$kind-$format');
 
     final period = ref.read(selectedPeriodProvider);
-    final subjects = ref.read(periodSubjectsProvider).valueOrNull ?? <Subject>[];
+    final subjects =
+        ref.read(periodSubjectsProvider).valueOrNull ?? <Subject>[];
     final subjectCode = _subjectId == null
         ? null
         : subjects.where((s) => s.id == _subjectId).firstOrNull?.code;

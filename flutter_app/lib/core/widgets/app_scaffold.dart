@@ -4,6 +4,7 @@ import '../../features/tutorial/tutorial_page.dart';
 import 'package:go_router/go_router.dart';
 
 import '../theme/app_theme.dart';
+import 'offline_banner.dart';
 import 'session_menu.dart';
 
 /// Estructura de navegación.
@@ -179,7 +180,14 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
               ],
             ),
             const VerticalDivider(width: 1),
-            Expanded(child: widget.child),
+            Expanded(
+              child: Column(
+                children: [
+                  const OfflineBanner(),
+                  Expanded(child: widget.child),
+                ],
+              ),
+            ),
           ],
         ),
       );
@@ -190,7 +198,14 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     final isSecondary = primaryIndex < 0;
 
     return Scaffold(
-      body: widget.child,
+      // La franja va por encima de la pantalla, no dentro: aplica a todas y
+      // ninguna debería tener que acordarse de mostrarla.
+      body: Column(
+        children: [
+          const OfflineBanner(),
+          Expanded(child: widget.child),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         // En una pantalla secundaria se resalta "Más", que es desde donde llegó.
         selectedIndex: isSecondary ? primaryDestinations.length : primaryIndex,

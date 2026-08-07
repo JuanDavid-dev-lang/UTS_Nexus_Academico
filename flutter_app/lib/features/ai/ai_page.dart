@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/data/offline_status.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/offline_banner.dart';
 import '../../core/widgets/session_menu.dart';
 import 'ai_service.dart';
 
@@ -52,6 +54,7 @@ class _AiPageState extends ConsumerState<AiPage> {
   @override
   Widget build(BuildContext context) {
     final chat = ref.watch(chatControllerProvider);
+    final sinConexion = ref.watch(offlineStatusProvider).valueOrNull != null;
     ref.listen(chatControllerProvider, (_, __) => _scrollToBottom());
 
     return Scaffold(
@@ -71,7 +74,18 @@ class _AiPageState extends ConsumerState<AiPage> {
         children: [
           const _StatusBanner(),
           Expanded(
-            child: chat.messages.isEmpty
+            // El asistente pregunta al servidor en cada mensaje: no hay nada
+            // guardado que responder. Decirlo de frente es mejor que dejar que
+            // el docente escriba una consulta y reciba un error de red.
+            child: sinConexion
+                ? const RequiereConexion(
+                    que: 'El asistente',
+                    detalle:
+                        'Cada respuesta se calcula en el servidor con tus datos '
+                        'académicos, así que necesita red. Lo demás que ya '
+                        'habías consultado sí puedes seguir viéndolo.',
+                  )
+                : chat.messages.isEmpty
                 ? _EmptyChat(onPick: _send)
                 : ListView.builder(
                     controller: _scroll,
@@ -83,11 +97,12 @@ class _AiPageState extends ConsumerState<AiPage> {
                     },
                   ),
           ),
-          _InputBar(
-            controller: _input,
-            sending: chat.sending,
-            onSend: () => _send(),
-          ),
+          if (!sinConexion)
+            _InputBar(
+              controller: _input,
+              sending: chat.sending,
+              onSend: () => _send(),
+            ),
         ],
       ),
     );
