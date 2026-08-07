@@ -106,6 +106,11 @@ class _UtsAppState extends ConsumerState<UtsApp> {
           case 'subject':
             ref.invalidate(subjectsProvider);
             ref.invalidate(dashboardProvider);
+          // Un grupo es la unidad que agrupa a los estudiantes dentro de una
+          // materia: cambiarlo mueve quién aparece en cada listado.
+          case 'group':
+            ref.invalidate(subjectsProvider);
+            ref.invalidate(subjectRosterProvider);
           case 'grade':
             ref.invalidate(consolidatedGradesProvider);
             ref.invalidate(dashboardProvider);

@@ -70,4 +70,14 @@ export const queryKeys = {
     all: ['assistant'] as const,
     status: () => ['assistant', 'status'] as const,
   },
+
+  // El catálogo de registro se pedía con la clave literal `['registro',
+  // 'catalogo']` escrita en dos pantallas. El backend emite `registration`
+  // cuando el coordinador cambia el interruptor o el catálogo, pero sin una
+  // entrada aquí el mapa de invalidación no tenía a qué apuntar y la pantalla
+  // seguía ofreciendo el catálogo viejo.
+  registro: {
+    all: ['registro'] as const,
+    catalogo: () => ['registro', 'catalogo'] as const,
+  },
 } as const;

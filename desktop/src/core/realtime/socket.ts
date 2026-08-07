@@ -9,6 +9,7 @@
 import { io, type Socket } from 'socket.io-client';
 import type { QueryClient } from '@tanstack/react-query';
 import { tokenService } from '@/core/auth/token.service';
+import { refreshAccessToken } from '@/core/api/http-client';
 import { queryKeys } from '@/core/api/query-keys';
 
 export type SyncEntity =
@@ -19,7 +20,9 @@ export type SyncEntity =
   | 'attendance'
   | 'notification'
   | 'announcement'
-  | 'enrollment';
+  | 'enrollment'
+  | 'registration'
+  | 'professor';
 
 export type SyncStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
@@ -39,6 +42,11 @@ const INVALIDATION_MAP: Record<SyncEntity, readonly (readonly unknown[])[]> = {
   // Matricular cambia también quién sale en la lista de una materia, así que la
   // caché de estudiantes tiene que caer con ella.
   enrollment: [queryKeys.enrollments.all, queryKeys.students.all, queryKeys.analytics.all],
+  // El backend ya emitía estas dos, pero no estaban en el mapa: el handler
+  // salía por `if (!keys) return` y la pantalla se quedaba con el catálogo o el
+  // perfil viejos hasta que el docente recargara a mano.
+  registration: [queryKeys.registro.all],
+  professor: [queryKeys.auth.all],
 };
 
 let socket: Socket | null = null;
@@ -62,21 +70,53 @@ export function connectRealtime(
 
   socket = io(serverUrl, {
     transports: ['websocket'],
-    auth: { token },
+    // Función, no objeto: socket.io la invoca en CADA intento de conexión, así
+    // que una reconexión posterior a una renovación manda el token vigente. Con
+    // `auth: { token }` el token quedaba congelado en el del primer handshake y
+    // al expirar el servidor rechazaba todos los reintentos — la sincronización
+    // moría en silencio hasta reiniciar la app.
+    auth: (cb: (data: Record<string, unknown>) => void) => {
+      cb({ token: tokenService.getAccessToken() ?? token });
+    },
     reconnection: true,
     reconnectionDelay: 1000,
     reconnectionDelayMax: 10000,
     timeout: 8000,
   });
 
-  socket.on('connect', () => onStatus('connected'));
-  socket.on('disconnect', (reason) => onStatus('disconnected', reason));
-  socket.on('connect_error', (error) => onStatus('error', error.message));
+  // Referencia estable a ESTA conexión. La variable de módulo puede apuntar a
+  // otra distinta cuando un manejador asíncrono termine.
+  const active = socket;
 
-  socket.on('sync:update', (payload: SyncPayload) => {
+  // Un rechazo de credenciales no se arregla reintentando con lo mismo: hay que
+  // renovar primero. Se intenta una sola vez por conexión para no entrar en un
+  // bucle de refresco cuando el refresh token también está muerto.
+  let refreshAttempted = false;
+
+  active.on('connect', () => {
+    refreshAttempted = false;
+    onStatus('connected');
+  });
+  active.on('disconnect', (reason) => onStatus('disconnected', reason));
+  active.on('connect_error', (error) => {
+    onStatus('error', error.message);
+    if (refreshAttempted || !error.message.includes('unauthorized')) return;
+
+    refreshAttempted = true;
+    void refreshAccessToken().then((renewed) => {
+      // `socket !== active` significa que mientras se renovaba alguien cerró
+      // sesión o reconectó: revivir esa conexión dejaría dos sockets vivos.
+      if (!renewed || socket !== active) return;
+      active.connect();
+    });
+  });
+
+  active.on('sync:update', (payload: SyncPayload) => {
     const entity = payload?.entity as SyncEntity | undefined;
     if (!entity) return;
 
+    // Las entidades sin pantalla en escritorio (`schedule`, `activity`) caen
+    // aquí a propósito: no hay caché que invalidar.
     const keys = INVALIDATION_MAP[entity];
     if (!keys) return;
 

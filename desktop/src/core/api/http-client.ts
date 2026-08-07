@@ -117,6 +117,19 @@ function ensureRefresh(): Promise<boolean> {
   return refreshInFlight;
 }
 
+/**
+ * Renews the access token on demand, sharing the same single-flight promise as
+ * the 401 path.
+ *
+ * The socket needs this: socket.io only authenticates during the handshake, so
+ * a reconnection attempt made after the access token expired is rejected and
+ * real-time sync dies silently. Refreshing here and reconnecting recovers it
+ * without racing the HTTP layer's own refresh.
+ */
+export function refreshAccessToken(): Promise<boolean> {
+  return ensureRefresh();
+}
+
 async function readBody(response: Response): Promise<unknown> {
   const contentType = response.headers.get('content-type') ?? '';
   if (contentType.includes('application/json')) {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/auth_user.dart';
 import 'connection_settings.dart';
@@ -31,6 +33,7 @@ class AuthController extends StateNotifier<AuthState> {
     final settings = await ConnectionSettings.load();
     ApiClient.instance.setBaseUrl(settings.apiBaseUrl);
     RealtimeService.instance.setBaseUrl(settings.wsBaseUrl);
+    _wireSessionCallbacks();
 
     final session = await _storage.load();
     final access = session['accessToken'];
@@ -45,6 +48,37 @@ class AuthController extends StateNotifier<AuthState> {
       } catch (_) {}
     }
     state = const AuthState(loading: false);
+  }
+
+  /// Conecta los tres enganches que [ApiClient] y [RealtimeService] exponen y
+  /// que hasta ahora nadie asignaba.
+  ///
+  /// El más dañino era `onTokensRenewed`: el backend rota el refresh token en
+  /// cada uso, así que tras la primera renovación el que seguía guardado en
+  /// disco ya estaba quemado y el siguiente arranque en frío caía al login con
+  /// la sesión todavía viva en el servidor.
+  void _wireSessionCallbacks() {
+    final api = ApiClient.instance;
+
+    api.onTokensRenewed = (accessToken, refreshToken) async {
+      await _storage.save(accessToken: accessToken, refreshToken: refreshToken);
+      // El socket lleva el token en el handshake: sin reconectar seguiría
+      // autenticado con el anterior hasta la primera caída, y ahí ya no volvería.
+      _realtime.updateToken(accessToken);
+    };
+
+    // Sin esto, un refresh token muerto dejaba la app en un limbo: `ApiClient`
+    // borraba los tokens pero el estado seguía diciendo "autenticado", así que
+    // el docente veía pantallas vacías en vez del login.
+    api.onSessionExpired = () {
+      unawaited(logout());
+    };
+
+    _realtime.onUnauthorized = () async {
+      // Si la renovación va bien, `onTokensRenewed` reconecta el socket.
+      final renewed = await api.renewAccessToken();
+      if (!renewed) await logout();
+    };
   }
 
   Future<void> login(String email, String password) async {

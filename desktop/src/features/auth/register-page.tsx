@@ -5,6 +5,7 @@ import { AlertTriangle, ArrowLeft, Check, Loader2 } from 'lucide-react';
 import { Button, Card, CardContent, Field, Input, NativeSelect } from '@/shared/ui';
 import { Logo } from '@/shared/ui/logo';
 import { registroRepository } from '@/infrastructure/repositories/academic.repository';
+import { queryKeys } from '@/core/api/query-keys';
 import {
   solicitudRegistroSchema,
   type FacultadId,
@@ -44,7 +45,7 @@ export default function RegisterPage() {
   const navigate = useNavigate();
 
   const catalogo = useQuery({
-    queryKey: ['registro', 'catalogo'],
+    queryKey: queryKeys.registro.catalogo(),
     queryFn: () => registroRepository.catalogo(),
     retry: 1,
   });

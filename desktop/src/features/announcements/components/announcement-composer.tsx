@@ -46,7 +46,7 @@ export function AnnouncementComposer({ open, onOpenChange }: Props) {
   const queryClient = useQueryClient();
 
   const catalogo = useQuery({
-    queryKey: ['registro', 'catalogo'],
+    queryKey: queryKeys.registro.catalogo(),
     queryFn: () => registroRepository.catalogo(),
     enabled: open,
   });

@@ -95,6 +95,15 @@ class ApiClient {
     });
   }
 
+  /// Renueva el access token bajo demanda, compartiendo la misma promesa en
+  /// vuelo que la ruta del 401.
+  ///
+  /// Lo necesita el socket: socket.io solo autentica en el handshake, así que
+  /// cuando el access token expira el reintento de conexión se rechaza y la
+  /// sincronización muere. Renovar aquí y reconectar la recupera sin competir
+  /// con la renovación que pueda estar haciendo la capa HTTP.
+  Future<bool> renewAccessToken() => _ensureRefresh();
+
   Future<bool> _refresh() async {
     final token = refreshToken;
     if (token == null) return false;
