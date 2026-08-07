@@ -26,6 +26,14 @@ type SessionState = {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   changeServerUrl: (url: string) => Promise<void>;
+  /**
+   * Actualiza los datos del usuario en memoria tras editar el perfil.
+   *
+   * La barra superior y el menú de sesión leen de aquí, no de la consulta del
+   * perfil: sin esto, cambiar el nombre o la foto se veía en Ajustes y en
+   * ningún otro sitio hasta reiniciar.
+   */
+  setUser: (user: User) => void;
   /** Called when the HTTP layer detects an unrecoverable 401. */
   expire: () => void;
 };
@@ -90,6 +98,10 @@ export const useSession = create<SessionState>((set, get) => ({
     setServerUrl(serverUrl);
     await tokenService.setServerUrl(serverUrl);
     set({ serverUrl });
+  },
+
+  setUser(user) {
+    set({ user });
   },
 
   expire() {

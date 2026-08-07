@@ -84,4 +84,9 @@ export const queryKeys = {
     all: ['registro'] as const,
     catalogo: () => ['registro', 'catalogo'] as const,
   },
+
+  profile: {
+    all: ['profile'] as const,
+    me: () => ['profile', 'me'] as const,
+  },
 } as const;

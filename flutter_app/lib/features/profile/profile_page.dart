@@ -6,6 +6,7 @@ import '../../core/services/auth_controller.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
+import 'edit_profile_sheet.dart';
 
 /// Perfil del usuario.
 class ProfilePage extends ConsumerWidget {
@@ -27,7 +28,16 @@ class ProfilePage extends ConsumerWidget {
     final primary = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Perfil')),
+      appBar: AppBar(
+        title: const Text('Perfil'),
+        actions: [
+          IconButton(
+            tooltip: 'Editar perfil',
+            icon: const Icon(Icons.edit_outlined),
+            onPressed: () => showEditProfile(context),
+          ),
+        ],
+      ),
       body: ListView(
         padding: AppSpacing.pagePadding,
         children: [
@@ -37,6 +47,9 @@ class ProfilePage extends ConsumerWidget {
                 CircleAvatar(
                   radius: 42,
                   backgroundColor: primary.withValues(alpha: 0.12),
+                  foregroundImage: user?.photoUrl != null
+                      ? NetworkImage(user!.photoUrl!)
+                      : null,
                   child: Text(
                     initialsOf(user?.fullName ?? 'U'),
                     style: AppType.h2.copyWith(

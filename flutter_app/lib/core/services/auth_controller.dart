@@ -91,6 +91,25 @@ class AuthController extends StateNotifier<AuthState> {
     state = AuthState(loading: false, user: AuthUser.fromJson(Map<String, dynamic>.from(data['user'] as Map)));
   }
 
+  /// Recarga los datos del usuario desde el servidor.
+  ///
+  /// Lo necesita la edición de perfil: el nombre y la foto que ve el resto de
+  /// la aplicación —la barra superior, el menú de sesión— salen de aquí, no de
+  /// la consulta del perfil. Sin esto el cambio se veía en Perfil y en ningún
+  /// otro sitio hasta reiniciar.
+  Future<void> refreshUser() async {
+    try {
+      final me = await _repo.me();
+      state = AuthState(
+        loading: false,
+        user: AuthUser.fromJson(Map<String, dynamic>.from(me['user'] as Map)),
+      );
+    } catch (_) {
+      // Un fallo aquí no debe tumbar la sesión: los datos viejos siguen siendo
+      // utilizables y la próxima carga los corrige.
+    }
+  }
+
   Future<void> logout() async {
     await _storage.clear();
     ApiClient.instance.setTokens(accessToken: null, refreshToken: null);

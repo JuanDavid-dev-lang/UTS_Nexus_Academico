@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Check, LogOut, Monitor, Moon, Server, ShieldCheck, Sun, Wifi } from 'lucide-react';
 import {
-  Badge,
   Button,
   Card,
   CardContent,
@@ -17,7 +16,7 @@ import {
   PageContainer,
   PageHeader,
 } from '@/shared/ui';
-import { Avatar } from '@/shared/ui/primitives';
+import { ProfileCard } from '@/features/settings/components/profile-card';
 import { useSession } from '@/state/session.store';
 import { useSync } from '@/state/sync.store';
 import { useTheme, type ThemePreference } from '@/state/theme.store';
@@ -91,22 +90,9 @@ export default function SettingsPage() {
     <PageContainer>
       <PageHeader title="Configuración" subtitle="Apariencia, servidor, atajos y sesión" />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Cuenta</CardTitle>
-          <CardDescription>Datos de la sesión activa</CardDescription>
-        </CardHeader>
-        <CardContent className="flex items-center gap-4">
-          <Avatar name={user?.fullName ?? 'Docente'} src={user?.photoUrl} size="lg" />
-          <div className="flex min-w-0 flex-col">
-            <span className="truncate text-body font-semibold text-text">{user?.fullName}</span>
-            <span className="truncate text-caption text-muted">{user?.email}</span>
-          </div>
-          <Badge tone="accent" className="ml-auto">
-            {user?.role}
-          </Badge>
-        </CardContent>
-      </Card>
+      {/* Sustituye a la tarjeta "Cuenta", que solo mostraba lo que ya venía en
+          la sesión sin forma de cambiar nada. */}
+      <ProfileCard />
 
       <Card>
         <CardHeader>
