@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/network/api_error.dart';
 import '../../core/services/api_client.dart';
 import '../../core/services/auth_controller.dart';
 import '../../core/theme/app_theme.dart';
@@ -76,26 +77,52 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
     return total == 0 ? 0 : (present / total) * 100;
   }
 
+  /// Guarda la lista completa en una sola petición.
+  ///
+  /// Antes era un POST por estudiante dentro de un bucle: con 40 en el salón,
+  /// 40 viajes sobre el wifi de un aula. Y si se cortaba en el estudiante 23,
+  /// media lista quedaba guardada sin que nadie lo dijera — ni el docente ni la
+  /// propia app sabían dónde se había roto. Ahora entra la clase entera o no
+  /// entra, y el error se ve.
   Future<void> _save() async {
-    if (_subjectId == null) return;
+    if (_subjectId == null || _students.isEmpty) return;
     setState(() => _loading = true);
-    final isoDate = DateTime(_date.year, _date.month, _date.day).toIso8601String();
-    for (final student in _students) {
-      final id = student['_id'].toString();
-      await ApiClient.instance.post('/attendance', data: {
-        'studentId': id,
+
+    final isoDate =
+        DateTime(_date.year, _date.month, _date.day).toIso8601String();
+
+    try {
+      await ApiClient.instance.post('/attendance/bulk', data: {
         'subjectId': _subjectId,
         'teacherId': ref.read(authControllerProvider).user?.id ?? '',
         'period': _period,
         'date': isoDate,
         'durationMinutes': _durationMinutes,
-        'present': _presentByStudent[id] ?? true,
-        'notes': '',
+        'registros': [
+          for (final student in _students)
+            {
+              'studentId': student['_id'].toString(),
+              'present': _presentByStudent[student['_id'].toString()] ?? true,
+              'notes': '',
+            },
+        ],
       });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ApiError.from(error).message)),
+      );
+      return;
     }
+
     await _load();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Asistencia guardada')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Asistencia guardada — ${_students.length} estudiantes'),
+        ),
+      );
     }
   }
 
