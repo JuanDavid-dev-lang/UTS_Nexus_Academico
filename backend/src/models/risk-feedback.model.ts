@@ -31,6 +31,25 @@ const schema = new Schema(
      */
     actuallyFailed: { type: Boolean, default: null },
 
+    // ── Seguimiento de la intervención ──────────────────────────────────────
+    //
+    // Qué hizo el docente con la alerta. Sin esto el riesgo era un tablero que
+    // informaba lo mismo cada semana: el docente no tenía dónde anotar que ya
+    // había hablado con el estudiante, así que la lista no distinguía "aún no
+    // lo he mirado" de "lo estoy siguiendo desde hace un mes".
+    //
+    // Además es la señal que hoy le falta al modelo: sabe predecir quién va a
+    // reprobar, pero no qué intervención cambió el desenlace.
+    interventionStatus: {
+      type: String,
+      enum: ['PENDIENTE', 'CONTACTADO', 'CITA_ACORDADA', 'NO_RESPONDE', 'RESUELTO'],
+      default: 'PENDIENTE',
+      index: true,
+    },
+    interventionNote: { type: String, default: '' },
+    interventionAt: { type: Date, default: null },
+    interventionBy: { type: Schema.Types.ObjectId, ref: 'Usuario', default: null },
+
     /** Señales congeladas en el momento de la predicción. */
     features: { type: Object, default: {} },
   },

@@ -316,6 +316,12 @@ class RiskItem {
   final RiskLevel level;
   final List<String> reasons;
 
+  /// Qué se hizo ya con esta alerta. Convierte el tablero en un seguimiento:
+  /// sin esto la lista repetía los mismos nombres cada semana sin distinguir el
+  /// caso nuevo del que llevas un mes atendiendo.
+  final String interventionStatus;
+  final String interventionNote;
+
   const RiskItem({
     required this.studentId,
     required this.code,
@@ -327,6 +333,8 @@ class RiskItem {
     required this.score,
     required this.level,
     required this.reasons,
+    this.interventionStatus = 'PENDIENTE',
+    this.interventionNote = '',
   });
 
   factory RiskItem.fromJson(Map<String, dynamic> json) => RiskItem(
@@ -342,6 +350,9 @@ class RiskItem {
         reasons: ((json['motivos'] as List?) ?? const [])
             .map((e) => e.toString())
             .toList(),
+        interventionStatus:
+            _toStr(json['interventionStatus'], 'PENDIENTE'),
+        interventionNote: _toStr(json['interventionNote']),
       );
 }
 

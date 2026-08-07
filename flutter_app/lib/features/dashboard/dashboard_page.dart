@@ -9,6 +9,7 @@ import '../../core/network/api_error.dart';
 import '../../core/services/auth_controller.dart';
 import '../../core/services/auth_repository.dart';
 import '../../core/theme/app_theme.dart';
+import 'intervention_sheet.dart';
 import '../../core/widgets/period_selector.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
@@ -124,7 +125,12 @@ class DashboardPage extends ConsumerWidget {
                     for (final risk in atRisk)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 10),
-                        child: _RiskRow(risk: risk),
+                        child: _RiskRow(
+                          risk: risk,
+                          // Tocar la fila abre dónde anotar qué se hizo: sin
+                          // eso la lista repite los mismos nombres cada semana.
+                          onTap: () => showInterventionSheet(context, risk),
+                        ),
                       ),
                   ],
                 );
@@ -201,7 +207,8 @@ class _MetricsGrid extends StatelessWidget {
 
 class _RiskRow extends StatelessWidget {
   final RiskItem risk;
-  const _RiskRow({required this.risk});
+  final VoidCallback onTap;
+  const _RiskRow({required this.risk, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -210,6 +217,7 @@ class _RiskRow extends StatelessWidget {
     final style = RiskStyle.from(context, risk.level.name);
 
     return AppCard(
+      onTap: onTap,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Row(
         children: [

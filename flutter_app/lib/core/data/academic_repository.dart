@@ -92,6 +92,27 @@ class AcademicRepository {
     return _items(response.data).map(RiskItem.fromJson).toList();
   }
 
+  /// Anota qué se hizo con un estudiante en riesgo.
+  ///
+  /// Escribe sobre el mismo caso que usa la realimentación del modelo: qué
+  /// predijo el sistema, qué hizo el docente y cómo terminó son tres partes de
+  /// la misma historia.
+  Future<void> saveIntervention({
+    required String studentId,
+    required String subjectId,
+    required String period,
+    required String estado,
+    String nota = '',
+  }) async {
+    await _api.patch('/analytics/risks/intervencion', data: {
+      'studentId': studentId,
+      'subjectId': subjectId,
+      'period': period,
+      'estado': estado,
+      'nota': nota,
+    });
+  }
+
   Future<List<AppNotification>> notifications() async {
     final response = await _api.get('/notifications');
     return _items(response.data).map(AppNotification.fromJson).toList();

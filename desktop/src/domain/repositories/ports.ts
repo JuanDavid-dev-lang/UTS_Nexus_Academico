@@ -11,6 +11,7 @@ import type {
   Attendance,
   ConsolidatedRow,
   PendingSubject,
+  InterventionStatus,
   Enrollment,
   Grade,
   GradeInput,
@@ -116,6 +117,14 @@ export interface AttendanceRepository {
 export interface AnalyticsRepository {
   dashboard(): Promise<DashboardSummary>;
   risks(): Promise<RiskItem[]>;
+  /** Anota qué se hizo con un estudiante en riesgo. */
+  saveIntervention(input: {
+    studentId: string;
+    subjectId: string;
+    period: string;
+    estado: InterventionStatus;
+    nota: string;
+  }): Promise<void>;
 }
 
 export interface NotificationRepository {

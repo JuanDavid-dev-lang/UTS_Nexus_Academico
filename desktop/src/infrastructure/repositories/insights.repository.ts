@@ -1,6 +1,7 @@
+import { z } from 'zod';
 import { http } from '@/core/api/http-client';
 import { itemsResponse, okResponse } from '@/domain/schemas/common';
-import { riskResponseSchema } from '@/domain/schemas/academic';
+import { riskResponseSchema, type InterventionStatus } from '@/domain/schemas/academic';
 import {
   aiStatusSchema,
   chatResponseSchema,
@@ -29,6 +30,25 @@ export const analyticsRepository: AnalyticsRepository = {
 
   async risks() {
     return (await http.get('/analytics/risks', { schema: riskResponseSchema })).items;
+  },
+
+  /**
+   * Anota qué se hizo con un estudiante en riesgo.
+   *
+   * Escribe sobre el mismo caso que usa la realimentación del modelo: qué
+   * predijo el sistema, qué hizo el docente y cómo terminó son tres partes de
+   * la misma historia.
+   */
+  async saveIntervention(input: {
+    studentId: string;
+    subjectId: string;
+    period: string;
+    estado: InterventionStatus;
+    nota: string;
+  }) {
+    await http.patch('/analytics/risks/intervencion', input, {
+      schema: z.object({ ok: z.literal(true) }).passthrough(),
+    });
   },
 };
 

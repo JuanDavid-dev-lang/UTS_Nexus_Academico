@@ -23,6 +23,12 @@ import {
   type Column,
 } from '@/shared/ui';
 import { useRisks } from '@/features/dashboard/hooks/use-dashboard';
+import {
+  INTERVENTION_LABELS,
+  INTERVENTION_ORDER,
+  INTERVENTION_TONE,
+  InterventionDialog,
+} from '@/features/risk/components/intervention-dialog';
 import { useScanRisks } from '@/features/notifications/hooks/use-notifications';
 import { useDebounce } from '@/shared/hooks/use-debounce';
 import { formatGrade, formatPercent } from '@/shared/lib/format';
@@ -49,6 +55,7 @@ export default function RiskPage() {
   const canScan = can(role, 'notifications.scan');
 
   const risks = useRisks();
+  const [seguimiento, setSeguimiento] = useState<RiskItem | null>(null);
   const scanRisks = useScanRisks();
 
   const items = risks.data ?? [];
@@ -149,6 +156,27 @@ export default function RiskPage() {
         sortValue: (row) => row.riskScore,
         cell: (row) => (
           <span className="font-mono text-caption tabular-nums text-muted">{row.riskScore}/100</span>
+        ),
+      },
+      {
+        key: 'intervention',
+        header: 'Seguimiento',
+        width: '1.2fr',
+        align: 'center',
+        // Ordena por «cuánto falta por hacer»: lo pendiente arriba, lo resuelto
+        // abajo. Es el orden en que un docente quiere leer esta columna.
+        sortValue: (row) => INTERVENTION_ORDER[row.interventionStatus],
+        cell: (row) => (
+          <Button
+            variant="ghost"
+            className="h-auto px-2 py-1"
+            onClick={() => setSeguimiento(row)}
+            title={row.interventionNote || 'Anotar qué se hizo'}
+          >
+            <Badge tone={INTERVENTION_TONE[row.interventionStatus]}>
+              {INTERVENTION_LABELS[row.interventionStatus]}
+            </Badge>
+          </Button>
         ),
       },
     ],
@@ -294,6 +322,12 @@ export default function RiskPage() {
           </Card>
         </>
       )}
+
+      {/* La alerta dice quién y por qué; esto guarda qué se hizo al respecto. */}
+      <InterventionDialog
+        row={seguimiento}
+        onOpenChange={(open) => !open && setSeguimiento(null)}
+      />
     </PageContainer>
   );
 }
