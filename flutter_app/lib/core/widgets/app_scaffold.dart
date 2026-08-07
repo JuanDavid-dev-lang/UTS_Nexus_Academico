@@ -220,6 +220,15 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
+      // La hoja lista siete secciones más perfil y salida. En un teléfono bajo,
+      // o con el tamaño de fuente del sistema subido, esa columna no cabe: sin
+      // desplazamiento propio Flutter la recorta y las últimas filas dejan de
+      // existir. `isScrollControlled` es lo que le permite pasar de la mitad de
+      // la pantalla; el tope evita que tape la pantalla entera.
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.85,
+      ),
       builder: (sheetContext) {
         final isDark = Theme.of(sheetContext).brightness == Brightness.dark;
         final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
@@ -228,60 +237,61 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         final danger = isDark ? AppColors.dangerDark : AppColors.danger;
 
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-                child: Text(
-                  'MÁS SECCIONES',
-                  style: AppType.captionStrong.copyWith(
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.8,
-                    color: muted,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                  child: Text(
+                    'MÁS SECCIONES',
+                    style: AppType.captionStrong.copyWith(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.8,
+                      color: muted,
+                    ),
                   ),
                 ),
-              ),
-              for (final destination in secondaryDestinations)
-                ListTile(
-                  leading: Icon(
-                    destination.icon,
-                    color: currentRoute == destination.route
-                        ? Theme.of(sheetContext).colorScheme.primary
-                        : null,
+                for (final destination in secondaryDestinations)
+                  ListTile(
+                    leading: Icon(
+                      destination.icon,
+                      color: currentRoute == destination.route
+                          ? Theme.of(sheetContext).colorScheme.primary
+                          : null,
+                    ),
+                    title: Text(destination.label),
+                    selected: currentRoute == destination.route,
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      context.go(destination.route);
+                    },
                   ),
-                  title: Text(destination.label),
-                  selected: currentRoute == destination.route,
+
+                // La sesión va abajo y separada: no es "otra sección más", y
+                // cerrarla por error al buscar Reportes sería caro.
+                const Divider(height: 20),
+                ListTile(
+                  leading: const Icon(Icons.person_outline),
+                  title: const Text('Mi perfil'),
+                  selected: currentRoute == '/profile',
                   onTap: () {
                     Navigator.of(sheetContext).pop();
-                    context.go(destination.route);
+                    context.go('/profile');
                   },
                 ),
-
-              // La sesión va abajo y separada: no es "otra sección más", y
-              // cerrarla por error al buscar Reportes sería caro.
-              const Divider(height: 20),
-              ListTile(
-                leading: const Icon(Icons.person_outline),
-                title: const Text('Mi perfil'),
-                selected: currentRoute == '/profile',
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  context.go('/profile');
-                },
-              ),
-              ListTile(
-                leading: Icon(Icons.logout_outlined, color: danger),
-                title:
-                    Text('Cerrar sesión', style: TextStyle(color: danger)),
-                onTap: () async {
-                  Navigator.of(sheetContext).pop();
-                  await confirmLogout(context, ref);
-                },
-              ),
-              const SizedBox(height: 8),
-            ],
+                ListTile(
+                  leading: Icon(Icons.logout_outlined, color: danger),
+                  title: Text('Cerrar sesión', style: TextStyle(color: danger)),
+                  onTap: () async {
+                    Navigator.of(sheetContext).pop();
+                    await confirmLogout(context, ref);
+                  },
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         );
       },
