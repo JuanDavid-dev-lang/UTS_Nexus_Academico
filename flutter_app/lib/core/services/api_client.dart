@@ -144,7 +144,13 @@ class ApiClient {
   Future<Response<T>> patch<T>(String path, {Object? data}) =>
       _guard(() => dio.patch<T>(path, data: data));
 
-  Future<Response<T>> delete<T>(String path) => _guard(() => dio.delete<T>(path));
+  Future<Response<T>> put<T>(String path, {Object? data}) =>
+      _guard(() => dio.put<T>(path, data: data));
+
+  /// `data` es opcional porque casi ningún DELETE lo lleva; la baja de un
+  /// dispositivo push sí, porque el token no cabe en la ruta.
+  Future<Response<T>> delete<T>(String path, {Object? data}) =>
+      _guard(() => dio.delete<T>(path, data: data));
 
   /// Convierte cualquier fallo en un [ApiError] antes de que salga del cliente.
   Future<Response<T>> _guard<T>(Future<Response<T>> Function() request) async {

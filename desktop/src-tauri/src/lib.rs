@@ -10,6 +10,9 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        // Avisos nativos del escritorio: un recordatorio de clase tiene que
+        // verse con la ventana detrás de otra aplicación, que es cuando sirve.
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
                 window.show()?;

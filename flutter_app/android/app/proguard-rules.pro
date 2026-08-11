@@ -20,3 +20,12 @@
 
 # Silencia avisos por clases opcionales que no se empaquetan.
 -dontwarn io.flutter.embedding.**
+
+# flutter_local_notifications serializa los detalles de la notificación con Gson
+# para poder reprogramarla tras un reinicio. R8 renombra esos campos y la
+# reprogramación falla en silencio: el docente se queda sin avisos justo después
+# de reiniciar el teléfono, que es cuando menos lo va a relacionar con la app.
+-keep class com.dexterous.** { *; }
+-keep class com.dexterous.flutterlocalnotifications.models.** { *; }
+-keepattributes Signature
+-keepattributes *Annotation*

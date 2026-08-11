@@ -85,7 +85,33 @@ Un PDF con capa de texto se lee tal cual (confianza 1.0, sin reconocimiento que 
 - El dashboard y el riesgo usan `calcularPromedioParcial()` (solo cortes calificados, pesos renormalizados) para evitar falsos positivos a mitad de semestre.
 
 ### Sincronización en tiempo real
-El backend emite un evento único `sync:update` con payload `{entity, action, id}` — no una familia de eventos por entidad. El escritorio v2 mapea cada `entity` a las claves de caché de TanStack Query que invalida (`desktop/src/core/realtime/socket.ts`). Al añadir una entidad o mutación nueva, emitir `sync:update` y registrar el mapeo de invalidación.
+El backend emite un evento único `sync:update` con payload `{entity, action, id}` — no una familia de eventos por entidad. El escritorio v2 mapea cada `entity` a las claves de caché de TanStack Query que invalida (`desktop/src/core/realtime/socket.ts`) y el móvil a sus providers de Riverpod (`flutter_app/lib/app.dart`). Al añadir una entidad o mutación nueva, emitir `sync:update` y registrar el mapeo de invalidación **en los dos clientes**.
+
+Hay un segundo evento, `notification:new`, con el documento de la notificación. Va aparte a propósito: `sync:update` dice «esta caché caducó» y este dice «avísale». Mezclarlos obligaría a cada oyente a distinguirlos, y el que solo quiere invalidar acabaría mostrando avisos.
+
+Los eventos salen por `emitToUser` (sala `user:<id>` + ADMIN/COORDINATOR), no por el broadcast global.
+
+### Agenda académica
+`GET /agenda` expande el horario semanal (`ScheduleModel`) a ocurrencias con fecha y las une con `EventoCalendario` y `Actividad`. **Ningún cliente calcula a qué hora es una clase**: si PC y Android lo hicieran por su cuenta, un equipo con la zona horaria mal puesta mostraría otra hora y el docente no sabría cuál de los dos miente.
+
+`"10:00"` en un horario es una hora de pared del campus, no del reloj del servidor. El desfase entra por `CAMPUS_UTC_OFFSET_MIN` (Colombia: `-300`, sin DST) y todo lo que sale son instantes UTC absolutos más `campusOffsetMinutes` para que el cliente formatee. El motor puro está en `domains/agenda/`.
+
+Las clases **no se copiaron** a una colección nueva: `horarios` sigue siendo la única fuente y `/schedules` el único sitio donde se escribe una franja. `eventos_calendario` guarda solo lo que no se repite cada semana (parciales, entregas, tutorías, recordatorios).
+
+`id` de una ocurrencia = `class:<horarioId>:<AAAA-MM-DD>`. Es estable, y es lo que permite deduplicar recordatorios y que una notificación abra exactamente esa clase.
+
+### Notificaciones
+`shared/notify.ts` → `crearNotificacion()` es el **punto único**: comprueba preferencias, deduplica por `dedupeKey` (índice único parcial sobre `(userId, dedupeKey)`), guarda, emite por socket y solo entonces empuja al teléfono. No crear notificaciones con `NotificationModel.create()` directamente: se salta las tres cosas.
+
+La clave de dedupe identifica el **hecho**, no el documento (`class:<horario>:<fecha>:<antelación>`). Sin ella, el escáner crea un aviso idéntico en cada pasada, que es la forma más rápida de enseñar a ignorar la campana.
+
+Reparto de responsabilidades entre los dos mecanismos de aviso en Android:
+- **Recordatorios de clase → alarmas locales** (`flutter_local_notifications`). Se conocen con días de antelación, funcionan con la app cerrada y sin red — que es la situación de un salón con el wifi caído.
+- **Alertas de riesgo y cambios → push del servidor** (FCM HTTP v1, `shared/push.ts`, sin dependencias nuevas). El teléfono no puede saberlas por adelantado.
+
+El dispositivo se registra con `localClassReminders: true` y el servidor deja de mandarle push de tipo `CLASS`: sin eso el docente recibe el mismo aviso dos veces.
+
+Detalle completo en `docs/AGENDA_Y_NOTIFICACIONES.md`.
 
 ### Escritorio v2 — capas
 `domain/` (esquemas Zod + puertos, sin React) → `infrastructure/` (adaptadores HTTP de los puertos) → `features/` (una pantalla por capacidad) → `shared/` (design system según `DESIGN.md`). Estado de servidor con TanStack Query, estado de cliente con Zustand. Tokens en `keyring` (Rust) vía `src-tauri/src/commands/`. `desktop_python/` (PySide6) está en desuso — no añadir funcionalidades ahí.
@@ -118,6 +144,9 @@ Leídas por `backend/src/shared/env.ts`. **Un nombre mal escrito no da error: ca
 - `MONGODB_URI` es obligatoria; sin ella el backend arranca pero no conecta a la base.
 - `CLIENT_ORIGIN=*` para uso local: la app empaquetada de escritorio se sirve desde `http://tauri.localhost` (dev: `http://localhost:5183`). Si `CLIENT_ORIGIN` apunta a otro puerto, el login desde escritorio falla con un error de red que **no** menciona CORS.
 - El backend escucha en todas las interfaces (`0.0.0.0`) — necesario para que el móvil se conecte desde el teléfono.
+- `CAMPUS_UTC_OFFSET_MIN` (por defecto `-300`) es la zona del campus. Si el servidor corre en UTC y esto no se declara bien, **todas las clases y todos los recordatorios se desplazan varias horas sin ningún error visible**.
+- `CLASS_REMINDER_INTERVAL_MIN` va a `1` por defecto: un aviso de «empieza en 15 minutos» comprobado cada cuarto de hora no es un aviso. Con varias instancias, activarlo en una sola.
+- **El push a Android está apagado por defecto.** Sin `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL` y `FCM_PRIVATE_KEY` no se envía nada con la app cerrada y queda anotado en el log. Los recordatorios de clase siguen llegando: los programa el teléfono como alarmas locales.
 - **Correo saliente y aviso de versiones están apagados por defecto.** Sin `SMTP_HOST` no se envía nada y queda anotado en el log; con `RELEASE_CHECK_INTERVAL_H=0` no se consulta GitHub. Las dos degradan en silencio a propósito: una instalación local no debería necesitar servidor de correo para arrancar. Para activarlos: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `SMTP_SECURE` y `RELEASE_CHECK_INTERVAL_H` (horas), `RELEASES_REPO`.
 
 ## Actualizaciones automáticas
@@ -133,6 +162,7 @@ Los dos clientes se actualizan desde **GitHub Releases**; el proceso completo es
 
 ## Documentación de referencia
 
+- `docs/AGENDA_Y_NOTIFICACIONES.md` — agenda, recordatorios, push de Android, sincronización y qué hay que configurar.
 - `docs/PUBLICAR_VERSION.md` — publicar una versión, secretos de CI y manejo de las claves de firma.
 - `desktop/README.md` — guía completa del cliente de escritorio v2.
 - `ml_service/README.md` — ciclo de entrenamiento, endpoints y variables del modelo.

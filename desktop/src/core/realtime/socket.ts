@@ -11,6 +11,8 @@ import type { QueryClient } from '@tanstack/react-query';
 import { tokenService } from '@/core/auth/token.service';
 import { refreshAccessToken } from '@/core/api/http-client';
 import { queryKeys } from '@/core/api/query-keys';
+import { toast } from '@/state/toast.store';
+import { mostrarAvisoNativo } from '@/core/platform/notifications';
 
 export type SyncEntity =
   | 'student'
@@ -22,14 +24,41 @@ export type SyncEntity =
   | 'announcement'
   | 'enrollment'
   | 'registration'
-  | 'professor';
+  | 'professor'
+  | 'schedule'
+  | 'calendar'
+  | 'activity'
+  | 'preferences';
 
-export type SyncStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
+/**
+ * Estado de la sincronización.
+ *
+ * `reconnecting` se distingue de `connecting` a propósito: la primera conexión
+ * y un corte a mitad de sesión no significan lo mismo para quien está
+ * trabajando. Con un solo estado, un corte de red se veía igual que el arranque
+ * y no había forma de saber si lo que hay en pantalla sigue vivo.
+ */
+export type SyncStatus =
+  | 'disconnected'
+  | 'connecting'
+  | 'reconnecting'
+  | 'connected'
+  | 'error';
 
 type SyncPayload = { entity?: string; action?: string; id?: string };
 
+/** Lo que emite el backend en `notification:new`. */
+type NotificacionEntrante = {
+  _id?: string;
+  title?: string;
+  message?: string;
+  type?: string;
+  priority?: 'URGENT' | 'IMPORTANT' | 'INFO' | 'SYSTEM';
+  link?: string;
+};
+
 /** Which cached queries a change to each entity makes stale. */
-const INVALIDATION_MAP: Record<SyncEntity, readonly (readonly unknown[])[]> = {
+export const INVALIDATION_MAP: Record<SyncEntity, readonly (readonly unknown[])[]> = {
   student: [queryKeys.students.all, queryKeys.analytics.all],
   subject: [queryKeys.subjects.all, queryKeys.analytics.all],
   group: [queryKeys.groups.all],
@@ -47,6 +76,15 @@ const INVALIDATION_MAP: Record<SyncEntity, readonly (readonly unknown[])[]> = {
   // perfil viejos hasta que el docente recargara a mano.
   registration: [queryKeys.registro.all],
   professor: [queryKeys.auth.all],
+  // Mover una franja del horario cambia el calendario entero: las clases que
+  // el servidor expande a ocurrencias salen de ahí. Antes `schedule` no estaba
+  // en el mapa y el evento se descartaba en el `if (!keys) return`.
+  schedule: [queryKeys.schedules.all, queryKeys.agenda.all],
+  calendar: [queryKeys.agenda.all],
+  // Una entrega aparece en la agenda además de en su propia pantalla.
+  activity: [queryKeys.agenda.all],
+  // Cambiar la antelación en un dispositivo tiene que reflejarse en el otro.
+  preferences: [queryKeys.notifications.all],
 };
 
 let socket: Socket | null = null;
@@ -111,18 +149,55 @@ export function connectRealtime(
     });
   });
 
+  // El manager de socket.io es quien sabe de reintentos; el socket solo ve el
+  // resultado. Sin esto, una reconexión en curso se mostraba como 'sin
+  // conexión' hasta que terminaba.
+  active.io.on('reconnect_attempt', (intento: number) => {
+    onStatus('reconnecting', `Intento ${intento}`);
+  });
+  active.io.on('reconnect', () => onStatus('connected'));
+  active.io.on('reconnect_failed', () => {
+    onStatus('error', 'No se pudo restablecer la conexión.');
+  });
+
   active.on('sync:update', (payload: SyncPayload) => {
     const entity = payload?.entity as SyncEntity | undefined;
     if (!entity) return;
 
-    // Las entidades sin pantalla en escritorio (`schedule`, `activity`) caen
-    // aquí a propósito: no hay caché que invalidar.
+    // Una entidad sin entrada en el mapa cae aquí a propósito: no hay caché
+    // que invalidar y recargarlo todo por si acaso haría parpadear pantallas
+    // que no cambiaron.
     const keys = INVALIDATION_MAP[entity];
     if (!keys) return;
 
     for (const queryKey of keys) {
       void queryClient.invalidateQueries({ queryKey: queryKey as unknown[] });
     }
+  });
+
+  /**
+   * Notificación nueva dirigida a este usuario.
+   *
+   * Va por un evento propio y no por `sync:update` porque son dos cosas
+   * distintas: `sync:update` dice "esta caché caducó" y este dice "avísale". La
+   * bandeja se invalida igualmente para que el contador del menú suba sin
+   * esperar al siguiente refresco.
+   */
+  active.on('notification:new', (payload: NotificacionEntrante) => {
+    if (!payload?.title) return;
+
+    void queryClient.invalidateQueries({ queryKey: [...queryKeys.notifications.all] });
+    // Un recordatorio de clase cambia lo que la agenda considera "en curso".
+    if (payload.type === 'CLASS' || payload.type === 'SCHEDULE') {
+      void queryClient.invalidateQueries({ queryKey: [...queryKeys.agenda.all] });
+    }
+
+    const tono = payload.priority === 'URGENT' ? 'error' : payload.priority === 'IMPORTANT' ? 'warning' : 'info';
+    toast[tono](payload.title, payload.message);
+
+    // El aviso del sistema es lo que llega cuando la ventana está detrás de
+    // otra aplicación, que es justo cuando un recordatorio sirve de algo.
+    void mostrarAvisoNativo({ title: payload.title, body: payload.message ?? '' });
   });
 
   return disconnectRealtime;

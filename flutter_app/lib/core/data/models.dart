@@ -361,6 +361,15 @@ class AppNotification {
   final String title;
   final String message;
   final String type;
+
+  /// URGENT / IMPORTANT / INFO / SYSTEM. Ordena la bandeja y decide el canal
+  /// de Android con el que suena.
+  final String priority;
+
+  /// Ruta interna a la que lleva al tocarla (`/agenda?item=…`). Vacía si no
+  /// apunta a nada. Nunca una URL externa: una notificación no puede sacar al
+  /// docente de la aplicación hacia una dirección que alguien haya escrito.
+  final String link;
   final DateTime? createdAt;
   final DateTime? readAt;
 
@@ -369,17 +378,24 @@ class AppNotification {
     required this.title,
     required this.message,
     required this.type,
+    this.priority = 'INFO',
+    this.link = '',
     this.createdAt,
     this.readAt,
   });
 
   bool get isUnread => readAt == null;
 
+  /// ¿Se puede abrir algo al tocarla?
+  bool get esNavegable => link.startsWith('/');
+
   factory AppNotification.fromJson(Map<String, dynamic> json) => AppNotification(
         id: _toStr(json['_id'] ?? json['id']),
         title: _toStr(json['title']),
         message: _toStr(json['message']),
         type: _toStr(json['type'], 'ACTIVITY'),
+        priority: _toStr(json['priority'], 'INFO'),
+        link: _toStr(json['link']),
         createdAt: DateTime.tryParse(_toStr(json['createdAt'])),
         readAt: json['readAt'] == null
             ? null

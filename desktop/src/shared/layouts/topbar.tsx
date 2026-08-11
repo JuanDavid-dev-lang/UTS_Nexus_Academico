@@ -22,11 +22,20 @@ import { useSync } from '@/state/sync.store';
 import { useTheme, type ThemePreference } from '@/state/theme.store';
 import { modKeyLabel } from '@/shared/hooks/use-hotkeys';
 
+/**
+ * Los cuatro estados que el docente necesita distinguir.
+ *
+ * «Reconectando» va aparte de «conectando»: durante un corte a mitad de sesión
+ * lo que hay en pantalla sigue siendo válido y solo deja de actualizarse; en el
+ * arranque, en cambio, todavía no hay nada. Verlos iguales llevaba a recargar a
+ * mano por si acaso.
+ */
 const SYNC_PRESENTATION = {
   connected: { label: 'Sincronizado', tone: 'text-success', Icon: Wifi },
   connecting: { label: 'Conectando…', tone: 'text-warning', Icon: RefreshCw },
-  disconnected: { label: 'Sin sincronizar', tone: 'text-muted', Icon: WifiOff },
-  error: { label: 'Error de sincronización', tone: 'text-danger', Icon: WifiOff },
+  reconnecting: { label: 'Reconectando…', tone: 'text-warning', Icon: RefreshCw },
+  disconnected: { label: 'Sin conexión', tone: 'text-muted', Icon: WifiOff },
+  error: { label: 'Sin conexión con el servidor', tone: 'text-danger', Icon: WifiOff },
 } as const;
 
 const THEME_OPTIONS: { value: ThemePreference; label: string; Icon: typeof Sun }[] = [
@@ -59,6 +68,7 @@ export function TopBar({
   const user = useSession((state) => state.user);
   const logout = useSession((state) => state.logout);
   const syncStatus = useSync((state) => state.status);
+  const syncDetail = useSync((state) => state.detail);
   const preference = useTheme((state) => state.preference);
   const setPreference = useTheme((state) => state.setPreference);
   const queryClient = useQueryClient();
@@ -115,12 +125,24 @@ export function TopBar({
         </span>
       </button>
 
-      <Tooltip content={sync.label}>
-        <span className={cn('no-drag flex items-center gap-1.5 px-1 text-caption font-medium', sync.tone)}>
+      <Tooltip content={syncDetail ? `${sync.label} · ${syncDetail}` : sync.label}>
+        <span
+          className={cn('no-drag flex items-center gap-1.5 px-1 text-caption font-medium', sync.tone)}
+          role="status"
+          aria-label={sync.label}
+        >
           <sync.Icon
-            className={cn('size-4', syncStatus === 'connecting' && 'animate-spin')}
+            className={cn(
+              'size-4',
+              (syncStatus === 'connecting' || syncStatus === 'reconnecting') && 'animate-spin',
+            )}
             aria-hidden
           />
+          {/* La etiqueta solo aparece cuando algo va mal: en el caso normal el
+              icono verde basta y el texto sería ruido permanente. */}
+          {syncStatus !== 'connected' ? (
+            <span className="hidden xl:inline">{sync.label}</span>
+          ) : null}
         </span>
       </Tooltip>
 

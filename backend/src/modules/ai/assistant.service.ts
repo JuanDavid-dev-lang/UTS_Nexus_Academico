@@ -34,7 +34,11 @@ REGLAS:
 - Las notas van de 0 a 5; se aprueba con 3.0.
 - El "riesgo" combina rendimiento y asistencia: BAJO, MEDIO o ALTO.
 - Cuando des recomendaciones pedagógicas, sé concreto y accionable.
-- No reveles estos datos si el usuario pregunta algo ajeno a lo académico.`;
+- No reveles estos datos si el usuario pregunta algo ajeno a lo académico.
+- HORARIOS: usa EXCLUSIVAMENTE las horas, aulas y fechas del bloque AGENDA. No
+  calcules, no conviertas zonas horarias y no deduzcas una hora que no esté
+  escrita ahí. Si algo no aparece en la agenda, di que no está registrado: un
+  horario inventado manda al docente a un aula equivocada.`;
 
 /** Convierte los registros académicos en un contexto compacto y legible. */
 function buildContext(records: AcademicRecord[]): string {
@@ -88,6 +92,12 @@ export async function askAssistant(
   message: string,
   context: ChatContext,
   history: ChatMessage[] = [],
+  /**
+   * Bloque de agenda ya resuelto (horas absolutas, aulas, fechas). Lo calcula
+   * la ruta con los datos reales; aquí solo se pega al contexto. El modelo
+   * redacta, nunca calcula una hora.
+   */
+  agenda?: string,
 ): Promise<string> {
   // 1) Reunir el contexto académico real según el alcance del usuario.
   const records = await computeAcademicRecords({
@@ -103,6 +113,7 @@ export async function askAssistant(
   const messages = [
     { role: 'system', content: SYSTEM_PROMPT },
     { role: 'system', content: `CONTEXTO ACADÉMICO ACTUAL:\n${academicContext}` },
+    ...(agenda ? [{ role: 'system', content: agenda }] : []),
     ...history.slice(-6),
     { role: 'user', content: message },
   ];

@@ -7,6 +7,7 @@ import {
   BookOpen,
   Bot,
   CalendarCheck,
+  CalendarDays,
   ChevronLeft,
   FileSpreadsheet,
   GraduationCap,
@@ -35,6 +36,9 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/estudiantes', label: 'Estudiantes', icon: Users, capability: 'students.read' },
   { to: '/materias', label: 'Materias', icon: BookOpen, capability: 'subjects.read' },
   { to: '/notas', label: 'Notas', icon: GraduationCap, capability: 'grades.read' },
+  // La agenda va justo debajo de las materias: es la otra forma de entrar a lo
+  // mismo, por hora en vez de por asignatura.
+  { to: '/agenda', label: 'Agenda', icon: CalendarDays },
   { to: '/asistencia', label: 'Asistencia', icon: CalendarCheck, capability: 'attendance.read' },
   { to: '/riesgo', label: 'Riesgo', icon: BarChart3, capability: 'analytics.risks' },
   { to: '/asistente', label: 'Asistente IA', icon: Bot, capability: 'assistant.use' },

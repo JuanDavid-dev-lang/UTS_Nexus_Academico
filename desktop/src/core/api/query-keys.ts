@@ -62,6 +62,27 @@ export const queryKeys = {
   notifications: {
     all: ['notifications'] as const,
     list: () => ['notifications', 'list'] as const,
+    // Cuelga aparte de `list`: cambiar una preferencia no invalida la bandeja,
+    // y marcar una leída no tiene por qué recargar los interruptores.
+    preferences: () => ['notifications', 'preferences'] as const,
+  },
+
+  /**
+   * Agenda. La clave del rango incluye las dos fechas en ISO porque cada semana
+   * es una consulta distinta: con una clave fija, pasar de semana mostraría la
+   * anterior hasta que llegara la respuesta.
+   */
+  agenda: {
+    all: ['agenda'] as const,
+    range: (desde: string, hasta: string, subjectId?: string) =>
+      ['agenda', 'range', desde, hasta, subjectId ?? null] as const,
+    summary: () => ['agenda', 'summary'] as const,
+    events: (desde: string, hasta: string) => ['agenda', 'events', desde, hasta] as const,
+  },
+
+  schedules: {
+    all: ['schedules'] as const,
+    list: () => ['schedules', 'list'] as const,
   },
 
   // Los avisos usaban la clave literal `['avisos']` escrita en cada pantalla, y

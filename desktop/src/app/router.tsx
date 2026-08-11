@@ -15,6 +15,7 @@ const LoginPage = lazy(() => import('@/features/auth/login-page'));
 const AnnouncementsPage = lazy(() => import('@/features/announcements/announcements-page'));
 const RegisterPage = lazy(() => import('@/features/auth/register-page'));
 const DashboardPage = lazy(() => import('@/features/dashboard/dashboard-page'));
+const AgendaPage = lazy(() => import('@/features/agenda/agenda-page'));
 const StudentsPage = lazy(() => import('@/features/students/students-page'));
 const SubjectsPage = lazy(() => import('@/features/subjects/subjects-page'));
 const GradesPage = lazy(() => import('@/features/grades/grades-page'));
@@ -62,6 +63,7 @@ export const router = createBrowserRouter([
           { path: '/materias', element: <SubjectsPage /> },
           { path: '/notas', element: <GradesPage /> },
           { path: '/asistencia', element: <AttendancePage /> },
+          { path: '/agenda', element: <AgendaPage /> },
           { path: '/riesgo', element: <RiskPage /> },
           { path: '/asistente', element: <AssistantPage /> },
           { path: '/reportes', element: <ReportsPage /> },

@@ -32,15 +32,27 @@ export const notificationType = z.enum([
   'ACTIVITY',
   'EXAM',
   'DEADLINE',
+  // Añadidos con la agenda.
+  'EVENT',
+  'REMINDER',
+  'SCHEDULE',
+  'SISTEMA',
 ]);
 export type NotificationType = z.infer<typeof notificationType>;
+
+/** Cuánto corre. Ordena la bandeja y decide si atraviesa las horas de silencio. */
+export const notificationPriority = z.enum(['URGENT', 'IMPORTANT', 'INFO', 'SYSTEM']);
+export type NotificationPriority = z.infer<typeof notificationPriority>;
 
 export const notificationSchema = mongoDoc.extend({
   userId: objectId.optional(),
   title: z.string(),
   message: z.string(),
   type: notificationType.catch('ACTIVITY'),
+  priority: notificationPriority.catch('INFO'),
   channel: z.string().optional().default('IN_APP'),
+  /** Ruta interna a la que lleva al tocarla: `/agenda?item=…`. Nunca una URL externa. */
+  link: z.string().optional().default(''),
   /** The API stores a timestamp, not a boolean: null means unread. */
   readAt: z.string().nullable().optional().default(null),
   metadata: z.record(z.unknown()).optional().default({}),

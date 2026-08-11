@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/core/api/query-keys';
 import { notificationRepository } from '@/infrastructure/repositories/insights.repository';
+import { notificationPreferencesRepository } from '@/infrastructure/repositories/agenda.repository';
 import { isUnread, type Notification } from '@/domain/schemas/insights';
 import { useSession } from '@/state/session.store';
 import { toast } from '@/state/toast.store';
@@ -55,6 +56,74 @@ export function useMarkNotificationRead() {
         queryClient.setQueryData(queryKeys.notifications.list(), context.previous);
       }
       toast.fromError(error, 'No se pudo marcar como leída');
+    },
+
+    onSettled() {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
+    },
+  });
+}
+
+/**
+ * Marca todas como leídas en UNA petición.
+ *
+ * La versión anterior recorría la lista y disparaba una mutación por
+ * notificación: con cincuenta pendientes eran cincuenta peticiones, y el
+ * limitador de tasa del servidor empezaba a rechazarlas a mitad de camino.
+ */
+export function useMarkAllNotificationsRead() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => notificationPreferencesRepository.markAllRead(),
+
+    async onMutate() {
+      await queryClient.cancelQueries({ queryKey: queryKeys.notifications.list() });
+      const previous = queryClient.getQueryData<Notification[]>(queryKeys.notifications.list());
+      const ahora = new Date().toISOString();
+
+      queryClient.setQueryData<Notification[]>(queryKeys.notifications.list(), (current) =>
+        current?.map((notification) => notification.readAt ? notification : { ...notification, readAt: ahora }),
+      );
+
+      return { previous };
+    },
+
+    onError(error, _variables, context) {
+      if (context?.previous) {
+        queryClient.setQueryData(queryKeys.notifications.list(), context.previous);
+      }
+      toast.fromError(error, 'No se pudieron marcar como leídas');
+    },
+
+    onSettled() {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
+    },
+  });
+}
+
+export function useDeleteNotification() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => notificationPreferencesRepository.remove(id),
+
+    async onMutate(id) {
+      await queryClient.cancelQueries({ queryKey: queryKeys.notifications.list() });
+      const previous = queryClient.getQueryData<Notification[]>(queryKeys.notifications.list());
+
+      queryClient.setQueryData<Notification[]>(queryKeys.notifications.list(), (current) =>
+        current?.filter((notification) => notification._id !== id),
+      );
+
+      return { previous };
+    },
+
+    onError(error, _id, context) {
+      if (context?.previous) {
+        queryClient.setQueryData(queryKeys.notifications.list(), context.previous);
+      }
+      toast.fromError(error, 'No se pudo eliminar la notificación');
     },
 
     onSettled() {

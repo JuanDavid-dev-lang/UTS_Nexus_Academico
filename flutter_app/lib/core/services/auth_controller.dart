@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/offline_cache.dart';
+import '../data/offline_status.dart';
 import '../models/auth_user.dart';
 import 'connection_settings.dart';
 import 'api_client.dart';
@@ -117,6 +118,9 @@ class AuthController extends StateNotifier<AuthState> {
     // siguiente que entre en el mismo teléfono. En un equipo compartido —que es
     // lo normal en una sala de profesores— eso sería filtrar notas y cédulas.
     await OfflineCache.clear();
+    // La hora a la que sincronizó el docente anterior no le dice nada al
+    // siguiente, y verla le haría creer que sus datos ya están al día.
+    await OfflineStatus.instance.limpiar();
     ApiClient.instance.setTokens(accessToken: null, refreshToken: null);
     _realtime.dispose();
     state = const AuthState(loading: false);

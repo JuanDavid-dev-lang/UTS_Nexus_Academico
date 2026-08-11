@@ -7,6 +7,27 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Firebase Cloud Messaging, solo si está configurado.
+//
+// El plugin de Google falla la compilación cuando no encuentra
+// `google-services.json`. Aplicarlo de forma incondicional obligaría a todo el
+// que clone el repositorio a crear un proyecto de Firebase antes de poder
+// compilar, y eso no hace falta: los recordatorios de clase son alarmas
+// locales del propio teléfono y funcionan sin ninguna cuenta.
+//
+// Con el archivo presente, el push queda activo. Sin él,
+// `Firebase.initializeApp()` falla en tiempo de ejecución, `PushService` lo
+// captura y la aplicación sigue igual, sin push del servidor.
+val tieneFirebase = project.file("google-services.json").exists()
+if (tieneFirebase) {
+    apply(plugin = "com.google.gms.google-services")
+} else {
+    logger.lifecycle(
+        "[uts] google-services.json no encontrado: se compila SIN notificaciones push. " +
+            "Los recordatorios de clase siguen funcionando (alarmas locales)."
+    )
+}
+
 // Credenciales de firma. Viven fuera del control de versiones (key.properties y
 // el .jks están en .gitignore): un keystore filtrado permite publicar
 // actualizaciones falsas de la app firmadas como si fueran oficiales.
@@ -29,11 +50,18 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // flutter_local_notifications usa java.time para programar alarmas.
+        // Sin desugaring, la app compila y revienta en tiempo de ejecución en
+        // los Android antiguos que todavía usan buena parte del claustro.
+        isCoreLibraryDesugaringEnabled = true
     }
 
     defaultConfig {
         applicationId = "co.edu.uts.nexus.academico"
-        minSdk = flutter.minSdkVersion
+        // Firebase exige 23; el resto de la app aguanta menos, pero un valor por
+        // debajo del que pide una dependencia rompe la compilación con un error
+        // que no menciona a Firebase por ninguna parte.
+        minSdk = maxOf(flutter.minSdkVersion, 23)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -67,6 +95,10 @@ android {
             )
         }
     }
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
 kotlin {

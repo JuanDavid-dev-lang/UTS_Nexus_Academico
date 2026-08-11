@@ -14,6 +14,7 @@ import { attendanceScanRouter } from '../modules/attendance/attendance-scan.rout
 import { activityRouter } from '../modules/activities/activity.routes.js';
 import { notificationRouter } from '../modules/notifications/notification.routes.js';
 import { scheduleRouter } from '../modules/schedules/schedule.routes.js';
+import { agendaRouter } from '../modules/agenda/agenda.routes.js';
 import { reportsRouter } from '../modules/reports/reports.routes.js';
 import { uploadRouter } from '../modules/uploads/upload.routes.js';
 import { professorRouter } from '../modules/professors/professor.routes.js';
@@ -42,6 +43,9 @@ apiRouter.use('/attendance', attendanceRouter);
 apiRouter.use('/activities', activityRouter);
 apiRouter.use('/notifications', notificationRouter);
 apiRouter.use('/schedules', scheduleRouter);
+// La agenda LEE el horario y los eventos; no los sustituye. `/schedules` sigue
+// siendo el único sitio donde se escribe una franja semanal.
+apiRouter.use('/agenda', agendaRouter);
 apiRouter.use('/reports', reportsRouter);
 apiRouter.use('/uploads', uploadRouter);
 apiRouter.use('/professors', professorRouter);

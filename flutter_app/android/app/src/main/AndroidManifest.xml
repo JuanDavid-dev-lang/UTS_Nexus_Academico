@@ -5,6 +5,22 @@
          explícito al usuario la primera vez; este permiso solo habilita a que
          se le pueda preguntar. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!-- Recordatorios de clase. Desde Android 13 el permiso de notificaciones
+         se pide en caliente; la app lo solicita al iniciar sesión, que es el
+         único momento en que el docente entiende para qué es. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Sin alarma exacta el sistema puede retrasar el aviso varios minutos, y
+         un "empieza en 15" que llega a los 25 no sirve de nada. USE_EXACT_ALARM
+         cubre Android 13+; SCHEDULE_EXACT_ALARM, las versiones anteriores. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- Al reiniciar el teléfono, Android borra las alarmas programadas. El
+         receptor del plugin las vuelve a poner; sin este permiso, un reinicio
+         nocturno dejaba al docente sin ningún aviso al día siguiente. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <application
         android:label="UTS Nexus Académico"
         android:name="${applicationName}"
@@ -37,6 +53,27 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- flutter_local_notifications: quien dispara la alarma programada,
+             quien la vuelve a programar tras un reinicio y quien recoge las
+             acciones de la notificación. Sin estos tres, los recordatorios se
+             programan sin error y no llega ninguno. -->
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
+            android:exported="false" />
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
+            android:exported="false" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

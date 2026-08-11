@@ -24,6 +24,37 @@ export const env = {
   CLIENT_ORIGIN: process.env.CLIENT_ORIGIN ?? '*',
   /** Minutos entre escaneos automáticos de riesgo. 0 = desactivado. */
   RISK_SCAN_INTERVAL_MIN: Number(process.env.RISK_SCAN_INTERVAL_MIN ?? 0),
+
+  // ── Agenda académica ───────────────────────────────────────────────────
+  /**
+   * Desfase del campus respecto a UTC, en minutos. Colombia: -300, sin horario
+   * de verano.
+   *
+   * "10:00" en un horario son las diez de la mañana en el campus, no las diez
+   * del reloj del servidor. Si la hora se resolviera con la zona del proceso,
+   * un backend en un contenedor UTC pondría esa clase a las 5:00 en el teléfono
+   * del docente y el recordatorio llegaría cinco horas tarde.
+   */
+  CAMPUS_UTC_OFFSET_MIN: Number(process.env.CAMPUS_UTC_OFFSET_MIN ?? -300),
+  /**
+   * Minutos entre pasadas del recordatorio de clases. 0 = desactivado.
+   *
+   * Va a 1 por defecto —al revés que el escaneo de riesgo— porque un aviso de
+   * "empieza en 15 minutos" que se comprueba cada cuarto de hora no es un
+   * aviso: la pasada es una consulta acotada a la ventana siguiente, no un
+   * recorrido de todos los estudiantes.
+   */
+  CLASS_REMINDER_INTERVAL_MIN: Number(process.env.CLASS_REMINDER_INTERVAL_MIN ?? 1),
+
+  // ── Notificaciones push (Firebase Cloud Messaging, API HTTP v1) ─────────
+  // Sin las tres variables el envío queda desactivado y se anota en el log,
+  // igual que el correo: una instalación local no debería necesitar una cuenta
+  // de servicio de Google para arrancar. Los recordatorios de clase siguen
+  // llegando al teléfono porque Android los programa como alarmas locales.
+  FCM_PROJECT_ID: process.env.FCM_PROJECT_ID ?? '',
+  FCM_CLIENT_EMAIL: process.env.FCM_CLIENT_EMAIL ?? '',
+  /** Clave privada de la cuenta de servicio. Admite los `\n` escapados del JSON. */
+  FCM_PRIVATE_KEY: (process.env.FCM_PRIVATE_KEY ?? '').replace(/\\n/g, '\n'),
   /** URL del servidor de IA local (Ollama). */
   AI_BASE_URL: process.env.AI_BASE_URL ?? 'http://localhost:11434',
   /** Modelo de Ollama para el asistente académico. */

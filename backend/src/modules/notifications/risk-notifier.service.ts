@@ -10,6 +10,7 @@ import { NotificationModel } from '../../models/notification.model.js';
 import { UserModel } from '../../models/user.model.js';
 import { computeAcademicRecords, type AcademicRecord } from '../../shared/academic.service.js';
 import { emitToUser } from '../../shared/socket.js';
+import { crearNotificacion } from '../../shared/notify.js';
 
 export type RiskScanOptions = {
   /** Limita el escaneo a un docente (para el disparo manual del profesor). */
@@ -21,39 +22,55 @@ async function upsertRisk(userId: string, record: AcademicRecord) {
   const title = record.riesgo.nivel === 'ALTO' ? 'Riesgo académico ALTO' : 'Riesgo académico';
   const message =
     `${record.fullName || record.code}: ${record.riesgo.motivos.join(' ') || 'En seguimiento.'}`.trim();
-  const query = {
-    userId,
-    type: 'RISK' as const,
-    'metadata.studentId': record.studentId,
-    'metadata.subjectId': record.subjectId,
-    'metadata.period': record.period,
-    readAt: null,
-    deletedAt: null,
+  const metadata = {
+    studentId: record.studentId,
+    subjectId: record.subjectId,
+    period: record.period,
+    code: record.code,
+    level: record.riesgo.nivel,
+    riskScore: record.riesgo.puntaje,
+    notaFinal: record.notaFinal,
+    attendanceRate: record.riesgo.porcentajeAsistencia,
   };
-  const item = await NotificationModel.findOneAndUpdate(
-    query,
+  const priority = record.riesgo.nivel === 'ALTO' ? ('URGENT' as const) : ('IMPORTANT' as const);
+  // Al tocarla se abre la ficha del estudiante por su cédula, que es el
+  // identificador con el que el docente lo reconoce.
+  const link = `/estudiantes?buscar=${encodeURIComponent(record.code)}`;
+
+  // Mientras la alerta siga sin leer se reescribe: es el mismo caso, con los
+  // motivos actualizados, y no debe volver a sonar en el teléfono.
+  const pendiente = await NotificationModel.findOneAndUpdate(
     {
-      $set: {
-        title,
-        message,
-        channel: 'IN_APP',
-        metadata: {
-          studentId: record.studentId,
-          subjectId: record.subjectId,
-          period: record.period,
-          code: record.code,
-          level: record.riesgo.nivel,
-          riskScore: record.riesgo.puntaje,
-          notaFinal: record.notaFinal,
-          attendanceRate: record.riesgo.porcentajeAsistencia,
-        },
-      },
-      $setOnInsert: { userId, type: 'RISK' },
+      userId,
+      type: 'RISK' as const,
+      'metadata.studentId': record.studentId,
+      'metadata.subjectId': record.subjectId,
+      'metadata.period': record.period,
+      readAt: null,
+      deletedAt: null,
     },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
+    { $set: { title, message, priority, link, metadata } },
+    { new: true },
   );
-  emitToUser(userId, 'sync:update', { entity: 'notification', action: 'risk', id: item.id });
-  return item;
+
+  if (pendiente) {
+    emitToUser(userId, 'sync:update', { entity: 'notification', action: 'risk', id: pendiente.id });
+    return pendiente;
+  }
+
+  // Sin alerta pendiente se crea una nueva —y esa sí avisa al teléfono—, aunque
+  // exista una anterior ya leída: que el docente diera por vista la de la
+  // semana pasada no significa que sepa que el caso sigue abierto.
+  const creada = await crearNotificacion({
+    userId,
+    title,
+    message,
+    type: 'RISK',
+    priority,
+    link,
+    metadata,
+  });
+  return creada;
 }
 
 export async function generateRiskNotifications(options: RiskScanOptions = {}) {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +10,9 @@ import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
 import 'core/widgets/app_scaffold.dart';
 import 'core/widgets/update_prompt.dart';
+import 'core/services/local_notifications_service.dart';
+import 'core/services/push_service.dart';
+import 'features/agenda/agenda_page.dart';
 import 'features/ai/ai_page.dart';
 import 'features/auth/login_page.dart';
 import 'features/auth/recovery_page.dart';
@@ -66,6 +71,13 @@ final router = GoRouter(
         GoRoute(path: '/attendance/scan', builder: (_, __) => const ScanSheetPage()),
         GoRoute(path: '/avisos', builder: (_, __) => const AnnouncementsPage()),
         GoRoute(path: '/schedule', builder: (_, __) => const SchedulePage()),
+        // `?item=` lo pone la notificación: al tocarla se abre esa clase, no la
+        // agenda genérica. Sin eso, el aviso obliga a repetir a mano la
+        // búsqueda que él mismo ya había hecho.
+        GoRoute(
+          path: '/agenda',
+          builder: (_, state) => AgendaPage(itemDestacado: state.uri.queryParameters['item']),
+        ),
         GoRoute(path: '/ai', builder: (_, __) => const AiPage()),
         GoRoute(path: '/reports', builder: (_, __) => const ReportsPage()),
         GoRoute(path: '/notifications', builder: (_, __) => const NotificationsPage()),
@@ -84,8 +96,87 @@ class UtsApp extends ConsumerStatefulWidget {
 }
 
 class _UtsAppState extends ConsumerState<UtsApp> {
+  /// Evita que dos eventos seguidos disparen dos reprogramaciones solapadas.
+  bool _reprogramando = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Al tocar una notificación —incluida la que abrió la app desde cero— se
+    // navega a lo que apuntaba. `rutaPendiente` cubre el arranque en frío: en
+    // ese momento el router todavía no existía.
+    LocalNotificationsService.instance.onAbrirRuta = (ruta) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) router.go(ruta);
+      });
+    };
+
+    final pendiente = LocalNotificationsService.instance.rutaPendiente;
+    if (pendiente != null) {
+      LocalNotificationsService.instance.rutaPendiente = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) router.go(pendiente);
+      });
+    }
+  }
+
+  /// Vuelve a programar las alarmas del teléfono con la agenda vigente.
+  ///
+  /// Se llama cuando cambia el horario, el calendario o las preferencias. Es
+  /// idempotente —cancela y rehace—, así que llamarla de más no duplica nada;
+  /// el candado solo evita el trabajo repetido.
+  Future<void> _reprogramarRecordatorios() async {
+    if (_reprogramando) return;
+    _reprogramando = true;
+    try {
+      final agenda = await ref.read(agendaProximaProvider.future);
+      final preferencias = await ref.read(notificationPrefsProvider.future);
+      await LocalNotificationsService.instance.reprogramar(
+        items: agenda.items,
+        preferencias: preferencias.preferencias,
+        offsetCampusMinutos: agenda.offsetCampusMinutos,
+      );
+    } catch (_) {
+      // Sin red no se reprograma: las alarmas que ya estaban puestas siguen
+      // siendo válidas, y borrarlas por no poder confirmarlas dejaría al
+      // docente sin avisos justo cuando no tiene conexión.
+    } finally {
+      _reprogramando = false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Un aviso que llega por Socket.IO con la app en segundo plano no se ve si
+    // solo se invalida una caché: se muestra como notificación del sistema. La
+    // clave la pone el servidor (`_id`), así que Android reemplaza en vez de
+    // apilar si el mismo aviso llegara dos veces.
+    ref.listen(realtimeNotificationsProvider, (previous, next) {
+      next.whenData((carga) {
+        final titulo = carga['title']?.toString();
+        if (titulo == null || titulo.isEmpty) return;
+
+        final prioridad = carga['priority']?.toString() ?? 'INFO';
+        final enlace = carga['link']?.toString();
+
+        unawaited(LocalNotificationsService.instance.mostrarAhora(
+          clave: carga['_id']?.toString() ?? titulo,
+          titulo: titulo,
+          mensaje: carga['message']?.toString() ?? '',
+          canalId: switch (prioridad) {
+            'URGENT' => 'uts_urgente',
+            'IMPORTANT' => 'uts_importante',
+            'SYSTEM' => 'uts_sistema',
+            _ => 'uts_informativa',
+          },
+          ruta: (enlace != null && enlace.startsWith('/')) ? enlace : '/notifications',
+        ));
+
+        ref.invalidate(notificationsProvider);
+      });
+    });
+
     // El servicio de tiempo real ya filtra por el evento `sync:update` y emite
     // su payload, que es {entity, action, id}. La versión anterior comprobaba
     // `event['type'] == 'sync:update'`, una clave que ese payload nunca tiene,
@@ -118,8 +209,25 @@ class _UtsAppState extends ConsumerState<UtsApp> {
             ref.invalidate(dashboardProvider);
           case 'attendance':
             ref.invalidate(dashboardProvider);
+          // El horario alimenta la agenda: cambiarlo mueve las clases y, con
+          // ellas, los recordatorios que el teléfono tenía programados.
           case 'schedule':
             ref.invalidate(scheduleProvider);
+            ref.invalidate(agendaResumenProvider);
+            ref.invalidate(agendaSemanaProvider);
+            ref.invalidate(agendaProximaProvider);
+            unawaited(_reprogramarRecordatorios());
+          case 'calendar':
+          case 'activity':
+            ref.invalidate(agendaResumenProvider);
+            ref.invalidate(agendaSemanaProvider);
+            ref.invalidate(agendaProximaProvider);
+            unawaited(_reprogramarRecordatorios());
+          // Cambiar la antelación en el escritorio tiene que reprogramar las
+          // alarmas de este teléfono; si no, seguiría avisando con la vieja.
+          case 'preferences':
+            ref.invalidate(notificationPrefsProvider);
+            unawaited(_reprogramarRecordatorios());
           // Sin este caso el aviso caía en `default`, que solo recarga el
           // panel: el docente con la pantalla de avisos abierta no lo veía
           // aparecer hasta que la recargara a mano.
@@ -145,7 +253,23 @@ class _UtsAppState extends ConsumerState<UtsApp> {
         if (!mounted) return;
         if (next.isAuthenticated) {
           router.go('/');
+          // Al entrar se piden los permisos, se registra el teléfono para el
+          // push y se programan los avisos de la semana. Es el único momento en
+          // que el docente entiende para qué se le pide el permiso, y las
+          // alarmas quedan puestas aunque cierre la aplicación a continuación.
+          unawaited(LocalNotificationsService.instance.pedirPermisos().then((_) async {
+            // El token se ata al usuario que acaba de entrar: en un teléfono
+            // compartido, el docente nuevo no puede heredar las alertas del
+            // anterior.
+            await PushService.instance.registrar();
+            await _reprogramarRecordatorios();
+          }));
         } else {
+          // Al cerrar sesión no pueden quedar alarmas con el nombre de las
+          // clases del docente anterior, ni un token que le siga empujando sus
+          // alertas a un teléfono que ya no es suyo.
+          unawaited(PushService.instance.darDeBaja());
+          unawaited(LocalNotificationsService.instance.cancelarTodo());
           router.go('/login');
         }
       });

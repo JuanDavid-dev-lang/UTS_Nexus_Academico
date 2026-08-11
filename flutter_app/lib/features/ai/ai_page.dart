@@ -54,7 +54,10 @@ class _AiPageState extends ConsumerState<AiPage> {
   @override
   Widget build(BuildContext context) {
     final chat = ref.watch(chatControllerProvider);
-    final sinConexion = ref.watch(offlineStatusProvider).valueOrNull != null;
+    // 'no fresco' = lo que se está viendo salió de la caché. El estado ya no
+    // es nulo cuando hay conexión: ahora también lleva la hora de la última
+    // sincronización, así que la comprobación va contra 'esFresco'.
+    final sinConexion = !(ref.watch(offlineStatusProvider).valueOrNull?.esFresco ?? true);
     ref.listen(chatControllerProvider, (_, __) => _scrollToBottom());
 
     return Scaffold(

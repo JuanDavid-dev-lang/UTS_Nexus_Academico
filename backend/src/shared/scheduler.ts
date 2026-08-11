@@ -7,9 +7,11 @@
 import { env } from './env.js';
 import { generateRiskNotifications } from '../modules/notifications/risk-notifier.service.js';
 import { notificarVersionNueva } from '../modules/notifications/release-notifier.service.js';
+import { generarRecordatorios } from '../modules/notifications/class-reminder.service.js';
 
 let timer: NodeJS.Timeout | null = null;
 let releaseTimer: NodeJS.Timeout | null = null;
+let recordatoriosTimer: NodeJS.Timeout | null = null;
 
 /**
  * Comprobación periódica de versión nueva.
@@ -51,6 +53,52 @@ export function stopReleaseWatcher() {
   if (releaseTimer) {
     clearInterval(releaseTimer);
     releaseTimer = null;
+  }
+}
+
+/**
+ * Recordatorios de clase y de eventos de la agenda.
+ *
+ * Va por su cuenta y no dentro del escaneo de riesgo porque su ritmo es otro:
+ * el riesgo cambia en semanas, un "empieza en 15 minutos" hay que comprobarlo
+ * cada minuto o deja de ser un aviso. La pasada mira solo la ventana siguiente,
+ * así que su coste no crece con el número de estudiantes.
+ *
+ * En un despliegue con varias instancias, activarlo en una sola: el `dedupeKey`
+ * evita el aviso doble, pero no el trabajo doble.
+ */
+export function startClassReminders() {
+  if (recordatoriosTimer) return;
+  const minutos = env.CLASS_REMINDER_INTERVAL_MIN;
+  if (!minutos || minutos <= 0) {
+    console.log('Recordatorios de clase desactivados (CLASS_REMINDER_INTERVAL_MIN=0).');
+    return;
+  }
+
+  const run = async () => {
+    try {
+      const resultado = await generarRecordatorios();
+      if (resultado.avisos > 0) {
+        console.log(
+          `[agenda] ${resultado.avisos} recordatorio(s) enviados ` +
+            `(${resultado.clasesRevisadas} clases y ${resultado.eventosRevisados} eventos en ventana).`,
+        );
+      }
+    } catch (err) {
+      console.error('[agenda] fallo generando recordatorios:', err);
+    }
+  };
+
+  recordatoriosTimer = setInterval(run, minutos * 60 * 1000);
+  console.log(`Recordatorios de clase activos cada ${minutos} min.`);
+  // Diferido como los demás: el arranque no debe esperar a una consulta.
+  setTimeout(run, 20 * 1000);
+}
+
+export function stopClassReminders() {
+  if (recordatoriosTimer) {
+    clearInterval(recordatoriosTimer);
+    recordatoriosTimer = null;
   }
 }
 

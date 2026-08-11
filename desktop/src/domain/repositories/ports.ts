@@ -32,6 +32,14 @@ import type {
   Notification,
   Prediction,
 } from '@/domain/schemas/insights';
+import type {
+  AgendaItem,
+  AgendaResumen,
+  AgendaTipo,
+  CalendarEvent,
+  CalendarEventInput,
+  NotificationPreferences,
+} from '@/domain/schemas/agenda';
 
 export type Scope = {
   period?: string;
@@ -150,6 +158,37 @@ export interface NotificationRepository {
   list(): Promise<Notification[]>;
   markRead(id: string): Promise<void>;
   scanRisks(period?: string): Promise<{ created: number; scanned: number }>;
+}
+
+/**
+ * Agenda académica.
+ *
+ * `range` devuelve las clases YA expandidas a ocurrencias con fecha: el cliente
+ * no vuelve a calcular a qué hora es una clase, para que PC y Android no puedan
+ * discrepar.
+ */
+export interface AgendaRepository {
+  range(input: {
+    desde: Date;
+    hasta: Date;
+    subjectId?: string;
+    groupId?: string;
+    tipos?: AgendaTipo[];
+  }): Promise<{ items: AgendaItem[]; campusOffsetMinutes: number }>;
+  summary(): Promise<AgendaResumen>;
+  listEvents(desde: Date, hasta: Date): Promise<CalendarEvent[]>;
+  createEvent(input: CalendarEventInput): Promise<CalendarEvent>;
+  updateEvent(id: string, input: Partial<CalendarEventInput>): Promise<CalendarEvent>;
+  removeEvent(id: string): Promise<void>;
+}
+
+export interface NotificationPreferencesRepository {
+  get(): Promise<{ preferences: NotificationPreferences; pushConfigurado: boolean }>;
+  update(
+    input: Partial<NotificationPreferences>,
+  ): Promise<{ preferences: NotificationPreferences; pushConfigurado: boolean }>;
+  markAllRead(): Promise<number>;
+  remove(id: string): Promise<void>;
 }
 
 export interface AssistantRepository {

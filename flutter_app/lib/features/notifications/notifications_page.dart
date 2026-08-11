@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/data/models.dart';
 import '../../core/data/providers.dart';
@@ -125,7 +126,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                     _NotificationCard(
                       notification: notification,
                       read: _optimisticallyRead.contains(notification.id),
-                      onMarkRead: () => _markRead(notification),
+                      onMarkRead: () => _abrir(notification),
                     ),
                     const SizedBox(height: 10),
                   ],
@@ -135,6 +136,17 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         },
       ),
     );
+  }
+
+  /// Marca leída y abre lo que la notificación referencia.
+  ///
+  /// Una alerta de riesgo lleva al estudiante y un recordatorio de clase a esa
+  /// clase en la agenda. Sin esto, el aviso obliga a repetir a mano la búsqueda
+  /// que él mismo ya había hecho.
+  Future<void> _abrir(AppNotification notification) async {
+    await _markRead(notification);
+    if (!mounted || !notification.esNavegable) return;
+    context.go(notification.link);
   }
 
   Future<void> _markRead(AppNotification notification) async {
@@ -153,9 +165,23 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     }
   }
 
+  /// Marca todas como leídas en UNA petición.
+  ///
+  /// Antes recorría la lista y mandaba una por notificación: con cincuenta
+  /// pendientes eran cincuenta peticiones, y el limitador de tasa del servidor
+  /// empezaba a rechazarlas a mitad de camino.
   Future<void> _markAll(List<AppNotification> items) async {
-    for (final notification in items.where((n) => n.isUnread)) {
-      await _markRead(notification);
+    final pendientes = items.where((n) => n.isUnread).map((n) => n.id).toList();
+    if (pendientes.isEmpty) return;
+    setState(() => _optimisticallyRead.addAll(pendientes));
+
+    try {
+      await ref.read(notificationPrefsRepositoryProvider).marcarTodasLeidas();
+      ref.invalidate(notificationsProvider);
+    } on ApiError catch (error) {
+      if (!mounted) return;
+      setState(() => _optimisticallyRead.removeAll(pendientes));
+      AppToast.error(context, 'No se pudieron marcar como leídas', error.message);
     }
   }
 
@@ -209,6 +235,12 @@ class _NotificationCard extends StatelessWidget {
     'CLASS': (Icons.menu_book_outlined, SemanticKind.info, 'Clase'),
     'EXAM': (Icons.assignment_outlined, SemanticKind.info, 'Examen'),
     'DEADLINE': (Icons.timer_outlined, SemanticKind.warning, 'Fecha límite'),
+    // Añadidos con la agenda. Sin entrada propia caían en el icono genérico y
+    // un cambio de horario se veía igual que cualquier otra cosa.
+    'EVENT': (Icons.event_outlined, SemanticKind.info, 'Evento'),
+    'REMINDER': (Icons.alarm_outlined, SemanticKind.info, 'Recordatorio'),
+    'SCHEDULE': (Icons.calendar_month_outlined, SemanticKind.brand, 'Horario'),
+    'SISTEMA': (Icons.campaign_outlined, SemanticKind.info, 'Sistema'),
   };
 
   @override
@@ -225,7 +257,7 @@ class _NotificationCard extends StatelessWidget {
 
     return AppCard(
       padding: const EdgeInsets.all(14),
-      onTap: unread ? onMarkRead : null,
+      onTap: (unread || notification.esNavegable) ? onMarkRead : null,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

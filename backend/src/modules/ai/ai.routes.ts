@@ -20,6 +20,8 @@ import {
   OllamaUnavailableError,
   type ChatMessage,
 } from './assistant.service.js';
+import { contextoAgenda, responderAgenda } from './agenda-context.js';
+import { pareceDeAgenda } from '../../domains/agenda/agenda-questions.js';
 
 export const aiRouter = Router();
 aiRouter.use(identificar);
@@ -142,6 +144,14 @@ aiRouter.post('/chat', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (
       teacherId = req.user.id;
     }
 
+    const alcanceAgenda = { userId: req.user!.id, role: req.user!.role };
+
+    // La agenda se calcula aquí, con los datos reales, y se le entrega al
+    // modelo ya resuelta. Solo cuando la pregunta lo pide: cargar el horario en
+    // cada mensaje sería una consulta de más por cada "¿cómo va el grupo?".
+    const preguntaDeAgenda = pareceDeAgenda(body.message);
+    const bloqueAgenda = preguntaDeAgenda ? await contextoAgenda(alcanceAgenda) : undefined;
+
     // ── Camino principal: IA local (Ollama) con contexto académico real ────
     if (env.AI_ENABLED) {
       try {
@@ -155,6 +165,7 @@ aiRouter.post('/chat', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (
             role: req.user?.role,
           },
           (body.history ?? []) as ChatMessage[],
+          bloqueAgenda,
         );
         return res.json({ ok: true, answer, source: 'ollama', model: env.AI_MODEL });
       } catch (err) {
@@ -167,6 +178,15 @@ aiRouter.post('/chat', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (
     // ── Fallback determinista (modo reglas, sin IA) ────────────────────────
     const message = body.message.toLowerCase();
     const fallbackNote = 'ⓘ IA local no disponible; respuesta básica por reglas.';
+
+    // El horario es lo único que se responde igual de bien sin modelo: sale de
+    // la agenda real, no de una redacción. Va primero por eso.
+    if (preguntaDeAgenda) {
+      const respuesta = await responderAgenda(body.message, alcanceAgenda);
+      if (respuesta) {
+        return res.json({ ok: true, source: 'rules', answer: `${respuesta}\n\n${fallbackNote}` });
+      }
+    }
 
     if (message.includes('promedio') && body.studentId && body.subjectId) {
       const grades = await GradeModel.find({ studentId: body.studentId, subjectId: body.subjectId, deletedAt: null }).lean();

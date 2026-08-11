@@ -4,6 +4,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import {
   ArrowRight,
   BookOpen,
+  CalendarDays,
   CornerDownLeft,
   GraduationCap,
   Moon,
@@ -15,6 +16,8 @@ import { cn } from '@/shared/lib/cn';
 import { Kbd } from '@/shared/ui/primitives';
 import { queryKeys } from '@/core/api/query-keys';
 import { studentRepository, subjectRepository } from '@/infrastructure/repositories/academic.repository';
+import { agendaRepository } from '@/infrastructure/repositories/agenda.repository';
+import { horaCampus, OFFSET_CAMPUS_POR_DEFECTO, rangoDeVista } from '@/domain/agenda/calendar';
 import { useTheme } from '@/state/theme.store';
 import { useDebounce } from '@/shared/hooks/use-debounce';
 
@@ -65,6 +68,23 @@ export function CommandPalette({
     staleTime: 60_000,
   });
 
+  // Agenda del próximo mes. Buscar "parcial" y llegar al parcial es la razón de
+  // ser de la paleta: sin esto habría que abrir el calendario y navegar semanas.
+  const rangoAgenda = useMemo(
+    () => rangoDeVista('proximas', new Date(), OFFSET_CAMPUS_POR_DEFECTO),
+    // Se fija al montar y no en cada render: recalcularlo cambiaría la clave de
+    // caché cada milisegundo y dispararía una petición por pulsación.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [open],
+  );
+
+  const { data: agenda } = useQuery({
+    queryKey: queryKeys.agenda.range(rangoAgenda.desde.toISOString(), rangoAgenda.hasta.toISOString()),
+    queryFn: () => agendaRepository.range(rangoAgenda),
+    enabled: open,
+    staleTime: 60_000,
+  });
+
   const commands = useMemo<Command[]>(() => {
     const go = (path: string) => () => {
       navigate(path);
@@ -76,6 +96,7 @@ export function CommandPalette({
       { id: 'nav-students', label: 'Ir a estudiantes', group: 'Navegación', icon: Users, run: go('/estudiantes') },
       { id: 'nav-subjects', label: 'Ir a materias', group: 'Navegación', icon: BookOpen, run: go('/materias') },
       { id: 'nav-grades', label: 'Ir a notas', group: 'Navegación', icon: GraduationCap, run: go('/notas') },
+      { id: 'nav-agenda', label: 'Ir a la agenda', group: 'Navegación', icon: CalendarDays, run: go('/agenda') },
       { id: 'nav-attendance', label: 'Ir a asistencia', group: 'Navegación', icon: ArrowRight, run: go('/asistencia') },
       { id: 'nav-risk', label: 'Ir a riesgo académico', group: 'Navegación', icon: ArrowRight, run: go('/riesgo') },
       { id: 'nav-assistant', label: 'Abrir asistente IA', group: 'Navegación', icon: ArrowRight, run: go('/asistente') },
@@ -131,8 +152,30 @@ export function CommandPalette({
         },
       }));
 
-    return [...studentMatches, ...subjectMatches, ...navigation];
-  }, [debouncedQuery, students, subjects, navigate, onOpenChange, cycleTheme]);
+    const offset = agenda?.campusOffsetMinutes ?? OFFSET_CAMPUS_POR_DEFECTO;
+    const agendaMatches: Command[] = (agenda?.items ?? [])
+      .filter(
+        (item) =>
+          item.title.toLowerCase().includes(term) ||
+          item.subjectName.toLowerCase().includes(term) ||
+          item.classroom.toLowerCase().includes(term),
+      )
+      .slice(0, 6)
+      .map((item) => ({
+        id: `agenda-${item.id}`,
+        label: item.title || item.subjectName,
+        hint: `${item.date} · ${horaCampus(item.startAt, offset)}${item.classroom ? ` · ${item.classroom}` : ''}`,
+        group: 'Agenda',
+        icon: CalendarDays,
+        run: () => {
+          // El parámetro `item` abre directamente ese elemento en la agenda.
+          navigate(`/agenda?item=${encodeURIComponent(item.id)}`);
+          onOpenChange(false);
+        },
+      }));
+
+    return [...studentMatches, ...subjectMatches, ...agendaMatches, ...navigation];
+  }, [debouncedQuery, students, subjects, agenda, navigate, onOpenChange, cycleTheme]);
 
   const results = useMemo(() => {
     const term = query.trim().toLowerCase();

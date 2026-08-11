@@ -9,6 +9,7 @@ import '../../core/network/api_error.dart';
 import '../../core/services/auth_controller.dart';
 import '../../core/services/auth_repository.dart';
 import '../../core/theme/app_theme.dart';
+import '../agenda/widgets/next_class_card.dart';
 import 'intervention_sheet.dart';
 import '../../core/widgets/period_selector.dart';
 import '../../core/widgets/session_menu.dart';
@@ -59,6 +60,14 @@ class DashboardPage extends ConsumerWidget {
         child: ListView(
           padding: AppSpacing.pagePadding,
           children: [
+            // Lo primero del panel, antes que cualquier indicador: lo que un
+            // docente mira al sacar el teléfono es a qué hora es la siguiente
+            // clase y dónde. Al tocarla se abre la agenda completa.
+            NextClassCard(
+              compacto: true,
+              onVerAgenda: () => context.go('/agenda'),
+            ),
+            const SizedBox(height: AppSpacing.gap),
             dashboard.when(
               loading: () => const SkeletonStatGrid(count: 6),
               error: (error, _) => StateView.error(

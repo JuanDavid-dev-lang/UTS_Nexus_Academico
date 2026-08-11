@@ -71,7 +71,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
       // El PDF y el Excel los genera el servidor: no hay nada guardado que
       // exportar. Decirlo antes evita que el docente prepare un reporte y
       // descubra el fallo al pulsar «descargar».
-      body: ref.watch(offlineStatusProvider).valueOrNull != null
+      body: !(ref.watch(offlineStatusProvider).valueOrNull?.esFresco ?? true)
           ? const RequiereConexion(
               que: 'Los reportes',
               detalle:

@@ -66,6 +66,13 @@ const primaryDestinations = <NavDestination>[
 
 /// El resto, accesible desde "Más".
 const secondaryDestinations = <NavDestination>[
+  // Primera de la lista: es a donde lleva el aviso de "tu clase empieza en 15
+  // minutos", y es lo que un docente consulta a diario.
+  NavDestination(
+    route: '/agenda',
+    label: 'Agenda y clases',
+    icon: Icons.calendar_month_outlined,
+  ),
   NavDestination(
     route: '/grades',
     label: 'Consolidado de notas',

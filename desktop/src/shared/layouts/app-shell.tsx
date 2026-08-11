@@ -17,6 +17,7 @@ const ROUTE_META: Record<string, { title: string; subtitle: string }> = {
   '/estudiantes': { title: 'Estudiantes', subtitle: 'Consulta, crea y administra tus estudiantes' },
   '/materias': { title: 'Materias', subtitle: 'Gestiona materias y periodos académicos' },
   '/notas': { title: 'Notas', subtitle: 'Captura por corte y consulta el consolidado' },
+  '/agenda': { title: 'Agenda', subtitle: 'Clases, evaluaciones y eventos de tu semana' },
   '/asistencia': { title: 'Asistencia', subtitle: 'Registra la asistencia por fecha y clase' },
   '/riesgo': { title: 'Riesgo académico', subtitle: 'Quién necesita intervención y por qué' },
   '/asistente': { title: 'Asistente IA', subtitle: 'Consulta tus datos académicos en lenguaje natural' },
@@ -87,6 +88,7 @@ export function AppShell() {
     'mod+5': () => navigate('/asistencia'),
     'mod+6': () => navigate('/riesgo'),
     'mod+7': () => navigate('/asistente'),
+    'mod+8': () => navigate('/agenda'),
   });
 
   return (

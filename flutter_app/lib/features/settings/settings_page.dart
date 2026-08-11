@@ -7,6 +7,8 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/theme_controller.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
+import 'widgets/notifications_section.dart';
+import 'widgets/notifications_section.dart';
 import 'widgets/update_section.dart';
 
 /// Ajustes.
@@ -180,6 +182,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               onTap: () => context.push('/tutorial'),
             ),
           ),
+          const SizedBox(height: 22),
+          _SectionLabel('Notificaciones', muted: muted),
+          const NotificationsSection(),
           const SizedBox(height: 22),
           _SectionLabel('Actualizaciones', muted: muted),
           const UpdateSection(),

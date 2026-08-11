@@ -107,6 +107,76 @@ async function main() {
   const notifs = await getJson('/notifications', docente);
   ok('Notificaciones del docente', notifs.status === 200 && Array.isArray(notifs.json?.items));
 
+  console.log('\n4b) Agenda académica');
+  const agenda = await getJson('/agenda', docente);
+  ok('Agenda del docente', agenda.status === 200 && Array.isArray(agenda.json?.items));
+  ok(
+    'La agenda declara el desfase del campus',
+    typeof agenda.json?.campusOffsetMinutes === 'number',
+    'sin él, el cliente pintaría la hora con la zona del equipo',
+  );
+
+  const clases = (agenda.json?.items ?? []).filter((item: any) => item?.kind === 'CLASS');
+  ok(
+    'Las clases llegan expandidas con fecha y hora absolutas',
+    clases.length === 0 || (typeof clases[0].startAt === 'string' && typeof clases[0].date === 'string'),
+    `${clases.length} ocurrencias en el rango`,
+  );
+  ok(
+    'Cada ocurrencia tiene identidad estable (clase + día)',
+    clases.length === 0 || /^class:[^:]+:\d{4}-\d{2}-\d{2}$/.test(clases[0].id),
+    clases[0]?.id ?? 'sin clases en el rango',
+  );
+
+  const resumenAgenda = await getJson('/agenda/resumen', docente);
+  ok('Resumen de agenda (clase actual y próxima)', resumenAgenda.status === 200 && resumenAgenda.json?.ok);
+  ok(
+    'El resumen responde aunque no haya clase próxima',
+    resumenAgenda.json?.proxima === null || typeof resumenAgenda.json?.proxima?.minutosPara === 'number',
+  );
+
+  const prefs = await getJson('/notifications/preferences', docente);
+  ok('Preferencias de notificación', prefs.status === 200 && !!prefs.json?.preferences);
+  ok(
+    'Las preferencias traen la antelación de clase',
+    Array.isArray(prefs.json?.preferences?.classLeadMinutes),
+  );
+  ok(
+    'El servidor declara si puede enviar push',
+    typeof prefs.json?.pushConfigurado === 'boolean',
+    'la app tiene que poder decir la verdad en Ajustes',
+  );
+
+  // Alta y baja de un evento: comprueba el camino completo de escritura sin
+  // dejar rastro en la base sembrada.
+  const creado = await fetch(`${BASE}/agenda/events`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${docente}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title: 'Parcial de prueba (smoke)',
+      type: 'EXAM',
+      startAt: new Date(Date.now() + 86_400_000).toISOString(),
+      reminderMinutes: [60, 15],
+      priority: 'HIGH',
+    }),
+  });
+  const creadoJson = (await creado.json().catch(() => ({}))) as any;
+  ok('Crear evento de agenda', creado.status === 201 && !!creadoJson?.item?._id);
+
+  if (creadoJson?.item?._id) {
+    ok(
+      'Las antelaciones se normalizan de mayor a menor',
+      JSON.stringify(creadoJson.item.reminderMinutes) === JSON.stringify([60, 15]),
+      JSON.stringify(creadoJson.item.reminderMinutes),
+    );
+
+    const borrado = await fetch(`${BASE}/agenda/events/${creadoJson.item._id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${docente}` },
+    });
+    ok('Eliminar evento de agenda', borrado.status === 200);
+  }
+
   console.log('\n5) Reportes');
   const pdf = await fetch(`${BASE}/reports/pdf/consolidado?period=2026-1`, {
     headers: { Authorization: `Bearer ${docente}` },
