@@ -163,7 +163,7 @@ class _EventSheetState extends ConsumerState<EventSheet> {
               const SizedBox(height: 12),
 
               DropdownButtonFormField<String>(
-                value: _tipo,
+                initialValue: _tipo,
                 decoration: const InputDecoration(labelText: 'Tipo'),
                 items: [
                   for (final entrada in _tipos.entries)
@@ -218,7 +218,7 @@ class _EventSheetState extends ConsumerState<EventSheet> {
               const SizedBox(height: 12),
 
               DropdownButtonFormField<String?>(
-                value: _materiaId,
+                initialValue: _materiaId,
                 decoration: const InputDecoration(labelText: 'Materia (opcional)'),
                 items: [
                   const DropdownMenuItem<String?>(value: null, child: Text('Sin materia')),
@@ -244,7 +244,7 @@ class _EventSheetState extends ConsumerState<EventSheet> {
               const SizedBox(height: 12),
 
               DropdownButtonFormField<String>(
-                value: _prioridad,
+                initialValue: _prioridad,
                 decoration: const InputDecoration(labelText: 'Prioridad'),
                 items: const [
                   DropdownMenuItem(value: 'LOW', child: Text('Baja')),

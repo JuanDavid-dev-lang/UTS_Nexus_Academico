@@ -317,7 +317,7 @@ class _EditarFranjaSheetState extends ConsumerState<_EditarFranjaSheet> {
               const SizedBox(height: AppSpacing.gap),
 
               DropdownButtonFormField<int>(
-                value: _dia,
+                initialValue: _dia,
                 decoration: const InputDecoration(labelText: 'Día'),
                 items: [
                   for (var i = 1; i <= 7; i++)
@@ -374,7 +374,7 @@ class _EditarFranjaSheetState extends ConsumerState<_EditarFranjaSheet> {
               const SizedBox(height: 12),
 
               DropdownButtonFormField<String>(
-                value: _modalidad,
+                initialValue: _modalidad,
                 decoration: const InputDecoration(labelText: 'Modalidad'),
                 items: const [
                   DropdownMenuItem(value: 'PRESENTIAL', child: Text('Presencial')),
