@@ -33,7 +33,11 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # 24, no 20: los lock files de este repositorio los mantiene npm 11, y
+          # npm 10 resuelve distinto los peer opcionales (`yaml` de vite), asi
+          # que `npm ci` fallaba con 'Missing: yaml@2.9.0 from lock file' sobre
+          # un arbol que en local instala limpio.
+          node-version: '24'
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
@@ -57,7 +61,11 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # 24, no 20: los lock files de este repositorio los mantiene npm 11, y
+          # npm 10 resuelve distinto los peer opcionales (`yaml` de vite), asi
+          # que `npm ci` fallaba con 'Missing: yaml@2.9.0 from lock file' sobre
+          # un arbol que en local instala limpio.
+          node-version: '24'
           cache: npm
           cache-dependency-path: desktop/package-lock.json
 

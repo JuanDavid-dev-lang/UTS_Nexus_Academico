@@ -8,7 +8,6 @@ import '../../core/theme/theme_controller.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
 import 'widgets/notifications_section.dart';
-import 'widgets/notifications_section.dart';
 import 'widgets/update_section.dart';
 
 /// Ajustes.
