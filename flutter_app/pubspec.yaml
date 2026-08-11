@@ -1,7 +1,7 @@
 name: uts_academico
 description: UTS Académico docente
 publish_to: "none"
-version: 2.3.8+14
+version: 2.4.0+15
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -22,6 +22,20 @@ dependencies:
   package_info_plus: ^10.2.1
   open_filex: ^4.7.0
   image_picker: ^1.2.3
+  # Recordatorios de clase en el teléfono. Se programan como alarmas del
+  # sistema, así que llegan con la aplicación cerrada y sin conexión — que es
+  # justo la situación de un salón con el wifi del campus caído.
+  flutter_local_notifications: ^18.0.1
+  # Requerida por `zonedSchedule`. Se programa sobre instantes absolutos con la
+  # zona fijada a UTC: la hora de la clase ya viene resuelta del servidor.
+  timezone: ^0.9.4
+  # Push del servidor con la app cerrada (riesgo académico, cambios de horario
+  # hechos desde el escritorio). Es OPCIONAL en tiempo de compilación: sin
+  # `android/app/google-services.json` el plugin de Gradle no se aplica,
+  # `Firebase.initializeApp()` falla, `PushService` lo captura y la app sigue
+  # funcionando sin push. Los recordatorios de clase no dependen de esto.
+  firebase_core: ^3.8.0
+  firebase_messaging: ^15.1.5
 
 dev_dependencies:
   flutter_test:
