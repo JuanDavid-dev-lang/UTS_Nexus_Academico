@@ -5,7 +5,6 @@ import '../../../core/data/campus_time.dart';
 import '../../../core/data/providers.dart';
 import '../../../core/network/api_error.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/widgets/ui_kit.dart';
 
 const _tipos = <String, String>{
   'EXAM': 'Parcial',

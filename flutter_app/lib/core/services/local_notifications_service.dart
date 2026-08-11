@@ -276,6 +276,11 @@ class LocalNotificationsService {
               android: _detalles(antelacion == 0 ? 'uts_importante' : 'uts_informativa', clave),
             ),
             androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+            // Obligatorio en la 18.x. Se programa sobre instantes absolutos, asi
+            // que 'absoluteTime' es lo correcto: la hora ya viene resuelta del
+            // servidor y no debe reinterpretarse con la zona del telefono.
+            uiLocalNotificationDateInterpretation:
+                UILocalNotificationDateInterpretation.absoluteTime,
             payload: jsonEncode({'ruta': '/agenda?item=${Uri.encodeComponent(item.id)}'}),
           );
           programados += 1;
@@ -291,6 +296,8 @@ class LocalNotificationsService {
               tz.TZDateTime.from(cuando, tz.UTC),
               NotificationDetails(android: _detalles('uts_informativa', clave)),
               androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+              uiLocalNotificationDateInterpretation:
+                  UILocalNotificationDateInterpretation.absoluteTime,
               payload: jsonEncode({'ruta': '/agenda?item=${Uri.encodeComponent(item.id)}'}),
             );
             programados += 1;

@@ -4,6 +4,8 @@
 /// campus y no las del reloj del teléfono, y que el contador de la próxima
 /// clase cuente sobre instantes absolutos. Un fallo aquí no rompe la pantalla:
 /// simplemente enseña una hora equivocada, que es peor.
+library;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:uts_academico/core/data/campus_time.dart';
 import 'package:uts_academico/core/models/agenda.dart';

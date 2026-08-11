@@ -3,6 +3,8 @@
 /// Es lo que separa «esto es de ahora» de «esto es una foto de antes». Un
 /// error aquí no rompe ninguna pantalla: presenta datos viejos como si fueran
 /// actuales, que es justo el fallo que la franja de estado existe para evitar.
+library;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:uts_academico/core/data/offline_status.dart';
 
