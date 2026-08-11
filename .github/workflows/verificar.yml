@@ -1,0 +1,100 @@
+# Verificación en cada cambio: tipos y pruebas de las tres partes.
+#
+# Existe por un fallo concreto. Las pruebas de Flutter solo corrían dentro de
+# `release.yml`, y ese workflow publica el escritorio ANTES de tocar el móvil:
+# un error de Dart se descubría con el `.exe` ya publicado y el archivo de
+# Dropbox del botón de Windows ya sobrescrito, dejando la página repartiendo
+# 2.4.0 en Windows y la anterior en Android hasta re-etiquetar.
+#
+# Aquí no se compila nada ni se publica nada. Solo se comprueba que el árbol
+# está sano, que es lo que hay que saber ANTES de crear la etiqueta.
+
+name: Verificar
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Un push encima de otro cancela la comprobación anterior: interesa el estado
+# del último commit, no el histórico de una rama en movimiento.
+concurrency:
+  group: verificar-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Instalar
+        working-directory: backend
+        run: npm ci
+
+      - name: Tipos
+        working-directory: backend
+        run: npx tsc -p tsconfig.json --noEmit
+
+      - name: Pruebas del dominio
+        working-directory: backend
+        run: npm test
+
+  escritorio:
+    name: Escritorio
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Instalar
+        working-directory: desktop
+        run: npm ci
+
+      - name: Tipos
+        working-directory: desktop
+        run: npm run typecheck
+
+      - name: Pruebas
+        working-directory: desktop
+        run: npm test
+
+  movil:
+    name: Móvil
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # Mismos comandos que la puerta de `release.yml`, para que lo que pase
+      # aquí pase allí. No se compila el APK: eso necesita el keystore y tarda
+      # varios minutos, y lo que se busca aquí es el error de código.
+      - name: Dependencias
+        working-directory: flutter_app
+        run: flutter pub get
+
+      - name: Análisis
+        working-directory: flutter_app
+        run: flutter analyze
+
+      - name: Pruebas
+        working-directory: flutter_app
+        run: flutter test
