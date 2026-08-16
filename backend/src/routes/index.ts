@@ -6,6 +6,7 @@ import { groupRouter } from '../modules/groups/group.routes.js';
 import { analyticsRouter } from '../modules/analytics/analytics.routes.js';
 import { aiRouter } from '../modules/ai/ai.routes.js';
 import { gradeRouter } from '../modules/grades/grade.routes.js';
+import { gradeScanRouter } from '../modules/grades/grade-scan.routes.js';
 import { enrollmentRouter } from '../modules/enrollment/enrollment.routes.js';
 import { attendanceRouter } from '../modules/attendance/attendance.routes.js';
 import { announcementRouter } from '../modules/announcements/announcement.routes.js';
@@ -21,6 +22,8 @@ import { professorRouter } from '../modules/professors/professor.routes.js';
 import { configRouter } from '../modules/settings/config.routes.js';
 import { downloadRouter } from '../modules/downloads/download.routes.js';
 import { mlRouter } from '../modules/ml/ml.routes.js';
+import { feedbackRouter } from '../modules/feedback/feedback.routes.js';
+import { thesisRouter } from '../modules/thesis/thesis.routes.js';
 
 export const apiRouter = Router();
 
@@ -30,6 +33,9 @@ apiRouter.use('/subjects', subjectRouter);
 apiRouter.use('/groups', groupRouter);
 apiRouter.use('/analytics', analyticsRouter);
 apiRouter.use('/ai', aiRouter);
+// El importador va antes por la misma razón que el escáner de asistencia: sus
+// rutas son más específicas.
+apiRouter.use('/grades', gradeScanRouter);
 apiRouter.use('/grades', gradeRouter);
 apiRouter.use('/enrollments', enrollmentRouter);
 // El escáner va antes: sus rutas son más específicas y si `attendanceRouter`
@@ -54,3 +60,5 @@ apiRouter.use('/configurations', configRouter);
 // sitio estático en otro dominio y no tiene sesión con la que presentarse.
 apiRouter.use('/descargas', downloadRouter);
 apiRouter.use('/ml', mlRouter);
+apiRouter.use('/feedback', feedbackRouter);
+apiRouter.use('/trabajos-grado', thesisRouter);

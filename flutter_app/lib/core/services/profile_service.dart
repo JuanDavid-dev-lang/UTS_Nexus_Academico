@@ -15,6 +15,9 @@ class Profile {
   final String? sede;
   final String? facultad;
 
+  /// Abre la sección de trabajos de grado. Lo activa la administración.
+  final bool esDirectorTrabajoGrado;
+
   const Profile({
     required this.id,
     required this.title,
@@ -22,6 +25,7 @@ class Profile {
     this.photoUrl,
     this.sede,
     this.facultad,
+    this.esDirectorTrabajoGrado = false,
   });
 
   factory Profile.fromJson(Map<String, dynamic> json) => Profile(
@@ -31,6 +35,7 @@ class Profile {
         photoUrl: json['photoUrl']?.toString(),
         sede: json['sede']?.toString(),
         facultad: json['facultad']?.toString(),
+        esDirectorTrabajoGrado: json['esDirectorTrabajoGrado'] == true,
       );
 }
 

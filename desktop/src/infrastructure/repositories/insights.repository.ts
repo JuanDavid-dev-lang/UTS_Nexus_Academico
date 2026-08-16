@@ -8,7 +8,11 @@ import {
   dashboardResponseSchema,
   notificationSchema,
   predictionSchema,
+  reportPreviewSchema,
+  reportTemplateResponseSchema,
+  reportTemplateSaveResponseSchema,
   riskScanResponseSchema,
+  type ReportTemplate,
 } from '@/domain/schemas/insights';
 import type {
   AnalyticsRepository,
@@ -127,5 +131,29 @@ export const reportRepository: ReportRepository = {
       groupId: scope.groupId,
       studentId: scope.studentId,
     });
+  },
+
+  async previewAttendance(scope: Scope) {
+    return http.get('/reports/preview/attendance', {
+      schema: reportPreviewSchema,
+      query: {
+        period: scope.period,
+        subjectId: scope.subjectId,
+        groupId: scope.groupId,
+        studentId: scope.studentId,
+      },
+    });
+  },
+
+  async getTemplate() {
+    const data = await http.get('/reports/template', { schema: reportTemplateResponseSchema });
+    return { plantilla: data.plantilla, columnasDisponibles: data.columnasDisponibles };
+  },
+
+  async saveTemplate(plantilla: ReportTemplate) {
+    const data = await http.put('/reports/template', plantilla, {
+      schema: reportTemplateSaveResponseSchema,
+    });
+    return data.plantilla;
   },
 };

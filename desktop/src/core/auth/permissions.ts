@@ -21,7 +21,8 @@ export type Capability =
   | 'reports.export'
   | 'notifications.scan'
   | 'assistant.use'
-  | 'analytics.risks';
+  | 'analytics.risks'
+  | 'professors.manage';
 
 const MATRIX: Record<Role, Capability[]> = {
   ADMIN: [
@@ -30,6 +31,7 @@ const MATRIX: Record<Role, Capability[]> = {
     'grades.read', 'grades.write',
     'attendance.read', 'attendance.write',
     'reports.export', 'notifications.scan', 'assistant.use', 'analytics.risks',
+    'professors.manage',
   ],
   COORDINATOR: [
     'students.read', 'students.write', 'students.delete',
@@ -37,6 +39,7 @@ const MATRIX: Record<Role, Capability[]> = {
     'grades.read',
     'attendance.read',
     'reports.export', 'notifications.scan', 'assistant.use', 'analytics.risks',
+    'professors.manage',
   ],
   PROFESSOR: [
     'students.read', 'students.write',

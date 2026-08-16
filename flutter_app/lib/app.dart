@@ -31,6 +31,8 @@ import 'features/students/students_page.dart';
 import 'features/subjects/subjects_page.dart';
 import 'features/subjects/subject_detail_page.dart';
 import 'features/grades/grades_page.dart';
+import 'features/feedback/feedback_page.dart';
+import 'features/thesis/thesis_formats_page.dart';
 
 /// Navigator raíz. Lo necesita [UpdateGate]: el `builder` de `MaterialApp` se
 /// dibuja por encima del Navigator del router, así que desde su contexto no hay
@@ -70,6 +72,8 @@ final router = GoRouter(
         GoRoute(path: '/attendance', builder: (_, __) => const AttendancePage()),
         GoRoute(path: '/attendance/scan', builder: (_, __) => const ScanSheetPage()),
         GoRoute(path: '/avisos', builder: (_, __) => const AnnouncementsPage()),
+        GoRoute(path: '/sugerencias', builder: (_, __) => const FeedbackPage()),
+        GoRoute(path: '/trabajos-grado', builder: (_, __) => const ThesisFormatsPage()),
         GoRoute(path: '/schedule', builder: (_, __) => const SchedulePage()),
         // `?item=` lo pone la notificación: al tocarla se abre esa clase, no la
         // agenda genérica. Sin eso, el aviso obliga a repetir a mano la
@@ -233,6 +237,16 @@ class _UtsAppState extends ConsumerState<UtsApp> {
           // aparecer hasta que la recargara a mano.
           case 'announcement':
             ref.invalidate(avisosProvider);
+          // El cambio de estado que hace el admin en el escritorio se refleja
+          // en la lista del docente sin recargar a mano.
+          case 'feedback':
+            ref.invalidate(feedbackProvider);
+          // Activar el flag de director enciende la sección de trabajos de
+          // grado sin cerrar sesión: el gate lee la ficha, no el token.
+          case 'professor':
+            ref.invalidate(miPerfilProvider);
+          case 'thesisFormat':
+            ref.invalidate(thesisFormatsProvider);
           case 'notification':
             ref.invalidate(notificationsProvider);
           case 'enrollment':

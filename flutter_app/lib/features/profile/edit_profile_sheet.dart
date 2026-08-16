@@ -2,17 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../core/data/providers.dart';
 import '../../core/network/api_error.dart';
 import '../../core/services/auth_controller.dart';
-import '../../core/services/profile_service.dart';
 import '../../core/theme/app_theme.dart';
 
-final profileServiceProvider = Provider((ref) => ProfileService());
-
-/// Ficha propia del docente. Se recarga sola tras guardar.
-final myProfileProvider = FutureProvider<Profile>((ref) {
-  return ref.watch(profileServiceProvider).me();
-});
+// Los providers del perfil viven en `core/data/providers.dart` (la regla del
+// repo): declararlos aquí obligaba a importar esta hoja para leer la ficha, y
+// el gate de trabajos de grado la necesita fuera de esta pantalla.
 
 /// Edición del perfil propio.
 ///
@@ -90,7 +87,7 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
           );
       // La sesión guarda el nombre y la foto que ve el resto de la aplicación.
       await ref.read(authControllerProvider.notifier).refreshUser();
-      ref.invalidate(myProfileProvider);
+      ref.invalidate(miPerfilProvider);
       if (mounted) Navigator.of(context).pop();
     } catch (error) {
       if (!mounted) return;
@@ -106,7 +103,7 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final perfil = ref.watch(myProfileProvider);
+    final perfil = ref.watch(miPerfilProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
     final primary = Theme.of(context).colorScheme.primary;

@@ -245,6 +245,55 @@ async def leer_listado_estudiantes(file: UploadFile = File(...)) -> dict:
     }
 
 
+@app.post("/vision/grades")
+async def leer_planilla_de_notas(file: UploadFile = File(...)) -> dict:
+    """
+    Interpreta una planilla de calificaciones desde un PDF o una foto.
+
+    Misma tubería y mismo contrato que el listado: PROPUESTA con confianza por
+    fila, nunca escritura. Una nota mal leída no da error, escribe una
+    calificación equivocada — por eso el backend obliga a revisar antes de
+    confirmar.
+    """
+    contenido = await file.read()
+    if not contenido:
+        raise HTTPException(status_code=400, detail="El archivo llegó vacío.")
+
+    if len(contenido) > 12 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="El archivo supera los 12 MB.")
+
+    try:
+        from .vision.grades import leer_planilla_notas
+
+        planilla = leer_planilla_notas(contenido, file.filename or "")
+    except ImportError as error:
+        logger.warning("Dependencias de lectura no instaladas: %s", error)
+        raise HTTPException(
+            status_code=503,
+            detail="El servidor no tiene instalado el lector de planillas.",
+        ) from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+    return {
+        "ok": True,
+        "origen": planilla.origen,
+        "columnas": planilla.columnas,
+        "avisos": planilla.avisos,
+        "filas": [
+            {
+                "indice": fila.indice,
+                "cedula": fila.cedula,
+                "nombre": fila.nombre,
+                "confianza": round(fila.confianza, 3),
+                "notas": fila.notas,
+                "avisos": fila.avisos,
+            }
+            for fila in planilla.filas
+        ],
+    }
+
+
 @app.post("/vision/attendance-sheet")
 async def leer_planilla_asistencia(file: UploadFile = File(...)) -> dict:
     """

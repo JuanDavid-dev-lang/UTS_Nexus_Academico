@@ -2,6 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/agenda.dart';
 import '../services/agenda_repository.dart';
+import '../services/feedback_service.dart';
+import '../services/profile_service.dart';
+import '../services/thesis_service.dart';
 import 'academic_repository.dart';
 import 'campus_time.dart';
 import 'models.dart';
@@ -117,6 +120,42 @@ final notificationPrefsProvider =
 
 final risksProvider = FutureProvider<List<RiskItem>>((ref) {
   return ref.watch(academicRepositoryProvider).risks();
+});
+
+// ── Buzón de sugerencias ────────────────────────────────────────────────────
+
+final feedbackServiceProvider = Provider((ref) => FeedbackService());
+
+/// Lo que este docente ha enviado al buzón (el servidor filtra por autor).
+final feedbackProvider = FutureProvider<List<FeedbackApp>>((ref) {
+  return ref.watch(feedbackServiceProvider).listar();
+});
+
+// ── Trabajos de grado ───────────────────────────────────────────────────────
+
+final profileServiceProvider = Provider((ref) => ProfileService());
+
+/// Ficha propia. Es de donde sale el flag de director de trabajo de grado.
+final miPerfilProvider = FutureProvider<Profile>((ref) {
+  return ref.watch(profileServiceProvider).me();
+});
+
+/// ¿Este docente dirige trabajos de grado? Decide si la sección aparece en el
+/// menú. `false` mientras carga o si falla: mejor un menú corto un instante
+/// que una sección que responde 403 al tocarla.
+final esDirectorProvider = Provider<bool>((ref) {
+  return ref.watch(miPerfilProvider).maybeWhen(
+        data: (perfil) => perfil.esDirectorTrabajoGrado,
+        orElse: () => false,
+      );
+});
+
+final thesisServiceProvider = Provider((ref) => ThesisService());
+
+/// Formatos oficiales, opcionalmente filtrados por etapa (null = todas).
+final thesisFormatsProvider =
+    FutureProvider.family<List<FormatoTrabajoGrado>, String?>((ref, etapa) {
+  return ref.watch(thesisServiceProvider).listar(etapa: etapa);
 });
 
 final notificationsProvider = FutureProvider<List<AppNotification>>((ref) {

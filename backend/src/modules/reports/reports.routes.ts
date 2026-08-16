@@ -1,3 +1,5 @@
+import path from 'node:path';
+import fs from 'node:fs';
 import { Router } from 'express';
 import PDFDocument from 'pdfkit';
 import ExcelJS from 'exceljs';
@@ -7,7 +9,25 @@ import { GradeModel } from '../../models/grade.model.js';
 import { AttendanceModel } from '../../models/attendance.model.js';
 import { SubjectModel } from '../../models/subject.model.js';
 import { GroupModel } from '../../models/group.model.js';
+import { ConfigModel } from '../../models/config.model.js';
 import { computeAcademicRecords } from '../../shared/academic.service.js';
+import { auditChange } from '../../shared/audit.js';
+import { emitSync } from '../../shared/socket.js';
+import {
+  CATALOGOS,
+  construirFilas,
+  construirFilasTexto,
+  type ColumnaReporte,
+  type MapBundle,
+} from './report-columns.js';
+import {
+  CLAVE_PLANTILLA,
+  getPlantilla,
+  hexAArgb,
+  plantillaSchema,
+  resolverColumnas,
+  type Plantilla,
+} from './report-template.js';
 
 export const reportsRouter = Router();
 reportsRouter.use(identificar);
@@ -22,28 +42,38 @@ type ReportFilters = {
   dateTo?: Date | null;
 };
 
-type MapBundle = {
-  subjects: Map<string, any>;
-  students: Map<string, any>;
-  groups: Map<string, any>;
-};
-
-function startPdf(title: string, filename: string, res: any) {
+function startPdf(title: string, filename: string, res: any, plantilla: Plantilla) {
   const doc = new PDFDocument({ margin: 32, size: 'A4' });
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   doc.pipe(res);
-  drawHeader(doc, title);
+  drawHeader(doc, title, plantilla);
   return doc;
 }
 
-function drawHeader(doc: any, title: string) {
-  doc.roundedRect(32, 26, 58, 58, 12).fillAndStroke('#74d3b2', '#74d3b2');
-  doc.fillColor('#081115').font('Helvetica-Bold').fontSize(24).text('UTS', 44, 48);
+function drawHeader(doc: any, title: string, plantilla: Plantilla) {
+  // Membrete: logo subido si existe y se puede leer; si no, el recuadro con la
+  // sigla. Un logo corrupto no debe tumbar el acta que el docente entrega.
+  let logoDibujado = false;
+  if (plantilla.logoUrl) {
+    const ruta = path.join(process.cwd(), 'uploads', path.basename(plantilla.logoUrl));
+    if (fs.existsSync(ruta)) {
+      try {
+        doc.image(ruta, 32, 26, { fit: [58, 58] });
+        logoDibujado = true;
+      } catch {
+        logoDibujado = false;
+      }
+    }
+  }
+  if (!logoDibujado) {
+    doc.roundedRect(32, 26, 58, 58, 12).fillAndStroke(plantilla.colores.marca, plantilla.colores.marca);
+    doc.fillColor('#081115').font('Helvetica-Bold').fontSize(24).text(plantilla.sigla, 44, 48);
+  }
   doc.fillColor('#0b1115').font('Helvetica-Bold').fontSize(22).text(title, 108, 38);
   // "Universidad de Santander" es OTRA institución (UDES). Estos PDF son actas
   // que el docente entrega, así que el nombre tiene que ser el correcto.
-  doc.fillColor('#9fb0bb').font('Helvetica').fontSize(10).text('Unidades Tecnológicas de Santander', 108, 64);
+  doc.fillColor('#9fb0bb').font('Helvetica').fontSize(10).text(plantilla.institucion, 108, 64);
   doc.moveTo(32, 94).lineTo(562, 94).strokeColor('#23323c').lineWidth(1).stroke();
   doc.moveDown(1.8);
 }
@@ -92,7 +122,7 @@ function formatDate(value: unknown) {
   return date.toISOString().slice(0, 10);
 }
 
-function table(doc: any, headers: string[], rows: string[][], widths: number[]) {
+function table(doc: any, headers: string[], rows: string[][], widths: number[], headerFill = '#d7f0e5') {
   const startX = 32;
   let y = doc.y;
   const rowHeight = 20;
@@ -108,7 +138,7 @@ function table(doc: any, headers: string[], rows: string[][], widths: number[]) 
       // (esa herencia es la causa de la "letra ilegible").
       doc
         .rect(x, y, widths[i], rowHeight)
-        .fillAndStroke(isHeader ? '#d7f0e5' : '#f7fbfc', '#dbe6ec');
+        .fillAndStroke(isHeader ? headerFill : '#f7fbfc', '#dbe6ec');
       doc
         .fillColor(isHeader ? '#0b1115' : '#18242c')
         .text(cell, x + 4, y + 6, { width: widths[i] - 8, ellipsis: true, lineBreak: false });
@@ -130,6 +160,17 @@ function table(doc: any, headers: string[], rows: string[][], widths: number[]) 
   doc.y = y + 8;
 }
 
+/** Dibuja en el PDF la tabla de un catálogo de columnas. */
+function tablaDeCatalogo(doc: any, columnas: ColumnaReporte[], filas: string[][], plantilla: Plantilla) {
+  table(doc, columnas.map(c => c.header), filas, columnas.map(c => c.pdfWidth), plantilla.colores.encabezadoTabla);
+}
+
+/** Configura las columnas de una hoja Excel desde el catálogo. */
+function hojaDeCatalogo(ws: ExcelJS.Worksheet, columnas: ColumnaReporte[], plantilla: Plantilla) {
+  ws.columns = columnas.map(c => ({ header: c.header, key: c.key, width: c.excelWidth }));
+  excelSheetStyle(ws, columnas.length, hexAArgb(plantilla.colores.encabezadoExcel));
+}
+
 async function resolveMaps(): Promise<MapBundle> {
   const [subjects, students, groups] = await Promise.all([
     SubjectModel.find({ deletedAt: null }).lean(),
@@ -144,16 +185,23 @@ async function resolveMaps(): Promise<MapBundle> {
   };
 }
 
-function excelSheetStyle(ws: ExcelJS.Worksheet, widthCount: number) {
+function excelSheetStyle(ws: ExcelJS.Worksheet, widthCount: number, headerArgb = 'FF17313B') {
   ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
   ws.getRow(1).fill = {
     type: 'pattern',
     pattern: 'solid',
-    fgColor: { argb: 'FF17313B' },
+    fgColor: { argb: headerArgb },
   };
   ws.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
   ws.autoFilter = { from: 'A1', to: `${String.fromCharCode(64 + widthCount)}1` };
   ws.views = [{ state: 'frozen', ySplit: 1 }];
+}
+
+async function enviarExcel(res: any, wb: ExcelJS.Workbook, filename: string) {
+  const buffer = await wb.xlsx.writeBuffer();
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(Buffer.from(buffer));
 }
 
 reportsRouter.get('/summary', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (_req, res, next) => {
@@ -186,41 +234,119 @@ function academicFilterFromQuery(query: any, user?: { id: string; role: string }
   return filter;
 }
 
-reportsRouter.get('/pdf/consolidado', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
+/** Registros consolidados con notas, ordenados como salen en el acta. */
+async function consolidadoOrdenado(query: any, user?: { id: string; role: string }) {
+  const records = await computeAcademicRecords(academicFilterFromQuery(query, user));
+  return records.filter(r => r.tieneNotas).sort((a, b) => a.fullName.localeCompare(b.fullName));
+}
+
+const TITULOS_POR_DEFECTO = {
+  consolidado: 'Consolidado de Notas Finales UTS',
+  grades: 'Reporte de Notas UTS',
+  attendance: 'Reporte de Asistencia UTS',
+  combined: 'Reporte Academico Completo UTS',
+} as const;
+
+function tituloDe(plantilla: Plantilla, kind: keyof typeof TITULOS_POR_DEFECTO): string {
+  return plantilla.titulos[kind] ?? TITULOS_POR_DEFECTO[kind];
+}
+
+/**
+ * Plantilla de los reportes. El catálogo de columnas viaja con ella para que
+ * el editor del cliente muestre exactamente las columnas que existen, sin
+ * duplicar la lista.
+ */
+reportsRouter.get('/template', requireRole('ADMIN', 'COORDINATOR'), async (_req, res, next) => {
   try {
-    const [records, maps] = await Promise.all([
-      computeAcademicRecords(academicFilterFromQuery(req.query, req.user)),
+    const plantilla = await getPlantilla();
+    res.json({
+      ok: true,
+      plantilla,
+      columnasDisponibles: {
+        consolidado: CATALOGOS.consolidado.map(c => ({ key: c.key, header: c.header })),
+        grades: CATALOGOS.grades.map(c => ({ key: c.key, header: c.header })),
+        attendance: CATALOGOS.attendance.map(c => ({ key: c.key, header: c.header })),
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+reportsRouter.put('/template', requireRole('ADMIN'), async (req, res, next) => {
+  try {
+    const plantilla = plantillaSchema.parse(req.body);
+
+    const antes = await ConfigModel.findOne({ key: CLAVE_PLANTILLA }).lean();
+    const item = await ConfigModel.findOneAndUpdate(
+      { key: CLAVE_PLANTILLA },
+      { $set: { key: CLAVE_PLANTILLA, value: plantilla, deletedAt: null } },
+      { upsert: true, new: true }
+    );
+
+    // Cambiar cómo se ven las actas que salen con membrete institucional es de
+    // las cosas que hay que poder mirar después y saber quién la hizo.
+    await auditChange({
+      actorId: req.user?.id,
+      action: 'UPDATE',
+      entity: 'PlantillaReportes',
+      entityId: item.id,
+      before: antes?.value,
+      after: plantilla,
+    });
+
+    emitSync('sync:update', { entity: 'reportTemplate', action: 'update', id: item.id });
+    res.json({ ok: true, plantilla });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Vista previa de la asistencia que saldría en el PDF/Excel: mismas columnas,
+ * mismas filas, mismo orden — construidas por el MISMO catálogo, así que lo
+ * que se ve es exactamente lo que se descarga. Cap a 300 filas para no
+ * reventar la UI; `total` dice cuántas saldrían de verdad en el archivo.
+ */
+reportsRouter.get('/preview/attendance', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
+  try {
+    const filters = filtersFromQuery(req.query, req.user);
+    const [attendance, maps, plantilla] = await Promise.all([
+      AttendanceModel.find(buildAttendanceFilter(filters)).sort({ date: -1 }).lean(),
       resolveMaps(),
+      getPlantilla(),
     ]);
 
-    const doc = startPdf('Consolidado de Notas Finales UTS', 'consolidado-notas.pdf', res);
+    const columnas = resolverColumnas(plantilla, 'attendance');
+    const TOPE = 300;
+    const filas = construirFilasTexto(columnas, attendance.slice(0, TOPE), maps);
+    res.json({
+      ok: true,
+      headers: columnas.map(c => c.header),
+      rows: filas,
+      total: attendance.length,
+      truncado: attendance.length > TOPE,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+reportsRouter.get('/pdf/consolidado', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
+  try {
+    const [records, maps, plantilla] = await Promise.all([
+      consolidadoOrdenado(req.query, req.user),
+      resolveMaps(),
+      getPlantilla(),
+    ]);
+    const columnas = resolverColumnas(plantilla, 'consolidado');
+
+    const doc = startPdf(tituloDe(plantilla, 'consolidado'), 'consolidado-notas.pdf', res, plantilla);
     doc.fontSize(10).fillColor('#9fb0bb').text(`Periodo: ${req.query.period || 'Todos'}`);
     doc.moveDown(0.6);
 
-    const rows = records
-      .filter(r => r.tieneNotas)
-      .sort((a, b) => a.fullName.localeCompare(b.fullName))
-      .map(r => {
-        const subject = maps.subjects.get(String(r.subjectId));
-        const cortesTexto = r.cortes.map((n, i) => `C${i + 1}:${n.toFixed(1)}`).join(' ');
-        return [
-          r.code,
-          r.fullName,
-          subject?.name ?? '',
-          cortesTexto,
-          r.notaFinal.toFixed(2),
-          r.aprobado ? 'Aprobado' : 'Reprobado',
-          `${r.riesgo.porcentajeAsistencia.toFixed(0)}%`,
-        ];
-      });
-
-    table(
-      doc,
-      ['Cedula', 'Estudiante', 'Materia', 'Cortes', 'Final', 'Estado', 'Asist.'],
-      rows,
-      [52, 108, 96, 92, 40, 62, 40]
-    );
-    if (!rows.length) doc.fillColor('#dbe6ec').fontSize(10).text('Sin notas registradas.');
+    tablaDeCatalogo(doc, columnas, construirFilasTexto(columnas, records, maps), plantilla);
+    if (!records.length) doc.fillColor('#dbe6ec').fontSize(10).text('Sin notas registradas.');
     doc.end();
   } catch (err) {
     next(err);
@@ -229,49 +355,19 @@ reportsRouter.get('/pdf/consolidado', requireRole('ADMIN', 'PROFESSOR', 'COORDIN
 
 reportsRouter.get('/excel/consolidado', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
-    const [records, maps] = await Promise.all([
-      computeAcademicRecords(academicFilterFromQuery(req.query, req.user)),
+    const [records, maps, plantilla] = await Promise.all([
+      consolidadoOrdenado(req.query, req.user),
       resolveMaps(),
+      getPlantilla(),
     ]);
+    const columnas = resolverColumnas(plantilla, 'consolidado');
 
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Consolidado');
-    ws.columns = [
-      { header: 'Cedula', key: 'code', width: 16 },
-      { header: 'Estudiante', key: 'student', width: 28 },
-      { header: 'Materia', key: 'subject', width: 28 },
-      { header: 'Corte 1', key: 'c1', width: 10 },
-      { header: 'Corte 2', key: 'c2', width: 10 },
-      { header: 'Corte 3', key: 'c3', width: 10 },
-      { header: 'Nota final', key: 'final', width: 12 },
-      { header: 'Estado', key: 'estado', width: 12 },
-      { header: 'Asistencia', key: 'asistencia', width: 12 },
-      { header: 'Semestre', key: 'period', width: 12 },
-    ];
-    excelSheetStyle(ws, 10);
-    records
-      .filter(r => r.tieneNotas)
-      .sort((a, b) => a.fullName.localeCompare(b.fullName))
-      .forEach(r => {
-        const subject = maps.subjects.get(String(r.subjectId));
-        ws.addRow({
-          code: r.code,
-          student: r.fullName,
-          subject: subject?.name ?? '',
-          c1: r.cortes[0] ?? '',
-          c2: r.cortes[1] ?? '',
-          c3: r.cortes[2] ?? '',
-          final: r.notaFinal,
-          estado: r.aprobado ? 'Aprobado' : 'Reprobado',
-          asistencia: `${r.riesgo.porcentajeAsistencia.toFixed(0)}%`,
-          period: r.period,
-        });
-      });
+    hojaDeCatalogo(ws, columnas, plantilla);
+    construirFilas(columnas, records, maps).forEach(fila => ws.addRow(fila));
 
-    const buffer = await wb.xlsx.writeBuffer();
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename="consolidado-notas.xlsx"');
-    res.send(Buffer.from(buffer));
+    await enviarExcel(res, wb, 'consolidado-notas.xlsx');
   } catch (err) {
     next(err);
   }
@@ -280,36 +376,22 @@ reportsRouter.get('/excel/consolidado', requireRole('ADMIN', 'PROFESSOR', 'COORD
 reportsRouter.get('/pdf/grades', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
     const filters = filtersFromQuery(req.query, req.user);
-    const [grades, maps] = await Promise.all([
+    const [grades, maps, plantilla] = await Promise.all([
       GradeModel.find(buildGradeFilter(filters)).sort({ studentId: 1 }).lean(),
       resolveMaps(),
+      getPlantilla(),
     ]);
+    const columnas = resolverColumnas(plantilla, 'grades');
 
-    const doc = startPdf('Reporte de Notas UTS', 'reporte-notas.pdf', res);
+    const doc = startPdf(tituloDe(plantilla, 'grades'), 'reporte-notas.pdf', res, plantilla);
     doc.fontSize(10).fillColor('#9fb0bb').text(`Periodo: ${filters.period || 'Todos'}`);
     if (filters.groupId) doc.text(`Grupo: ${filters.groupId}`);
     if (filters.studentId) doc.text(`Estudiante: ${filters.studentId}`);
     if (filters.subjectId) doc.text(`Materia: ${filters.subjectId}`);
     doc.moveDown(0.6);
 
-    const rows = grades.map(grade => {
-      const student = maps.students.get(String(grade.studentId));
-      const subject = maps.subjects.get(String(grade.subjectId));
-      const group = maps.groups.get(String(grade.groupId ?? ''));
-      return [
-        student?.code ?? '',
-        student?.fullName ?? '',
-        group?.name ?? '',
-        subject?.code ?? '',
-        subject?.name ?? '',
-        grade.corte ? `C${grade.corte} ${grade.componentType ?? ''}`.trim() : String(grade.component ?? ''),
-        Number(grade.score ?? 0).toFixed(2),
-        String(grade.period ?? ''),
-      ];
-    });
-
-    table(doc, ['Cedula', 'Estudiante', 'Grupo', 'Codigo', 'Materia', 'Componente', 'Nota', 'Semestre'], rows, [52, 96, 52, 46, 88, 74, 42, 44]);
-    if (!rows.length) doc.fillColor('#dbe6ec').fontSize(10).text('Sin notas registradas.');
+    tablaDeCatalogo(doc, columnas, construirFilasTexto(columnas, grades, maps), plantilla);
+    if (!grades.length) doc.fillColor('#dbe6ec').fontSize(10).text('Sin notas registradas.');
     doc.end();
   } catch (err) {
     next(err);
@@ -319,12 +401,14 @@ reportsRouter.get('/pdf/grades', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'
 reportsRouter.get('/pdf/attendance', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
     const filters = filtersFromQuery(req.query, req.user);
-    const [attendance, maps] = await Promise.all([
+    const [attendance, maps, plantilla] = await Promise.all([
       AttendanceModel.find(buildAttendanceFilter(filters)).sort({ date: -1 }).lean(),
       resolveMaps(),
+      getPlantilla(),
     ]);
+    const columnas = resolverColumnas(plantilla, 'attendance');
 
-    const doc = startPdf('Reporte de Asistencia UTS', 'reporte-asistencia.pdf', res);
+    const doc = startPdf(tituloDe(plantilla, 'attendance'), 'reporte-asistencia.pdf', res, plantilla);
     doc.fontSize(10).fillColor('#9fb0bb').text(`Periodo: ${filters.period || 'Todos'}`);
     if (filters.dateFrom || filters.dateTo) doc.text(`Rango: ${formatDate(filters.dateFrom)} - ${formatDate(filters.dateTo)}`);
     if (filters.groupId) doc.text(`Grupo: ${filters.groupId}`);
@@ -332,24 +416,8 @@ reportsRouter.get('/pdf/attendance', requireRole('ADMIN', 'PROFESSOR', 'COORDINA
     if (filters.subjectId) doc.text(`Materia: ${filters.subjectId}`);
     doc.moveDown(0.6);
 
-    const rows = attendance.map(row => {
-      const student = maps.students.get(String(row.studentId));
-      const subject = maps.subjects.get(String(row.subjectId));
-      const group = maps.groups.get(String(row.groupId ?? ''));
-      return [
-        student?.code ?? '',
-        student?.fullName ?? '',
-        group?.name ?? '',
-        subject?.code ?? '',
-        subject?.name ?? '',
-        formatDate(row.date),
-        row.present ? 'Si' : 'No',
-        row.notes ?? '',
-      ];
-    });
-
-    table(doc, ['Cedula', 'Estudiante', 'Grupo', 'Codigo', 'Materia', 'Fecha', 'Asistencia', 'Observacion'], rows, [48, 88, 52, 44, 78, 58, 52, 86]);
-    if (!rows.length) doc.fillColor('#dbe6ec').fontSize(10).text('Sin asistencia registrada.');
+    tablaDeCatalogo(doc, columnas, construirFilasTexto(columnas, attendance, maps), plantilla);
+    if (!attendance.length) doc.fillColor('#dbe6ec').fontSize(10).text('Sin asistencia registrada.');
     doc.end();
   } catch (err) {
     next(err);
@@ -359,53 +427,26 @@ reportsRouter.get('/pdf/attendance', requireRole('ADMIN', 'PROFESSOR', 'COORDINA
 reportsRouter.get('/pdf/combined', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
     const filters = filtersFromQuery(req.query, req.user);
-    const [grades, attendance, maps] = await Promise.all([
+    const [grades, attendance, maps, plantilla] = await Promise.all([
       GradeModel.find(buildGradeFilter(filters)).sort({ studentId: 1, subjectId: 1 }).lean(),
       AttendanceModel.find(buildAttendanceFilter(filters)).sort({ date: -1 }).lean(),
       resolveMaps(),
+      getPlantilla(),
     ]);
+    const columnasNotas = resolverColumnas(plantilla, 'grades');
+    const columnasAsistencia = resolverColumnas(plantilla, 'attendance');
 
-    const doc = startPdf('Reporte Academico Completo UTS', 'reporte-completo.pdf', res);
+    const doc = startPdf(tituloDe(plantilla, 'combined'), 'reporte-completo.pdf', res, plantilla);
     doc.fontSize(10).fillColor('#9fb0bb').text(`Periodo: ${filters.period || 'Todos'}`);
     doc.moveDown(0.5);
 
-    const gradeRows = grades.map(grade => {
-      const student = maps.students.get(String(grade.studentId));
-      const subject = maps.subjects.get(String(grade.subjectId));
-      const group = maps.groups.get(String(grade.groupId ?? ''));
-      return [
-        student?.code ?? '',
-        student?.fullName ?? '',
-        group?.name ?? '',
-        subject?.code ?? '',
-        subject?.name ?? '',
-        grade.corte ? `C${grade.corte} ${grade.componentType ?? ''}`.trim() : String(grade.component ?? ''),
-        Number(grade.score ?? 0).toFixed(2),
-      ];
-    });
-
-    const attendanceRows = attendance.map(row => {
-      const student = maps.students.get(String(row.studentId));
-      const subject = maps.subjects.get(String(row.subjectId));
-      const group = maps.groups.get(String(row.groupId ?? ''));
-      return [
-        student?.code ?? '',
-        student?.fullName ?? '',
-        group?.name ?? '',
-        subject?.code ?? '',
-        subject?.name ?? '',
-        formatDate(row.date),
-        row.present ? 'Si' : 'No',
-      ];
-    });
-
     doc.fontSize(13).fillColor('#0b1115').text('Notas');
-    table(doc, ['Cedula', 'Estudiante', 'Grupo', 'Codigo', 'Materia', 'Componente', 'Nota'], gradeRows, [48, 92, 52, 44, 84, 76, 42]);
+    tablaDeCatalogo(doc, columnasNotas, construirFilasTexto(columnasNotas, grades, maps), plantilla);
 
     doc.fontSize(13).fillColor('#0b1115').text('Asistencias');
-    table(doc, ['Cedula', 'Estudiante', 'Grupo', 'Codigo', 'Materia', 'Fecha', 'Asistencia'], attendanceRows, [48, 88, 52, 44, 78, 58, 52]);
+    tablaDeCatalogo(doc, columnasAsistencia, construirFilasTexto(columnasAsistencia, attendance, maps), plantilla);
 
-    if (!gradeRows.length && !attendanceRows.length) {
+    if (!grades.length && !attendance.length) {
       doc.fillColor('#dbe6ec').fontSize(10).text('Sin datos disponibles.');
     }
     doc.end();
@@ -417,44 +458,19 @@ reportsRouter.get('/pdf/combined', requireRole('ADMIN', 'PROFESSOR', 'COORDINATO
 reportsRouter.get('/excel/grades', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
     const filters = filtersFromQuery(req.query, req.user);
-    const [grades, maps] = await Promise.all([
+    const [grades, maps, plantilla] = await Promise.all([
       GradeModel.find(buildGradeFilter(filters)).sort({ studentId: 1 }).lean(),
       resolveMaps(),
+      getPlantilla(),
     ]);
+    const columnas = resolverColumnas(plantilla, 'grades');
 
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Notas');
-    ws.columns = [
-      { header: 'Cedula', key: 'code', width: 16 },
-      { header: 'Estudiante', key: 'student', width: 28 },
-      { header: 'Grupo', key: 'group', width: 18 },
-      { header: 'Materia', key: 'subject', width: 28 },
-      { header: 'Componente', key: 'component', width: 18 },
-      { header: 'Nota', key: 'score', width: 10 },
-      { header: 'Corte', key: 'corte', width: 10 },
-      { header: 'Semestre', key: 'period', width: 12 },
-    ];
-    excelSheetStyle(ws, 8);
-    grades.forEach(grade => {
-      const student = maps.students.get(String(grade.studentId));
-      const subject = maps.subjects.get(String(grade.subjectId));
-      const group = maps.groups.get(String(grade.groupId ?? ''));
-      ws.addRow({
-        code: student?.code ?? '',
-        student: student?.fullName ?? '',
-        group: group?.name ?? '',
-        subject: `${subject?.code ?? ''} ${subject?.name ?? ''}`.trim(),
-        component: grade.corte ? `C${grade.corte} ${grade.componentType ?? ''}`.trim() : (grade.component ?? ''),
-        score: Number(grade.score ?? 0),
-        corte: grade.corte ?? '',
-        period: grade.period ?? '',
-      });
-    });
+    hojaDeCatalogo(ws, columnas, plantilla);
+    construirFilas(columnas, grades, maps).forEach(fila => ws.addRow(fila));
 
-    const buffer = await wb.xlsx.writeBuffer();
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename="reporte-notas.xlsx"');
-    res.send(Buffer.from(buffer));
+    await enviarExcel(res, wb, 'reporte-notas.xlsx');
   } catch (err) {
     next(err);
   }
@@ -463,44 +479,19 @@ reportsRouter.get('/excel/grades', requireRole('ADMIN', 'PROFESSOR', 'COORDINATO
 reportsRouter.get('/excel/attendance', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
     const filters = filtersFromQuery(req.query, req.user);
-    const [attendance, maps] = await Promise.all([
+    const [attendance, maps, plantilla] = await Promise.all([
       AttendanceModel.find(buildAttendanceFilter(filters)).sort({ date: 1 }).lean(),
       resolveMaps(),
+      getPlantilla(),
     ]);
+    const columnas = resolverColumnas(plantilla, 'attendance');
 
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Asistencia');
-    ws.columns = [
-      { header: 'Cedula', key: 'code', width: 16 },
-      { header: 'Estudiante', key: 'student', width: 28 },
-      { header: 'Grupo', key: 'group', width: 18 },
-      { header: 'Materia', key: 'subject', width: 28 },
-      { header: 'Semestre', key: 'period', width: 12 },
-      { header: 'Fecha', key: 'date', width: 14 },
-      { header: 'Presente', key: 'present', width: 10 },
-      { header: 'Observacion', key: 'notes', width: 26 },
-    ];
-    excelSheetStyle(ws, 8);
-    attendance.forEach(row => {
-      const student = maps.students.get(String(row.studentId));
-      const subject = maps.subjects.get(String(row.subjectId));
-      const group = maps.groups.get(String(row.groupId ?? ''));
-      ws.addRow({
-        code: student?.code ?? '',
-        student: student?.fullName ?? '',
-        group: group?.name ?? '',
-        subject: `${subject?.code ?? ''} ${subject?.name ?? ''}`.trim(),
-        period: row.period ?? '',
-        date: formatDate(row.date),
-        present: row.present ? 'Si' : 'No',
-        notes: row.notes ?? '',
-      });
-    });
+    hojaDeCatalogo(ws, columnas, plantilla);
+    construirFilas(columnas, attendance, maps).forEach(fila => ws.addRow(fila));
 
-    const buffer = await wb.xlsx.writeBuffer();
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename="reporte-asistencia.xlsx"');
-    res.send(Buffer.from(buffer));
+    await enviarExcel(res, wb, 'reporte-asistencia.xlsx');
   } catch (err) {
     next(err);
   }
@@ -509,75 +500,25 @@ reportsRouter.get('/excel/attendance', requireRole('ADMIN', 'PROFESSOR', 'COORDI
 reportsRouter.get('/excel/combined', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
     const filters = filtersFromQuery(req.query, req.user);
-    const [grades, attendance, maps] = await Promise.all([
+    const [grades, attendance, maps, plantilla] = await Promise.all([
       GradeModel.find(buildGradeFilter(filters)).sort({ studentId: 1, subjectId: 1 }).lean(),
       AttendanceModel.find(buildAttendanceFilter(filters)).sort({ date: 1 }).lean(),
       resolveMaps(),
+      getPlantilla(),
     ]);
+    const columnasNotas = resolverColumnas(plantilla, 'grades');
+    const columnasAsistencia = resolverColumnas(plantilla, 'attendance');
 
     const wb = new ExcelJS.Workbook();
     const gradeWs = wb.addWorksheet('Notas');
-    gradeWs.columns = [
-      { header: 'Cedula', key: 'code', width: 16 },
-      { header: 'Estudiante', key: 'student', width: 28 },
-      { header: 'Grupo', key: 'group', width: 18 },
-      { header: 'Materia', key: 'subject', width: 28 },
-      { header: 'Componente', key: 'component', width: 18 },
-      { header: 'Nota', key: 'score', width: 10 },
-      { header: 'Corte', key: 'corte', width: 10 },
-      { header: 'Semestre', key: 'period', width: 12 },
-    ];
-    excelSheetStyle(gradeWs, 8);
+    hojaDeCatalogo(gradeWs, columnasNotas, plantilla);
+    construirFilas(columnasNotas, grades, maps).forEach(fila => gradeWs.addRow(fila));
 
     const attendanceWs = wb.addWorksheet('Asistencia');
-    attendanceWs.columns = [
-      { header: 'Cedula', key: 'code', width: 16 },
-      { header: 'Estudiante', key: 'student', width: 28 },
-      { header: 'Grupo', key: 'group', width: 18 },
-      { header: 'Materia', key: 'subject', width: 28 },
-      { header: 'Semestre', key: 'period', width: 12 },
-      { header: 'Fecha', key: 'date', width: 14 },
-      { header: 'Presente', key: 'present', width: 10 },
-      { header: 'Observacion', key: 'notes', width: 26 },
-    ];
-    excelSheetStyle(attendanceWs, 8);
+    hojaDeCatalogo(attendanceWs, columnasAsistencia, plantilla);
+    construirFilas(columnasAsistencia, attendance, maps).forEach(fila => attendanceWs.addRow(fila));
 
-    grades.forEach(grade => {
-      const student = maps.students.get(String(grade.studentId));
-      const subject = maps.subjects.get(String(grade.subjectId));
-      const group = maps.groups.get(String(grade.groupId ?? ''));
-      gradeWs.addRow({
-        code: student?.code ?? '',
-        student: student?.fullName ?? '',
-        group: group?.name ?? '',
-        subject: `${subject?.code ?? ''} ${subject?.name ?? ''}`.trim(),
-        component: grade.corte ? `C${grade.corte} ${grade.componentType ?? ''}`.trim() : (grade.component ?? ''),
-        score: Number(grade.score ?? 0),
-        corte: grade.corte ?? '',
-        period: grade.period ?? '',
-      });
-    });
-
-    attendance.forEach(row => {
-      const student = maps.students.get(String(row.studentId));
-      const subject = maps.subjects.get(String(row.subjectId));
-      const group = maps.groups.get(String(row.groupId ?? ''));
-      attendanceWs.addRow({
-        code: student?.code ?? '',
-        student: student?.fullName ?? '',
-        group: group?.name ?? '',
-        subject: `${subject?.code ?? ''} ${subject?.name ?? ''}`.trim(),
-        period: row.period ?? '',
-        date: formatDate(row.date),
-        present: row.present ? 'Si' : 'No',
-        notes: row.notes ?? '',
-      });
-    });
-
-    const buffer = await wb.xlsx.writeBuffer();
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename="reporte-academico.xlsx"');
-    res.send(Buffer.from(buffer));
+    await enviarExcel(res, wb, 'reporte-academico.xlsx');
   } catch (err) {
     next(err);
   }

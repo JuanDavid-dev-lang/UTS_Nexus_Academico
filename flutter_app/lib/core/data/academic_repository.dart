@@ -249,6 +249,21 @@ class AcademicRepository {
     return response.data ?? const [];
   }
 
+  /// Vista previa del reporte de asistencia: mismas filas que el PDF/Excel.
+  Future<ReportPreview> previewAttendanceReport({
+    required String period,
+    String? subjectId,
+  }) async {
+    final response = await _api.get(
+      '/reports/preview/attendance',
+      query: {
+        'period': period,
+        if (subjectId != null) 'subjectId': subjectId,
+      },
+    );
+    return ReportPreview.fromJson(response.data as Map<String, dynamic>);
+  }
+
   Future<int> importStudents(List<Map<String, dynamic>> rows) async {
     final response = await _api.post('/students/bulk', data: rows);
     return _items(response.data).length;

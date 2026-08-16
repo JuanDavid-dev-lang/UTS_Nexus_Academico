@@ -41,6 +41,14 @@ const schema = new Schema(
     revisadoPor: { type: Schema.Types.ObjectId, ref: 'Usuario', default: null },
     revisadoEn: { type: Date, default: null },
     motivoRechazo: { type: String, default: '' },
+
+    /**
+     * Dirige trabajos de grado. Lo activa la administración desde la ficha
+     * (como el resto de datos institucionales: el propio docente no puede
+     * dárselo a sí mismo). Abre la sección de formatos de trabajo de grado en
+     * los clientes y el acceso a `GET /trabajos-grado/formatos`.
+     */
+    esDirectorTrabajoGrado: { type: Boolean, default: false, index: true },
   },
   { timestamps: true }
 );

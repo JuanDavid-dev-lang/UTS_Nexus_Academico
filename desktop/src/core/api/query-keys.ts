@@ -91,6 +91,22 @@ export const queryKeys = {
     all: ['avisos'] as const,
   },
 
+  feedback: {
+    all: ['feedback'] as const,
+  },
+
+  professors: {
+    all: ['professors'] as const,
+    list: (filtro?: { q?: string; programa?: string }) =>
+      filtro ? (['professors', 'list', filtro] as const) : (['professors', 'list'] as const),
+  },
+
+  thesisFormats: {
+    all: ['thesis-formats'] as const,
+    list: (filtro?: { etapa?: string; q?: string }) =>
+      filtro ? (['thesis-formats', 'list', filtro] as const) : (['thesis-formats', 'list'] as const),
+  },
+
   assistant: {
     all: ['assistant'] as const,
     status: () => ['assistant', 'status'] as const,
@@ -109,5 +125,14 @@ export const queryKeys = {
   profile: {
     all: ['profile'] as const,
     me: () => ['profile', 'me'] as const,
+  },
+
+  // Vista previa de reportes: consulta bajo demanda al abrir el diálogo. La
+  // clave incluye el alcance porque cada combinación periodo/materia es una
+  // consulta distinta.
+  reports: {
+    all: ['reports'] as const,
+    previewAttendance: (scope: Scope) => ['reports', 'preview', 'attendance', scope] as const,
+    template: () => ['reports', 'template'] as const,
   },
 } as const;

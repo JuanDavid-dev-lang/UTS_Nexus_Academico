@@ -75,6 +75,18 @@ Un listado de estudiantes se puede pegar como texto, subir como CSV o **leer de 
 
 Un PDF con capa de texto se lee tal cual (confianza 1.0, sin reconocimiento que pueda fallar); uno escaneado pide que lo manden como foto en vez de adivinar. **Separar proponer de escribir no es ceremonia**: una cédula mal reconocida no da error, crea un estudiante que no existe y lo matricula, y eso se descubre semanas después cuando alguien no aparece en el consolidado.
 
+### Importación de calificaciones
+Mismo contrato de dos pasos que el listado y el escáner de asistencia: `POST /grades/import/scan` **propone** (Excel lo interpreta el backend con exceljs; PDF/foto van a `/vision/grades` del servicio ML) y `POST /grades/bulk` **escribe** tras la revisión en tabla del escritorio (`grades-import-dialog.tsx`). El corte y el componente se eligen una vez por lote; cada columna lleva su `label`, y como el `label` es parte de la clave única de Nota, repetirlo **sobrescribe** — por eso la respuesta separa `creadas` de `actualizadas` y el cliente lo avisa. La lógica pura (interpretar la matriz, cruzar con matrícula reutilizando el algoritmo de `sheet-match`) vive en `domains/grading/import-notas.ts`; el clamp 0–5 nunca recorta en silencio: una nota fuera de rango se marca para revisión (un «45» suele ser un 4.5 sin punto). Solo escritorio: el texto pegado y el CSV se parsean en cliente (`desktop/src/domain/grades/parse-grades.ts`).
+
+### Reportes: catálogo de columnas, plantilla y vista previa
+`modules/reports/report-columns.ts` es la **única fuente de filas** de PDF, Excel y vista previa (`GET /reports/preview/attendance`): los tres consumen el mismo catálogo, así que no pueden divergir. La plantilla (`report-template.ts`, clave `report_template` en `ConfigModel`) parametriza membrete, logo, colores del documento y columnas visibles por tipo; la edita ADMIN desde la página de reportes del escritorio y una selección sin la cédula cae al catálogo completo. Los colores de la plantilla son contenido del documento, no UI — no pasan por los tokens del design system.
+
+### Buzón de sugerencias (`/feedback`)
+El docente escribe (escritorio y móvil), ADMIN revisa y cambia el estado; al resolver/descartar se avisa al autor vía `crearNotificacion()` con `dedupeKey`. No confundir con `risk-feedback` (realimentación del modelo ML). Un docente solo ve lo suyo.
+
+### Directores de trabajo de grado
+`esDirectorTrabajoGrado` en `Profesor` lo activa ADMIN/COORDINATOR desde la pantalla Docentes del escritorio (`PATCH /professors/:id`; nunca editable por `/me`). El middleware `requireDirector` consulta la ficha —no el token—, así que activar el flag surte efecto sin cerrar sesión. Los formatos oficiales (`/trabajos-grado/formatos`) se guardan en `backend/formatos/`, **fuera** de `uploads/` que es estático y público: se descargan solo por la ruta autenticada. El gate del menú en los dos clientes lee el flag del perfil (`sidebar.tsx` / `esDirectorProvider`).
+
 ### Modelo de datos
 `Estudiante` existe globalmente por cédula. `Matrícula` lo vincula a un grupo de una materia en un semestre (`2026-1`/`2026-2`). Nota atómica por (estudiante, materia, corte, componente). Asistencia registra minutos reales por clase.
 

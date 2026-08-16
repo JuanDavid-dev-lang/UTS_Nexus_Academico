@@ -403,6 +403,37 @@ class AppNotification {
       );
 }
 
+/// Vista previa de un reporte: las mismas filas que saldrán en el PDF/Excel.
+///
+/// El servidor las construye con el mismo catálogo de columnas que usa para
+/// generar el archivo; el cliente solo las pinta, no recalcula nada.
+class ReportPreview {
+  final List<String> headers;
+  final List<List<String>> rows;
+  final int total;
+  final bool truncado;
+
+  const ReportPreview({
+    required this.headers,
+    required this.rows,
+    required this.total,
+    required this.truncado,
+  });
+
+  factory ReportPreview.fromJson(Map<String, dynamic> json) => ReportPreview(
+        headers: [
+          for (final header in (json['headers'] as List? ?? const []))
+            _toStr(header),
+        ],
+        rows: [
+          for (final row in (json['rows'] as List? ?? const []))
+            [for (final cell in (row as List? ?? const [])) _toStr(cell)],
+        ],
+        total: _toInt(json['total']),
+        truncado: json['truncado'] == true,
+      );
+}
+
 /// Un estudiante dentro de una materia concreta, con todo lo que el docente
 /// necesita ver de un vistazo.
 ///

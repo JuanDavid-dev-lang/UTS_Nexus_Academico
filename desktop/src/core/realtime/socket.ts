@@ -28,7 +28,10 @@ export type SyncEntity =
   | 'schedule'
   | 'calendar'
   | 'activity'
-  | 'preferences';
+  | 'preferences'
+  | 'reportTemplate'
+  | 'feedback'
+  | 'thesisFormat';
 
 /**
  * Estado de la sincronización.
@@ -63,7 +66,9 @@ export const INVALIDATION_MAP: Record<SyncEntity, readonly (readonly unknown[])[
   subject: [queryKeys.subjects.all, queryKeys.analytics.all],
   group: [queryKeys.groups.all],
   grade: [queryKeys.grades.all, queryKeys.analytics.all],
-  attendance: [queryKeys.attendance.all, queryKeys.analytics.all],
+  // La vista previa del reporte muestra asistencia: si cambia una marca, la
+  // previa abierta tiene que refrescarse con ella.
+  attendance: [queryKeys.attendance.all, queryKeys.analytics.all, queryKeys.reports.all],
   notification: [queryKeys.notifications.all],
   // Sin esta entrada el aviso se guardaba y se emitía el evento, pero ninguna
   // pantalla abierta se enteraba: al docente no le aparecía hasta que recargara.
@@ -75,7 +80,9 @@ export const INVALIDATION_MAP: Record<SyncEntity, readonly (readonly unknown[])[
   // salía por `if (!keys) return` y la pantalla se quedaba con el catálogo o el
   // perfil viejos hasta que el docente recargara a mano.
   registration: [queryKeys.registro.all],
-  professor: [queryKeys.auth.all],
+  // El cambio de flag (director de trabajo de grado) tiene que refrescar el
+  // perfil propio (gate del menú) y la lista administrativa de docentes.
+  professor: [queryKeys.auth.all, queryKeys.profile.all, queryKeys.professors.all],
   // Mover una franja del horario cambia el calendario entero: las clases que
   // el servidor expande a ocurrencias salen de ahí. Antes `schedule` no estaba
   // en el mapa y el evento se descartaba en el `if (!keys) return`.
@@ -85,6 +92,13 @@ export const INVALIDATION_MAP: Record<SyncEntity, readonly (readonly unknown[])[
   activity: [queryKeys.agenda.all],
   // Cambiar la antelación en un dispositivo tiene que reflejarse en el otro.
   preferences: [queryKeys.notifications.all],
+  // La plantilla cambia lo que muestran el editor y la vista previa abiertos
+  // en otras sesiones de administración.
+  reportTemplate: [queryKeys.reports.all],
+  // Una sugerencia nueva aparece en la bandeja del admin; un cambio de estado,
+  // en la lista del docente que la envió.
+  feedback: [queryKeys.feedback.all],
+  thesisFormat: [queryKeys.thesisFormats.all],
 };
 
 let socket: Socket | null = null;

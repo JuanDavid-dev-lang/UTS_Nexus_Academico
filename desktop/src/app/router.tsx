@@ -25,6 +25,9 @@ const AssistantPage = lazy(() => import('@/features/assistant/assistant-page'));
 const ReportsPage = lazy(() => import('@/features/reports/reports-page'));
 const NotificationsPage = lazy(() => import('@/features/notifications/notifications-page'));
 const SettingsPage = lazy(() => import('@/features/settings/settings-page'));
+const FeedbackPage = lazy(() => import('@/features/feedback/feedback-page'));
+const ProfessorsPage = lazy(() => import('@/features/professors/professors-page'));
+const ThesisFormatsPage = lazy(() => import('@/features/thesis/thesis-formats-page'));
 
 /** Blocks the app routes until the session is known to be valid. */
 function RequireAuth() {
@@ -68,6 +71,9 @@ export const router = createBrowserRouter([
           { path: '/asistente', element: <AssistantPage /> },
           { path: '/reportes', element: <ReportsPage /> },
           { path: '/avisos', element: <AnnouncementsPage /> },
+          { path: '/sugerencias', element: <FeedbackPage /> },
+          { path: '/docentes', element: <ProfessorsPage /> },
+          { path: '/trabajos-grado', element: <ThesisFormatsPage /> },
           { path: '/notificaciones', element: <NotificationsPage /> },
           { path: '/configuracion', element: <SettingsPage /> },
         ],

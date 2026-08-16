@@ -18,6 +18,8 @@ const profileSchema = z.object({
   sede: z.string().nullish(),
   facultad: z.string().nullish(),
   estado: z.string().nullish(),
+  /** Abre la sección de trabajos de grado. Lo activa la administración. */
+  esDirectorTrabajoGrado: z.boolean().optional().default(false),
 });
 export type Profile = z.infer<typeof profileSchema>;
 

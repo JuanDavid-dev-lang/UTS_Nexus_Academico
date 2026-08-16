@@ -30,6 +30,9 @@ const ENTIDADES_DEL_BACKEND: SyncEntity[] = [
   'calendar',
   'activity',
   'preferences',
+  'reportTemplate',
+  'feedback',
+  'thesisFormat',
 ];
 
 describe('mapa de invalidación', () => {

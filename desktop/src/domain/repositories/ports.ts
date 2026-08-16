@@ -31,6 +31,9 @@ import type {
   DashboardSummary,
   Notification,
   Prediction,
+  ReportPreview,
+  ReportTemplate,
+  ReportTemplateData,
 } from '@/domain/schemas/insights';
 import type {
   AgendaItem,
@@ -207,4 +210,10 @@ export type ReportKind = 'consolidado' | 'grades' | 'attendance' | 'combined';
 
 export interface ReportRepository {
   download(format: ReportFormat, kind: ReportKind, scope: Scope): Promise<Blob>;
+  /** Las mismas filas que saldrán en el archivo, para revisarlas antes de descargar. */
+  previewAttendance(scope: Scope): Promise<ReportPreview>;
+  /** Plantilla vigente + catálogo de columnas disponibles por tipo. */
+  getTemplate(): Promise<ReportTemplateData>;
+  /** Guarda la plantilla (solo ADMIN en el servidor). */
+  saveTemplate(plantilla: ReportTemplate): Promise<ReportTemplate>;
 }

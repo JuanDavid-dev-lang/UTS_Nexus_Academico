@@ -138,6 +138,10 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                     kind: report.kind,
                     onDownload: (format) =>
                         _download(report.kind, format, report.title),
+                    // Solo asistencia tiene vista previa: es el reporte que se
+                    // revisa antes de entregar (quién faltó y cuántos minutos).
+                    onPreview:
+                        report.kind == 'attendance' ? _openPreview : null,
                   ),
                   const SizedBox(height: 12),
                 ],
@@ -158,6 +162,31 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                 ),
               ],
             ),
+    );
+  }
+
+  /// Vista previa de asistencia: las mismas filas que saldrán en el archivo.
+  Future<void> _openPreview() async {
+    final period = ref.read(selectedPeriodProvider);
+    final future = ref
+        .read(academicRepositoryProvider)
+        .previewAttendanceReport(period: period, subjectId: _subjectId);
+
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => SizedBox(
+        height: MediaQuery.of(sheetContext).size.height * 0.85,
+        child: _AttendancePreviewSheet(
+          future: future,
+          onDownload: (format) {
+            Navigator.of(sheetContext).pop();
+            _download('attendance', format, 'Asistencia');
+          },
+        ),
+      ),
     );
   }
 
@@ -220,6 +249,7 @@ class _ReportCard extends StatelessWidget {
   final String kind;
   final String? busyKey;
   final void Function(String format) onDownload;
+  final VoidCallback? onPreview;
 
   const _ReportCard({
     required this.title,
@@ -227,6 +257,7 @@ class _ReportCard extends StatelessWidget {
     required this.kind,
     required this.busyKey,
     required this.onDownload,
+    this.onPreview,
   });
 
   @override
@@ -265,6 +296,145 @@ class _ReportCard extends StatelessWidget {
               button('pdf', Icons.picture_as_pdf_outlined, 'PDF'),
               const SizedBox(width: 10),
               button('excel', Icons.table_chart_outlined, 'Excel'),
+            ],
+          ),
+          if (onPreview != null) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                onPressed: anyBusy ? null : onPreview,
+                icon: const Icon(Icons.visibility_outlined, size: 18),
+                label: const Text('Vista previa'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Hoja con la vista previa del reporte de asistencia.
+///
+/// Pinta las filas tal cual llegan del servidor: aquí no se calcula ni se
+/// reordena nada — es la misma tabla que va a salir en el PDF/Excel.
+class _AttendancePreviewSheet extends StatelessWidget {
+  final Future<ReportPreview> future;
+  final void Function(String format) onDownload;
+
+  const _AttendancePreviewSheet({
+    required this.future,
+    required this.onDownload,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Vista previa de asistencia',
+              style: AppType.bodyStrong.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(
+            'Lo que ves aquí es exactamente lo que saldrá en el archivo.',
+            style: AppType.caption.copyWith(color: muted),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: FutureBuilder<ReportPreview>(
+              future: future,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  final error = snapshot.error;
+                  return Center(
+                    child: Text(
+                      error is ApiError
+                          ? error.message
+                          : 'No se pudo cargar la vista previa.',
+                      style: AppType.caption.copyWith(color: muted),
+                    ),
+                  );
+                }
+
+                final preview = snapshot.data!;
+                if (preview.rows.isEmpty) {
+                  return Center(
+                    child: Text(
+                      'No hay marcas de asistencia con los filtros elegidos.',
+                      style: AppType.caption.copyWith(color: muted),
+                    ),
+                  );
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      // Doble desplazamiento: la tabla es más ancha y más alta
+                      // que un teléfono; sin el horizontal, las columnas del
+                      // final serían inalcanzables.
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: SingleChildScrollView(
+                          child: DataTable(
+                            headingTextStyle: AppType.caption
+                                .copyWith(fontWeight: FontWeight.w700),
+                            dataTextStyle: AppType.caption,
+                            columns: [
+                              for (final header in preview.headers)
+                                DataColumn(label: Text(header)),
+                            ],
+                            rows: [
+                              for (final row in preview.rows)
+                                DataRow(cells: [
+                                  for (final cell in row)
+                                    DataCell(Text(cell)),
+                                ]),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (preview.truncado) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Mostrando las primeras ${preview.rows.length} filas de '
+                        '${preview.total}. El archivo descargado incluye todas.',
+                        style: AppType.caption.copyWith(color: muted),
+                      ),
+                    ],
+                  ],
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => onDownload('pdf'),
+                  icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                  label: const Text('PDF'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => onDownload('excel'),
+                  icon: const Icon(Icons.table_chart_outlined, size: 18),
+                  label: const Text('Excel'),
+                ),
+              ),
             ],
           ),
         ],

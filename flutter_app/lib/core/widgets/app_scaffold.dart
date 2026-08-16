@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/tutorial/tutorial_page.dart';
 import 'package:go_router/go_router.dart';
 
+import '../data/providers.dart';
 import '../theme/app_theme.dart';
 import 'offline_banner.dart';
 import 'session_menu.dart';
@@ -99,6 +100,11 @@ const secondaryDestinations = <NavDestination>[
     icon: Icons.campaign_outlined,
   ),
   NavDestination(
+    route: '/sugerencias',
+    label: 'Sugerencias',
+    icon: Icons.feedback_outlined,
+  ),
+  NavDestination(
     route: '/notifications',
     label: 'Notificaciones',
     icon: Icons.notifications_outlined,
@@ -110,7 +116,14 @@ const secondaryDestinations = <NavDestination>[
   ),
 ];
 
-const _allDestinations = [...primaryDestinations, ...secondaryDestinations];
+/// Solo para docentes directores de trabajo de grado. No va en la lista const:
+/// depende de un flag de la ficha que activa la administración, así que se
+/// añade en el build según `esDirectorProvider`.
+const thesisDestination = NavDestination(
+  route: '/trabajos-grado',
+  label: 'Trabajos de grado',
+  icon: Icons.school_outlined,
+);
 
 /// Índice del destino al que pertenece una ruta.
 ///
@@ -167,8 +180,16 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     final route = GoRouterState.of(context).uri.path;
     final isWide = MediaQuery.of(context).size.width > 900;
 
+    // La sección de trabajos de grado solo existe para quien la puede usar.
+    final esDirector = ref.watch(esDirectorProvider);
+    final secundarios = [
+      ...secondaryDestinations,
+      if (esDirector) thesisDestination,
+    ];
+    final allDestinations = [...primaryDestinations, ...secundarios];
+
     if (isWide) {
-      final index = _indexForRoute(_allDestinations, route);
+      final index = _indexForRoute(allDestinations, route);
       return Scaffold(
         body: Row(
           children: [
@@ -176,10 +197,10 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
               // NavigationRail exige un índice válido; -1 lo haría fallar.
               selectedIndex: index < 0 ? 0 : index,
               onDestinationSelected: (i) =>
-                  context.go(_allDestinations[i].route),
+                  context.go(allDestinations[i].route),
               labelType: NavigationRailLabelType.all,
               destinations: [
-                for (final destination in _allDestinations)
+                for (final destination in allDestinations)
                   NavigationRailDestination(
                     icon: Icon(destination.icon),
                     label: Text(destination.label),
@@ -218,7 +239,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         selectedIndex: isSecondary ? primaryDestinations.length : primaryIndex,
         onDestinationSelected: (index) {
           if (index == primaryDestinations.length) {
-            _openMoreSheet(context, route);
+            _openMoreSheet(context, route, secundarios);
             return;
           }
           context.go(primaryDestinations[index].route);
@@ -238,7 +259,11 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     );
   }
 
-  void _openMoreSheet(BuildContext context, String currentRoute) {
+  void _openMoreSheet(
+    BuildContext context,
+    String currentRoute,
+    List<NavDestination> secundarios,
+  ) {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -275,7 +300,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                     ),
                   ),
                 ),
-                for (final destination in secondaryDestinations)
+                for (final destination in secundarios)
                   ListTile(
                     leading: Icon(
                       destination.icon,

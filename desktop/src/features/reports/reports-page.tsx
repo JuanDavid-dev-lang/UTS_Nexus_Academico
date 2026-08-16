@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { FileSpreadsheet, FileText, FolderOpen } from 'lucide-react';
+import { Eye, FileSpreadsheet, FileText, FolderOpen, Palette } from 'lucide-react';
 import {
   Button,
   Card,
@@ -14,7 +14,10 @@ import {
   PageHeader,
 } from '@/shared/ui';
 import { reportRepository } from '@/infrastructure/repositories/insights.repository';
+import { AttendancePreviewDialog } from '@/features/reports/components/attendance-preview-dialog';
+import { TemplateEditorDialog } from '@/features/reports/components/template-editor-dialog';
 import { useSubjects } from '@/features/subjects/hooks/use-subjects';
+import { useUserRole } from '@/state/session.store';
 import { platform } from '@/core/platform/tauri';
 import { toast } from '@/state/toast.store';
 import { currentPeriod, recentPeriods, toIsoDate } from '@/shared/lib/format';
@@ -56,6 +59,9 @@ export default function ReportsPage() {
   const [period, setPeriod] = useState(currentPeriod());
   const [subjectId, setSubjectId] = useState('');
   const [pending, setPending] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const role = useUserRole();
 
   const subjects = useSubjects();
 
@@ -105,6 +111,14 @@ export default function ReportsPage() {
       <PageHeader
         title="Reportes"
         subtitle="Exporta la información académica en PDF o Excel"
+        actions={
+          role === 'ADMIN' ? (
+            <Button variant="secondary" onClick={() => setTemplateOpen(true)}>
+              <Palette aria-hidden />
+              Plantilla
+            </Button>
+          ) : undefined
+        }
       />
 
       <Card>
@@ -179,6 +193,12 @@ export default function ReportsPage() {
                 <FileSpreadsheet aria-hidden />
                 Excel
               </Button>
+              {report.kind === 'attendance' ? (
+                <Button variant="ghost" onClick={() => setPreviewOpen(true)}>
+                  <Eye aria-hidden />
+                  Vista previa
+                </Button>
+              ) : null}
             </CardContent>
           </Card>
         ))}
@@ -188,6 +208,16 @@ export default function ReportsPage() {
         <FolderOpen className="size-3.5" aria-hidden />
         Los archivos se guardan en tu carpeta de Descargas.
       </p>
+
+      <AttendancePreviewDialog
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        scope={{ period, subjectId: subjectId || undefined }}
+        onDownload={(format) => handleDownload(format, 'attendance')}
+        downloading={download.isPending}
+      />
+
+      <TemplateEditorDialog open={templateOpen} onOpenChange={setTemplateOpen} />
     </PageContainer>
   );
 }

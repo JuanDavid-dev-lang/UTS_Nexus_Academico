@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ListTree, Plus, Save } from 'lucide-react';
+import { FileUp, ListTree, Plus, Save } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -29,6 +29,7 @@ import {
   useEnrolledStudents,
   useSaveGrade,
 } from '@/features/grades/hooks/use-grades';
+import { GradesImportDialog } from '@/features/grades/components/grades-import-dialog';
 import { PendingGradesCard } from '@/features/grades/components/pending-grades-card';
 import { StudentBreakdownDialog } from '@/features/grades/components/student-breakdown-dialog';
 import { useSubjects } from '@/features/subjects/hooks/use-subjects';
@@ -58,6 +59,7 @@ export default function GradesPage() {
   const [period, setPeriod] = useState(currentPeriod());
   const [subjectId, setSubjectId] = useState('');
   const [captureOpen, setCaptureOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [desglose, setDesglose] = useState<ConsolidatedRow | null>(null);
 
   const user = useCurrentUser();
@@ -181,17 +183,25 @@ export default function GradesPage() {
         subtitle="Captura por componente; el consolidado lo calcula el motor académico"
         actions={
           canWrite ? (
-            <Button
-              variant="primary"
-              onClick={() => setCaptureOpen(true)}
-              disabled={!subjectId || enrolled.data.length === 0}
-            >
-              <Plus aria-hidden />
-              Registrar nota
-            </Button>
+            <>
+              <Button variant="secondary" onClick={() => setImportOpen(true)}>
+                <FileUp aria-hidden />
+                Importar notas
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => setCaptureOpen(true)}
+                disabled={!subjectId || enrolled.data.length === 0}
+              >
+                <Plus aria-hidden />
+                Registrar nota
+              </Button>
+            </>
           ) : null
         }
       />
+
+      {canWrite && <GradesImportDialog open={importOpen} onOpenChange={setImportOpen} />}
 
       <div className="flex flex-wrap items-end gap-3">
         <Field label="Periodo" className="w-40">

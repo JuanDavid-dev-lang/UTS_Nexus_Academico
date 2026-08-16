@@ -92,7 +92,8 @@ function redondear(valor: number): number {
   return Math.round(valor * 100) / 100;
 }
 
-function acotar(valor: number): number {
+/** Recorta una nota al rango 0–5. Exportada: la importación masiva la reutiliza. */
+export function acotar(valor: number): number {
   if (Number.isNaN(valor)) return 0;
   return Math.min(RUBRICA.NOTA_MAXIMA, Math.max(RUBRICA.NOTA_MINIMA, valor));
 }

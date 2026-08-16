@@ -1,9 +1,12 @@
 import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useQuery } from '@tanstack/react-query';
 import {
   BarChart3,
   Bell,
+  BookMarked,
   Megaphone,
+  MessageSquare,
   BookOpen,
   Bot,
   CalendarCheck,
@@ -13,6 +16,7 @@ import {
   GraduationCap,
   LayoutDashboard,
   Settings,
+  UserCog,
   Users,
 } from 'lucide-react';
 import { cn } from '@/shared/lib/cn';
@@ -21,6 +25,8 @@ import { Tooltip } from '@/shared/ui/primitives';
 import { useUserRole } from '@/state/session.store';
 import { can, type Capability } from '@/core/auth/permissions';
 import { useUnreadCount } from '@/features/notifications/hooks/use-notifications';
+import { profileRepository } from '@/infrastructure/repositories/profile.repository';
+import { queryKeys } from '@/core/api/query-keys';
 
 type NavItem = {
   to: string;
@@ -29,6 +35,12 @@ type NavItem = {
   capability?: Capability;
   /** Shows a live counter, e.g. unread notifications. */
   badge?: 'notifications';
+  /**
+   * Solo para docentes directores de trabajo de grado. No es una capability:
+   * el gate no depende del rol sino de un flag de la ficha que activa la
+   * administración. ADMIN/COORDINATOR lo ven siempre (gestionan los formatos).
+   */
+  requiresDirector?: boolean;
 };
 
 const NAV_ITEMS: NavItem[] = [
@@ -44,6 +56,9 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/asistente', label: 'Asistente IA', icon: Bot, capability: 'assistant.use' },
   { to: '/reportes', label: 'Reportes', icon: FileSpreadsheet, capability: 'reports.export' },
   { to: '/avisos', label: 'Avisos', icon: Megaphone },
+  { to: '/sugerencias', label: 'Sugerencias', icon: MessageSquare },
+  { to: '/trabajos-grado', label: 'Trabajos de grado', icon: BookMarked, requiresDirector: true },
+  { to: '/docentes', label: 'Docentes', icon: UserCog, capability: 'professors.manage' },
   { to: '/notificaciones', label: 'Notificaciones', icon: Bell, badge: 'notifications' },
   { to: '/configuracion', label: 'Configuración', icon: Settings },
 ];
@@ -58,7 +73,22 @@ export function Sidebar({
   const role = useUserRole();
   const unread = useUnreadCount();
 
-  const items = NAV_ITEMS.filter((item) => !item.capability || can(role, item.capability));
+  // El flag vive en la ficha, no en el token: consultarlo aquí hace que
+  // activarlo desde administración encienda el menú sin cerrar sesión (el
+  // evento `professor` invalida `profile` y esta consulta se rehace).
+  const perfil = useQuery({
+    queryKey: queryKeys.profile.me(),
+    queryFn: () => profileRepository.me(),
+    enabled: role === 'PROFESSOR',
+    staleTime: 60_000,
+  });
+  const esDirector = role === 'ADMIN' || role === 'COORDINATOR' || Boolean(perfil.data?.esDirectorTrabajoGrado);
+
+  const items = NAV_ITEMS.filter(
+    (item) =>
+      (!item.capability || can(role, item.capability)) &&
+      (!item.requiresDirector || esDirector),
+  );
 
   return (
     <aside

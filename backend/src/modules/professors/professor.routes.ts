@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { identificar, requireRole } from '../../middlewares/auth.js';
 import { ProfessorModel } from '../../models/professor.model.js';
 import { UserModel } from '../../models/user.model.js';
-import { emitToUser, emitSync } from '../../shared/socket.js';
+import { emitToUser } from '../../shared/socket.js';
+import { auditChange } from '../../shared/audit.js';
 
 export const professorRouter = Router();
 professorRouter.use(identificar);
@@ -90,9 +91,29 @@ professorRouter.patch('/me', requireRole('PROFESSOR', 'ADMIN', 'COORDINATOR'), a
   }
 });
 
-professorRouter.get('/', requireRole('ADMIN', 'COORDINATOR'), async (_req, res, next) => {
+/**
+ * Listado administrativo de docentes.
+ *
+ * Acepta `q` (nombre, apellido o cédula), `programa` y `director=true`, que se
+ * combinan con Y. Existe para la pantalla donde la administración busca a un
+ * docente por carrera y le activa (o quita) la dirección de trabajos de grado.
+ */
+professorRouter.get('/', requireRole('ADMIN', 'COORDINATOR'), async (req, res, next) => {
   try {
-    const items = await ProfessorModel.find({ deletedAt: null }).limit(100).lean();
+    const filtro: Record<string, unknown> = { deletedAt: null };
+    if (req.query.programa) filtro.programas = String(req.query.programa);
+    if (req.query.director === 'true') filtro.esDirectorTrabajoGrado = true;
+    if (req.query.q) {
+      // Regex escapado: la búsqueda es texto del usuario, no un patrón.
+      const escapado = String(req.query.q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const patron = new RegExp(escapado, 'i');
+      filtro.$or = [{ nombres: patron }, { apellidos: patron }, { cedula: patron }];
+    }
+
+    const items = await ProfessorModel.find(filtro)
+      .populate('userId', 'fullName email')
+      .limit(100)
+      .lean();
     res.json({ ok: true, items });
   } catch (err) {
     next(err);
@@ -116,10 +137,31 @@ professorRouter.patch('/:id', requireRole('ADMIN', 'COORDINATOR'), async (req, r
       title: z.string().optional(),
       photoUrl: rutaDeImagen.nullable().optional(),
       signatureUrl: rutaDeImagen.nullable().optional(),
+      // Institucional: solo desde aquí, nunca desde `PATCH /me`.
+      esDirectorTrabajoGrado: z.boolean().optional(),
     }).parse(req.body);
+
+    const antes = await ProfessorModel.findOne({ _id: req.params.id, deletedAt: null }).lean();
+    if (!antes) return res.status(404).json({ ok: false, message: 'Not found' });
+
     const item = await ProfessorModel.findOneAndUpdate({ _id: req.params.id, deletedAt: null }, { $set: body }, { new: true });
     if (!item) return res.status(404).json({ ok: false, message: 'Not found' });
-    emitSync('sync:update', { entity: 'professor', action: 'update', id: item.id });
+
+    // Quién le dio (o quitó) la dirección de trabajos de grado a quién es de
+    // las cosas que hay que poder mirar después.
+    if (body.esDirectorTrabajoGrado !== undefined && body.esDirectorTrabajoGrado !== antes.esDirectorTrabajoGrado) {
+      await auditChange({
+        actorId: req.user?.id,
+        action: 'UPDATE',
+        entity: 'Profesor',
+        entityId: item.id,
+        before: { esDirectorTrabajoGrado: antes.esDirectorTrabajoGrado },
+        after: { esDirectorTrabajoGrado: body.esDirectorTrabajoGrado },
+      });
+    }
+
+    // Al docente (para que su menú cambie en vivo) y a las salas ADMIN/COORDINATOR.
+    emitToUser(String(item.userId), 'sync:update', { entity: 'professor', action: 'update', id: item.id });
     res.json({ ok: true, item });
   } catch (err) {
     next(err);

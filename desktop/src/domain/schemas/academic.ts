@@ -320,6 +320,88 @@ export const escaneoPlanillaSchema = z.object({
 });
 export type EscaneoPlanilla = z.infer<typeof escaneoPlanillaSchema>;
 
+// ── Importación de calificaciones ───────────────────────────────────────────
+// Reutiliza `nivelCoincidencia` del escáner de asistencia: es el mismo cruce
+// fila↔matriculado.
+
+export const filaNotasImportSchema = z.object({
+  indice: numberish,
+  cedulaLeida: z.string(),
+  nombreLeido: z.string(),
+  studentId: objectId.nullable(),
+  code: z.string().nullable(),
+  fullName: z.string().nullable(),
+  nivel: nivelCoincidencia,
+  confianza: numberish,
+  notas: z.array(z.number().nullable()),
+  avisos: z.array(z.string()),
+});
+export type FilaNotasImport = z.infer<typeof filaNotasImportSchema>;
+
+/** Propuesta del servidor. Solo describe: la escritura es `POST /grades/bulk`. */
+export const escaneoNotasSchema = z.object({
+  ok: z.literal(true),
+  origen: z.string(),
+  groupId: objectId,
+  subjectId: objectId,
+  period: z.string(),
+  columnas: numberish,
+  avisos: z.array(z.string()),
+  filas: z.array(filaNotasImportSchema),
+  sinFila: z.array(z.object({ id: objectId, code: z.string(), fullName: z.string() })),
+});
+export type EscaneoNotas = z.infer<typeof escaneoNotasSchema>;
+
+// ── Docentes (gestión administrativa) ───────────────────────────────────────
+
+/** Usuario poblado o id a secas, normalizado igual que el autor de un aviso. */
+const usuarioPoblado = z
+  .union([z.object({ fullName: z.string().optional(), email: z.string().optional() }).partial(), z.string(), z.null()])
+  .optional()
+  .transform(valor => (valor && typeof valor === 'object' ? valor : null));
+
+export const profesorAdminSchema = mongoDoc.extend({
+  userId: usuarioPoblado,
+  cedula: z.string().nullish(),
+  nombres: z.string().optional().default(''),
+  apellidos: z.string().optional().default(''),
+  sede: z.string().nullish(),
+  facultad: z.string().nullish(),
+  programas: z.array(z.string()).optional().default([]),
+  estado: z.string().optional().default('APROBADO'),
+  esDirectorTrabajoGrado: z.boolean().optional().default(false),
+});
+export type ProfesorAdmin = z.infer<typeof profesorAdminSchema>;
+
+// ── Formatos de trabajo de grado ────────────────────────────────────────────
+
+export const etapaTrabajoGrado = z.enum(['PROPUESTA', 'DESARROLLO', 'INFORME_FINAL', 'EVALUACION', 'GRADO']);
+export type EtapaTrabajoGrado = z.infer<typeof etapaTrabajoGrado>;
+
+export const ETAPA_TG_LABEL: Record<EtapaTrabajoGrado, string> = {
+  PROPUESTA: 'Propuesta',
+  DESARROLLO: 'Desarrollo',
+  INFORME_FINAL: 'Informe final',
+  EVALUACION: 'Evaluación',
+  GRADO: 'Solicitud de grado',
+};
+
+export const thesisFormatSchema = mongoDoc.extend({
+  nombre: z.string(),
+  descripcion: z.string().optional().default(''),
+  etapa: etapaTrabajoGrado,
+  modalidades: z.array(z.string()).optional().default([]),
+  camposALlenar: z.array(z.string()).optional().default([]),
+  version: z.string().optional().default('1'),
+  archivo: z.object({
+    filename: z.string(),
+    originalName: z.string(),
+    mimetype: z.string(),
+    size: numberish,
+  }),
+});
+export type ThesisFormat = z.infer<typeof thesisFormatSchema>;
+
 // ── Catálogo institucional y registro de docentes ───────────────────────────
 
 export const sedeId = z.enum(['BUCARAMANGA', 'PIEDECUESTA', 'VELEZ', 'BARRANCABERMEJA']);
@@ -434,6 +516,35 @@ export const avisoInputSchema = z.object({
   fijado: z.boolean().default(false),
 });
 export type AvisoInput = z.infer<typeof avisoInputSchema>;
+
+// ── Buzón de sugerencias ────────────────────────────────────────────────────
+
+export const tipoFeedback = z.enum(['SUGERENCIA', 'ERROR']);
+export type TipoFeedback = z.infer<typeof tipoFeedback>;
+
+export const estadoFeedback = z.enum(['NUEVO', 'EN_REVISION', 'RESUELTO', 'DESCARTADO']);
+export type EstadoFeedback = z.infer<typeof estadoFeedback>;
+
+export const feedbackSchema = mongoDoc.extend({
+  tipo: tipoFeedback.catch('SUGERENCIA'),
+  mensaje: z.string(),
+  estado: estadoFeedback.catch('NUEVO'),
+  origen: z.string().optional().default('DESKTOP'),
+  appVersion: z.string().nullable().optional(),
+  // Mismo autor normalizado que los avisos: poblado u ObjectId a secas.
+  autorId: autorAviso,
+});
+export type Feedback = z.infer<typeof feedbackSchema>;
+
+export const feedbackInputSchema = z.object({
+  tipo: tipoFeedback,
+  mensaje: z
+    .string()
+    .trim()
+    .min(10, 'Cuenta un poco más: con menos de 10 caracteres no hay qué revisar.')
+    .max(2000),
+});
+export type FeedbackInput = z.infer<typeof feedbackInputSchema>;
 
 // ── Enlaces de descarga ─────────────────────────────────────────────────────
 

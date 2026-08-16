@@ -39,8 +39,8 @@ function normalize(value: string): string {
     .trim();
 }
 
-/** Elige el separador que produce más columnas de forma consistente. */
-function detectDelimiter(lines: string[]): string {
+/** Elige el separador que produce más columnas de forma consistente. Exportado: el import de notas lo reutiliza. */
+export function detectDelimiter(lines: string[]): string {
   let best = ';';
   let bestScore = 0;
 
@@ -56,7 +56,7 @@ function detectDelimiter(lines: string[]): string {
 }
 
 /** Split respetando comillas dobles, que es como Excel escapa los nombres con coma. */
-function splitLine(line: string, delimiter: string): string[] {
+export function splitLine(line: string, delimiter: string): string[] {
   const fields: string[] = [];
   let current = '';
   let quoted = false;
