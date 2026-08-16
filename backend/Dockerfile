@@ -1,11 +1,15 @@
-FROM node:22-alpine AS builder
+# 24, no 22: el lockfile lo mantiene npm 11 y el npm 10 de node:22 resuelve
+# distinto los peer opcionales (`yaml` de vite) — `npm ci` fallaba con
+# "Missing: yaml@2.9.0 from lock file" sobre un árbol que instala limpio.
+# Mismo motivo por el que verificar.yml y release.yml usan Node 24.
+FROM node:24-alpine AS builder
 WORKDIR /app
 COPY package*.json tsconfig.json ./
 RUN npm ci
 COPY src ./src
 RUN npm run build
 
-FROM node:22-alpine AS runtime
+FROM node:24-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package*.json ./
@@ -15,7 +19,9 @@ COPY --from=builder /app/dist ./dist
 # Los reportes y las imágenes subidas van a un volumen montado aquí. Sin crear
 # el directorio con el dueño correcto, el proceso sin privilegios no puede
 # escribir en él y la subida de una planilla falla en producción y no en local.
-RUN mkdir -p uploads && chown -R node:node /app
+# `formatos` es el almacén de los formatos de trabajo de grado: va aparte de
+# `uploads` porque uploads se sirve estático sin autenticación.
+RUN mkdir -p uploads formatos && chown -R node:node /app
 
 # No se ejecuta como root: si alguien lograra ejecutar código dentro del
 # contenedor, se encontraría con un usuario sin permisos sobre el sistema.

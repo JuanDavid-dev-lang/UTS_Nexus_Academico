@@ -47,6 +47,9 @@ services:
       RISK_SCAN_INTERVAL_MIN: ${RISK_SCAN_INTERVAL_MIN:-60}
     volumes:
       - uploads:/app/uploads
+      # Formatos oficiales de trabajo de grado. Sin volumen, reconstruir la
+      # imagen borraría los documentos que subió la administración.
+      - formatos:/app/formatos
     depends_on:
       - ml
 
@@ -65,4 +68,5 @@ volumes:
   caddy_data:
   caddy_config:
   uploads:
+  formatos:
   modelos:
