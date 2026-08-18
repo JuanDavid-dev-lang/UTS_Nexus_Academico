@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/data/providers.dart';
 import '../../core/network/api_error.dart';
-import '../../core/services/feedback_service.dart';
+import './data/feedback_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
@@ -84,22 +84,29 @@ class _FeedbackPageState extends ConsumerState<FeedbackPage> {
                         ? 'Qué pantalla, qué hiciste y qué pasó en su lugar.'
                         : 'Qué te facilitaría el trabajo.',
                   ),
-                  onChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: 6),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: _controller.text.trim().length >= 10 && !_enviando
-                        ? _enviar
-                        : null,
-                    icon: _enviando
-                        ? const SizedBox(
-                            height: 15,
-                            width: 15,
-                            child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.send_outlined, size: 18),
-                    label: const Text('Enviar'),
+                // El botón escucha al controlador en vez de obligar a la
+                // página a reconstruirse en cada tecla. Antes, escribir la
+                // sugerencia rehacía también la lista de lo ya enviado que
+                // hay debajo, carácter a carácter, para decidir si un botón
+                // estaba habilitado.
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _controller,
+                  builder: (_, valor, __) => SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: valor.text.trim().length >= 10 && !_enviando
+                          ? _enviar
+                          : null,
+                      icon: _enviando
+                          ? const SizedBox(
+                              height: 15,
+                              width: 15,
+                              child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.send_outlined, size: 18),
+                      label: const Text('Enviar'),
+                    ),
                   ),
                 ),
               ],

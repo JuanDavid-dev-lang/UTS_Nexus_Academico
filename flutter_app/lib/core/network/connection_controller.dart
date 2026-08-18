@@ -2,9 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config.dart';
-import '../services/api_client.dart';
-import '../services/realtime_service.dart';
-import 'server_discovery.dart';
+import './api_client.dart';
+import './realtime_service.dart';
+import './server_discovery.dart';
 
 /// Estado de la conexión con el servidor.
 enum ConnectionPhase {

@@ -1,6 +1,6 @@
 import type { Server as HttpServer } from 'node:http';
 import { Server, type Socket } from 'socket.io';
-import { env } from './env.js';
+import { origenesPermitidos } from './env.js';
 import { verifyAccessToken } from './jwt.js';
 
 let io: Server | null = null;
@@ -19,7 +19,13 @@ function extractToken(socket: Socket): string | null {
 
 export function createSocketServer(server: HttpServer) {
   io = new Server(server, {
-    cors: { origin: env.CLIENT_ORIGIN, credentials: true },
+    // La misma lista que la API, resuelta con `origenesPermitidos()` y no con
+    // `env.CLIENT_ORIGIN` en crudo. En producción esa variable es
+    // obligatoriamente una lista separada por comas, así que pasarla tal cual
+    // le daba a Socket.io la cadena literal "https://a,https://b" como si
+    // fuera un único origen: no casaba con ninguna cabecera `Origin` y el
+    // tiempo real quedaba caído sin un solo error que mencionara CORS.
+    cors: { origin: origenesPermitidos(), credentials: true },
   });
 
   // Autenticación del handshake: solo clientes con token válido se conectan.

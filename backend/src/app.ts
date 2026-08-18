@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
+import compression from 'compression';
 import swaggerUi from 'swagger-ui-express';
 import path from 'node:path';
 import { apiRouter } from './routes/index.js';
@@ -20,6 +21,21 @@ if (esProduccion) app.set('trust proxy', 1);
 
 app.use(helmet());
 app.use(cors({ origin: origenesPermitidos(), credentials: true }));
+
+/**
+ * Compresión de las respuestas.
+ *
+ * Caddy ya comprime lo que sale por él, pero **no todo sale por él**: el móvil
+ * se conecta directo a `http://ip:4000` en la red del campus, y `iniciar.sh`
+ * levanta el backend solo. En esos caminos no había compresión ninguna, y el
+ * consolidado de un grupo son cientos de kilobytes de JSON muy repetitivo
+ * sobre el wifi de un aula, que es donde peor se nota.
+ *
+ * Detrás del proxy no se hace el trabajo dos veces: Caddy deja pasar tal cual
+ * lo que ya llega con `Content-Encoding`.
+ */
+app.use(compression());
+
 app.use(express.json({ limit: '2mb' }));
 app.use(morgan(esProduccion ? 'combined' : 'dev'));
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 250 }));

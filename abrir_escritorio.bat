@@ -23,7 +23,6 @@ REM  Los pasos 2 y 3 existen porque abrir un .exe viejo es el peor fallo
 REM  posible: la app arranca, no da ningun error, y muestra una version
 REM  anterior del programa. El usuario no tiene forma de darse cuenta.
 REM
-REM  La version anterior en Python sigue disponible en abrir_pc.bat.
 REM ==========================================================================
 
 cd /d "%~dp0"

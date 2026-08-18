@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/data/providers.dart';
-import '../../../core/models/agenda.dart';
+import '../../agenda/data/agenda_models.dart';
 import '../../../core/network/api_error.dart';
-import '../../../core/services/local_notifications_service.dart';
-import '../../../core/services/push_service.dart';
+import '../../../core/notifications/local_notifications_service.dart';
+import '../../../core/notifications/push_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/ui_kit.dart';
 

@@ -122,6 +122,15 @@ export async function connectDb(): Promise<void> {
       // interna de Mongoose y el error que llega al usuario es incomprensible.
       serverSelectionTimeoutMS: 10_000,
       bufferCommands: false,
+      // El techo baja del centenar que trae el driver por defecto: un clúster
+      // compartido de Atlas tiene un límite de conexiones por cuenta, y un
+      // backend que abre cien deja sin sitio a los scripts (`seed`, `smoke`) y
+      // a cualquier segunda instancia. Cincuenta sobran para la carga real.
+      maxPoolSize: 50,
+      // Cinco conexiones siempre calientes: la primera consulta tras un rato
+      // de calma ya no paga el saludo TLS con Atlas, que en una petición de
+      // login se nota.
+      minPoolSize: 5,
     });
     status = 'connected';
     lastError = null;

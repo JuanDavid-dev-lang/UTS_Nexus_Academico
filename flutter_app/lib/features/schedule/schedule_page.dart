@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/data/providers.dart';
 import '../../core/network/api_error.dart';
-import '../../core/services/api_client.dart';
-import '../../core/services/schedule_repository.dart';
+import '../../core/network/api_client.dart';
+import './data/schedule_repository.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/period_selector.dart';
 import '../../core/widgets/session_menu.dart';
@@ -299,7 +299,7 @@ class _EditarFranjaSheetState extends ConsumerState<_EditarFranjaSheet> {
     final materia = (widget.item['subjectName'] ?? '').toString();
 
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: SafeArea(
         child: SingleChildScrollView(
           padding: AppSpacing.pagePadding,

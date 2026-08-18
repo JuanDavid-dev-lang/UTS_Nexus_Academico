@@ -7,6 +7,7 @@ import '../../core/network/api_error.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
+import '../../core/widgets/debounced_search_field.dart';
 
 /// Directorio global de estudiantes.
 ///
@@ -79,13 +80,9 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
                 // AppSpacing.pagePadding para que el buscador no baile.
                 padding: const EdgeInsets.fromLTRB(
                     AppSpacing.page, 12, AppSpacing.page, 8),
-                child: TextField(
+                child: DebouncedSearchField(
+                  hintText: 'Buscar por nombre, cédula o programa…',
                   onChanged: (value) => setState(() => _query = value),
-                  decoration: const InputDecoration(
-                    hintText: 'Buscar por nombre, cédula o programa…',
-                    prefixIcon: Icon(Icons.search),
-                    isDense: true,
-                  ),
                 ),
               ),
               if (subjects.isNotEmpty)

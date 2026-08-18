@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'app.dart';
-import 'core/data/offline_status.dart';
-import 'core/services/backend_bootstrap.dart';
-import 'core/services/local_notifications_service.dart';
-import 'core/services/push_service.dart';
+import './app.dart';
+import './core/storage/offline_status.dart';
+import './core/network/backend_bootstrap.dart';
+import './core/notifications/local_notifications_service.dart';
+import './core/notifications/push_service.dart';
+import './core/theme/theme_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,5 +19,17 @@ Future<void> main() async {
   // Firebase configurado; la app arranca igual, sin push.
   await PushService.instance.init();
   await BackendBootstrap.ensureRunning();
-  runApp(const ProviderScope(child: UtsApp()));
+  // El tema se lee ANTES de dibujar: leerlo después dejaba el primer fotograma
+  // con el modo del sistema y lo cambiaba a continuación, que es el fogonazo
+  // que veía quien había elegido claro con el teléfono en oscuro.
+  final temaInicial = await ThemeModeController.cargarInicial();
+
+  runApp(
+    ProviderScope(
+      overrides: [
+        themeModeProvider.overrideWith((ref) => ThemeModeController(temaInicial)),
+      ],
+      child: const UtsApp(),
+    ),
+  );
 }

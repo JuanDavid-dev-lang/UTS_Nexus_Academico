@@ -7,7 +7,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../core/data/providers.dart';
 import '../../core/network/api_error.dart';
-import '../../core/services/thesis_service.dart';
+import './data/thesis_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';

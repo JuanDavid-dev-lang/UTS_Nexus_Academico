@@ -65,10 +65,53 @@ python -m venv .venv
   - `scheduler.ts` → escaneo periódico de riesgo (`RISK_SCAN_INTERVAL_MIN`).
   - `error.ts` → **traduce el error a HTTP**. `ZodError` → 400 con el campo que falla, clave duplicada de Mongo → 409, `CastError` de ObjectId → 404. Los 5xx se registran pero nunca devuelven detalle interno. No lanzar un `Error` pelado esperando un 400: sin `statusCode` cae a 500, y los clientes reintentan solos los 5xx.
 
+### El molde de un módulo del backend
+
+Tres capas, no cuatro. `domains/` (puro, con tests) → `modules/<capacidad>/` → `shared/`. Dentro de un módulo, cada archivo tiene un papel fijo:
+
+| Archivo | Hace |
+|---|---|
+| `X.routes.ts` | HTTP: validar, autorizar, delegar, responder |
+| `X.service.ts` | orquestación y acceso a datos |
+| `X.renderer.ts` | formato de salida cuando lo hay (PDF, Excel) |
+
+**Regla: un `.routes.ts` no importa un Modelo.** Si necesita datos, se los pide a su servicio. Es verificable con un grep y no es orden por el orden: mientras HTTP, negocio y Mongoose viven en el mismo handler, la única forma de probar el alcance de un docente es levantar servidor y base — es decir, no se prueba. `reports/` es el ejemplo a copiar; los demás módulos se van migrando cuando toque tocarlos.
+
+No se usa Clean Architecture completa a propósito. Lo que Clean protege —el dominio— ya está aislado en `domains/` y fijado por tests; añadir entidades, casos de uso y puertos por encima serían un centenar de archivos que no responden ninguna pregunta que hoy no se pueda responder.
+
+### Quién ve qué (`domains/scope/`)
+
+La garantía de que un docente no ve los estudiantes de otro es **lógica pura y probada**, no código repartido por las rutas. Dos funciones importan:
+
+- `construirAlcance()` — materias, grupos y estudiantes de un docente. La matrícula manda; las listas `studentIds[]` legadas **suman**, nunca sustituyen.
+- `filtroDeListado()` — **el ámbito del rol se aplica DESPUÉS de lo que pide la URL.** Escrito al revés, un estudiante recuperaba las notas de otro con `?studentId=` y la respuesta era un 200 con una lista impecable. Ese fallo estuvo vivo en `GET /grades` y no en `GET /attendance`, con el mismo código y dos líneas intercambiadas — por eso vive en una función y no copiado en cada ruta.
+
+El mismo patrón en reportes: `filtrosDeConsulta()` fuerza el `teacherId` del docente **siempre**, no solo cuando la petición no trae uno.
+
 ### Alcance de estudiantes
 - `GET /students` acepta `subjectId`, `groupId`, `period` y `q`. Para un docente los filtros se **intersectan** con su alcance, no lo reemplazan: pedir una materia ajena devuelve lista vacía, nunca los datos de otro.
 - `GET /students/search` es el directorio global (identidad mínima: cédula, nombre, programa) y existe para poder matricular a alguien que aún no es tuyo. Exige 3 caracteres y tope de 50. **No devuelve notas, asistencia ni riesgo** — si algún día hace falta más campo, revisa primero si no estás filtrando el expediente de un estudiante ajeno.
 - Los endpoints por id (`GET /students/:id`, `PATCH /students/:id`) comprueban el alcance con `professorOwnsStudent()`. Filtrar solo el listado deja la ficha accesible a quien copie un id.
+
+### Cuentas, sesión y recuperación
+- **`POST /auth/register` es solo para ADMIN.** Acepta `role: 'ADMIN'` y la ficha de docente nace `APROBADO`, así que abierto era un generador público de administradores que además saltaba entero el diseño de `/registro`. Quien se da de alta por su cuenta pasa por `/registro`: interruptor de la administración, estado `PENDIENTE` y revisión humana.
+- **`POST /auth/refresh` rota el token** (RTR): cada canje quema el anterior sobre la misma sesión. Reutilizar uno ya rotado revoca **toda** la familia de sesiones del usuario, que es la única señal disponible de que alguien copió un token.
+- **El código de recuperación se envía por correo, nunca en la respuesta.** Solo vuelve en `devCode` fuera de producción y sin `SMTP_HOST`, para que una instalación local pueda recuperar una contraseña. Devolverlo siempre convertía `/recovery/request` en una toma de cuenta de un solo paso.
+- Las contraseñas van acotadas a 128 caracteres en todas las rutas: bcrypt solo mira 72 bytes, y sin tope `bcrypt.compare` con una cadena de megabytes ocupa el único hilo del proceso.
+
+### Listados: paginación y campos acotados
+`shared/validation.ts` es la fuente única de los topes de texto (`nombre`, `linea`, `nota`, `parrafo`, `correo`, `url`) y de la paginación. Un `z.string()` sin `.max()` es una puerta abierta: el cuerpo admite 2 MB y lo que entra **se guarda**, así que después viaja en cada listado que lo incluya.
+
+`paginacionCon(porDefecto)` añade `page` y `limit` a un listado y devuelve `{items, total, page, limit, hasMore}`. Dos reglas:
+- **`items` se queda en la raíz.** Los clientes que ya leían `data.items` siguen funcionando; cambiar la forma habría obligado a publicar los tres a la vez.
+- **El valor por defecto de cada endpoint es el tope que ya devolvía** (1000 en estudiantes, notas y asistencia; 2000 en matrículas; 200 o 100 en el resto). Bajarlo a un número redondo habría dejado a los móviles ya instalados pidiendo la lista de siempre y recibiendo la décima parte, sin ningún error: la toma de asistencia perdería a medio salón y nadie sabría por qué. La paginación se pide; no se impone.
+
+### Escrituras masivas
+`POST` de `/grades/bulk`, `/attendance/scan/confirm`, `/students/bulk` y `/enrollments/bulk` usan `bulkWrite()` y `auditBatch()`. **No volver al bucle de `findOneAndUpdate`**: una planilla llena de notas (500 filas × 10 columnas) eran unas quince mil idas y vueltas encadenadas a Atlas, es decir minutos de petición colgada sobre una ventana que el docente ya había cerrado.
+
+Dos trampas al escribir uno nuevo:
+- **`bulkWrite` no castea los ids.** `find()` los convierte a partir del esquema; la agregación y `bulkWrite` no. Un `studentId` en texto no casa con el ObjectId guardado, así que el filtro no encuentra nada y el upsert **crea un duplicado** en vez de actualizar.
+- **La auditoría también es una escritura por registro.** Agrupar solo el upsert deja el bucle donde estaba; `auditBatch()` la reduce a un `insertMany`.
 
 ### Importación de listados
 Un listado de estudiantes se puede pegar como texto, subir como CSV o **leer de un PDF o una foto**. Los dos últimos pasan por `POST /enrollments/import/scan`, que reenvía el archivo a `/vision/roster` del servicio ML y devuelve una **propuesta con confianza por fila** — nunca escribe. La escritura sigue siendo `POST /enrollments/bulk` con lo que el docente ya revisó, y en el escritorio la lectura cae en el mismo cuadro de texto que la lista pegada a mano para que pase por la misma revisión.
@@ -126,26 +169,54 @@ El dispositivo se registra con `localClassReminders: true` y el servidor deja de
 Detalle completo en `docs/AGENDA_Y_NOTIFICACIONES.md`.
 
 ### Escritorio v2 — capas
-`domain/` (esquemas Zod + puertos, sin React) → `infrastructure/` (adaptadores HTTP de los puertos) → `features/` (una pantalla por capacidad) → `shared/` (design system según `DESIGN.md`). Estado de servidor con TanStack Query, estado de cliente con Zustand. Tokens en `keyring` (Rust) vía `src-tauri/src/commands/`. `desktop_python/` (PySide6) está en desuso — no añadir funcionalidades ahí.
+`domain/` (esquemas Zod + puertos, sin React) → `infrastructure/` (adaptadores HTTP de los puertos) → `features/` (una pantalla por capacidad) → `shared/` (design system según `DESIGN.md`). Estado de servidor con TanStack Query, estado de cliente con Zustand. Tokens en `keyring` (Rust) vía `src-tauri/src/commands/`. `desktop_python/` (PySide6) está **muerto**: su lanzador se eliminó y no recibe cambios. No añadir nada ahí ni tomarlo como referencia.
 
 ### Servicio ML
 Sustituye los umbrales fijos de `domains/risk` por un modelo entrenado con explicación SHAP obligatoria. Arranca con modelo bootstrap derivado de las reglas; un candidato reentrenado solo se promueve **si gana en recall** (AUC desempata), salvo que sea el primer modelo con datos reales. Si el servicio cae, el backend usa el motor de reglas y lo declara en el campo `source` (`model` | `rules`). Config en `backend/.env`: `ML_BASE_URL=http://127.0.0.1:8100`, `ML_ENABLED=1`.
+
+## Rendimiento de los clientes
+
+Tres reglas que son fáciles de deshacer sin querer y caras de diagnosticar después, porque ninguna la detecta `flutter analyze` ni el `tsc`.
+
+**`MediaQuery.sizeOf` / `viewInsetsOf`, nunca `MediaQuery.of`.** `of` suscribe al `MediaQueryData` entero, y el teclado anima `viewInsets` **fotograma a fotograma**: un `MediaQuery.of` para leer un ancho reconstruye ese widget sesenta veces por segundo mientras el teclado sube. Estaba en `app_scaffold.dart` —que envuelve todas las pantallas— y dentro de cada burbuja del chat, que es la pantalla donde el teclado más se abre.
+
+**Cambiar de pestaña no debe rehacer la pestaña.** El móvil usa `StatefulShellRoute.indexedStack` (`app.dart`), con una rama por destino. `rutasDeRama` en `app_scaffold.dart` es el contrato: **la rama N atiende a `rutasDeRama[N]`**, y `test/router_test.dart` lo fija porque descuadrar el orden compila igual y manda cada pestaña a la pantalla equivocada. Para navegar entre pestañas se usa `goBranch`, no `context.go`: `go` reinicia la rama y `goBranch` vuelve donde se dejó.
+
+**Un `setState` de página por pulsación de tecla es un error, no un detalle.** Reconstruye cabecera, filtros y lista, y además refiltra la lista completa: escribir nueve letras son nueve pasadas sobre mil registros, ocho de las cuales nadie ve. Los buscadores usan `DebouncedSearchField` (`core/widgets/`); lo que solo habilita un botón o pinta unas iniciales usa `ValueListenableBuilder` sobre el controlador. Y las listas largas van con `ListView.builder` o `SliverList.builder`: `ListView(children: [...])` construye **todos** sus hijos aunque se vean ocho.
+
+En el escritorio esto no aparece porque TanStack Query ya guarda el estado de servidor (`staleTime` 30 s, `gcTime` 5 min, `refetchOnWindowFocus: false` en `app/providers.tsx`), así que cambiar de pantalla no vuelve a consultar. En el móvil el equivalente es que **ningún provider de Riverpod es `autoDispose`**: los datos sobreviven al cambio de pestaña a propósito.
+
+## Organización de los clientes
+
+**Móvil.** `core/` tiene una casa por tema (`network`, `auth`, `notifications`, `storage`, `theme`, `widgets`, `data`) y **cada capacidad guarda lo suyo en `features/<X>/`**: su pantalla, sus `<X>_providers.dart` y su `data/` con el repositorio. Antes había tres sitios donde podía ir un modelo y dos donde podía ir un repositorio, así que no había forma de saber dónde poner nada nuevo.
+
+**Escritorio.** `domain/schemas/` y `infrastructure/repositories/` tienen un archivo por capacidad. `academic.ts` y `academic.repository.ts` son solo índices de reexportación.
+
+En los dos casos el índice existe para no romper los sitios que ya importaban de ahí. **Un índice de `export` no es un archivo central**: el problema nunca fue el import compartido, era que el código viviera todo junto y cualquier cambio de cualquier pantalla chocara en el mismo sitio.
+
+## Idioma y tema
+
+**La aplicación es solo en español.** No hay internacionalización: ni paquete, ni catálogo de cadenas, ni selector de idioma. Los textos están escritos en el código. Si algún día hace falta inglés, es un proyecto propio (extraer varios miles de cadenas de las tres aplicaciones), no un ajuste.
+
+**El tema tiene tres modos en los dos clientes**: claro, oscuro y seguir al sistema. Dos detalles que no son opcionales:
+- **El tercer modo tiene que ser alcanzable.** Un interruptor de dos posiciones deja la app clavada en cuanto se toca una vez, y el teléfono que cambia solo al anochecer deja de hacerlo sin explicación.
+- **La preferencia se lee antes de dibujar** (`ThemeModeController.cargarInicial()` en `main()`, `initTheme()` antes de montar React). Leerla después deja el primer fotograma con el tema del sistema y lo cambia a continuación: quien eligió claro con el teléfono en oscuro ve un fogonazo.
 
 ## Sistema de diseño
 
 `DESIGN.md` es la fuente de verdad y los tres clientes la implementan con la misma estructura: un archivo de tokens y cero colores o tamaños en crudo en las pantallas. Antes de escribir un color o un `fontSize` literal, comprueba que no exista ya el token.
 
-| Concepto | Escritorio v2 | Móvil | Escritorio v1 (Python) |
-|----------|---------------|-------|------------------------|
-| Tokens | `desktop/src/styles/tokens.css` | `AppColors` en `lib/core/theme/app_theme.dart` | `LIGHT`/`DARK` en `desktop_python/ui/theme.py` |
-| Tipografía | utilidades `text-h1 … text-caption` | `AppType` | `Theme.FS_*` |
-| Estado semántico | `--success`/`--success-soft`… | `SemanticKind` + `SemanticTone` | `Theme.SUCCESS`/`SUCCESS_SOFT`… |
+| Concepto | Escritorio v2 | Móvil | |
+|----------|---------------|-------|---|
+| Tokens | `desktop/src/styles/tokens.css` | `AppColors` en `lib/core/theme/app_theme.dart` | — |
+| Tipografía | utilidades `text-h1 … text-caption` | `AppType` | |
+| Estado semántico | `--success`/`--success-soft`… | `SemanticKind` + `SemanticTone` | |
 
 - **Declara el significado, no el color.** `StatusPill`, `StatTile` y `RiskBadge` (móvil) reciben un `SemanticKind` y resuelven el par (texto, fondo) contra el tema activo. Pasarles colores sueltos rompe el modo oscuro.
 - **La escala tipográfica tiene cinco pasos** (36/30/24/16/13). Un tamaño fuera de ese ramp es un error, no una variante.
 - **En modo oscuro los semánticos van aclarados** (`#4ADE80`, `#FBBF24`, `#F87171`, `#38BDF8`), no con los hex canónicos de §4: esos están calibrados para texto sobre blanco y sobre `#33332A` caen a 2.4–4.0:1, por debajo del AA que exigen §4 regla 5 y §15.
 - **El lima `#CAD225` nunca es color de texto ni fondo de superficie grande** — solo botones, badges, selección y foco (§4 reglas 2 y 4).
-- Inter va empaquetada en los tres clientes (`@fontsource/inter` en escritorio, `.ttf` en `flutter_app/assets/fonts/` y `desktop_python/assets/fonts/`). No la sustituyas por una carga remota: el CSP de Tauri no tiene `font-src` y la app móvil se usa sin red fiable.
+- Inter va empaquetada en los dos clientes (`@fontsource/inter` en escritorio, `.ttf` en `flutter_app/assets/fonts/`). No la sustituyas por una carga remota: el CSP de Tauri no tiene `font-src` y la app móvil se usa sin red fiable.
 - Los gráficos de escritorio leen los tokens en vivo y se repintan al cambiar de tema; no les pases colores fijos.
 
 ## Variables de entorno — trampas conocidas

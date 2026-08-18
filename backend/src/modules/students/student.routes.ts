@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import * as campo from '../../shared/validation.js';
 import { StudentModel } from '../../models/student.model.js';
 import { identificar, requireRole } from '../../middlewares/auth.js';
 import { emitSync } from '../../shared/socket.js';
@@ -8,6 +9,7 @@ import {
   getEnrolledStudentIds,
   professorOwnsStudent,
 } from '../../shared/professor-scope.js';
+import { intersectar } from '../../domains/scope/professor-scope.js';
 
 export const studentRouter = Router();
 
@@ -16,12 +18,6 @@ studentRouter.use(identificar);
 /** Neutraliza los metacaracteres para que el texto buscado se trate como literal. */
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/** Intersección de dos conjuntos de ids, preservando el orden del primero. */
-function intersect(a: string[], b: string[]): string[] {
-  const allowed = new Set(b);
-  return a.filter(id => allowed.has(id));
 }
 
 /**
@@ -38,8 +34,9 @@ studentRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (
         subjectId: z.string().optional(),
         groupId: z.string().optional(),
         period: z.string().optional(),
-        q: z.string().trim().optional(),
+        q: z.string().trim().max(120).optional(),
       })
+      .merge(campo.paginacionCon(1000))
       .parse(req.query);
 
     const filter: Record<string, unknown> = { deletedAt: null };
@@ -60,7 +57,7 @@ studentRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (
         // deja de devolver nada en vez de filtrar la lista de otro profesor.
         professorId: isProfessor ? req.user!.id : undefined,
       });
-      allowedIds = allowedIds ? intersect(allowedIds, enrolled) : enrolled;
+      allowedIds = allowedIds ? intersectar(allowedIds, enrolled) : enrolled;
     }
 
     if (allowedIds) filter._id = { $in: allowedIds };
@@ -70,8 +67,14 @@ studentRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (
       filter.$or = [{ fullName: term }, { code: term }];
     }
 
-    const items = await StudentModel.find(filter).sort({ code: 1, fullName: 1 }).limit(1000).lean();
-    res.json({ ok: true, items });
+    // El conteo va en paralelo con la página: son dos consultas independientes
+    // y encadenarlas duplicaba la espera sin ninguna razón.
+    const { skip, limit } = campo.saltoYTope(query);
+    const [items, total] = await Promise.all([
+      StudentModel.find(filter).sort({ code: 1, fullName: 1 }).skip(skip).limit(limit).lean(),
+      StudentModel.countDocuments(filter),
+    ]);
+    res.json(campo.respuestaPaginada(items, total, query));
   } catch (err) {
     next(err);
   }
@@ -89,7 +92,7 @@ studentRouter.get('/search', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), a
   try {
     const query = z
       .object({
-        q: z.string().trim().min(3, 'Escribe al menos 3 caracteres para buscar'),
+        q: z.string().trim().min(3, 'Escribe al menos 3 caracteres para buscar').max(120),
         limit: z.coerce.number().int().min(1).max(50).default(20),
       })
       .parse(req.query);
@@ -123,15 +126,21 @@ studentRouter.get('/:id', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), asyn
   }
 });
 
+/**
+ * Ficha de estudiante. Una sola definición para el alta unitaria y la masiva:
+ * dos copias divergen, y la que se olvida acaba siendo la que no valida.
+ */
+const fichaEstudiante = z.object({
+  code: campo.codigo.min(3),
+  fullName: campo.nombre.min(3),
+  email: campo.correo,
+  program: campo.linea.min(2),
+  photoUrl: campo.url.nullable().optional(),
+});
+
 studentRouter.post('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
-    const body = z.object({
-      code: z.string().min(3),
-      fullName: z.string().min(3),
-      email: z.string().email(),
-      program: z.string().min(2),
-      photoUrl: z.string().url().optional(),
-    }).parse(req.body);
+    const body = fichaEstudiante.parse(req.body);
 
     const item = await StudentModel.create(body);
     emitSync('sync:update', { entity: 'student', action: 'create', id: item.id });
@@ -143,23 +152,37 @@ studentRouter.post('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async 
 
 studentRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
-    const body = z.array(z.object({
-      code: z.string().min(3),
-      fullName: z.string().min(3),
-      email: z.string().email(),
-      program: z.string().min(2),
-      photoUrl: z.string().url().nullable().optional(),
-    })).min(1).parse(req.body);
+    // El tope no es cosmético: sin él, el tamaño del lote lo decidía el límite
+    // del cuerpo HTTP, que no tiene ninguna relación con lo que esta ruta puede
+    // escribir de una vez.
+    const body = z.array(fichaEstudiante).min(1).max(campo.TOPE_LOTE).parse(req.body);
 
-    const items = [];
-    for (const row of body) {
-      const item = await StudentModel.findOneAndUpdate(
-        { code: row.code, deletedAt: null },
-        { $set: row, $setOnInsert: { academicHistory: [], attendanceRate: 0, academicPerformance: 0 } },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-      );
-      if (item) items.push(item);
-    }
+    // Una escritura para todo el lote y una lectura para devolverlo, en vez de
+    // un `findOneAndUpdate` por fila. Importar un listado de 300 estudiantes
+    // eran 300 viajes encadenados a la base; ahora son dos.
+    const codigos = [...new Set(body.map(row => row.code))];
+
+    await StudentModel.bulkWrite(
+      body.map(row => ({
+        updateOne: {
+          filter: { code: row.code, deletedAt: null },
+          update: {
+            $set: row,
+            // `academicHistory` no va aquí: es un array del esquema y Mongoose
+            // lo entrega como `[]` al leerlo aunque el documento no lo traiga.
+            // Declararlo rompía el tipado de `bulkWrite` sin aportar nada.
+            $setOnInsert: { attendanceRate: 0, academicPerformance: 0 },
+          },
+          upsert: true,
+        },
+      })),
+      { ordered: false },
+    );
+
+    const items = await StudentModel.find({ code: { $in: codigos }, deletedAt: null })
+      .sort({ code: 1 })
+      .lean();
+
     emitSync('sync:update', { entity: 'student', action: 'bulk', id: String(items.length) });
     res.status(201).json({ ok: true, items, count: items.length });
   } catch (err) {
@@ -174,10 +197,10 @@ studentRouter.patch('/:id', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), as
     }
 
     const body = z.object({
-      fullName: z.string().min(3).optional(),
-      email: z.string().email().optional(),
-      program: z.string().min(2).optional(),
-      photoUrl: z.string().url().nullable().optional(),
+      fullName: campo.nombre.min(3).optional(),
+      email: campo.correo.optional(),
+      program: campo.linea.min(2).optional(),
+      photoUrl: campo.url.nullable().optional(),
       attendanceRate: z.number().min(0).max(100).optional(),
       academicPerformance: z.number().min(0).max(5).optional(),
     }).parse(req.body);

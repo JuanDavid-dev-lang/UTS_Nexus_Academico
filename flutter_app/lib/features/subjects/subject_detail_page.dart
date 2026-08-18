@@ -9,6 +9,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
 import '../students/student_detail_sheet.dart';
+import '../../core/widgets/debounced_search_field.dart';
 
 /// Estudiantes de una materia.
 ///
@@ -107,13 +108,9 @@ class _SubjectDetailPageState extends ConsumerState<SubjectDetailPage> {
               children: [
                 _SummaryStrip(students: students),
                 const SizedBox(height: 14),
-                TextField(
+                DebouncedSearchField(
+                  hintText: 'Buscar por nombre o cédula…',
                   onChanged: (value) => setState(() => _query = value),
-                  decoration: const InputDecoration(
-                    hintText: 'Buscar por nombre o cédula…',
-                    prefixIcon: Icon(Icons.search_outlined),
-                    isDense: true,
-                  ),
                 ),
                 const SizedBox(height: 12),
                 SingleChildScrollView(

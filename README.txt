@@ -11,9 +11,10 @@ y una base de datos en la nube (MongoDB Atlas):
   * App móvil         -> Flutter (docente/estudiante)       (carpeta: flutter_app)
   * Base de datos     -> MongoDB Atlas (solo se accede vía backend)
 
-  La app de escritorio v1 (Python + PySide6, carpeta desktop_python) sigue en
-  el repositorio pero está EN DESUSO. Se conserva como referencia hasta que la
-  v2 esté validada; ya no recibe funcionalidades nuevas.
+  La app de escritorio v1 (Python + PySide6, carpeta desktop_python) esta
+  MUERTA: se elimino su lanzador y no recibe cambios. El codigo queda como
+  referencia historica. La aplicacion de escritorio actual es la de la
+  carpeta "desktop".
 
 El backend es la ÚNICA fuente de verdad: calcula notas, asistencia y riesgo.
 Ni el escritorio ni el móvil recalculan nada; solo muestran lo que el
@@ -121,13 +122,6 @@ ESCRITORIO — manual:
     -> Tus tokens se guardan cifrados en el llavero de Windows.
 
     Atajos:  Ctrl+K busqueda global · Ctrl+B menú · Ctrl+Shift+L tema
-
-ESCRITORIO v1 (Python, en desuso):
-    Doble clic en  abrir_pc.bat
-    o bien:
-      cd desktop_python
-      pip install -r requirements.txt
-      python main.py
 
 MÓVIL (Flutter):
     cd flutter_app

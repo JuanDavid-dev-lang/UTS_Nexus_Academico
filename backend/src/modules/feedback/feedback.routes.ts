@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import * as campo from '../../shared/validation.js';
 import { FeedbackModel } from '../../models/feedback.model.js';
 import { identificar, requireRole } from '../../middlewares/auth.js';
 import { auditChange } from '../../shared/audit.js';
@@ -67,12 +68,18 @@ feedbackRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async 
       filtro.tipo = String(req.query.tipo);
     }
 
-    const items = await FeedbackModel.find(filtro)
-      .populate('autorId', 'fullName')
-      .sort({ createdAt: -1 })
-      .limit(200)
-      .lean();
-    res.json({ ok: true, items });
+    const pagina = campo.paginacionCon(200).parse(req.query);
+    const { skip, limit } = campo.saltoYTope(pagina);
+    const [items, total] = await Promise.all([
+      FeedbackModel.find(filtro)
+        .populate('autorId', 'fullName')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      FeedbackModel.countDocuments(filtro),
+    ]);
+    res.json(campo.respuestaPaginada(items, total, pagina));
   } catch (err) {
     next(err);
   }

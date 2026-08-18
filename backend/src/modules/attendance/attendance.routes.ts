@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import { Types } from 'mongoose';
 import { z } from 'zod';
+import * as campo from '../../shared/validation.js';
 import { AttendanceModel } from '../../models/attendance.model.js';
 import { ScheduleModel } from '../../models/schedule.model.js';
 import { identificar, requireRole } from '../../middlewares/auth.js';
 import { auditChange } from '../../shared/audit.js';
 import { emitSync } from '../../shared/socket.js';
 import { getProfessorScope } from '../../shared/professor-scope.js';
+import { filtroDeListado } from '../../domains/scope/professor-scope.js';
 
 export const attendanceRouter = Router();
 attendanceRouter.use(identificar);
@@ -14,16 +16,17 @@ attendanceRouter.use(identificar);
 attendanceRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR', 'STUDENT'), async (_req, res, next) => {
   try {
     const query = _req.query ?? {};
-    const filter: Record<string, unknown> = { deletedAt: null };
-    if (query.studentId) filter.studentId = String(query.studentId);
-    if (query.subjectId) filter.subjectId = String(query.subjectId);
-    if (query.groupId) filter.groupId = String(query.groupId);
-    if (query.period) filter.period = String(query.period);
-    if (_req.user?.role === 'PROFESSOR') filter.teacherId = _req.user.id;
-    // El estudiante solo ve su propia asistencia.
-    if (_req.user?.role === 'STUDENT') filter.studentId = _req.user.studentId;
-    const items = await AttendanceModel.find(filter).sort({ date: -1 }).limit(1000).lean();
-    res.json({ ok: true, items });
+    // Misma función que el listado de notas: el ámbito del rol manda sobre lo
+    // que pida la URL. Aquí el orden ya era el correcto, pero tenerlo copiado
+    // en dos sitios es como se llegó a que en notas estuviera al revés.
+    const filter = filtroDeListado(query, _req.user);
+    const pagina = campo.paginacionCon(1000).parse(query);
+    const { skip, limit } = campo.saltoYTope(pagina);
+    const [items, total] = await Promise.all([
+      AttendanceModel.find(filter).sort({ date: -1 }).skip(skip).limit(limit).lean(),
+      AttendanceModel.countDocuments(filter),
+    ]);
+    res.json(campo.respuestaPaginada(items, total, pagina));
   } catch (err) {
     next(err);
   }
@@ -41,7 +44,7 @@ attendanceRouter.post('/', requireRole('ADMIN', 'PROFESSOR'), async (req, res, n
       date: z.coerce.date(),
       durationMinutes: z.number().int().min(30).max(300).optional(),
       present: z.boolean().default(true),
-      notes: z.string().default(''),
+      notes: campo.nota.default(''),
     }).parse(req.body);
 
     if (req.user?.role === 'PROFESSOR') {
@@ -126,7 +129,7 @@ attendanceRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR'), async (req, re
           z.object({
             studentId: idMongo,
             present: z.boolean().default(true),
-            notes: z.string().default(''),
+            notes: campo.nota.default(''),
           })
         )
         .min(1)

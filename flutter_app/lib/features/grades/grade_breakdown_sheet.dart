@@ -31,7 +31,7 @@ Future<void> showGradeBreakdown(
     showDragHandle: true,
     isScrollControlled: true,
     constraints: BoxConstraints(
-      maxHeight: MediaQuery.of(context).size.height * 0.9,
+      maxHeight: MediaQuery.sizeOf(context).height * 0.9,
     ),
     builder: (_) => _GradeBreakdownSheet(row: row, onChanged: onChanged),
   );

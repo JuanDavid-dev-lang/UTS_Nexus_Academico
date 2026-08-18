@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../services/auth_controller.dart';
+import '../auth/auth_controller.dart';
 import '../theme/app_theme.dart';
 
 /// Acceso a la sesión desde la barra superior de cualquier pantalla.

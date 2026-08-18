@@ -8,7 +8,7 @@ library;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:uts_academico/core/data/campus_time.dart';
-import 'package:uts_academico/core/models/agenda.dart';
+import 'package:uts_academico/features/agenda/data/agenda_models.dart';
 
 const offset = -300; // Colombia, UTC-5, sin horario de verano.
 

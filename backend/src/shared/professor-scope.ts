@@ -1,18 +1,27 @@
 import { SubjectModel } from '../models/subject.model.js';
 import { GroupModel } from '../models/group.model.js';
 import { EnrollmentModel } from '../models/enrollment.model.js';
+import {
+  construirAlcance,
+  dentroDelAlcance,
+  filtroDeMatricula,
+  type EnrollmentFilter,
+  type ProfessorScope,
+} from '../domains/scope/professor-scope.js';
 
-export type ProfessorScope = {
-  subjectIds: string[];
-  groupIds: string[];
-  studentIds: string[];
-};
+/**
+ * Acceso a datos del alcance de un docente.
+ *
+ * Aquí solo hay consultas. **Qué se hace con lo que devuelven vive en
+ * `domains/scope/`**, donde se puede probar sin base de datos — que es lo que
+ * necesita la garantía de que un docente no ve los estudiantes de otro.
+ */
+
+export type { ProfessorScope, EnrollmentFilter };
 
 /**
  * Alcance de un profesor: sus materias, sus grupos y SOLO los estudiantes
- * matriculados en esos grupos. La fuente principal es la colección Matrícula;
- * se conserva un respaldo sobre `studentIds[]` legados para no romper datos
- * previos a la migración.
+ * matriculados en esos grupos.
  */
 export async function getProfessorScope(userId: string): Promise<ProfessorScope> {
   const [subjects, groups, enrollments] = await Promise.all([
@@ -23,25 +32,8 @@ export async function getProfessorScope(userId: string): Promise<ProfessorScope>
       .lean(),
   ]);
 
-  const studentIds = new Set<string>();
-  for (const enrollment of enrollments) studentIds.add(String(enrollment.studentId));
-  // Respaldo legado (datos previos a Matrícula).
-  for (const subject of subjects) for (const id of subject.studentIds ?? []) studentIds.add(String(id));
-  for (const group of groups) for (const id of group.studentIds ?? []) studentIds.add(String(id));
-
-  return {
-    subjectIds: subjects.map(subject => String(subject._id)),
-    groupIds: groups.map(group => String(group._id)),
-    studentIds: [...studentIds],
-  };
+  return construirAlcance(subjects, groups, enrollments);
 }
-
-export type EnrollmentFilter = {
-  subjectId?: string;
-  groupId?: string;
-  period?: string;
-  professorId?: string;
-};
 
 /**
  * Ids de estudiantes con matrícula activa dentro de un ámbito concreto.
@@ -52,13 +44,9 @@ export type EnrollmentFilter = {
  * ve las dos listas fundidas en una sola.
  */
 export async function getEnrolledStudentIds(filter: EnrollmentFilter): Promise<string[]> {
-  const query: Record<string, unknown> = { deletedAt: null, enrollmentStatus: 'ACTIVE' };
-  if (filter.subjectId) query.subjectId = filter.subjectId;
-  if (filter.groupId) query.groupId = filter.groupId;
-  if (filter.period) query.period = filter.period;
-  if (filter.professorId) query.professorId = filter.professorId;
-
-  const enrollments = await EnrollmentModel.find(query).select('studentId').lean();
+  const enrollments = await EnrollmentModel.find(filtroDeMatricula(filter))
+    .select('studentId')
+    .lean();
   return [...new Set(enrollments.map(enrollment => String(enrollment.studentId)))];
 }
 
@@ -70,6 +58,5 @@ export async function getEnrolledStudentIds(filter: EnrollmentFilter): Promise<s
  * cualquiera que adivine o copie un id.
  */
 export async function professorOwnsStudent(userId: string, studentId: string): Promise<boolean> {
-  const scope = await getProfessorScope(userId);
-  return scope.studentIds.includes(String(studentId));
+  return dentroDelAlcance(await getProfessorScope(userId), studentId);
 }

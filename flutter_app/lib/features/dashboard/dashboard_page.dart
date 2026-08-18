@@ -4,13 +4,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/data/models.dart';
 import '../../core/data/providers.dart';
-import '../../core/models/dashboard_summary.dart';
+import './data/dashboard_summary.dart';
 import '../../core/network/api_error.dart';
-import '../../core/services/auth_controller.dart';
-import '../../core/services/auth_repository.dart';
+import '../../core/auth/auth_controller.dart';
+import '../../core/auth/auth_repository.dart';
 import '../../core/theme/app_theme.dart';
 import '../agenda/widgets/next_class_card.dart';
-import 'intervention_sheet.dart';
+import './intervention_sheet.dart';
 import '../../core/widgets/period_selector.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';

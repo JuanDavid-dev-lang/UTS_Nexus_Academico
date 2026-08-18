@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../services/update_service.dart';
+import '../../features/settings/data/update_service.dart';
 import '../theme/app_theme.dart';
 
 /// Versión que el usuario ya pospuso. Se recuerda entre arranques.

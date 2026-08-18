@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/data/offline_status.dart';
+import '../../core/storage/offline_status.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/offline_banner.dart';
 import '../../core/widgets/session_menu.dart';
-import 'ai_service.dart';
+import './ai_service.dart';
 
 class AiPage extends ConsumerStatefulWidget {
   const AiPage({super.key});
@@ -218,8 +218,13 @@ class _Bubble extends StatelessWidget {
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
+        // `sizeOf` y no `of`: esto está dentro de cada burbuja del chat, que
+        // es justo la pantalla donde el teclado se abre y se cierra todo el
+        // rato. Con `MediaQuery.of`, cada burbuja visible se reconstruía en
+        // cada fotograma de la animación del teclado — para leer un ancho de
+        // pantalla que la animación no toca.
         constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.78),
+            maxWidth: MediaQuery.sizeOf(context).width * 0.78),
         margin: const EdgeInsets.symmetric(vertical: 5),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(

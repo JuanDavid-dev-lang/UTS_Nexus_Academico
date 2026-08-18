@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import * as campo from '../../shared/validation.js';
 import { GroupModel } from '../../models/group.model.js';
 import { identificar, requireRole } from '../../middlewares/auth.js';
 import { emitSync } from '../../shared/socket.js';
@@ -10,10 +11,15 @@ groupRouter.use(identificar);
 
 groupRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (_req, res, next) => {
   try {
+    const pagina = campo.paginacionCon(100).parse(_req.query);
     const filter: Record<string, unknown> = { deletedAt: null };
     if (_req.user?.role === 'PROFESSOR') filter.professorId = _req.user.id;
-    const items = await GroupModel.find(filter).sort({ period: -1, name: 1 }).limit(100).lean();
-    res.json({ ok: true, items });
+    const { skip, limit } = campo.saltoYTope(pagina);
+    const [items, total] = await Promise.all([
+      GroupModel.find(filter).sort({ period: -1, name: 1 }).skip(skip).limit(limit).lean(),
+      GroupModel.countDocuments(filter),
+    ]);
+    res.json(campo.respuestaPaginada(items, total, pagina));
   } catch (err) {
     next(err);
   }

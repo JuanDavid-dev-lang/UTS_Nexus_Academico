@@ -8,7 +8,8 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/period_selector.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
-import 'grade_breakdown_sheet.dart';
+import './grade_breakdown_sheet.dart';
+import '../../core/widgets/debounced_search_field.dart';
 
 /// Se conserva el nombre por compatibilidad con las invalidaciones que dispara
 /// la sincronización en tiempo real.
@@ -78,13 +79,9 @@ class _GradesPageState extends ConsumerState<GradesPage> {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: TextField(
+            child: DebouncedSearchField(
+              hintText: 'Buscar estudiante…',
               onChanged: (value) => setState(() => _query = value),
-              decoration: const InputDecoration(
-                hintText: 'Buscar estudiante…',
-                prefixIcon: Icon(Icons.search),
-                isDense: true,
-              ),
             ),
           ),
           const SizedBox(height: 10),

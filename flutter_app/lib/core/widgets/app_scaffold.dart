@@ -5,8 +5,8 @@ import 'package:go_router/go_router.dart';
 
 import '../data/providers.dart';
 import '../theme/app_theme.dart';
-import 'offline_banner.dart';
-import 'session_menu.dart';
+import './offline_banner.dart';
+import './session_menu.dart';
 
 /// Estructura de navegación.
 ///
@@ -37,6 +37,35 @@ class NavDestination {
     required this.icon,
   });
 }
+
+/// Rutas de las ramas del shell, **en el mismo orden que en `app.dart`**.
+///
+/// Es el contrato entre el router y este menú: la rama número N atiende a
+/// `rutasDeRama[N]`. Se declara aquí y no en el router porque es lo que el
+/// menú necesita para traducir "el docente tocó Materias" al índice de rama
+/// que entiende `goBranch`. Cambiar el orden en un sitio y no en el otro
+/// mandaría cada pestaña a la pantalla equivocada, así que va en una sola
+/// lista y el router la usa para generar sus claves.
+const rutasDeRama = <String>[
+  '/',
+  '/subjects',
+  '/attendance',
+  '/ai',
+  '/agenda',
+  '/grades',
+  '/students',
+  '/schedule',
+  '/reports',
+  '/avisos',
+  '/sugerencias',
+  '/notifications',
+  '/settings',
+  '/trabajos-grado',
+  '/profile',
+];
+
+/// Índice de la rama que atiende una ruta. -1 si ninguna.
+int indiceDeRama(String ruta) => rutasDeRama.indexOf(ruta);
 
 /// Destinos que caben en la barra inferior de un teléfono.
 ///
@@ -125,38 +154,18 @@ const thesisDestination = NavDestination(
   icon: Icons.school_outlined,
 );
 
-/// Índice del destino al que pertenece una ruta.
-///
-/// Compara por prefijo, no por igualdad: estando en `/subjects/abc123` sigue
-/// activo el destino "Materias". Con igualdad exacta, entrar al detalle de una
-/// materia apagaba la pestaña y encendía "Más", que no es donde está el usuario.
-int _indexForRoute(List<NavDestination> destinations, String route) {
-  var best = -1;
-  var bestLength = -1;
-
-  for (var i = 0; i < destinations.length; i++) {
-    final candidate = destinations[i].route;
-    final matches = candidate == '/'
-        ? route == '/'
-        : route == candidate || route.startsWith('$candidate/');
-
-    // La ruta más específica gana, por si dos destinos comparten prefijo.
-    if (matches && candidate.length > bestLength) {
-      best = i;
-      bestLength = candidate.length;
-    }
-  }
-  return best;
-}
-
 /// Envoltorio de las pantallas con sesión.
 ///
 /// Es stateful solo por el tutorial: hace falta un punto que se ejecute una vez
 /// tras el primer fotograma con sesión iniciada, y este envuelve a todas las
 /// pantallas sin repetir el enganche en cada una.
+///
+/// Recibe el `StatefulNavigationShell` en vez de un hijo suelto: el shell es
+/// quien conserva vivas las pestañas visitadas y quien sabe en cuál estamos,
+/// así que el índice del menú sale de él y no de comparar la ruta a mano.
 class AppScaffold extends ConsumerStatefulWidget {
-  final Widget child;
-  const AppScaffold({super.key, required this.child});
+  final StatefulNavigationShell navigationShell;
+  const AppScaffold({super.key, required this.navigationShell});
 
   @override
   ConsumerState<AppScaffold> createState() => _AppScaffoldState();
@@ -174,13 +183,38 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     });
   }
 
+  /// Lleva a un destino conservando el estado de su pestaña.
+  ///
+  /// `goBranch` en vez de `context.go`: vuelve a la pestaña **donde se dejó**,
+  /// con su desplazamiento y su pila. `initialLocation` solo se activa al
+  /// tocar la pestaña en la que ya se está, que es el gesto universal de
+  /// "llévame al principio de esto".
+  void _irA(String ruta) {
+    final rama = indiceDeRama(ruta);
+    if (rama < 0) return;
+    widget.navigationShell.goBranch(
+      rama,
+      initialLocation: rama == widget.navigationShell.currentIndex,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Ruta activa según el router. Nunca un índice guardado a mano.
-    final route = GoRouterState.of(context).uri.path;
-    final isWide = MediaQuery.of(context).size.width > 900;
+    // El índice lo sabe el shell: es la rama viva, no una ruta comparada a
+    // mano. Estando en `/subjects/abc` la rama sigue siendo la de Materias, así
+    // que la pestaña se queda encendida sin ninguna regla de prefijos.
+    final ramaActual = widget.navigationShell.currentIndex;
+    final rutaActual = rutasDeRama[ramaActual];
+
+    // `sizeOf` y no `of`: este widget envuelve TODAS las pantallas con sesión,
+    // y `MediaQuery.of` lo suscribe al MediaQueryData entero. El teclado anima
+    // `viewInsets` fotograma a fotograma, así que cada apertura reconstruía la
+    // barra de navegación y el riel —con sus catorce destinos— sesenta veces
+    // por segundo, para leer un ancho que no había cambiado.
+    final isWide = MediaQuery.sizeOf(context).width > 900;
 
     // La sección de trabajos de grado solo existe para quien la puede usar.
+    // La rama existe igualmente; lo que se esconde es la entrada del menú.
     final esDirector = ref.watch(esDirectorProvider);
     final secundarios = [
       ...secondaryDestinations,
@@ -189,15 +223,14 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     final allDestinations = [...primaryDestinations, ...secundarios];
 
     if (isWide) {
-      final index = _indexForRoute(allDestinations, route);
+      final index = allDestinations.indexWhere((d) => d.route == rutaActual);
       return Scaffold(
         body: Row(
           children: [
             NavigationRail(
               // NavigationRail exige un índice válido; -1 lo haría fallar.
               selectedIndex: index < 0 ? 0 : index,
-              onDestinationSelected: (i) =>
-                  context.go(allDestinations[i].route),
+              onDestinationSelected: (i) => _irA(allDestinations[i].route),
               labelType: NavigationRailLabelType.all,
               destinations: [
                 for (final destination in allDestinations)
@@ -212,7 +245,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
               child: Column(
                 children: [
                   const OfflineBanner(),
-                  Expanded(child: widget.child),
+                  Expanded(child: widget.navigationShell),
                 ],
               ),
             ),
@@ -222,7 +255,8 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     }
 
     // En un teléfono: cuatro destinos + "Más".
-    final primaryIndex = _indexForRoute(primaryDestinations, route);
+    final primaryIndex =
+        primaryDestinations.indexWhere((d) => d.route == rutaActual);
     final isSecondary = primaryIndex < 0;
 
     return Scaffold(
@@ -231,7 +265,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       body: Column(
         children: [
           const OfflineBanner(),
-          Expanded(child: widget.child),
+          Expanded(child: widget.navigationShell),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -239,10 +273,10 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         selectedIndex: isSecondary ? primaryDestinations.length : primaryIndex,
         onDestinationSelected: (index) {
           if (index == primaryDestinations.length) {
-            _openMoreSheet(context, route, secundarios);
+            _openMoreSheet(context, rutaActual, secundarios);
             return;
           }
-          context.go(primaryDestinations[index].route);
+          _irA(primaryDestinations[index].route);
         },
         destinations: [
           for (final destination in primaryDestinations)
@@ -274,7 +308,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       // la pantalla; el tope evita que tape la pantalla entera.
       isScrollControlled: true,
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.85,
+        maxHeight: MediaQuery.sizeOf(context).height * 0.85,
       ),
       builder: (sheetContext) {
         final isDark = Theme.of(sheetContext).brightness == Brightness.dark;
@@ -312,7 +346,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                     selected: currentRoute == destination.route,
                     onTap: () {
                       Navigator.of(sheetContext).pop();
-                      context.go(destination.route);
+                      _irA(destination.route);
                     },
                   ),
 
@@ -325,7 +359,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                   selected: currentRoute == '/profile',
                   onTap: () {
                     Navigator.of(sheetContext).pop();
-                    context.go('/profile');
+                    _irA('/profile');
                   },
                 ),
                 ListTile(

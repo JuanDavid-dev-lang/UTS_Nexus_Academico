@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import * as campo from '../../shared/validation.js';
 import { identificar, requireRole } from '../../middlewares/auth.js';
 import { ProfessorModel } from '../../models/professor.model.js';
 import { UserModel } from '../../models/user.model.js';
@@ -110,11 +111,18 @@ professorRouter.get('/', requireRole('ADMIN', 'COORDINATOR'), async (req, res, n
       filtro.$or = [{ nombres: patron }, { apellidos: patron }, { cedula: patron }];
     }
 
-    const items = await ProfessorModel.find(filtro)
-      .populate('userId', 'fullName email')
-      .limit(100)
-      .lean();
-    res.json({ ok: true, items });
+    const pagina = campo.paginacionCon(100).parse(req.query);
+    const { skip, limit } = campo.saltoYTope(pagina);
+    const [items, total] = await Promise.all([
+      ProfessorModel.find(filtro)
+        .populate('userId', 'fullName email')
+        .sort({ apellidos: 1, nombres: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      ProfessorModel.countDocuments(filtro),
+    ]);
+    res.json(campo.respuestaPaginada(items, total, pagina));
   } catch (err) {
     next(err);
   }

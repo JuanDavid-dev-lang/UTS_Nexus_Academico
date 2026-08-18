@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/network/api_error.dart';
-import '../../core/services/api_client.dart';
+import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
 
 /// Recuperación de contraseña, en dos pasos.

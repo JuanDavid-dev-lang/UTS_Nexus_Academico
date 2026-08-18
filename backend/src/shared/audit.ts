@@ -44,3 +44,52 @@ export async function auditChange(input: {
   }
 }
 
+
+/**
+ * Deja constancia de **muchos** cambios en una sola escritura.
+ *
+ * Las importaciones masivas auditaban registro a registro, y eso convertía la
+ * auditoría en el cuello de botella que quedaba después de agrupar las
+ * escrituras: una planilla de 500 estudiantes por 10 columnas dejaba 5.000
+ * inserciones sueltas, cada una con su ida y vuelta a Atlas. Agruparlas no
+ * cambia lo que queda registrado, solo cuántas veces se pregunta.
+ *
+ * Comparte con `auditChange` la promesa que importa: **nunca tumba la petición
+ * que la produjo**. Fallar aquí no salva el registro y sí añade un segundo
+ * problema sobre un cambio que ya está hecho.
+ */
+export async function auditBatch(
+  entradas: Array<{
+    actorId?: string | null;
+    action: string;
+    entity: string;
+    entityId?: string | null;
+    before?: unknown;
+    after?: unknown;
+  }>,
+): Promise<void> {
+  if (entradas.length === 0) return;
+  try {
+    await AuditModel.insertMany(
+      entradas.map(entrada => ({
+        actorId: entrada.actorId ?? null,
+        action: entrada.action,
+        entity: entrada.entity,
+        entityId: entrada.entityId ?? null,
+        before: entrada.before ?? null,
+        after: entrada.after ?? null,
+        ip: null,
+        userAgent: null,
+      })),
+      // Un documento que falle no debe llevarse por delante a los demás: la
+      // auditoría parcial vale más que ninguna.
+      { ordered: false },
+    );
+  } catch (causa) {
+    console.error(
+      `[auditoria] no se pudieron registrar ${entradas.length} cambios sobre ` +
+        `${entradas[0]?.entity ?? 'desconocido'}:`,
+      causa,
+    );
+  }
+}

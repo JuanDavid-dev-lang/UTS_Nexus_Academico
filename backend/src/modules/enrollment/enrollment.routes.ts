@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
+import * as campo from '../../shared/validation.js';
 import { EnrollmentModel } from '../../models/enrollment.model.js';
 import { GroupModel } from '../../models/group.model.js';
 import { StudentModel } from '../../models/student.model.js';
@@ -35,12 +36,18 @@ enrollmentRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), asyn
     if (req.user?.role === 'PROFESSOR') filter.professorId = req.user.id;
     if (req.query.groupId) filter.groupId = String(req.query.groupId);
     if (req.query.period) filter.period = String(req.query.period);
-    const items = await EnrollmentModel.find(filter)
-      .populate('studentId', 'code fullName email program')
-      .sort({ createdAt: -1 })
-      .limit(2000)
-      .lean();
-    res.json({ ok: true, items });
+    const pagina = campo.paginacionCon(2000).parse(req.query);
+    const { skip, limit } = campo.saltoYTope(pagina);
+    const [items, total] = await Promise.all([
+      EnrollmentModel.find(filter)
+        .populate('studentId', 'code fullName email program')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      EnrollmentModel.countDocuments(filter),
+    ]);
+    res.json(campo.respuestaPaginada(items, total, pagina));
   } catch (err) {
     next(err);
   }
@@ -180,48 +187,78 @@ enrollmentRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'),
     const body = z.object({
       groupId: z.string(),
       students: z.array(z.object({
-        code: z.string().min(3),
-        fullName: z.string().min(3),
-        email: z.string().email().optional(),
-        program: z.string().optional(),
-      })).min(1),
+        code: campo.codigo.min(3),
+        fullName: campo.nombre.min(3),
+        email: campo.correo.optional(),
+        program: campo.linea.optional(),
+      })).min(1).max(campo.TOPE_LOTE),
     }).parse(req.body);
 
     const owned = await assertGroupOwnership(req, body.groupId);
     if (owned.error) return res.status(owned.error.status).json({ ok: false, message: owned.error.message });
     const group = owned.group!;
 
-    let matriculados = 0;
-    for (const row of body.students) {
-      const student = await StudentModel.findOneAndUpdate(
-        { code: row.code, deletedAt: null },
-        {
-          $set: { fullName: row.fullName },
-          $setOnInsert: {
-            code: row.code,
-            email: row.email ?? `${row.code}@estudiantes.uts.edu.co`,
-            program: row.program ?? 'UTS',
-            academicHistory: [],
+    /**
+     * Alta del listado en cuatro consultas, no en dos por estudiante.
+     *
+     * Esta es la ruta de "importar la lista de mi grupo", la más usada de todo
+     * el módulo, y hacía un `findOneAndUpdate` de Estudiante más otro de
+     * Matrícula por cada fila, encadenados. Un grupo de 40 eran 80 viajes en
+     * serie; un listado de programa entero se pasaba del minuto y el docente
+     * no sabía si había funcionado.
+     *
+     * Van en dos pasos porque el segundo depende del primero: la matrícula
+     * necesita el `_id` del estudiante, y para los que se acaban de crear ese
+     * id no existía antes del `bulkWrite`.
+     */
+    const codigos = [...new Set(body.students.map(row => row.code))];
+
+    await StudentModel.bulkWrite(
+      body.students.map(row => ({
+        updateOne: {
+          filter: { code: row.code, deletedAt: null },
+          update: {
+            $set: { fullName: row.fullName },
+            // Sin `academicHistory`: es un array del esquema, Mongoose lo
+            // entrega como `[]` al leer aunque el documento no lo traiga, y
+            // declararlo aquí rompe el tipado de `bulkWrite`.
+            $setOnInsert: {
+              code: row.code,
+              email: row.email ?? `${row.code}@estudiantes.uts.edu.co`,
+              program: row.program ?? 'UTS',
+            },
           },
+          upsert: true,
         },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-      );
-      await EnrollmentModel.findOneAndUpdate(
-        { studentId: student.id, groupId: group._id, period: group.period },
-        {
-          $set: { enrollmentStatus: 'ACTIVE' },
-          $setOnInsert: {
-            studentId: student.id,
-            groupId: group._id,
-            subjectId: group.subjectId,
-            professorId: group.professorId,
-            period: group.period,
+      })),
+      { ordered: false },
+    );
+
+    const estudiantes = await StudentModel.find({ code: { $in: codigos }, deletedAt: null })
+      .select('_id code')
+      .lean();
+
+    await EnrollmentModel.bulkWrite(
+      estudiantes.map(estudiante => ({
+        updateOne: {
+          filter: { studentId: estudiante._id, groupId: group._id, period: group.period },
+          update: {
+            $set: { enrollmentStatus: 'ACTIVE', deletedAt: null },
+            $setOnInsert: {
+              studentId: estudiante._id,
+              groupId: group._id,
+              subjectId: group.subjectId,
+              professorId: group.professorId,
+              period: group.period,
+            },
           },
+          upsert: true,
         },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-      );
-      matriculados += 1;
-    }
+      })),
+      { ordered: false },
+    );
+
+    const matriculados = estudiantes.length;
 
     emitToUser(String(group.professorId), 'sync:update', { entity: 'enrollment', action: 'bulk', id: body.groupId });
     res.status(201).json({ ok: true, count: matriculados });

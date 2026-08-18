@@ -4,7 +4,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../core/data/providers.dart';
 import '../../core/network/api_error.dart';
-import '../../core/services/auth_controller.dart';
+import '../../core/auth/auth_controller.dart';
 import '../../core/theme/app_theme.dart';
 
 // Los providers del perfil viven en `core/data/providers.dart` (la regla del
@@ -113,7 +113,7 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
       padding: EdgeInsets.only(
         left: 20,
         right: 20,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+        bottom: MediaQuery.viewInsetsOf(context).bottom + 20,
       ),
       child: perfil.when(
         loading: () => const Padding(
@@ -157,9 +157,17 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
                         foregroundImage: _fotoUrl != null
                             ? NetworkImage(_fotoUrl!)
                             : null,
-                        child: Text(
-                          _iniciales(_nombre.text),
-                          style: AppType.h2.copyWith(color: primary),
+                        // Solo las iniciales dependen del nombre, así que
+                        // solo ellas escuchan. Con `setState` en `onChanged`,
+                        // escribir el nombre reconstruía la hoja entera —foto,
+                        // los cinco campos y los botones— por cada letra, y
+                        // eso con el teclado abierto encima.
+                        child: ValueListenableBuilder<TextEditingValue>(
+                          valueListenable: _nombre,
+                          builder: (_, valor, __) => Text(
+                            _iniciales(valor.text),
+                            style: AppType.h2.copyWith(color: primary),
+                          ),
                         ),
                       ),
                       Material(
@@ -196,7 +204,6 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
                     labelText: 'Nombre completo',
                     isDense: true,
                   ),
-                  onChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: 12),
                 TextField(

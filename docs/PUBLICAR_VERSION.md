@@ -194,7 +194,9 @@ sufijo ahí cambia el orden de una forma que ninguno de los dos promete respetar
 ### 3.1 Subir el número de versión
 
 El actualizador compara la versión publicada con la que lleva el binario instalado. Si
-no se sube, no se ofrece nada. Hay que tocar **los dos** archivos:
+no se sube, no se ofrece nada.
+
+**Los dos que deciden la publicación:**
 
 | Cliente | Archivo | Campo |
 |---------|---------|-------|
@@ -203,6 +205,27 @@ no se sube, no se ofrece nada. Hay que tocar **los dos** archivos:
 
 En el móvil hay que subir también el `+N` (el `versionCode`): Android rechaza instalar
 un APK cuyo `versionCode` no sea mayor que el instalado.
+
+**Los que hay que subir con ellos**, aunque el actualizador no los mire:
+
+| Archivo | Por qué |
+|---------|---------|
+| `desktop/package.json` (+ `package-lock.json`) | Es lo que se ve en `npm run build` y en los informes de dependencias |
+| `desktop/src-tauri/Cargo.toml` (+ `Cargo.lock`) | Versión del binario nativo; aparece en las propiedades del `.exe` en Windows |
+
+> ⚠️ **Esta segunda tabla no existía y se notó**: `Cargo.toml` se quedó en 2.3.5
+> mientras el resto iba por 2.5.0 — dos publicaciones con el ejecutable
+> declarando una versión que no era la suya. No rompe la actualización, pero
+> convierte «¿qué versión tiene este equipo?» en una pregunta sin respuesta
+> fiable, que es justo lo que uno necesita saber cuando algo falla en una sala
+> de cómputo.
+
+Para comprobar que no se ha quedado ninguno atrás:
+
+```bash
+grep -rn '"version"' desktop/package.json desktop/src-tauri/tauri.conf.json
+grep -n '^version' desktop/src-tauri/Cargo.toml flutter_app/pubspec.yaml
+```
 
 ### 3.2 Etiquetar y empujar
 

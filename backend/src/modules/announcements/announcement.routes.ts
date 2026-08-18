@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import * as campo from '../../shared/validation.js';
 import { AnnouncementModel } from '../../models/announcement.model.js';
 import { ProfessorModel } from '../../models/professor.model.js';
 import { identificar, requireRole } from '../../middlewares/auth.js';
@@ -59,24 +60,38 @@ announcementRouter.get('/', requireRole(...CON_SESION), async (req, res, next) =
       filtro = alcanceDe(ficha);
     }
 
-    const items = await AnnouncementModel.find(filtro)
-      .populate('autorId', 'fullName')
-      .sort({ fijado: -1, publicadoEn: -1 })
-      .limit(200)
-      .lean();
-
+    const pagina = campo.paginacionCon(200).parse(req.query);
+    const { skip, limit } = campo.saltoYTope(pagina);
     const yo = String(req.user?.id ?? '');
+
+    // `sinLeer` se cuenta contra el filtro completo, no contra la página: el
+    // contador de la campana tiene que decir cuántos avisos hay sin leer, no
+    // cuántos de los que caben en la primera página.
+    const [items, total, sinLeer] = await Promise.all([
+      AnnouncementModel.find(filtro)
+        .populate('autorId', 'fullName')
+        .sort({ fijado: -1, publicadoEn: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      AnnouncementModel.countDocuments(filtro),
+      AnnouncementModel.countDocuments({ ...filtro, leidoPor: { $ne: req.user?.id } }),
+    ]);
+
     res.json({
-      ok: true,
-      items: items.map(item => ({
-        ...item,
-        leido: (item.leidoPor ?? []).some(id => String(id) === yo),
-        // La lista de lectores no se expone: quién abrió qué es información
-        // sobre las personas, no sobre el aviso.
-        leidoPor: undefined,
-        lecturas: (item.leidoPor ?? []).length,
-      })),
-      sinLeer: items.filter(item => !(item.leidoPor ?? []).some(id => String(id) === yo)).length,
+      ...campo.respuestaPaginada(
+        items.map(item => ({
+          ...item,
+          leido: (item.leidoPor ?? []).some(id => String(id) === yo),
+          // La lista de lectores no se expone: quién abrió qué es información
+          // sobre las personas, no sobre el aviso.
+          leidoPor: undefined,
+          lecturas: (item.leidoPor ?? []).length,
+        })),
+        total,
+        pagina,
+      ),
+      sinLeer,
     });
   } catch (err) {
     next(err);

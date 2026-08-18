@@ -1,4 +1,5 @@
 import type { ErrorRequestHandler } from 'express';
+import { MulterError } from 'multer';
 import { ZodError } from 'zod';
 
 /**
@@ -34,6 +35,20 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   // Id de Mongo mal formado: tampoco es un 500, es un recurso que no existe.
   if (err?.name === 'CastError' && err?.kind === 'ObjectId') {
     return res.status(404).json({ ok: false, message: 'Not found' });
+  }
+
+  /**
+   * Errores de subida. Un archivo demasiado grande es 413, no 500: el 5xx hacía
+   * que el cliente reintentara solo la misma subida imposible, una y otra vez,
+   * en vez de decirle a la persona que el archivo no cabe.
+   */
+  if (err instanceof MulterError) {
+    const mensaje = err.code === 'LIMIT_FILE_SIZE'
+      ? 'El archivo supera el tamaño máximo permitido.'
+      : err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE'
+        ? 'Se ha enviado más de un archivo o con un nombre de campo inesperado.'
+        : 'No se pudo procesar el archivo enviado.';
+    return res.status(err.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ ok: false, message: mensaje });
   }
 
   const status = err.statusCode ?? 500;
