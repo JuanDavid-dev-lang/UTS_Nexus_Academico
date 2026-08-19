@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Release que se copiará a /Uts
+        description: Release que se copiará a Apps/UTSNEXUS
         required: true
         default: v2.6.1
 
@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   sync:
-    name: Dropbox /Uts
+    name: Dropbox Apps/UTSNEXUS
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +36,7 @@ jobs:
         run: |
           archivo=$(find artefactos -name '*-setup.exe' -print -quit)
           bash .github/scripts/subir-a-dropbox.sh \
-            "$archivo" '/Uts/UTS-Nexus-Academico-Windows.exe'
+            "$archivo" '/UTS-Nexus-Academico-Windows.exe'
 
       - name: Subir Android a Dropbox
         id: android
@@ -47,7 +47,7 @@ jobs:
         run: |
           archivo=$(find artefactos -name '*.apk' -print -quit)
           bash .github/scripts/subir-a-dropbox.sh \
-            "$archivo" '/Uts/UTS-Nexus-Academico-Android.apk'
+            "$archivo" '/UTS-Nexus-Academico-Android.apk'
 
       - name: Mostrar enlaces para la página
         run: |

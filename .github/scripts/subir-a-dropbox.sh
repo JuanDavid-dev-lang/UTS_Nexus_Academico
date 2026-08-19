@@ -33,8 +33,8 @@ set -euo pipefail
 archivo="${1:?Falta el archivo local}"
 ruta="${2:?Falta la ruta de Dropbox}"
 
-if [[ "$ruta" != /Uts/* ]]; then
-  echo "::error::La ruta de publicación debe quedar dentro de /Uts/."
+if [[ "$ruta" != /UTS-Nexus-Academico-* ]]; then
+  echo "::error::La ruta no corresponde a un artefacto estable de UTS Nexus."
   exit 1
 fi
 

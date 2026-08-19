@@ -59,8 +59,10 @@ env:
   # secretos, y por eso están a la vista.
   # Sin el parámetro `st=` que copia Dropbox al compartir: es un testigo temporal
   # y caduca. `rlkey` es el que da acceso y no caduca.
-  DROPBOX_RUTA_WINDOWS: '/Uts/UTS-Nexus-Academico-Windows.exe'
-  DROPBOX_RUTA_ANDROID: '/Uts/UTS-Nexus-Academico-Android.apk'
+  # La app de Dropbox usa acceso "App folder". Estas rutas raíz se guardan
+  # físicamente dentro de Dropbox/Apps/UTSNEXUS/.
+  DROPBOX_RUTA_WINDOWS: '/UTS-Nexus-Academico-Windows.exe'
+  DROPBOX_RUTA_ANDROID: '/UTS-Nexus-Academico-Android.apk'
 
 jobs:
   desktop:
