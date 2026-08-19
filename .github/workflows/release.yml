@@ -82,9 +82,30 @@ jobs:
         id: etiqueta
         shell: bash
         run: |
+          set -euo pipefail
+          # `actions/checkout` deja la etiqueta como LIGERA aunque en el remoto
+          # sea anotada: al hacer checkout de `refs/tags/vX` crea una etiqueta
+          # local que apunta al commit y pisa la anotación. `%(contents)` sobre
+          # ella devuelve entonces el mensaje del COMMIT, así que la release
+          # v2.7.0 salió con el changelog de desarrollo en vez de con las notas
+          # escritas para quien instala. Volver a traerlas lo corrige.
+          git fetch --force --tags origin "refs/tags/${{ github.ref_name }}:refs/tags/${{ github.ref_name }}"
+
+          # Se comprueba que sea anotada ANTES de leerla. `%(contents)` sobre
+          # una etiqueta ligera devuelve el mensaje del commit, así que sin
+          # esta comprobación un fallo del `fetch` de arriba volvería a colar
+          # el changelog de desarrollo como notas de la publicación, y nadie
+          # se enteraría hasta abrir la página.
+          tipo=$(git cat-file -t "${{ github.ref_name }}" 2>/dev/null || echo desconocido)
+          if [ "$tipo" != "tag" ]; then
+            echo "::warning::${{ github.ref_name }} no es una etiqueta anotada ($tipo): la release saldrá sin notas propias."
+            cuerpo=''
+          else
+            cuerpo=$(git tag -l --format='%(contents)' "${{ github.ref_name }}")
+          fi
           {
             echo 'cuerpo<<FIN_DEL_MENSAJE'
-            git for-each-ref --format='%(contents)' "refs/tags/${{ github.ref_name }}"
+            echo "$cuerpo"
             echo 'FIN_DEL_MENSAJE'
           } >> "$GITHUB_OUTPUT"
 
