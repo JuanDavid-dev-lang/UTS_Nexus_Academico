@@ -30,6 +30,17 @@
 # refresco, que no caduca.
 set -euo pipefail
 
+# Git Bash convierte los argumentos que EMPIEZAN por `/` en rutas de Windows
+# antes de pasárselos al ejecutable. La cabecera `Dropbox-API-Arg` lleva dentro
+# `{"path":"/UTS-Nexus-Academico-Windows.exe",...}`, y esa conversión la
+# reescribe a `C:/Program Files/Git/UTS-...`: Dropbox recibe un JSON con una
+# ruta que no empieza por `/` y responde 400 sin explicar nada.
+#
+# En Linux estas variables no existen y no hacen daño; en el runner de Windows
+# son la diferencia entre que la subida funcione o no.
+export MSYS2_ARG_CONV_EXCL='*'
+export MSYS_NO_PATHCONV=1
+
 archivo="${1:?Falta el archivo local}"
 ruta="${2:?Falta la ruta de Dropbox}"
 
@@ -96,8 +107,17 @@ codigo_http=$(curl -sS -o "$respuesta_temporal" -w '%{http_code}' \
 resultado=$(cat "$respuesta_temporal")
 rm -f "$respuesta_temporal"
 if [ "$codigo_http" -lt 200 ] || [ "$codigo_http" -ge 300 ]; then
-  resumen=$(printf '%s' "$resultado" | jq -r '.error_summary // .error_description // "error desconocido"' 2>/dev/null || true)
-  echo "::error::Dropbox rechazó la subida (HTTP $codigo_http): $resumen"
+  # Dropbox responde JSON para los errores de negocio (409) y TEXTO PLANO para
+  # los de formato (400). Pasar el texto plano por `jq` devolvía la cadena
+  # vacía, así que el mensaje quedaba en «HTTP 400: » — que es exactamente
+  # ninguna información, justo cuando más falta hace.
+  resumen=$(printf '%s' "$resultado" | jq -r '.error_summary // .error_description // empty' 2>/dev/null || true)
+  if [ -z "$resumen" ]; then
+    # Sin JSON se enseña el cuerpo tal cual, acotado: no lleva credenciales
+    # —son cabeceras, no respuesta— y es lo único que dice qué pasó.
+    resumen=$(printf '%s' "$resultado" | head -c 500)
+  fi
+  echo "::error::Dropbox rechazó la subida (HTTP $codigo_http): ${resumen:-sin cuerpo de respuesta}"
   exit 1
 fi
 

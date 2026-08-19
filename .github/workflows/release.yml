@@ -170,30 +170,20 @@ jobs:
             desktop/src-tauri/target/release/bundle/msi/*.msi
             desktop/src-tauri/target/release/bundle/msi/*.msi.sig
 
-      # La página de descargas no mira la publicación de GitHub: sus botones
-      # llevan un archivo de Dropbox, que se sobrescribe aquí. Va después de
-      # publicar porque si la compilación o la firma fallan no hay nada que
-      # subir, y va antes de terminar porque un release publicado con Dropbox
-      # sin actualizar es justo la situación que hay que ver en rojo.
-      - name: Sobrescribir el instalador en Dropbox
-        id: dropbox_windows
-        shell: bash
-        env:
-          DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
-          DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
-          DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
-        run: |
-          set -euo pipefail
-          # El nombre lleva el nombre del producto y la versión, así que se busca
-          # por el sufijo en vez de escribirlo: cambiar la versión no debe
-          # obligar a tocar el workflow.
-          instalador=$(find desktop/src-tauri/target/release/bundle/nsis \
-            -name '*-setup.exe' -print -quit)
-          if [ -z "$instalador" ]; then
-            echo "::error::No apareció ningún -setup.exe en el bundle de NSIS."
-            exit 1
-          fi
-          bash .github/scripts/subir-a-dropbox.sh "$instalador" "$DROPBOX_RUTA_WINDOWS"
+      # El instalador se guarda como artefacto para el trabajo de Dropbox, que
+      # corre aparte. Antes la subida a Dropbox era un paso de ESTE trabajo, y
+      # eso tenía una consecuencia que costó un release entero: `android`
+      # declara `needs: desktop`, así que un fallo al subir a Dropbox —cuando
+      # el `.exe` ya estaba publicado y firmado— dejaba el trabajo en rojo y
+      # Android **ni se ejecutaba**. La publicación se quedaba sin APK por un
+      # problema que no tenía nada que ver con Android.
+      - name: Guardar el instalador para el trabajo de Dropbox
+        uses: actions/upload-artifact@v4
+        with:
+          name: instalador-windows
+          path: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+          retention-days: 1
 
   android:
     name: Móvil (Android)
@@ -270,20 +260,85 @@ jobs:
           tag_name: ${{ github.ref_name }}
           files: flutter_app/build/app/outputs/flutter-apk/uts-nexus-academico-${{ github.ref_name }}.apk
 
-      # El botón de Android de la página baja este archivo de Dropbox, no el del
-      # release. Mismo trato que el de Windows: se escribe encima del archivo de
-      # siempre para no tener que cambiar el enlace.
-      - name: Sobrescribir el APK en Dropbox
-        env:
-          DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
-          DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
-          DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
-        run: |
-          bash .github/scripts/subir-a-dropbox.sh \
-            "flutter_app/build/app/outputs/flutter-apk/uts-nexus-academico-${{ github.ref_name }}.apk" \
-            "$DROPBOX_RUTA_ANDROID"
+      - name: Guardar el APK para el trabajo de Dropbox
+        uses: actions/upload-artifact@v4
+        with:
+          name: instalador-android
+          path: flutter_app/build/app/outputs/flutter-apk/uts-nexus-academico-${{ github.ref_name }}.apk
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Borrar credenciales del runner
         if: always()
         working-directory: flutter_app/android
         run: rm -f upload-keystore.jks key.properties
+
+  dropbox:
+    name: Página de descargas (Dropbox)
+    runs-on: ubuntu-latest
+    needs: [desktop, android]
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Por qué esto es un trabajo aparte y en Linux ────────────────────
+      #
+      # Aparte, porque la página de descargas es lo ÚLTIMO de la cadena: los
+      # instaladores ya están publicados y firmados cuando esto corre, así que
+      # un fallo aquí tiene que verse en rojo sin arrastrar a los trabajos que
+      # sí terminaron. Dentro del trabajo de escritorio, su fallo saltaba el de
+      # Android por la dependencia `needs`.
+      #
+      # En Linux, porque Git Bash del runner de Windows reescribe los
+      # argumentos que empiezan por `/` como rutas de Windows, y la cabecera
+      # `Dropbox-API-Arg` lleva dentro la ruta de destino. Ese es el 400 sin
+      # mensaje que se comió el release v2.7.0. El script se defiende igual con
+      # `MSYS2_ARG_CONV_EXCL`, pero no hay motivo para pedirle a la subida que
+      # corra en el entorno donde el problema existe.
+      - uses: actions/download-artifact@v4
+        with:
+          path: artefactos
+          merge-multiple: true
+
+      - name: Sobrescribir el instalador de Windows
+        id: windows
+        env:
+          DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
+          DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
+          DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Se busca por el sufijo: el nombre lleva la versión, y cambiarla no
+          # debe obligar a tocar el workflow.
+          instalador=$(find artefactos -name '*-setup.exe' -print -quit)
+          if [ -z "$instalador" ]; then
+            echo "::error::No llegó ningún -setup.exe desde el trabajo de escritorio."
+            exit 1
+          fi
+          bash .github/scripts/subir-a-dropbox.sh "$instalador" "$DROPBOX_RUTA_WINDOWS"
+
+      - name: Sobrescribir el APK
+        id: android
+        env:
+          DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
+          DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
+          DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
+        run: |
+          set -euo pipefail
+          apk=$(find artefactos -name '*.apk' -print -quit)
+          if [ -z "$apk" ]; then
+            echo "::error::No llegó ningún .apk desde el trabajo de Android."
+            exit 1
+          fi
+          bash .github/scripts/subir-a-dropbox.sh "$apk" "$DROPBOX_RUTA_ANDROID"
+
+      # Los enlaces son públicos —están escritos en el HTML de la página—, así
+      # que dejarlos en el resumen no filtra nada y ahorra tener que buscarlos
+      # el día que haya que cambiar el botón.
+      - name: Enlaces de la página
+        run: |
+          {
+            echo '### Archivos de la página de descargas'
+            echo ''
+            echo "- Windows: ${{ steps.windows.outputs.url }}"
+            echo "- Android: ${{ steps.android.outputs.url }}"
+          } >> "$GITHUB_STEP_SUMMARY"
