@@ -4,6 +4,7 @@ import '../../core/storage/offline_status.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/offline_banner.dart';
 import '../../core/widgets/session_menu.dart';
+import '../../core/widgets/rubri.dart';
 import './ai_service.dart';
 
 class AiPage extends ConsumerStatefulWidget {
@@ -62,7 +63,7 @@ class _AiPageState extends ConsumerState<AiPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Asistente IA'),
+        title: const Text('Rubri'),
         actions: [
           if (chat.messages.isNotEmpty)
             IconButton(
@@ -82,7 +83,7 @@ class _AiPageState extends ConsumerState<AiPage> {
             // el docente escriba una consulta y reciba un error de red.
             child: sinConexion
                 ? const RequiereConexion(
-                    que: 'El asistente',
+                    que: 'Rubri',
                     detalle:
                         'Cada respuesta se calcula en el servidor con tus datos '
                         'académicos, así que necesita red. Lo demás que ya '
@@ -123,14 +124,16 @@ class _StatusBanner extends ConsumerWidget {
       loading: () => const SizedBox.shrink(),
       error: (_, __) => const SizedBox.shrink(),
       data: (s) {
-        final ok = s.enabled && s.available && s.modelReady;
+        final ok = (s.enabled && s.available && s.modelReady) || s.rubriAvailable;
         final tone = SemanticTone.of(
             context, ok ? SemanticKind.success : SemanticKind.warning);
         final color = tone.fg;
         final bg = tone.bg;
-        final text = ok
-            ? 'IA local activa · ${s.model ?? ''}'
-            : 'IA local no disponible — respuestas básicas por reglas';
+        final text = s.enabled && s.available && s.modelReady
+            ? 'Rubri disponible · modelo conversacional ${s.model ?? ''}'
+            : s.rubriAvailable
+                ? 'Rubri disponible · clasificador NLP interno activo'
+                : 'Rubri sin conexión — respuestas básicas por reglas';
         return Container(
           width: double.infinity,
           color: bg,
@@ -165,10 +168,10 @@ class _EmptyChat extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       children: [
         const SizedBox(height: 24),
-        Icon(Icons.smart_toy_outlined, size: 56, color: brand.fg),
+        const Center(child: Rubri(size: 128)),
         const SizedBox(height: 12),
         const Center(
-          child: Text('Asistente académico', style: AppType.h3),
+          child: Text('Hola, soy Rubri', style: AppType.h3),
         ),
         const SizedBox(height: 6),
         Center(
@@ -215,9 +218,24 @@ class _Bubble extends StatelessWidget {
     final bg = isUser ? scheme.primary : (isError ? error.bg : assistantBg);
     final fg = isUser ? scheme.onPrimary : (isError ? error.fg : assistantFg);
 
+    final emotion = switch (message.emotion) {
+      'happy' => RubriEmotion.happy,
+      'sad' => RubriEmotion.sad,
+      'offline' => RubriEmotion.offline,
+      _ => RubriEmotion.neutral,
+    };
+
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
+      child: Row(
+        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (!isUser) ...[
+            Rubri(emotion: emotion, size: 40, animated: false),
+            const SizedBox(width: 8),
+          ],
+          Container(
         // `sizeOf` y no `of`: esto está dentro de cada burbuja del chat, que
         // es justo la pantalla donde el teclado se abre y se cierra todo el
         // rato. Con `MediaQuery.of`, cada burbuja visible se reconstruía en
@@ -249,6 +267,8 @@ class _Bubble extends StatelessWidget {
             ],
           ],
         ),
+          ),
+        ],
       ),
     );
   }

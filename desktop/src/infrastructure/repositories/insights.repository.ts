@@ -91,10 +91,12 @@ export const assistantRepository: AssistantRepository = {
         history: input.history.slice(-6),
         ...(input.studentId ? { studentId: input.studentId } : {}),
         ...(input.subjectId ? { subjectId: input.subjectId } : {}),
+        ...(input.groupId ? { groupId: input.groupId } : {}),
+        ...(input.context ? { context: input.context } : {}),
       },
       { schema: chatResponseSchema, timeoutMs: env.longRequestTimeoutMs },
     );
-    return { answer: data.answer, source: data.source };
+    return data;
   },
 
   async predict(input) {

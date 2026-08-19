@@ -173,7 +173,7 @@ class _SummaryStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final graded = students.where((s) => (s.finalGrade ?? 0) > 0).toList();
+    final graded = students.where((s) => s.isPassing != null).toList();
     final average = graded.isEmpty
         ? 0.0
         : graded.map((s) => s.finalGrade!).reduce((a, b) => a + b) / graded.length;

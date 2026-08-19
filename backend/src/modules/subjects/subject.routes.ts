@@ -3,7 +3,7 @@ import { z } from 'zod';
 import * as campo from '../../shared/validation.js';
 import { SubjectModel } from '../../models/subject.model.js';
 import { identificar, requireRole } from '../../middlewares/auth.js';
-import { emitSync } from '../../shared/socket.js';
+import { emitToUser } from '../../shared/socket.js';
 
 export const subjectRouter = Router();
 
@@ -27,7 +27,9 @@ subjectRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (
 
 subjectRouter.get('/:id', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
-    const item = await SubjectModel.findOne({ _id: req.params.id, deletedAt: null }).lean();
+    const filter: Record<string, unknown> = { _id: req.params.id, deletedAt: null };
+    if (req.user?.role === 'PROFESSOR') filter.professorId = req.user.id;
+    const item = await SubjectModel.findOne(filter).lean();
     if (!item) return res.status(404).json({ ok: false, message: 'Not found' });
     res.json({ ok: true, item });
   } catch (err) {
@@ -38,10 +40,10 @@ subjectRouter.get('/:id', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), asyn
 subjectRouter.post('/', requireRole('ADMIN', 'PROFESSOR'), async (req, res, next) => {
   try {
     const body = z.object({
-      name: z.string().min(3),
-      code: z.string().min(2),
+      name: campo.nombre.min(3),
+      code: campo.codigo.min(2),
       professorId: z.string().min(1),
-      period: z.string().min(4),
+      period: campo.codigo.min(4),
       credits: z.number().int().min(0).default(0),
     }).parse(req.body);
 
@@ -50,7 +52,7 @@ subjectRouter.post('/', requireRole('ADMIN', 'PROFESSOR'), async (req, res, next
     }
 
     const item = await SubjectModel.create(body);
-    emitSync('sync:update', { entity: 'subject', action: 'create', id: item.id });
+    emitToUser(String(item.professorId), 'sync:update', { entity: 'subject', action: 'create', id: item.id });
     res.status(201).json({ ok: true, item });
   } catch (err) {
     next(err);
@@ -60,21 +62,23 @@ subjectRouter.post('/', requireRole('ADMIN', 'PROFESSOR'), async (req, res, next
 subjectRouter.patch('/:id', requireRole('ADMIN', 'PROFESSOR'), async (req, res, next) => {
   try {
     const body = z.object({
-      name: z.string().min(3).optional(),
-      code: z.string().min(2).optional(),
-      period: z.string().min(4).optional(),
+      name: campo.nombre.min(3).optional(),
+      code: campo.codigo.min(2).optional(),
+      period: campo.codigo.min(4).optional(),
       credits: z.number().int().min(0).optional(),
-      studentIds: z.array(z.string()).optional(),
-      scheduleIds: z.array(z.string()).optional(),
+      studentIds: z.array(z.string()).max(2000).optional(),
+      scheduleIds: z.array(z.string()).max(200).optional(),
     }).parse(req.body);
 
+    const filter: Record<string, unknown> = { _id: req.params.id, deletedAt: null };
+    if (req.user?.role === 'PROFESSOR') filter.professorId = req.user.id;
     const item = await SubjectModel.findOneAndUpdate(
-      { _id: req.params.id, deletedAt: null },
+      filter,
       { $set: body },
       { new: true }
     );
     if (!item) return res.status(404).json({ ok: false, message: 'Not found' });
-    emitSync('sync:update', { entity: 'subject', action: 'update', id: item.id });
+    emitToUser(String(item.professorId), 'sync:update', { entity: 'subject', action: 'update', id: item.id });
     res.json({ ok: true, item });
   } catch (err) {
     next(err);
@@ -89,7 +93,7 @@ subjectRouter.delete('/:id', requireRole('ADMIN'), async (req, res, next) => {
       { new: true }
     );
     if (!item) return res.status(404).json({ ok: false, message: 'Not found' });
-    emitSync('sync:update', { entity: 'subject', action: 'delete', id: item.id });
+    emitToUser(String(item.professorId), 'sync:update', { entity: 'subject', action: 'delete', id: item.id });
     res.json({ ok: true });
   } catch (err) {
     next(err);

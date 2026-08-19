@@ -115,3 +115,20 @@ class HealthResponse(BaseModel):
     model_loaded: bool
     model_version: str | None
     origin: str | None
+
+
+class RubriIntentRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+
+
+class RubriAlternative(BaseModel):
+    intent: str
+    confidence: float = Field(ge=0, le=1)
+
+
+class RubriIntentResponse(BaseModel):
+    intent: str
+    confidence: float = Field(ge=0, le=1)
+    alternatives: list[RubriAlternative]
+    model_version: str
+    latency_ms: float

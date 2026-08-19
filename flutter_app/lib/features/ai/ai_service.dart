@@ -7,7 +7,13 @@ class ChatMessage {
   final String role; // 'user' | 'assistant'
   final String content;
   final String? source; // 'ollama' | 'rules' | 'error'
-  const ChatMessage({required this.role, required this.content, this.source});
+  final String emotion;
+  const ChatMessage({
+    required this.role,
+    required this.content,
+    this.source,
+    this.emotion = 'neutral',
+  });
 
   bool get isUser => role == 'user';
 
@@ -20,11 +26,13 @@ class AiStatus {
   final bool available;
   final String? model;
   final bool modelReady;
+  final bool rubriAvailable;
   const AiStatus({
     required this.enabled,
     required this.available,
     this.model,
     this.modelReady = false,
+    this.rubriAvailable = false,
   });
 
   factory AiStatus.fromJson(Map<String, dynamic> j) => AiStatus(
@@ -32,11 +40,13 @@ class AiStatus {
         available: j['available'] == true,
         model: j['model']?.toString(),
         modelReady: j['modelReady'] == true,
+        rubriAvailable:
+            j['rubri'] is Map && (j['rubri'] as Map)['available'] == true,
       );
 }
 
 /// Consulta si la IA local está activa y el modelo disponible.
-final aiStatusProvider = FutureProvider.autoDispose<AiStatus>((ref) async {
+final aiStatusProvider = FutureProvider<AiStatus>((ref) async {
   try {
     final res = await ApiClient.instance.get('/ai/status');
     return AiStatus.fromJson(Map<String, dynamic>.from(res.data as Map));
@@ -87,17 +97,20 @@ class ChatController extends StateNotifier<ChatState> {
         role: 'assistant',
         content: data['answer']?.toString() ?? '(sin respuesta)',
         source: data['source']?.toString(),
+        emotion: data['emotion']?.toString() ?? 'neutral',
       );
-      state = state.copyWith(messages: [...state.messages, reply], sending: false);
+      state =
+          state.copyWith(messages: [...state.messages, reply], sending: false);
     } on DioException catch (e) {
       final code = e.response?.statusCode;
       final msg = code == 403
           ? 'Este asistente es para docentes. Tu rol no tiene acceso.'
-          : 'No se pudo obtener respuesta del asistente (${code ?? e.message}).';
+          : 'Rubri no pudo comunicarse con UTS Nexus. Revisa la conexión e inténtalo de nuevo.';
       state = state.copyWith(
         messages: [
           ...state.messages,
-          ChatMessage(role: 'assistant', content: '⚠️ $msg', source: 'error'),
+          ChatMessage(
+              role: 'assistant', content: msg, source: 'error', emotion: 'sad'),
         ],
         sending: false,
       );
@@ -106,7 +119,10 @@ class ChatController extends StateNotifier<ChatState> {
         messages: [
           ...state.messages,
           ChatMessage(
-              role: 'assistant', content: '⚠️ Error inesperado: $e', source: 'error'),
+              role: 'assistant',
+              content: 'Ocurrió un error inesperado.',
+              source: 'error',
+              emotion: 'sad'),
         ],
         sending: false,
       );
@@ -115,5 +131,4 @@ class ChatController extends StateNotifier<ChatState> {
 }
 
 final chatControllerProvider =
-    StateNotifierProvider.autoDispose<ChatController, ChatState>(
-        (ref) => ChatController());
+    StateNotifierProvider<ChatController, ChatState>((ref) => ChatController());

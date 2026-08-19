@@ -6,6 +6,7 @@ export { Badge, RiskBadge, GradeBadge, type BadgeProps } from './badge';
 export { Skeleton, SkeletonStatGrid, SkeletonTable, SkeletonList } from './skeleton';
 export { EmptyState, ErrorState, NoResultsState } from './state-view';
 export { Toaster } from './toaster';
+export { Rubri, type RubriEmotion } from './rubri';
 export {
   Dialog,
   DialogTrigger,

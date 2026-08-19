@@ -17,12 +17,15 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 
 from .bootstrap import generate
 from .model import RiskModel, rules_fallback
+from .rubri_intents import RubriIntentClassifier, VERSION as RUBRI_VERSION
 from .schemas import (
     HealthResponse,
     PredictionRequest,
     PredictionResponse,
     TrainingRequest,
     TrainingResponse,
+    RubriIntentRequest,
+    RubriIntentResponse,
 )
 
 logging.basicConfig(level=logging.INFO, format="[ml] %(message)s")
@@ -39,6 +42,7 @@ app = FastAPI(
 
 #: Modelo en memoria. Se recarga al promover uno nuevo.
 _model: RiskModel | None = None
+_rubri: RubriIntentClassifier | None = None
 
 
 @app.on_event("startup")
@@ -49,7 +53,16 @@ def load_model() -> None:
     quede inútil en una instalación nueva. Es preferible a exigir un paso manual
     que alguien olvidará.
     """
-    global _model
+    global _model, _rubri
+    try:
+        _rubri = RubriIntentClassifier.load_or_train()
+        logger.info(
+            "Clasificador Rubri listo (%s intents, accuracy %.3f)",
+            _rubri.metrics["intents"],
+            _rubri.metrics["accuracy"],
+        )
+    except Exception as error:  # noqa: BLE001
+        logger.error("No se pudo iniciar el clasificador de Rubri: %s", error)
     _model = RiskModel.load_active()
 
     if _model is not None:
@@ -100,6 +113,33 @@ def metrics() -> dict:
     if _model is None:
         return {"ok": False, "message": "No hay modelo entrenado; se usan reglas."}
     return {"ok": True, **_model.metrics.model_dump()}
+
+
+@app.get("/rubri/metrics")
+def rubri_metrics() -> dict:
+    if _rubri is None:
+        raise HTTPException(status_code=503, detail="Clasificador Rubri no disponible.")
+    return {"ok": True, **_rubri.metrics}
+
+
+@app.post("/rubri/intent", response_model=RubriIntentResponse)
+def rubri_intent(request: RubriIntentRequest) -> RubriIntentResponse:
+    if _rubri is None:
+        raise HTTPException(status_code=503, detail="Clasificador Rubri no disponible.")
+    prediction = _rubri.predict(request.message)
+    logger.info(
+        "Rubri intent=%s confidence=%.3f latency=%.2fms",
+        prediction.intent,
+        prediction.confidence,
+        prediction.latency_ms,
+    )
+    return RubriIntentResponse(
+        intent=prediction.intent,
+        confidence=prediction.confidence,
+        alternatives=prediction.alternatives,
+        model_version=RUBRI_VERSION,
+        latency_ms=prediction.latency_ms,
+    )
 
 
 @app.post("/predict", response_model=PredictionResponse)

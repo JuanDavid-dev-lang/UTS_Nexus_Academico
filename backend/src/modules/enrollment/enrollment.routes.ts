@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
+import ExcelJS from 'exceljs';
 import { z } from 'zod';
 import * as campo from '../../shared/validation.js';
 import { EnrollmentModel } from '../../models/enrollment.model.js';
@@ -9,6 +10,7 @@ import { identificar, requireRole } from '../../middlewares/auth.js';
 import { auditChange } from '../../shared/audit.js';
 import { emitToUser } from '../../shared/socket.js';
 import { env } from '../../shared/env.js';
+import { interpretarMatrizListado } from '../../domains/enrollment/import-roster.js';
 
 export const enrollmentRouter = Router();
 enrollmentRouter.use(identificar);
@@ -18,6 +20,28 @@ const subirArchivo = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 12 * 1024 * 1024 },
 });
+
+const EXCEL_MIMES = new Set([
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+]);
+
+function esXlsx(file: { mimetype: string; originalname: string }): boolean {
+  return EXCEL_MIMES.has(file.mimetype) || /\.xlsx$/i.test(file.originalname);
+}
+
+async function excelAMatriz(buffer: Buffer): Promise<string[][]> {
+  const libro = new ExcelJS.Workbook();
+  await libro.xlsx.load(buffer as unknown as ArrayBuffer);
+  const hoja = libro.worksheets[0];
+  if (!hoja) return [];
+  const matriz: string[][] = [];
+  hoja.eachRow({ includeEmpty: false }, fila => {
+    const celdas: string[] = [];
+    fila.eachCell({ includeEmpty: true }, celda => celdas.push(String(celda.text ?? celda.value ?? '')));
+    matriz.push(celdas);
+  });
+  return matriz;
+}
 
 /** Verifica que el grupo pertenezca al profesor autenticado (o que sea ADMIN/COORDINATOR). */
 async function assertGroupOwnership(req: any, groupId: string) {
@@ -111,6 +135,23 @@ enrollmentRouter.post(
       const owned = await assertGroupOwnership(req, groupId);
       if (owned.error) {
         return res.status(owned.error.status).json({ ok: false, message: owned.error.message });
+      }
+
+      if (esXlsx(req.file)) {
+        const lectura = interpretarMatrizListado(await excelAMatriz(req.file.buffer));
+        return res.json({
+          ok: true,
+          origen: 'excel',
+          avisos: lectura.avisos,
+          filas: lectura.filas.map(fila => ({
+            code: fila.cedula,
+            fullName: fila.nombre,
+            email: fila.correo || undefined,
+            program: fila.programa || undefined,
+            confianza: fila.confianza,
+            avisos: fila.avisos,
+          })),
+        });
       }
 
       const formulario = new FormData();

@@ -247,7 +247,7 @@ class _Summary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final graded = rows.where((row) => row.finalGrade > 0).toList();
+    final graded = rows.where((row) => row.cuts.any((cut) => cut.complete || cut.grade > 0)).toList();
     final average = graded.isEmpty
         ? 0.0
         : graded.map((r) => r.finalGrade).reduce((a, b) => a + b) /

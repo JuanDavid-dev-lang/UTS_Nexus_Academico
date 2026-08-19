@@ -35,6 +35,11 @@
 - [WebSocket en tiempo real](#websocket-en-tiempo-real)
 - [Reportes y exportaciones](#reportes-y-exportaciones)
 - [Riesgo académico](#riesgo-académico)
+- [Rubri — asistente interno](#rubri--asistente-interno)
+- [Seguridad](#seguridad)
+- [Testing](#testing)
+- [Solución de problemas](#solución-de-problemas)
+- [Contribución](#contribución)
 - [Comandos útiles](#comandos-útiles)
 - [Documentación](#documentación)
 
@@ -64,11 +69,29 @@
 
 **Regla de oro:** ningún cliente recalcula notas, asistencia ni riesgo. Todo lo calcula el backend. Los clientes solo muestran los datos. Cero lógica duplicada.
 
+**Rubri** es la mascota y asistente oficial. Reconoce intenciones mediante un
+modelo NLP interno, respeta el alcance del usuario y usa cuatro estados visuales
+oficiales: neutral, feliz, triste y sin conexión.
+
 ---
 
 ## Arquitectura
 
 El backend sigue **Clean Architecture / Domain-Driven Design**:
+
+```mermaid
+flowchart LR
+    D[Escritorio<br/>Tauri + React] -->|REST + JWT| API[Backend Express]
+    M[Móvil<br/>Flutter] -->|REST + JWT| API
+    API --> DOM[Dominios puros<br/>notas · asistencia · agenda · riesgo]
+    API --> DB[(MongoDB Atlas)]
+    API -->|intención| NLP[FastAPI + scikit-learn]
+    API -->|conversación opcional| O[Ollama local]
+    NLP -->|intent + confidence| API
+    API -->|salas privadas| WS[Socket.io]
+    WS --> D
+    WS --> M
+```
 
 ```
 backend/src/
@@ -110,7 +133,7 @@ backend/src/
 ### Backend
 | Tecnología | Uso |
 |-----------|-----|
-| Node.js 18+ / TypeScript (ESM) | Runtime y tipado estático |
+| Node.js 20+ / TypeScript (ESM) | Runtime y tipado estático |
 | Express 4 | Router HTTP |
 | Mongoose 8 | ODM para MongoDB |
 | Socket.io 4 | WebSocket con auth y salas |
@@ -123,7 +146,7 @@ backend/src/
 ### App móvil
 | Tecnología | Uso |
 |-----------|-----|
-| Flutter 3 | UI multiplataforma (Android/iOS) |
+| Flutter 3.19+ · Dart 3.8+ | App Android (mínimo Android 7.0 / API 24) |
 | Riverpod | Estado reactivo y caché de providers |
 | GoRouter | Navegación declarativa |
 | Dio | Cliente HTTP con renovación automática de token |
@@ -607,7 +630,7 @@ uno completo.
 | Método | Ruta | Descripción |
 |--------|------|-------------|
 | `GET` | `/ai/status` | Estado de Ollama: activo, modelo cargado, URL |
-| `POST` | `/ai/chat` | Consulta en lenguaje natural con contexto académico real |
+| `POST` | `/ai/chat` | Rubri: intención interna, contexto académico acotado y respuesta local |
 | `POST` | `/ai/predict` | Nota necesaria para aprobar + escenarios por estudiante |
 
 ### Agenda y horario
@@ -619,13 +642,16 @@ uno completo.
 ### Importación en dos pasos
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| `POST` | `/enrollments/import/scan` | **Propone** un listado leído de PDF o foto, con confianza por fila |
+| `POST` | `/enrollments/import/scan` | **Propone** un listado XLSX, PDF o foto, con confianza por fila |
 | `POST` | `/grades/import/scan` | **Propone** notas leídas de Excel, PDF o foto |
 | `POST` | `/attendance/scan` | **Propone** una planilla de asistencia fotografiada |
 | `POST` | `/grades/bulk` · `/attendance/scan/confirm` | **Escriben** lo que el docente ya revisó |
 
 Escanear nunca escribe. Una cédula mal reconocida no da error: crea un
 estudiante que no existe y lo matricula, y eso se descubre semanas después.
+CSV/TSV se interpreta en el escritorio y pasa por la misma previsualización.
+El formato binario `.xls` legado no se procesa: debe guardarse como `.xlsx` o
+`.csv`; intentar tratarlo como OOXML sería aceptar resultados corruptos.
 
 ### Otros
 | Método | Ruta | Descripción |
@@ -713,6 +739,25 @@ Las notificaciones son **idempotentes** (sin duplicados) y se envían al docente
 
 ---
 
+## Rubri — asistente interno
+
+Rubri integra tres capas separadas: interfaz emocional, clasificador NLP interno
+y servicios autorizados del backend. El clasificador FastAPI/scikit-learn recibe
+el mensaje y devuelve `intent`, `confidence`, alternativas y latencia. No toca
+la base de datos. El backend aplica JWT, rol, alcance del docente, umbral de
+confianza y lista blanca de navegación antes de devolver cualquier acción.
+
+El dataset inicial contiene 179 expresiones españolas para 11 intenciones. La
+evaluación estratificada reproducible de `rubri-intents-v3` obtuvo accuracy
+0.8000, precisión macro 0.8561, recall macro 0.8000 y F1 macro 0.7946. Ollama
+puede redactar respuestas más naturales dentro de la infraestructura, pero no
+es obligatorio para clasificar ni para mantener operativa la plataforma.
+
+Los detalles de privacidad, entrenamiento, endpoints, estados visuales y cómo
+agregar intenciones están en [`docs/RUBRI.md`](docs/RUBRI.md).
+
+---
+
 ## Comandos útiles
 
 ```bash
@@ -777,6 +822,7 @@ docker compose up --build   # Levantar backend en contenedor
 | Documento | Contenido |
 |-----------|-----------|
 | [`docs/AGENDA_Y_NOTIFICACIONES.md`](docs/AGENDA_Y_NOTIFICACIONES.md) | Agenda, recordatorios locales, push de Android y qué configurar |
+| [`docs/RUBRI.md`](docs/RUBRI.md) | Arquitectura segura, clasificador NLP, métricas, privacidad y sprites de Rubri |
 | [`docs/PUBLICAR_VERSION.md`](docs/PUBLICAR_VERSION.md) | Publicar una versión, secretos de CI y claves de firma |
 | [`docs/DESPLIEGUE_AWS.md`](docs/DESPLIEGUE_AWS.md) | Puesta en producción con Docker y Caddy |
 
@@ -789,14 +835,99 @@ docker compose up --build   # Levantar backend en contenedor
 
 ---
 
+## Seguridad
+
+- Contraseñas con bcrypt y longitud de entrada acotada para evitar abuso de CPU.
+- Access token corto y refresh token rotatorio; en Android se guardan en el
+  almacén seguro del sistema. Reutilizar un refresh revoca la
+  familia de sesiones. Rechazar un registro docente también revoca sus sesiones.
+- Autorización en backend por rol y alcance. El frontend oculta acciones por
+  experiencia de uso, nunca como control de seguridad.
+- Docentes limitados por matrícula, materia y grupo; los endpoints por ID aplican
+  el mismo alcance que los listados.
+- Zod valida cuerpos, consultas, paginación y tamaños. MongoDB no recibe filtros
+  arbitrarios del cliente.
+- Archivos en memoria, límite de 12 MB y flujo propuesta → revisión → escritura.
+  Fotos y PDF no se conservan después de interpretarlos.
+- Errores 5xx sin detalles internos; `/health` no expone causas de conexión.
+- Socket.io exige JWT y emite a salas autenticadas o usuarios concretos.
+- Rubri no accede a MongoDB, no ejecuta URLs del modelo y no entrena con datos
+  académicos reales de forma automática.
+
+En producción usa HTTPS, secretos distintos y largos, un usuario MongoDB con
+privilegios mínimos, CORS explícito, copias de seguridad de Atlas y límites de
+red para FastAPI/Ollama. Nunca copies `.env`, claves FCM, SMTP ni firma Tauri al
+repositorio.
+
+La primera apertura móvil migra la sesión antigua a almacenamiento seguro de
+forma idempotente: completa primero la escritura segura y borra la
+copia plana solo después. Volver a una versión anterior no pierde datos
+académicos, pero exige iniciar sesión nuevamente porque esa versión no conoce el
+almacén seguro.
+
+---
+
+## Testing
+
+| Capa | Comando | Cobertura principal |
+|---|---|---|
+| Backend puro | `cd backend && npm test` | Notas, asistencia, riesgo, agenda, alcance, importación y reportes |
+| Backend E2E | servidor arriba + `npm run smoke` | Login y flujo REST contra MongoDB |
+| Escritorio | `cd desktop && npm test` | Parsers, permisos, navegación, caché y errores |
+| Escritorio tipos | `npm run typecheck` | Contratos TypeScript |
+| Móvil | `cd flutter_app && flutter test` | Red, tema, navegación, caché y tiempo del campus |
+| Móvil estático | `flutter analyze` | Lints y tipos Dart |
+| ML | `cd ml_service && python -m pytest tests/` | Riesgo, Rubri, OCR y lectura de archivos |
+
+Las pruebas de dominio no necesitan red ni base. El smoke sí requiere backend y
+MongoDB configurados. Las pruebas OCR descargan/cargan modelos ONNX y pueden
+tardar varios minutos la primera vez.
+
+---
+
+## Solución de problemas
+
+| Síntoma | Causa habitual | Solución |
+|---|---|---|
+| Backend inicia pero no hay datos | `MONGODB_URI` ausente o inaccesible | Ejecuta `npm run check:env` y revisa la allowlist de Atlas |
+| Login de escritorio da “error de red” | CORS no incluye Tauri | En local usa `CLIENT_ORIGIN=*`; en producción declara los orígenes exactos |
+| Móvil no encuentra servidor | Aislamiento Wi-Fi o firewall | Permite puerto 4000 y escribe `http://IP_DEL_PC:4000` en login |
+| Horarios corridos cinco horas | Offset de campus incorrecto | Usa `CAMPUS_UTC_OFFSET_MIN=-300` para Colombia |
+| Rubri aparece sin conexión | FastAPI u Ollama detenido | Inicia FastAPI en 8100; Ollama es opcional para el clasificador |
+| El modelo de Ollama no está listo | Modelo no descargado | Ejecuta `ollama pull llama3.1:8b` o cambia `AI_MODEL` |
+| `.xls` no abre | Formato binario legado | Guarda el archivo como `.xlsx` o `.csv` antes de importar |
+| Push no llega con app cerrada | FCM no configurado | Define `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL` y `FCM_PRIVATE_KEY` |
+| Recuperación no envía correo | SMTP apagado | Configura las variables SMTP; en desarrollo sin SMTP revisa `devCode` |
+
+---
+
+## Contribución
+
+1. Crea una rama corta y describe el problema que resuelve.
+2. Conserva la lógica académica en `backend/src/domains/`; ningún cliente
+   recalcula notas, asistencia, agenda o riesgo.
+3. En rutas nuevas: validar, autorizar, delegar y responder. El acceso a modelos
+   pertenece al servicio del módulo.
+4. Usa tokens de `DESIGN.md`; no introduzcas colores ni tamaños crudos en pantallas.
+5. Añade pruebas para cambios de reglas, permisos, parsers y contratos.
+6. Ejecuta tests, lint y typecheck de los componentes tocados.
+7. Documenta variables o pasos operativos nuevos sin publicar secretos.
+
+Los commits y la documentación del repositorio se escriben en español. No se
+aceptan cambios que abran el registro administrativo, debiliten el alcance de
+docentes, dupliquen estudiantes globales o hagan opcional la revisión previa de
+una importación.
+
+---
+
 ## Estado del proyecto
 
 | Componente | Estado |
 |-----------|--------|
-| Backend (Node.js / TypeScript) | ✅ Operativo · **183 pruebas** |
+| Backend (Node.js / TypeScript) | ✅ Operativo · **186 pruebas** |
 | App de escritorio (Tauri 2 + React 19) | ✅ Operativa · **92 pruebas** |
 | App móvil (Flutter / Android) | ✅ Operativa · **53 pruebas** |
-| Servicio de ML (`ml_service/`) | ✅ Operativo · **48 pruebas** — ver [`ml_service/README.md`](ml_service/README.md) |
+| Servicio de ML (`ml_service/`) | ✅ Operativo · **51 pruebas** — ver [`ml_service/README.md`](ml_service/README.md) |
 | App de escritorio v1 (PySide6) | 🪦 Muerta · sin lanzador, solo referencia histórica |
 | Pruebas E2E | ⏳ `npm run smoke` cubre el camino principal; falta cobertura de rutas |
 

@@ -24,6 +24,7 @@ import {
 } from './assistant.service.js';
 import { contextoAgenda, responderAgenda } from './agenda-context.js';
 import { pareceDeAgenda } from '../../domains/agenda/agenda-questions.js';
+import { accionSegura, estadoRubri, interpretarConRubri } from './rubri.service.js';
 
 export const aiRouter = Router();
 aiRouter.use(identificar);
@@ -57,8 +58,12 @@ const limiteChat = rateLimit({
 // `exigirSesion`: contar si hay un servicio de IA local encendido y con qué
 // modelo es reconocimiento gratis para quien no ha iniciado sesión.
 aiRouter.get('/status', exigirSesion, async (_req, res) => {
+  const rubri = await estadoRubri();
   if (!env.AI_ENABLED) {
-    return res.json({ ok: true, enabled: false, available: false, message: 'IA desactivada (AI_ENABLED=0).' });
+    return res.json({
+      ok: true, enabled: false, available: false, rubri,
+      message: 'Modelo conversacional desactivado; clasificador interno disponible por separado.',
+    });
   }
   const status = await checkOllama();
   res.json({
@@ -70,6 +75,7 @@ aiRouter.get('/status', exigirSesion, async (_req, res) => {
     models: status.models,
     modelReady: status.models.some(m => m === env.AI_MODEL || m.startsWith(env.AI_MODEL.split(':')[0])),
     error: status.error,
+    rubri,
   });
 });
 
@@ -159,19 +165,46 @@ aiRouter.post('/chat', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), limiteC
         role: z.enum(['user', 'assistant']),
         content: z.string().max(4000),
       })).max(20).optional(),
+      context: z.object({
+        page: campo.linea.optional(),
+        courseId: campo.codigo.optional(),
+        groupId: campo.codigo.optional(),
+      }).optional(),
     }).parse(req.body);
+
+    const subjectId = body.subjectId ?? body.context?.courseId;
+    const groupId = body.groupId ?? body.context?.groupId;
+    const interpretation = await interpretarConRubri(body.message);
+    const rubri = interpretation
+      ? {
+          intent: interpretation.intent,
+          confidence: interpretation.confidence,
+          model: interpretation.modelVersion,
+          latencyMs: interpretation.latencyMs,
+          action: accionSegura(interpretation.intent, interpretation.confidence),
+        }
+      : null;
+    if (interpretation && interpretation.confidence < 0.42) {
+      return res.json({
+        ok: true,
+        source: 'intent-model',
+        answer: 'No estoy completamente seguro de lo que quieres hacer. ¿Puedes darme un poco más de contexto?',
+        emotion: 'neutral',
+        rubri,
+      });
+    }
 
     // Aislamiento: un docente solo consulta lo suyo.
     let teacherId: string | undefined;
     if (req.user?.role === 'PROFESSOR') {
       const scope = await getProfessorScope(req.user.id);
-      if (body.subjectId && !scope.subjectIds.includes(body.subjectId)) {
+      if (subjectId && !scope.subjectIds.includes(subjectId)) {
         return res.status(403).json({ ok: false, message: 'Subject not assigned' });
       }
       if (body.studentId && !scope.studentIds.includes(body.studentId)) {
         return res.status(403).json({ ok: false, message: 'Student not assigned' });
       }
-      if (body.groupId && !scope.groupIds.includes(body.groupId)) {
+      if (groupId && !scope.groupIds.includes(groupId)) {
         return res.status(403).json({ ok: false, message: 'Group not assigned' });
       }
       teacherId = req.user.id;
@@ -193,14 +226,14 @@ aiRouter.post('/chat', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), limiteC
           {
             teacherId,
             studentId: body.studentId,
-            subjectId: body.subjectId,
+            subjectId,
             period: undefined,
             role: req.user?.role,
           },
           (body.history ?? []) as ChatMessage[],
           bloqueAgenda,
         );
-        return res.json({ ok: true, answer, source: 'ollama', model: env.AI_MODEL });
+        return res.json({ ok: true, answer, source: 'ollama', model: env.AI_MODEL, emotion: 'happy', rubri });
       } catch (err) {
         if (!(err instanceof OllamaUnavailableError)) throw err;
         // IA local caída → continúa al modo reglas más abajo.
@@ -217,17 +250,17 @@ aiRouter.post('/chat', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), limiteC
     if (preguntaDeAgenda) {
       const respuesta = await responderAgenda(body.message, alcanceAgenda);
       if (respuesta) {
-        return res.json({ ok: true, source: 'rules', answer: `${respuesta}\n\n${fallbackNote}` });
+        return res.json({ ok: true, source: 'rules', answer: `${respuesta}\n\n${fallbackNote}`, emotion: 'offline', rubri });
       }
     }
 
-    if (message.includes('promedio') && body.studentId && body.subjectId) {
-      const grades = await GradeModel.find({ studentId: body.studentId, subjectId: body.subjectId, deletedAt: null }).lean();
+    if (message.includes('promedio') && body.studentId && subjectId) {
+      const grades = await GradeModel.find({ studentId: body.studentId, subjectId, deletedAt: null }).lean();
       const avg = grades.length ? grades.reduce((s, g) => s + g.score, 0) / grades.length : 0;
-      return res.json({ ok: true, answer: `Promedio: ${avg.toFixed(2)}\n${fallbackNote}`, source: 'rules' });
+      return res.json({ ok: true, answer: `Promedio: ${avg.toFixed(2)}\n${fallbackNote}`, source: 'rules', emotion: 'offline', rubri });
     }
 
-    if ((message.includes('riesgo') || message.includes('peligro')) && body.subjectId) {
+    if ((message.includes('riesgo') || message.includes('peligro')) && subjectId) {
       const students = req.user?.role === 'PROFESSOR'
         ? await StudentModel.find({ deletedAt: null, _id: { $in: (await getProfessorScope(req.user.id)).studentIds } }).lean()
         : await StudentModel.find({ deletedAt: null }).lean();
@@ -235,6 +268,8 @@ aiRouter.post('/chat', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), limiteC
         ok: true,
         source: 'rules',
         answer: `Riesgo evaluado para ${students.length} estudiantes. Usa /ai/predict por estudiante.\n${fallbackNote}`,
+        emotion: 'offline',
+        rubri,
       });
     }
 
@@ -242,6 +277,8 @@ aiRouter.post('/chat', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), limiteC
       ok: true,
       source: 'rules',
       answer: `Puedo calcular promedio, notas necesarias, asistencia y riesgo. Envía studentId y subjectId para precisión.\n${fallbackNote}`,
+      emotion: 'offline',
+      rubri,
     });
   } catch (err) {
     next(err);

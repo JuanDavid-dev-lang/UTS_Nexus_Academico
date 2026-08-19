@@ -192,6 +192,19 @@ authRouter.post('/refresh', async (req, res, next) => {
       return res.status(401).json({ ok: false, message: 'Invalid session' });
     }
 
+    if (user.role === 'PROFESSOR') {
+      const ficha = await ProfessorModel.findOne({ userId: user._id, deletedAt: null })
+        .select('estado')
+        .lean();
+      if (ficha?.estado && ficha.estado !== 'APROBADO') {
+        await SessionModel.updateMany(
+          { userId: user._id, revokedAt: null },
+          { $set: { revokedAt: new Date() } },
+        );
+        return res.status(401).json({ ok: false, message: 'Invalid session' });
+      }
+    }
+
     const pair = signPair({
       id: user.id,
       role: user.role as Role,
@@ -358,6 +371,8 @@ authRouter.post('/recovery/reset', async (req, res, next) => {
 });
 
 authRouter.get('/me', identificar, exigirSesion, async (req, res) => {
-  const user = await UserModel.findById(req.user!.id).lean();
+  const user = await UserModel.findById(req.user!.id)
+    .select('_id email role fullName studentId tenantId photoUrl lastLoginAt createdAt updatedAt')
+    .lean();
   res.json({ ok: true, user });
 });

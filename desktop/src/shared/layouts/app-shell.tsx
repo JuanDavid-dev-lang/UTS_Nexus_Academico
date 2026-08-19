@@ -8,6 +8,7 @@ import { CommandPalette } from '@/shared/layouts/command-palette';
 import { useHotkeys } from '@/shared/hooks/use-hotkeys';
 import { LAYOUT_QUERIES, useMediaQuery } from '@/shared/hooks/use-media-query';
 import { SkeletonStatGrid } from '@/shared/ui/skeleton';
+import { Rubri } from '@/shared/ui';
 import { useTheme } from '@/state/theme.store';
 import { useSession } from '@/state/session.store';
 
@@ -156,6 +157,17 @@ export function AppShell() {
       </div>
 
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+      {location.pathname !== '/asistente' ? (
+        <button
+          type="button"
+          aria-label="Abrir a Rubri, asistente de UTS Nexus"
+          title="Pregúntale a Rubri"
+          onClick={() => navigate('/asistente', { state: { rubriContext: { page: location.pathname } } })}
+          className="fixed bottom-5 right-5 z-30 grid size-16 place-items-center overflow-hidden rounded-full border border-border bg-surface shadow-pop transition-transform hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+        >
+          <Rubri emotion="neutral" size="small" />
+        </button>
+      ) : null}
       {tourAbierto && <Tour onFinish={cerrarTour} />}
     </div>
   );

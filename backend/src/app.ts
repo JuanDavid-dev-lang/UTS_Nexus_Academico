@@ -67,6 +67,6 @@ app.use('/api/v1', apiRouter);
  */
 app.get('/health', (_req, res) => {
   const db = dbStatus();
-  res.json({ ok: true, db: db.status, dbError: db.error });
+  res.json({ ok: true, db: db.status });
 });
 app.use(errorHandler);

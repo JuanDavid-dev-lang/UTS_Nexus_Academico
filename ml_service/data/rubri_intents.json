@@ -1,0 +1,87 @@
+{
+  "CREATE_COURSE": [
+    "quiero crear una materia", "crea una asignatura nueva", "necesito registrar un curso",
+    "agrega la materia programación web", "abre el formulario para nueva asignatura",
+    "cómo creo una materia", "registremos un curso", "quiero añadir una asignatura",
+    "crear curso nuevo", "registrar asignatura", "nueva materia para este semestre",
+    "dar de alta una materia", "crear el grupo de programación", "añadir curso académico",
+    "necesito una nueva asignatura", "vamos a crear una materia"
+  ],
+  "GET_COURSES": [
+    "muéstrame mis materias", "qué asignaturas tengo", "ver cursos activos",
+    "abre mis asignaturas", "cuáles son mis materias de este semestre",
+    "lista mis cursos", "quiero ver los grupos que manejo", "enséñame mis cursos",
+    "consultar mis materias", "lista de asignaturas activas", "todos mis cursos",
+    "qué cursos manejo", "materias del semestre", "ver grupos asignados",
+    "mis asignaturas", "cursos que dicto"
+  ],
+  "GET_STUDENTS": [
+    "muéstrame los estudiantes", "quién está registrado en esta materia",
+    "quiero ver la lista del grupo", "enséñame los alumnos", "cuántos estudiantes tengo",
+    "abre la lista de estudiantes", "ver estudiantes del curso", "lista de alumnos del grupo",
+    "muéstrame mis alumnos", "ver mis estudiantes", "quiénes son mis alumnos",
+    "lista de estudiantes", "alumnos de esta materia", "estudiantes matriculados",
+    "quién está en el grupo", "ver integrantes del curso", "cuántos alumnos hay",
+    "abrir estudiantes del grupo", "consultar la lista de clase"
+  ],
+  "IMPORT_STUDENTS": [
+    "quiero importar estudiantes", "cargar una lista de alumnos", "subir archivo de estudiantes",
+    "importar el excel del grupo", "agregar estudiantes desde csv", "cargar listado institucional",
+    "cómo importo una planilla", "abre el importador de estudiantes",
+    "subir el excel del grupo", "importar archivo xlsx", "cargar estudiantes desde una hoja",
+    "procesar lista de clase", "subir csv de alumnos", "leer listado de estudiantes",
+    "cargar archivo del grupo", "iniciar importación de alumnos"
+  ],
+  "GET_SCHEDULE": [
+    "qué clase tengo hoy", "muéstrame mi horario", "cuál es mi próxima clase",
+    "ver agenda de esta semana", "a qué hora tengo clase", "dónde tengo clase ahora",
+    "abre el horario", "qué clases tengo mañana", "consultar agenda académica",
+    "horario de hoy", "clases de esta semana", "cuándo es mi próxima clase",
+    "ver calendario de clases", "a qué hora empieza la clase", "agenda del docente",
+    "mostrar mi horario semanal"
+  ],
+  "UPDATE_SCHEDULE": [
+    "quiero cambiar el horario", "mueve esta clase al martes", "editar bloque de horario",
+    "cambiar hora de la asignatura", "necesito modificar una clase", "actualizar horario del grupo",
+    "corrige la hora de inicio", "elimina este bloque del horario",
+    "modificar horario", "cambiar bloque semanal", "editar hora de clase",
+    "actualizar la agenda de la materia", "mover clase de día", "cambiar hora final",
+    "borrar franja horaria", "agregar otro bloque de horario"
+  ],
+  "GET_CLASSROOM": [
+    "en qué salón es la clase", "cuál es el aula de programación", "dónde veo el salón",
+    "muéstrame el aula asignada", "qué salón tengo hoy", "ubicación de mi próxima clase",
+    "en qué aula debo estar", "consultar salón del grupo", "salón asignado",
+    "aula de esta materia", "cuál es el salón del curso", "ubicación del grupo",
+    "dónde se dicta programación", "salón de mi siguiente clase", "consultar aula",
+    "en qué salón tengo programación"
+  ],
+  "HELP": [
+    "necesito ayuda", "cómo funciona uts nexus", "qué puedes hacer", "ayúdame a usar la plataforma",
+    "muéstrame las funciones disponibles", "no sé cómo empezar", "guía de uso", "qué hace rubri",
+    "ayuda general", "manual de la plataforma", "explícame uts nexus", "necesito orientación",
+    "cómo uso el sistema", "qué opciones existen", "muéstrame la ayuda", "tutorial de nexus"
+  ],
+  "NAVIGATE": [
+    "abre el dashboard", "llévame a reportes", "ir a configuración", "abre las notificaciones",
+    "quiero entrar a asistencia", "navega a las notas", "ve a la agenda", "mostrar pantalla de riesgo",
+    "ir al inicio", "abrir configuración", "llévame a estudiantes", "navegar a materias",
+    "mostrar notificaciones", "ir a reportes", "abre la sección de notas", "entra al calendario"
+  ],
+  "SEARCH_STUDENT": [
+    "busca al estudiante juan pérez", "encontrar alumno por cédula", "quiero buscar un estudiante",
+    "localiza a maría en mis grupos", "buscar alumno por nombre", "encuentra este código estudiantil",
+    "consulta la ficha de un estudiante", "dónde está registrado este alumno",
+    "buscar estudiante", "encontrar alumno", "consulta a juan", "buscar por documento",
+    "localizar código estudiantil", "encuentra una persona en el directorio",
+    "buscar ficha del alumno", "averigua en qué grupo está maría"
+  ],
+  "COURSE_INFORMATION": [
+    "dame información de esta materia", "cuántos alumnos tiene el curso", "resumen del grupo",
+    "datos de programación orientada a objetos", "quién dicta esta asignatura", "detalle del curso",
+    "información del grupo actual", "muéstrame el resumen de la materia",
+    "detalle de la asignatura", "datos del curso actual", "resumen de esta materia",
+    "información académica del grupo", "cuál es el docente del curso", "ver ficha de la materia",
+    "cuántos estudiantes tiene esta asignatura", "descripción del grupo"
+  ]
+}

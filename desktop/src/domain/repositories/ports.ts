@@ -27,6 +27,7 @@ import type {
 import type { LoginInput, User } from '@/domain/schemas/auth';
 import type {
   AiStatus,
+  ChatResponse,
   ChatMessage,
   DashboardSummary,
   Notification,
@@ -201,7 +202,9 @@ export interface AssistantRepository {
     history: ChatMessage[];
     studentId?: string;
     subjectId?: string;
-  }): Promise<{ answer: string; source: 'ollama' | 'rules' }>;
+    groupId?: string;
+    context?: { page?: string; courseId?: string; groupId?: string };
+  }): Promise<ChatResponse>;
   predict(input: { studentId: string; subjectId: string }): Promise<Prediction>;
 }
 

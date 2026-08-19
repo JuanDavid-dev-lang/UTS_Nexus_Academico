@@ -79,6 +79,11 @@ export const aiStatusSchema = z.object({
   models: z.array(z.string()).optional().default([]),
   modelReady: z.boolean().optional().default(false),
   message: z.string().optional(),
+  rubri: z.object({
+    available: z.boolean(),
+    model: z.string().optional(),
+    metrics: z.unknown().optional(),
+  }).optional(),
 });
 export type AiStatus = z.infer<typeof aiStatusSchema>;
 
@@ -92,9 +97,22 @@ export const chatResponseSchema = z.object({
   ok: z.literal(true),
   answer: z.string(),
   /** 'ollama' when the local model answered, 'rules' when it fell back. */
-  source: z.enum(['ollama', 'rules']).optional().default('rules'),
+  source: z.enum(['ollama', 'rules', 'intent-model']).optional().default('rules'),
   model: z.string().optional(),
+  emotion: z.enum(['neutral', 'happy', 'sad', 'offline']).optional().default('neutral'),
+  rubri: z.object({
+    intent: z.string(),
+    confidence: z.number(),
+    model: z.string(),
+    latencyMs: z.number(),
+    action: z.object({
+      type: z.literal('NAVIGATE'),
+      route: z.string(),
+      label: z.string(),
+    }).nullable(),
+  }).nullable().optional().default(null),
 });
+export type ChatResponse = z.infer<typeof chatResponseSchema>;
 
 // ── Report preview ──────────────────────────────────────────────────────────
 /**

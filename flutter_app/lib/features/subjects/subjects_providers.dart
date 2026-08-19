@@ -106,7 +106,7 @@ final subjectStatsProvider =
   final risks = (results[1] as List<RiskItem>)
       .where((r) => r.subjectId == subjectId && r.level != RiskLevel.low);
 
-  final graded = grades.where((row) => row.finalGrade > 0).toList();
+  final graded = grades.where((row) => row.cuts.any((cut) => cut.complete || cut.grade > 0)).toList();
   final average = graded.isEmpty
       ? 0.0
       : graded.map((row) => row.finalGrade).reduce((a, b) => a + b) / graded.length;

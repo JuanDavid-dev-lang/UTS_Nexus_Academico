@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { UserModel } from '../../models/user.model.js';
 import { ProfessorModel } from '../../models/professor.model.js';
 import { ConfigModel } from '../../models/config.model.js';
+import { SessionModel } from '../../models/session.model.js';
 import { identificar, requireRole } from '../../middlewares/auth.js';
 import { auditChange } from '../../shared/audit.js';
 import { emitSync } from '../../shared/socket.js';
@@ -236,6 +237,13 @@ registrationRouter.patch('/solicitudes/:id', requireRole('ADMIN'), async (req, r
       },
       { new: true },
     );
+
+    if (decision === 'RECHAZADO') {
+      await SessionModel.updateMany(
+        { userId: antes.userId, revokedAt: null },
+        { $set: { revokedAt: new Date() } },
+      );
+    }
 
     await auditChange({
       actorId: req.user?.id,

@@ -68,7 +68,7 @@ export function RosterImportDialog({ open, onOpenChange, subjectId, subjectName 
   const parsed = useMemo(() => parseRoster(text), [text]);
 
   /**
-   * Un CSV se lee aquí; un PDF o una foto los interpreta el servidor.
+   * Un CSV se lee aquí; un XLSX, PDF o una foto los interpreta el servidor.
    *
    * El resultado del reconocimiento cae en el MISMO cuadro de texto que la
    * lista pegada a mano, y por eso pasa por la misma revisión antes de
@@ -188,7 +188,7 @@ export function RosterImportDialog({ open, onOpenChange, subjectId, subjectName 
               <input
                 ref={fileInput}
                 type="file"
-                accept=".csv,.txt,.tsv,.pdf,image/*"
+                accept=".csv,.txt,.tsv,.xlsx,.pdf,image/*"
                 className="hidden"
                 onChange={(event) => {
                   const file = event.target.files?.[0];
@@ -205,7 +205,7 @@ export function RosterImportDialog({ open, onOpenChange, subjectId, subjectName 
                 onClick={() => fileInput.current?.click()}
               >
                 <FileUp className="size-4" aria-hidden />
-                Abrir CSV, PDF o foto
+                Abrir XLSX, CSV, PDF o foto
               </Button>
               <span className="text-caption text-muted">o pega la lista abajo</span>
             </div>

@@ -53,9 +53,13 @@ export function createSocketServer(server: HttpServer) {
   });
 }
 
-/** Broadcast global — usar solo para eventos no sensibles. */
+/** Sincronización institucional para todas las salas autenticadas, nunca sockets anónimos. */
 export function emitSync(event: string, payload: unknown) {
-  io?.emit(event, payload);
+  io?.to('role:ADMIN')
+    .to('role:COORDINATOR')
+    .to('role:PROFESSOR')
+    .to('role:STUDENT')
+    .emit(event, payload);
 }
 
 /** Emite un evento solo a un usuario concreto (y a admins/coordinadores). */

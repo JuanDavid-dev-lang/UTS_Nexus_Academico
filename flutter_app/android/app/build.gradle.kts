@@ -58,10 +58,9 @@ android {
 
     defaultConfig {
         applicationId = "co.edu.uts.nexus.academico"
-        // Firebase exige 23; el resto de la app aguanta menos, pero un valor por
-        // debajo del que pide una dependencia rompe la compilación con un error
-        // que no menciona a Firebase por ninguna parte.
-        minSdk = maxOf(flutter.minSdkVersion, 23)
+        // El almacén seguro de tokens exige Android 7.0 (API 24). Mantener 23
+        // obligaría a guardar la sesión fuera del Keystore o rompería el build.
+        minSdk = maxOf(flutter.minSdkVersion, 24)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

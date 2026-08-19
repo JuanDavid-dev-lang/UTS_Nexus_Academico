@@ -1,4 +1,9 @@
-# Servicio de riesgo académico
+# Servicio interno de Machine Learning
+
+Este servicio aloja dos capacidades independientes: predicción explicable de
+riesgo académico y clasificación de intenciones de **Rubri**, el asistente de
+UTS Nexus. Ambas se ejecutan dentro de la infraestructura; ninguna requiere una
+API externa.
 
 Predice la probabilidad de que un estudiante repruebe, **con la explicación de
 qué variables lo determinaron**.
@@ -92,6 +97,8 @@ ML_ENABLED=1
 | `GET` | `/metrics` | Precisión, recall, AUC y origen del modelo vigente |
 | `POST` | `/predict` | Predice para un lote de estudiantes |
 | `POST` | `/train` | Entrena un candidato y lo promueve si mejora |
+| `GET` | `/rubri/metrics` | Versión, métricas y matriz de confusión del clasificador |
+| `POST` | `/rubri/intent` | Intención, confianza, alternativas y latencia para un mensaje |
 
 A través del backend (con JWT):
 
@@ -174,7 +181,7 @@ que darle una estimación más simple. Y decirle cuál usó es cuestión de hone
 .venv\Scripts\python.exe -m pytest tests/ -q
 ```
 
-48 pruebas. Del modelo (13): orden de columnas, tendencia, división por cero al
+51 pruebas. Del modelo de riesgo (13): orden de columnas, tendencia, división por cero al
 inicio del semestre, calibración del respaldo de reglas, rechazo de conjuntos
 pequeños o de clase única, y que **toda predicción de riesgo venga explicada**.
 De la visión (35): lectura de planillas de asistencia, de listados y de
