@@ -11,6 +11,7 @@ import { emitSync } from '../../shared/socket.js';
 import { getEnrolledStudentIds, getProfessorScope } from '../../shared/professor-scope.js';
 import { cruzarConMatricula, ordenarPorApellido } from '../../domains/attendance/sheet-match.js';
 import { env } from '../../shared/env.js';
+import { exigirPeriodoAbierto } from '../../shared/period-guard.js';
 
 /**
  * Importación de asistencia a partir de la foto de una planilla.
@@ -177,6 +178,8 @@ attendanceScanRouter.post('/scan/confirm', requireRole('ADMIN', 'PROFESSOR'), as
       return res.status(propietario.error.status).json({ ok: false, message: propietario.error.message });
     }
     const group = propietario.group!;
+
+    await exigirPeriodoAbierto(String(group.period), 'attendance');
 
     // Se revalida el alcance aquí y no solo en `/scan`: el cliente podría enviar
     // una confirmación con ids que nunca estuvieron en la propuesta.

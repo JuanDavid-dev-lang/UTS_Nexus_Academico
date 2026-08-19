@@ -164,11 +164,35 @@ console.log(
   `  ${green('✓')} IA local             ${aiEnabled ? `activa · ${env.AI_MODEL ?? 'llama3.1:8b'} en ${env.AI_BASE_URL ?? 'http://localhost:11434'}` : dim('desactivada (modo reglas)')}`,
 );
 
+/** Tareas periódicas: un 0 no es un fallo, pero sí conviene verlo escrito. */
+const tareas = [
+  ['CLASS_REMINDER_INTERVAL_MIN', 1, 'recordatorios de clase'],
+  ['ACTIVITY_DUE_INTERVAL_MIN', 15, 'avisos de vencimiento de actividades'],
+  ['ATTENDANCE_PATTERN_INTERVAL_MIN', 0, 'patrones de inasistencia'],
+];
+for (const [clave, porDefecto, descripcion] of tareas) {
+  const valor = env[clave] === undefined ? porDefecto : Number(env[clave]);
+  const texto = valor > 0 ? `${valor} min` : dim(`0 (${descripcion}: desactivado)`);
+  console.log(`  ${green('✓')} ${clave.padEnd(20).slice(0, 20)} ${texto}`);
+}
+
 // ── Claves desconocidas: casi siempre son erratas ───────────────────────────
+// La lista tiene que cubrir TODO lo que lee `shared/env.ts`. Incompleta, este
+// aviso convierte una configuración correcta en una advertencia falsa, y una
+// advertencia que siempre aparece deja de leerse — que es justo cuando se cuela
+// la errata que esto existía para detectar.
 const KNOWN = new Set([
   'MONGODB_URI', 'JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET', 'ACCESS_TOKEN_TTL',
-  'REFRESH_TOKEN_TTL', 'CLIENT_ORIGIN', 'PORT', 'RISK_SCAN_INTERVAL_MIN',
+  'REFRESH_TOKEN_TTL', 'CLIENT_ORIGIN', 'PORT', 'HOST', 'NODE_ENV',
+  'RISK_SCAN_INTERVAL_MIN',
   'AI_BASE_URL', 'AI_MODEL', 'AI_ENABLED',
+  'ML_BASE_URL', 'ML_ENABLED',
+  'CAMPUS_UTC_OFFSET_MIN', 'CLASS_REMINDER_INTERVAL_MIN',
+  'ACTIVITY_DUE_INTERVAL_MIN', 'ATTENDANCE_PATTERN_INTERVAL_MIN',
+  'TELEMETRY_RETENTION_DAYS',
+  'FCM_PROJECT_ID', 'FCM_CLIENT_EMAIL', 'FCM_PRIVATE_KEY',
+  'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM', 'SMTP_SECURE',
+  'RELEASES_REPO', 'RELEASE_CHECK_INTERVAL_H',
 ]);
 const unknown = Object.keys(env).filter((key) => !KNOWN.has(key));
 if (unknown.length > 0) {

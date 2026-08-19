@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { exigirPeriodoAbierto } from '../../shared/period-guard.js';
 import * as campo from '../../shared/validation.js';
 import { GradeModel } from '../../models/grade.model.js';
 import { StudentModel } from '../../models/student.model.js';
@@ -240,6 +241,10 @@ gradeRouter.post('/', requireRole('ADMIN', 'PROFESSOR'), async (req, res, next) 
       period: z.string().min(4),
     }).parse(req.body);
 
+    // Un periodo cerrado ya tiene fotografía oficial: admitir una nota más la
+    // desmentiría sin que nadie se enterara. 409, no 500.
+    await exigirPeriodoAbierto(body.period, 'grade');
+
     if (req.user?.role === 'PROFESSOR') {
       const scope = await getProfessorScope(req.user.id);
       if (body.teacherId !== req.user.id) return res.status(403).json({ ok: false, message: 'Forbidden' });
@@ -287,6 +292,7 @@ gradeRouter.patch('/:id', requireRole('ADMIN', 'PROFESSOR'), async (req, res, ne
     if (req.user?.role === 'PROFESSOR' && before?.teacherId && String(before.teacherId) !== req.user.id) {
       return res.status(403).json({ ok: false, message: 'Forbidden' });
     }
+    if (before?.period) await exigirPeriodoAbierto(String(before.period), 'grade');
     const item = await GradeModel.findOneAndUpdate({ _id: req.params.id, deletedAt: null }, { $set: body }, { new: true });
     if (!item) return res.status(404).json({ ok: false, message: 'Not found' });
     await auditChange({ actorId: req.user?.id, action: 'UPDATE', entity: 'Nota', entityId: item.id, before, after: item.toObject() });
@@ -303,6 +309,7 @@ gradeRouter.delete('/:id', requireRole('ADMIN', 'PROFESSOR'), async (req, res, n
     if (req.user?.role === 'PROFESSOR' && before?.teacherId && String(before.teacherId) !== req.user.id) {
       return res.status(403).json({ ok: false, message: 'Forbidden' });
     }
+    if (before?.period) await exigirPeriodoAbierto(String(before.period), 'grade');
     const item = await GradeModel.findOneAndUpdate(
       { _id: req.params.id, deletedAt: null },
       { $set: { deletedAt: new Date(), status: 'DELETED' } },

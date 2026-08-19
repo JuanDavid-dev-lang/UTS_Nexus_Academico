@@ -80,6 +80,45 @@ void main() {
     test('los destinos principales caben en una barra de Material', () {
       // Material especifica entre tres y cinco; con el botón "Más" son cinco.
       expect(primaryDestinations.length + 1, lessThanOrEqualTo(5));
+      // Y exactamente cinco: con cuatro sobraba un hueco que obligaba a
+      // esconder la agenda en la hoja, siendo la pantalla que un docente abre
+      // a diario.
+      expect(primaryDestinations.length + 1, 5);
+    });
+
+    test('los cuatro principales ocupan las cuatro primeras ramas', () {
+      // El quinto botón de la barra es "Más", que no es una rama: ocupa la
+      // posición `primaryDestinations.length`. Si los principales no fueran
+      // las primeras ramas, ese cálculo señalaría a una pantalla real y
+      // tocar "Más" abriría cualquier cosa.
+      for (var i = 0; i < primaryDestinations.length; i++) {
+        expect(
+          indiceDeRama(primaryDestinations[i].route),
+          i,
+          reason: 'El destino principal $i debería ser la rama $i',
+        );
+      }
+    });
+
+    test('las capacidades nuevas tienen su destino y su rama', () {
+      final rutas = secondaryDestinations.map((d) => d.route).toSet();
+      expect(rutas, contains('/actividades'));
+      expect(indiceDeRama('/actividades'), isNonNegative);
+    });
+
+    test('un destino acotado por rol declara los roles que lo ven', () {
+      // Un estudiante no gestiona estudiantes ni pasa lista: el menú no debe
+      // ofrecer entradas que el backend va a rechazar con un 403.
+      final estudiantes =
+          secondaryDestinations.firstWhere((d) => d.route == '/students');
+      expect(estudiantes.visiblePara('STUDENT'), isFalse);
+      expect(estudiantes.visiblePara('PROFESSOR'), isTrue);
+
+      // Y uno sin roles declarados lo ve todo el mundo.
+      final actividades =
+          secondaryDestinations.firstWhere((d) => d.route == '/actividades');
+      expect(actividades.visiblePara('STUDENT'), isTrue);
+      expect(actividades.visiblePara(null), isTrue);
     });
 
     test('no hay rutas repetidas entre principales y secundarios', () {

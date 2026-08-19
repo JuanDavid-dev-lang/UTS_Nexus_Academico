@@ -138,18 +138,65 @@ class SemanticTone {
       resolve(kind, Theme.of(context).brightness == Brightness.dark);
 }
 
-/// Espaciado y radios (DESIGN.md §7).
+/// Espaciado y radios (DESIGN.md §7), en su escala compacta.
+///
+/// Los valores bajaron de 24/16/18 a 16/12/14. No es un ajuste estético: en un
+/// teléfono de 360 dp, 24 de margen exterior más 16 de interior dejaban unos
+/// 280 dp útiles y cada fila académica ocupaba casi cien de alto, así que en
+/// pantalla cabían cinco estudiantes. Pasar lista a un salón de treinta
+/// significaba seis pantallazos completos.
+///
+/// Lo que NO se toca es el tamaño de lo que se toca: [tapTarget] se queda en
+/// 48 dp y ninguna acción baja de [tapTargetMin]. La densidad se gana con el
+/// espacio entre elementos y con el relleno, nunca haciendo más pequeño el
+/// blanco de un dedo.
 class AppSpacing {
-  static const double page = 24;
-  static const double gap = 16;
-  static const double radiusCard = 18;
-  static const double radiusInput = 12;
+  /// Margen lateral de página.
+  static const double page = 16;
+
+  /// Separación estándar entre bloques.
+  static const double gap = 12;
+
+  /// Separación corta: entre una etiqueta y su valor, entre chips.
+  static const double gapSm = 8;
+
+  /// Separación mínima: dentro de una fila densa.
+  static const double gapXs = 4;
+
+  static const double radiusCard = 14;
+  static const double radiusInput = 10;
   static const double radiusPill = 999;
 
-  /// Relleno estándar de página: 24 a los lados, más aire al final para que la
-  /// última tarjeta no quede pegada a la barra de navegación.
+  /// Alto mínimo de una fila académica pulsable.
+  static const double rowHeight = 56;
+
+  /// Objetivo táctil recomendado. Los botones de icono lo usan como tamaño.
+  static const double tapTarget = 48;
+
+  /// Mínimo absoluto aceptable. Por debajo de esto no baja ningún control.
+  static const double tapTargetMin = 44;
+
+  /// Relleno estándar de página.
+  ///
+  /// El extra al final no es decorativo: sin él, la última fila queda debajo
+  /// de la barra de navegación y no se puede tocar.
   static const EdgeInsets pagePadding =
-      EdgeInsets.fromLTRB(page, page, page, page + gap);
+      EdgeInsets.fromLTRB(page, gap, page, page + tapTarget);
+
+  /// Relleno de una lista que ya trae sus propias separaciones.
+  static const EdgeInsets listPadding =
+      EdgeInsets.fromLTRB(page, gapSm, page, tapTarget + gap);
+}
+
+/// Duraciones de animación (DESIGN.md §17).
+///
+/// Cortas y con una sola curva. Una transición de 300 ms en una pantalla que
+/// se abre veinte veces al día son seis segundos al día esperando a que algo
+/// termine de moverse.
+class AppMotion {
+  static const Duration fast = Duration(milliseconds: 120);
+  static const Duration normal = Duration(milliseconds: 180);
+  static const Curve curve = Curves.easeOutCubic;
 }
 
 /// Escala tipográfica (DESIGN.md §5): cinco pasos, uno por rol.
@@ -296,7 +343,9 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: surface,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        // 12 en vez de 14: en un formulario de seis campos son 24 dp menos
+        // sin que el campo deje de ser cómodo de tocar (sigue en 48 de alto).
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppSpacing.radiusInput),
           borderSide: BorderSide(color: border),
@@ -314,7 +363,7 @@ class AppTheme {
         style: FilledButton.styleFrom(
           backgroundColor: scheme.primary,
           foregroundColor: scheme.onPrimary,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppSpacing.radiusInput),
           ),
@@ -335,6 +384,44 @@ class AppTheme {
         elevation: 1,
       ),
       dividerTheme: DividerThemeData(color: border, thickness: 1),
+      /*
+       * Densidad de los widgets del framework.
+       *
+       * `standard` deja las listas de Material con el alto pensado para una
+       * tablet. `compact` recorta unos 8 dp por fila, que en una lista de
+       * treinta estudiantes son casi cuatro filas más visibles.
+       *
+       * `materialTapTargetSize` se queda en `padded`: es lo que garantiza los
+       * 48 dp de objetivo táctil aunque el icono mida 20. Bajarlo a
+       * `shrinkWrap` sería ganar densidad quitándole precisión al dedo.
+       */
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.padded,
+      listTileTheme: ListTileThemeData(
+        dense: true,
+        minVerticalPadding: 6,
+        horizontalTitleGap: 12,
+        titleTextStyle: AppType.bodyStrong.copyWith(color: text),
+        subtitleTextStyle: AppType.caption.copyWith(
+          color: text.withValues(alpha: 0.7),
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        labelStyle: AppType.captionStrong,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusPill),
+        ),
+      ),
+      cardTheme: CardThemeData(
+        color: surface,
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusCard),
+          side: BorderSide(color: border),
+        ),
+      ),
     );
   }
 }

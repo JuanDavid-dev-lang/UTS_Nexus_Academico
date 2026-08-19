@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { AlertTriangle, RotateCcw } from 'lucide-react';
 import { Button } from '@/shared/ui/button';
+import { reportarError } from '@/core/telemetry/reporter';
 
 /**
  * Top-level error boundary.
@@ -19,9 +20,22 @@ export class AppErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    // Kept as console output on purpose: there is no telemetry backend yet, and
-    // silently swallowing this would make desktop bugs impossible to diagnose.
+    // La consola se mantiene: es donde se diagnostica en desarrollo, y en un
+    // equipo sin sesión iniciada es lo único que queda.
     console.error('[AppErrorBoundary]', error, info.componentStack);
+
+    /*
+     * Y además se reporta. La pila del componente vale más que la de la
+     * excepción para un fallo de renderizado: dice QUÉ pantalla se rompió, no
+     * en qué función interna de React terminó de romperse.
+     *
+     * `reportarError` deduplica y nunca lanza: un fallo al reportar un fallo
+     * no puede tumbar la pantalla de recuperación.
+     */
+    reportarError(error, {
+      categoria: 'render',
+      contexto: (info.componentStack ?? '').split('\n').slice(0, 8).join('\n'),
+    });
   }
 
   private readonly reset = () => this.setState({ error: null });

@@ -1,4 +1,5 @@
 import { AuditModel } from '../models/audit.model.js';
+import { sanearParaAuditoria, sanearTexto } from './sanitize.js';
 
 /**
  * Deja constancia de un cambio. **Nunca tumba la petición que lo produjo.**
@@ -30,10 +31,12 @@ export async function auditChange(input: {
       action: input.action,
       entity: input.entity,
       entityId: input.entityId ?? null,
-      before: input.before ?? null,
-      after: input.after ?? null,
+      // El saneado se aplica AQUÍ y no en cada llamador: es la única forma de
+      // que una ruta escrita dentro de un año no pueda saltárselo sin querer.
+      before: sanearParaAuditoria(input.before),
+      after: sanearParaAuditoria(input.after),
       ip: input.ip ?? null,
-      userAgent: input.userAgent ?? null,
+      userAgent: input.userAgent ? sanearTexto(input.userAgent, 200) : null,
     });
   } catch (causa) {
     console.error(
@@ -76,8 +79,8 @@ export async function auditBatch(
         action: entrada.action,
         entity: entrada.entity,
         entityId: entrada.entityId ?? null,
-        before: entrada.before ?? null,
-        after: entrada.after ?? null,
+        before: sanearParaAuditoria(entrada.before),
+        after: sanearParaAuditoria(entrada.after),
         ip: null,
         userAgent: null,
       })),

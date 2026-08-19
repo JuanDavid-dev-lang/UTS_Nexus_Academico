@@ -28,6 +28,10 @@ const SettingsPage = lazy(() => import('@/features/settings/settings-page'));
 const FeedbackPage = lazy(() => import('@/features/feedback/feedback-page'));
 const ProfessorsPage = lazy(() => import('@/features/professors/professors-page'));
 const ThesisFormatsPage = lazy(() => import('@/features/thesis/thesis-formats-page'));
+const ActivitiesPage = lazy(() => import('@/features/activities/activities-page'));
+const PeriodsPage = lazy(() => import('@/features/periods/periods-page'));
+const AuditPage = lazy(() => import('@/features/audit/audit-page'));
+const HealthPage = lazy(() => import('@/features/system/health-page'));
 
 /** Blocks the app routes until the session is known to be valid. */
 function RequireAuth() {
@@ -74,6 +78,10 @@ export const router = createBrowserRouter([
           { path: '/sugerencias', element: <FeedbackPage /> },
           { path: '/docentes', element: <ProfessorsPage /> },
           { path: '/trabajos-grado', element: <ThesisFormatsPage /> },
+          { path: '/actividades', element: <ActivitiesPage /> },
+          { path: '/periodos', element: <PeriodsPage /> },
+          { path: '/auditoria', element: <AuditPage /> },
+          { path: '/estado-sistema', element: <HealthPage /> },
           { path: '/notificaciones', element: <NotificationsPage /> },
           { path: '/configuracion', element: <SettingsPage /> },
         ],

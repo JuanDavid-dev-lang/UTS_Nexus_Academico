@@ -2,7 +2,13 @@ import { createServer } from 'node:http';
 import { app } from './app.js';
 import { connectDb } from './shared/db.js';
 import { createSocketServer } from './shared/socket.js';
-import { startScheduler, startReleaseWatcher, startClassReminders } from './shared/scheduler.js';
+import {
+  startScheduler,
+  startReleaseWatcher,
+  startClassReminders,
+  startActivityDueWatcher,
+  startAttendancePatternScanner,
+} from './shared/scheduler.js';
 import { env, esProduccion, validarProduccion } from './shared/env.js';
 
 // Antes de abrir el puerto, antes de conectar a la base y antes de aceptar una
@@ -62,5 +68,7 @@ server.listen(env.PORT, env.HOST, () => {
   startScheduler();
   startReleaseWatcher();
   startClassReminders();
+  startActivityDueWatcher();
+  startAttendancePatternScanner();
 });
 

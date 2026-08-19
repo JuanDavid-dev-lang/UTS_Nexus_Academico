@@ -6,6 +6,7 @@ import '../../core/data/models.dart';
 import '../../core/data/providers.dart';
 import '../../core/network/api_error.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/compact.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
 
@@ -33,9 +34,9 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     final notifications = ref.watch(notificationsProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Notificaciones'),
-        actions: [
+      appBar: CompactHeader(
+        titulo: 'Notificaciones',
+        acciones: [
           IconButton(
             tooltip: 'Buscar estudiantes en riesgo',
             icon: _scanning
@@ -50,15 +51,9 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         ],
       ),
       body: notifications.when(
-        loading: () => ListView(
-          padding: AppSpacing.pagePadding,
-          children: List.generate(
-            6,
-            (_) => const Padding(
-              padding: EdgeInsets.only(bottom: 10),
-              child: SkeletonBox(height: 84, radius: 18),
-            ),
-          ),
+        loading: () => const Padding(
+          padding: AppSpacing.listPadding,
+          child: SkeletonRows(filas: 7),
         ),
         error: (error, _) => StateView.error(
           ApiError.from(error).message,
@@ -78,64 +73,133 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                   .toList()
               : items;
 
+          /*
+           * Agrupación por antigüedad: «Hoy», «Esta semana», «Anteriores».
+           *
+           * Una bandeja plana de cincuenta avisos obliga a leer las fechas una
+           * por una para saber qué es reciente. Los tres grupos responden esa
+           * pregunta de un vistazo, y son tres y no siete porque a partir de
+           * una semana el aviso ya no es accionable: es histórico.
+           *
+           * Se aplana a una sola lista de filas —encabezados incluidos— para
+           * que `ListView.builder` siga construyendo solo lo visible. Anidar
+           * columnas por grupo devolvería la lista eager que costó caro.
+           */
+          final filas = _agrupar(visible);
+
           return RefreshIndicator(
             onRefresh: () async {
               _optimisticallyRead.clear();
               ref.invalidate(notificationsProvider);
               await ref.read(notificationsProvider.future);
             },
-            child: ListView(
-              padding: AppSpacing.pagePadding,
+            child: Column(
               children: [
-                Row(
-                  children: [
-                    ChoiceChip(
-                      label: Text('Todas (${items.length})'),
-                      selected: !_onlyUnread,
-                      showCheckmark: false,
-                      onSelected: (_) => setState(() => _onlyUnread = false),
+                FilterBar(
+                  hijos: [
+                    FilterChipCompact(
+                      etiqueta: 'Todas (${items.length})',
+                      activo: !_onlyUnread,
+                      onTap: () => setState(() => _onlyUnread = false),
                     ),
-                    const SizedBox(width: 8),
-                    ChoiceChip(
-                      label:
-                          Text(unread == 0 ? 'Sin leer' : 'Sin leer ($unread)'),
-                      selected: _onlyUnread,
-                      showCheckmark: false,
-                      onSelected: (_) => setState(() => _onlyUnread = true),
+                    FilterChipCompact(
+                      etiqueta: unread == 0 ? 'Sin leer' : 'Sin leer ($unread)',
+                      activo: _onlyUnread,
+                      onTap: () => setState(() => _onlyUnread = true),
                     ),
-                    const Spacer(),
                     if (unread > 0)
-                      TextButton(
-                        onPressed: () => _markAll(items),
-                        child: const Text('Marcar todas'),
+                      FilterChipCompact(
+                        etiqueta: 'Marcar todas',
+                        icono: Icons.done_all_outlined,
+                        activo: false,
+                        onTap: () => _markAll(items),
                       ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                if (visible.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 50),
-                    child: StateView.empty(
-                      _onlyUnread
-                          ? 'No tienes notificaciones pendientes por leer.'
-                          : 'Cuando el sistema detecte alertas académicas, aparecerán aquí.',
-                    ),
-                  )
-                else
-                  for (final notification in visible) ...[
-                    _NotificationCard(
-                      notification: notification,
-                      read: _optimisticallyRead.contains(notification.id),
-                      onMarkRead: () => _abrir(notification),
-                    ),
-                    const SizedBox(height: 10),
-                  ],
+                Expanded(
+                  child: filas.isEmpty
+                      ? ListView(
+                          padding: AppSpacing.listPadding,
+                          children: [
+                            CompactEmpty(
+                              icono: Icons.notifications_none_outlined,
+                              mensaje: _onlyUnread
+                                  ? 'No tienes notificaciones pendientes por leer.'
+                                  : 'Cuando el sistema detecte alertas académicas, '
+                                      'aparecerán aquí.',
+                            ),
+                          ],
+                        )
+                      : ListView.builder(
+                          padding: AppSpacing.listPadding,
+                          itemCount: filas.length,
+                          itemBuilder: (_, indice) {
+                            final fila = filas[indice];
+                            if (fila is String) {
+                              return Padding(
+                                padding: EdgeInsets.only(
+                                  top: indice == 0 ? 0 : AppSpacing.gap,
+                                ),
+                                child: CompactSectionHeader(fila),
+                              );
+                            }
+                            final notificacion = fila as AppNotification;
+                            return Padding(
+                              padding: const EdgeInsets.only(
+                                bottom: AppSpacing.gapSm,
+                              ),
+                              child: _NotificationCard(
+                                key: ValueKey(notificacion.id),
+                                notification: notificacion,
+                                read: _optimisticallyRead.contains(notificacion.id),
+                                onMarkRead: () => _abrir(notificacion),
+                                onDeslizar: () => _markRead(notificacion),
+                              ),
+                            );
+                          },
+                        ),
+                ),
               ],
             ),
           );
         },
       ),
     );
+  }
+
+  /// Aplana la bandeja en encabezados (`String`) y avisos.
+  ///
+  /// Devuelve una lista mixta a propósito: es lo que permite que un solo
+  /// `ListView.builder` pinte los tres grupos sin construir de golpe todo lo
+  /// que hay debajo del primero.
+  List<Object> _agrupar(List<AppNotification> items) {
+    final ahora = DateTime.now();
+    final inicioDeHoy = DateTime(ahora.year, ahora.month, ahora.day);
+    final haceUnaSemana = inicioDeHoy.subtract(const Duration(days: 7));
+
+    final hoy = <AppNotification>[];
+    final semana = <AppNotification>[];
+    final anteriores = <AppNotification>[];
+
+    for (final notificacion in items) {
+      final fecha = notificacion.createdAt;
+      // Sin fecha va a «Anteriores» y no a «Hoy»: presentar como reciente algo
+      // cuya fecha no se conoce es la clase de mentira que hace desconfiar de
+      // la bandeja entera.
+      if (fecha == null || fecha.isBefore(haceUnaSemana)) {
+        anteriores.add(notificacion);
+      } else if (!fecha.isBefore(inicioDeHoy)) {
+        hoy.add(notificacion);
+      } else {
+        semana.add(notificacion);
+      }
+    }
+
+    return [
+      if (hoy.isNotEmpty) ...['Hoy', ...hoy],
+      if (semana.isNotEmpty) ...['Esta semana', ...semana],
+      if (anteriores.isNotEmpty) ...['Anteriores', ...anteriores],
+    ];
   }
 
   /// Marca leída y abre lo que la notificación referencia.
@@ -216,10 +280,18 @@ class _NotificationCard extends StatelessWidget {
   final bool read;
   final VoidCallback onMarkRead;
 
+  /// Deslizar para marcar como leída, sin abrir nada.
+  ///
+  /// Es el gesto que faltaba: abrir un aviso para leerlo lleva a otra pantalla,
+  /// y vaciar una bandeja de veinte significaba veinte idas y vueltas.
+  final VoidCallback onDeslizar;
+
   const _NotificationCard({
+    super.key,
     required this.notification,
     required this.read,
     required this.onMarkRead,
+    required this.onDeslizar,
   });
 
   /// Icono, significado y etiqueta por tipo. El tipo declara su *tono*, no sus
@@ -255,22 +327,23 @@ class _NotificationCard extends StatelessWidget {
     final color = tone.fg;
     final background = tone.bg;
 
-    return AppCard(
-      padding: const EdgeInsets.all(14),
+    final tarjeta = AppCard(
+      padding: const EdgeInsets.all(AppSpacing.gap),
       onTap: (unread || notification.esNavegable) ? onMarkRead : null,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            height: 38,
-            width: 38,
+            height: 30,
+            width: 30,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
               color: background,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusInput),
             ),
-            child: Icon(icon, size: 19, color: color),
+            child: Icon(icon, size: 16, color: color),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpacing.gapSm),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -297,16 +370,18 @@ class _NotificationCard extends StatelessWidget {
                       ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: AppSpacing.gapXs / 2),
                 Text(
                   notification.message,
-                  style: AppType.caption.copyWith(color: muted, height: 1.35),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppType.caption.copyWith(color: muted, height: 1.3),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpacing.gapXs),
                 Row(
                   children: [
                     StatusPill(label, kind: kind),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: AppSpacing.gapSm),
                     Text(
                       _relative(notification.createdAt),
                       style: AppType.caption.copyWith(color: muted),
@@ -318,6 +393,35 @@ class _NotificationCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+
+    // Ya leída no hay nada que deslizar; envolverla igualmente dejaría un
+    // gesto que no hace nada, que es peor que no ofrecerlo.
+    if (!unread) return tarjeta;
+
+    return Dismissible(
+      key: ValueKey('deslizar-${notification.id}'),
+      direction: DismissDirection.startToEnd,
+      // `confirmDismiss` en vez de `onDismissed`: la fila NO desaparece, se
+      // marca como leída y se queda. Quitarla de la lista haría imposible
+      // volver a abrir un aviso recién leído por error.
+      confirmDismiss: (_) async {
+        onDeslizar();
+        return false;
+      },
+      background: Container(
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.only(left: AppSpacing.gap),
+        decoration: BoxDecoration(
+          color: SemanticTone.of(context, SemanticKind.success).bg,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusCard),
+        ),
+        child: Icon(
+          Icons.mark_email_read_outlined,
+          color: SemanticTone.of(context, SemanticKind.success).fg,
+        ),
+      ),
+      child: tarjeta,
     );
   }
 

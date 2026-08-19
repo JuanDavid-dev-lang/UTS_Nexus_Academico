@@ -223,6 +223,13 @@ puntual** — nunca como color de texto extenso ni de fondo.
 ## 7. Espaciado y grid
 
 - Sistema de **12 columnas**.
+
+La escala tiene **dos densidades**: la de escritorio, donde hay sitio, y la
+compacta del móvil. No son dos sistemas: son la misma escala con el paso base
+distinto, y los dos clientes leen sus valores de un archivo de tokens.
+
+### 7.1 Escritorio
+
 - **Padding general:** 24px
 - **Gap:** 16px
 - **Border radius de cards:** 18px
@@ -232,6 +239,33 @@ puntual** — nunca como color de texto extenso ni de fondo.
 --space-gap:     16px
 --radius-card:   18px
 ```
+
+### 7.2 Móvil — escala compacta
+
+En un teléfono de 360 dp, 24 de margen exterior más 16 de interior dejaban unos
+280 útiles y cada fila académica ocupaba casi cien de alto: en pantalla cabían
+cinco estudiantes, así que pasar lista a un salón de treinta eran seis
+pantallazos completos. La escala compacta recupera entre un 25 y un 35 % de
+densidad sin quitar información.
+
+| Token | Móvil | Escritorio | Papel |
+|-------|-------|------------|-------|
+| `page` | **16** | 24 | Margen lateral de página |
+| `gap` | **12** | 16 | Separación entre bloques |
+| `gapSm` | **8** | — | Etiqueta y su valor, entre chips |
+| `gapXs` | **4** | — | Dentro de una fila densa |
+| `radiusCard` | **14** | 18 | Esquinas de tarjeta |
+| `radiusInput` | **10** | 12 | Esquinas de campo |
+| `rowHeight` | **56** | 48 | Alto mínimo de fila pulsable |
+
+**Lo que NO se comprime es el objetivo táctil.** `tapTarget` se queda en 48 dp y
+ningún control baja de `tapTargetMin` (44). La densidad se gana con el espacio
+muerto y con el relleno, nunca haciendo más pequeño el blanco de un dedo. En
+Flutter esto se sostiene con `visualDensity: compact` **más**
+`materialTapTargetSize: padded`: lo segundo es lo que garantiza los 48 aunque
+el icono mida 20.
+
+Implementación: `AppSpacing` en `flutter_app/lib/core/theme/app_theme.dart`.
 
 ---
 

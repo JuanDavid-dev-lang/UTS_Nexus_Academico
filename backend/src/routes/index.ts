@@ -24,10 +24,19 @@ import { downloadRouter } from '../modules/downloads/download.routes.js';
 import { mlRouter } from '../modules/ml/ml.routes.js';
 import { feedbackRouter } from '../modules/feedback/feedback.routes.js';
 import { thesisRouter } from '../modules/thesis/thesis.routes.js';
+import { periodRouter } from '../modules/periods/period.routes.js';
+import { attendancePatternRouter } from '../modules/attendance/attendance-patterns.routes.js';
+import { auditRouter } from '../modules/audit/audit.routes.js';
+import { healthRouter } from '../modules/health/health.routes.js';
+import { timelineRouter } from '../modules/timeline/timeline.routes.js';
+import { telemetryRouter } from '../modules/telemetry/telemetry.routes.js';
 
 export const apiRouter = Router();
 
 apiRouter.use('/auth', authRouter);
+// El historial va antes que el router de estudiantes: `/:id/historial` es más
+// específico que el `/:id` del listado y, si fuera después, no se alcanzaría.
+apiRouter.use('/students', timelineRouter);
 apiRouter.use('/students', studentRouter);
 apiRouter.use('/subjects', subjectRouter);
 apiRouter.use('/groups', groupRouter);
@@ -45,6 +54,9 @@ apiRouter.use('/enrollments', enrollmentRouter);
 apiRouter.use('/registro', registrationRouter);
 apiRouter.use('/avisos', announcementRouter);
 apiRouter.use('/attendance', attendanceScanRouter);
+// Los casos de patrón van antes que el router general por la misma razón que
+// el escáner: sus rutas son más específicas.
+apiRouter.use('/attendance', attendancePatternRouter);
 apiRouter.use('/attendance', attendanceRouter);
 apiRouter.use('/activities', activityRouter);
 apiRouter.use('/notifications', notificationRouter);
@@ -62,3 +74,11 @@ apiRouter.use('/descargas', downloadRouter);
 apiRouter.use('/ml', mlRouter);
 apiRouter.use('/feedback', feedbackRouter);
 apiRouter.use('/trabajos-grado', thesisRouter);
+// Ciclo de vida del semestre: quién lo cerró, cuándo, y la fotografía oficial.
+apiRouter.use('/periods', periodRouter);
+// Lectura de la auditoría (solo ADMIN) y salud profunda (ADMIN/COORDINATOR).
+// `/health` a secas sigue siendo la sonda pública y mínima de `app.ts`.
+apiRouter.use('/audit', auditRouter);
+apiRouter.use('/system/health', healthRouter);
+// Telemetría: el alta la hace cualquier sesión, la lectura solo administración.
+apiRouter.use('/telemetry', telemetryRouter);

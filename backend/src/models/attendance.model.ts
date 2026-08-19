@@ -12,6 +12,17 @@ const schema = new Schema(
     date: { type: Date, required: true, index: true },
     durationMinutes: { type: Number, default: 90 },
     present: { type: Boolean, default: true },
+    /**
+     * Minutos de retraso sobre el inicio de la clase. `0` = llegó a tiempo.
+     *
+     * Es opcional y con valor por defecto para que los registros anteriores
+     * sigan siendo válidos: sin este campo no había forma de distinguir «llegó
+     * tarde» de «vino», y un patrón de tardanzas repetidas no se puede detectar
+     * a partir de un booleano. **No se infiere**: una planilla escaneada o una
+     * lista pegada no traen la hora de llegada, así que lo que no se capturó a
+     * mano se queda en 0 en vez de inventarse un retraso que nadie observó.
+     */
+    lateMinutes: { type: Number, default: 0, min: 0 },
     notes: { type: String, default: '' },
   },
   { timestamps: true }

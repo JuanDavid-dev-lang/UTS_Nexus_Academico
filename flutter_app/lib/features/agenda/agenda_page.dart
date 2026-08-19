@@ -8,6 +8,7 @@ import '../../core/data/providers.dart';
 import './data/agenda_models.dart';
 import '../../core/network/api_error.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/compact.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
 import './widgets/event_sheet.dart';
@@ -102,9 +103,9 @@ class _AgendaPageState extends ConsumerState<AgendaPage> {
     final ancla = ref.watch(agendaAnclaProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Agenda'),
-        actions: [
+      appBar: CompactHeader(
+        titulo: 'Agenda',
+        acciones: [
           IconButton(
             tooltip: 'Hoy',
             icon: const Icon(Icons.today_outlined),
@@ -130,7 +131,7 @@ class _AgendaPageState extends ConsumerState<AgendaPage> {
           await ref.read(agendaResumenProvider.future);
         },
         child: ListView(
-          padding: AppSpacing.pagePadding,
+          padding: AppSpacing.listPadding,
           children: [
             NextClassCard(onVerAgenda: () => setState(() => _pestana = 0)),
             const SizedBox(height: AppSpacing.gap),
@@ -411,7 +412,7 @@ class _DetalleAgenda extends StatelessWidget {
 
     return SafeArea(
       child: SingleChildScrollView(
-        padding: AppSpacing.pagePadding,
+        padding: AppSpacing.listPadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,

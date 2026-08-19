@@ -31,7 +31,10 @@ export type SyncEntity =
   | 'preferences'
   | 'reportTemplate'
   | 'feedback'
-  | 'thesisFormat';
+  | 'thesisFormat'
+  | 'period'
+  | 'attendanceCase'
+  | 'clientError';
 
 /**
  * Estado de la sincronización.
@@ -88,8 +91,10 @@ export const INVALIDATION_MAP: Record<SyncEntity, readonly (readonly unknown[])[
   // en el mapa y el evento se descartaba en el `if (!keys) return`.
   schedule: [queryKeys.schedules.all, queryKeys.agenda.all],
   calendar: [queryKeys.agenda.all],
-  // Una entrega aparece en la agenda además de en su propia pantalla.
-  activity: [queryKeys.agenda.all],
+  // Una entrega aparece en la agenda ADEMÁS de en su propia pantalla. Antes
+  // solo caía la agenda, así que crear una actividad desde otro equipo no la
+  // hacía aparecer en el listado de actividades hasta recargar.
+  activity: [queryKeys.activities.all, queryKeys.agenda.all],
   // Cambiar la antelación en un dispositivo tiene que reflejarse en el otro.
   preferences: [queryKeys.notifications.all],
   // La plantilla cambia lo que muestran el editor y la vista previa abiertos
@@ -99,6 +104,23 @@ export const INVALIDATION_MAP: Record<SyncEntity, readonly (readonly unknown[])[
   // en la lista del docente que la envió.
   feedback: [queryKeys.feedback.all],
   thesisFormat: [queryKeys.thesisFormats.all],
+  /**
+   * Cerrar un periodo cambia mucho más que su propia pantalla: bloquea las
+   * escrituras de notas, asistencia y matrículas, así que los formularios
+   * abiertos tienen que enterarse antes de que alguien intente guardar y
+   * reciba un 409 que no espera.
+   */
+  period: [
+    queryKeys.periods.all,
+    queryKeys.grades.all,
+    queryKeys.attendance.all,
+    queryKeys.enrollments.all,
+    queryKeys.analytics.all,
+  ],
+  // Un caso nuevo aparece en la pantalla de riesgo y en el historial del
+  // estudiante, que es donde el docente lo va a mirar.
+  attendanceCase: [queryKeys.attendanceCases.all, queryKeys.analytics.all, queryKeys.timeline.all],
+  clientError: [queryKeys.telemetry.all, queryKeys.system.all],
 };
 
 let socket: Socket | null = null;

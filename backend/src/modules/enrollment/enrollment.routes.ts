@@ -11,6 +11,7 @@ import { auditChange } from '../../shared/audit.js';
 import { emitToUser } from '../../shared/socket.js';
 import { env } from '../../shared/env.js';
 import { interpretarMatrizListado } from '../../domains/enrollment/import-roster.js';
+import { exigirPeriodoAbierto } from '../../shared/period-guard.js';
 
 export const enrollmentRouter = Router();
 enrollmentRouter.use(identificar);
@@ -84,6 +85,10 @@ enrollmentRouter.post('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), asy
     const owned = await assertGroupOwnership(req, body.groupId);
     if (owned.error) return res.status(owned.error.status).json({ ok: false, message: owned.error.message });
     const group = owned.group!;
+
+    // La matrícula define quién sale en el acta: con el periodo cerrado, una
+    // matrícula nueva añadiría un estudiante que la fotografía no contempla.
+    await exigirPeriodoAbierto(String(group.period), 'enrollment');
 
     const item = await EnrollmentModel.findOneAndUpdate(
       { studentId: body.studentId, groupId: body.groupId, period: group.period },
@@ -239,6 +244,8 @@ enrollmentRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'),
     if (owned.error) return res.status(owned.error.status).json({ ok: false, message: owned.error.message });
     const group = owned.group!;
 
+    await exigirPeriodoAbierto(String(group.period), 'enrollment');
+
     /**
      * Alta del listado en cuatro consultas, no en dos por estudiante.
      *
@@ -325,6 +332,7 @@ enrollmentRouter.delete('/:id', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR')
     if (req.user?.role === 'PROFESSOR' && String(before.professorId) !== req.user.id) {
       return res.status(403).json({ ok: false, message: 'Forbidden' });
     }
+    if (before.period) await exigirPeriodoAbierto(String(before.period), 'enrollment');
     await EnrollmentModel.updateOne(
       { _id: req.params.id },
       { $set: { deletedAt: new Date(), enrollmentStatus: 'WITHDRAWN', status: 'DELETED' } }

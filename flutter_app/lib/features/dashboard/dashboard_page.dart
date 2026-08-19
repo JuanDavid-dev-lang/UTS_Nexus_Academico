@@ -9,8 +9,10 @@ import '../../core/network/api_error.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/auth/auth_repository.dart';
 import '../../core/theme/app_theme.dart';
+import '../activities/data/activity_models.dart';
 import '../agenda/widgets/next_class_card.dart';
 import './intervention_sheet.dart';
+import '../../core/widgets/compact.dart';
 import '../../core/widgets/period_selector.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
@@ -21,8 +23,14 @@ final dashboardProvider = FutureProvider<DashboardData>((ref) async {
 
 /// Panel del docente.
 ///
-/// Responde tres preguntas en orden de urgencia: cómo va el grupo, quién
-/// necesita ayuda ahora, y cómo está la asistencia. Lo demás tiene su pantalla.
+/// Responde cuatro preguntas, y en este orden: **qué tengo ahora**, **qué
+/// viene después**, **quién necesita atención** y **qué trabajo está
+/// pendiente**. El orden no es estético: es el de urgencia real de alguien que
+/// saca el teléfono entre dos clases.
+///
+/// Todo lo que se muestra viene calculado del backend. Aquí no se promedia, no
+/// se compara con el 3.0 ni se decide qué es riesgo: el panel elige el color
+/// según el nivel que el servidor ya declaró.
 class DashboardPage extends ConsumerWidget {
   const DashboardPage({super.key});
 
@@ -30,46 +38,77 @@ class DashboardPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final dashboard = ref.watch(dashboardProvider);
     final risks = ref.watch(risksProvider);
+    final actividades = ref.watch(actividadesProvider);
     final user = ref.watch(authControllerProvider).user;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final periodo = ref.watch(selectedPeriodProvider);
 
-    final firstName = (user?.fullName ?? 'Docente').split(' ').first;
+    final nombre = (user?.fullName ?? 'Docente').split(' ').first;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Hola, $firstName',
-                style: AppType.h3.copyWith(fontWeight: FontWeight.w800)),
-            Text(
-              'Estado actual de tus grupos',
-              style: AppType.caption.copyWith(color: muted),
-            ),
-          ],
-        ),
-        actions: const [PeriodSelector(), SessionMenuButton()],
+      // Saludo y periodo en la misma zona compacta: 56 dp en vez de los 88 que
+      // gastaba el `AppBar` con título grande más subtítulo debajo.
+      appBar: CompactHeader(
+        titulo: 'Hola, $nombre',
+        contexto: periodo,
+        acciones: const [PeriodSelector(), SessionMenuButton()],
       ),
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(dashboardProvider);
           ref.invalidate(risksProvider);
+          ref.invalidate(actividadesProvider);
           await ref.read(dashboardProvider.future);
         },
         child: ListView(
-          padding: AppSpacing.pagePadding,
+          padding: AppSpacing.listPadding,
           children: [
-            // Lo primero del panel, antes que cualquier indicador: lo que un
-            // docente mira al sacar el teléfono es a qué hora es la siguiente
-            // clase y dónde. Al tocarla se abre la agenda completa.
-            NextClassCard(
-              compacto: true,
-              onVerAgenda: () => context.go('/agenda'),
-            ),
+            // ── ¿Qué tengo ahora? ─────────────────────────────────────
+            // Lo primero, antes que cualquier indicador: lo que un docente
+            // mira al sacar el teléfono es a qué hora es la siguiente clase.
+            NextClassCard(compacto: true, onVerAgenda: () => context.go('/agenda')),
+
             const SizedBox(height: AppSpacing.gap),
+
+            // ── Acciones rápidas ──────────────────────────────────────
+            // Tres accesos y no un menú: pasar lista y capturar notas son las
+            // dos cosas que se hacen a diario, y llegar a ellas por «Más»
+            // cuesta tres toques.
+            Row(
+              children: [
+                Expanded(
+                  child: _AccionRapida(
+                    icono: Icons.fact_check_outlined,
+                    etiqueta: 'Asistencia',
+                    onTap: () => context.go('/attendance'),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.gapSm),
+                Expanded(
+                  child: _AccionRapida(
+                    icono: Icons.school_outlined,
+                    etiqueta: 'Notas',
+                    onTap: () => context.go('/grades'),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.gapSm),
+                Expanded(
+                  child: _AccionRapida(
+                    icono: Icons.calendar_month_outlined,
+                    etiqueta: 'Agenda',
+                    onTap: () => context.go('/agenda'),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: AppSpacing.gap),
+
+            // ── Indicadores ───────────────────────────────────────────
+            // Cuatro y no seis: los dos que sobraban (aprobados y reprobados)
+            // son proyecciones que se leen mejor en el consolidado, y su sitio
+            // en el panel obligaba a una tercera fila de tarjetas.
             dashboard.when(
-              loading: () => const SkeletonStatGrid(count: 6),
+              loading: () => const SkeletonStatGrid(count: 4),
               error: (error, _) => StateView.error(
                 ApiError.from(error).message,
                 action: FilledButton(
@@ -77,28 +116,19 @@ class DashboardPage extends ConsumerWidget {
                   child: const Text('Reintentar'),
                 ),
               ),
-              data: (data) => _MetricsGrid(summary: data.summary),
+              data: (data) => _CuadriculaDeIndicadores(resumen: data.summary),
             ),
-            const SizedBox(height: 22),
-            SectionHeader(
+
+            const SizedBox(height: AppSpacing.gap),
+
+            // ── ¿Quién necesita atención? ─────────────────────────────
+            CompactSectionHeader(
               'Necesitan atención',
-              subtitle: 'Ordenados por nivel de riesgo',
-              trailing: TextButton(
-                onPressed: () => context.go('/notifications'),
-                child: const Text('Alertas'),
-              ),
+              accion: 'Ver alertas',
+              onAccion: () => context.go('/notifications'),
             ),
-            const SizedBox(height: 10),
             risks.when(
-              loading: () => Column(
-                children: List.generate(
-                  3,
-                  (_) => const Padding(
-                    padding: EdgeInsets.only(bottom: 10),
-                    child: SkeletonBox(height: 66, radius: 18),
-                  ),
-                ),
-              ),
+              loading: () => const SkeletonRows(filas: 3),
               error: (error, _) => StateView.error(
                 ApiError.from(error).message,
                 action: FilledButton(
@@ -107,38 +137,98 @@ class DashboardPage extends ConsumerWidget {
                 ),
               ),
               data: (items) {
-                final atRisk = items
-                    .where((r) => r.level != RiskLevel.low)
-                    .take(6)
-                    .toList();
-                if (atRisk.isEmpty) {
-                  return AppCard(
-                    child: Row(
-                      children: [
-                        const Icon(Icons.check_circle_outline,
-                            color: AppColors.success),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'Ningún estudiante en riesgo. Todos están dentro de '
-                            'los parámetros esperados.',
-                            style: AppType.caption.copyWith(color: muted),
-                          ),
-                        ),
-                      ],
-                    ),
+                // El nivel lo declara el backend; aquí solo se filtra y ordena.
+                final enRiesgo =
+                    items.where((r) => r.level != RiskLevel.low).take(5).toList();
+
+                if (enRiesgo.isEmpty) {
+                  return const CompactEmpty(
+                    icono: Icons.check_circle_outline,
+                    mensaje:
+                        'Ningún estudiante en riesgo. Todos dentro de lo esperado.',
                   );
                 }
+
                 return Column(
                   children: [
-                    for (final risk in atRisk)
+                    for (final riesgo in enRiesgo)
                       Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _RiskRow(
-                          risk: risk,
+                        padding: const EdgeInsets.only(bottom: AppSpacing.gapSm),
+                        child: AcademicRow(
+                          titulo: riesgo.fullName,
+                          metadatos: [
+                            riesgo.reasons.isNotEmpty
+                                ? riesgo.reasons.first
+                                : 'Nota ${riesgo.finalGrade.toStringAsFixed(2)} · '
+                                    'asistencia ${riesgo.attendanceRate.toStringAsFixed(0)}%',
+                          ],
+                          acento: _tonoDeRiesgo(riesgo.level),
+                          indicador: MetricChip(
+                            riesgo.finalGrade.toStringAsFixed(1),
+                            etiqueta: 'Nota',
+                            tono: _tonoDeRiesgo(riesgo.level),
+                          ),
                           // Tocar la fila abre dónde anotar qué se hizo: sin
                           // eso la lista repite los mismos nombres cada semana.
-                          onTap: () => showInterventionSheet(context, risk),
+                          onTap: () => showInterventionSheet(context, riesgo),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+
+            const SizedBox(height: AppSpacing.gap),
+
+            // ── ¿Qué trabajo está pendiente? ──────────────────────────
+            CompactSectionHeader(
+              'Entregas próximas y vencidas',
+              accion: 'Ver todas',
+              onAccion: () => context.go('/actividades'),
+            ),
+            actividades.when(
+              // Sin esqueleto ni error a pantalla completa: es la última
+              // sección, y un fallo aquí no debe tapar lo de arriba, que es lo
+              // urgente. Un aviso discreto y el panel sigue sirviendo.
+              loading: () => const SkeletonRows(filas: 2),
+              error: (_, __) => const CompactEmpty(
+                icono: Icons.cloud_off_outlined,
+                mensaje: 'No se pudieron cargar las actividades.',
+              ),
+              data: (items) {
+                // `vencida` lo decide el servidor contra su propio reloj.
+                final relevantes = items
+                    .where((a) => !a.cerrada)
+                    .toList()
+                  ..sort((a, b) {
+                    final fa = a.dueAt;
+                    final fb = b.dueAt;
+                    if (fa == null) return 1;
+                    if (fb == null) return -1;
+                    return fa.compareTo(fb);
+                  });
+                final proximas = relevantes.take(4).toList();
+
+                if (proximas.isEmpty) {
+                  return const CompactEmpty(
+                    icono: Icons.task_alt_outlined,
+                    mensaje: 'Sin entregas abiertas.',
+                  );
+                }
+
+                return Column(
+                  children: [
+                    for (final actividad in proximas)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.gapSm),
+                        child: AcademicRow(
+                          titulo: actividad.title,
+                          metadatos: [_textoDeFecha(actividad)],
+                          acento: actividad.vencida ? SemanticKind.danger : null,
+                          estado: actividad.vencida
+                              ? StatusPill.danger('Vencida')
+                              : null,
+                          onTap: () => context.go('/actividades?item=${actividad.id}'),
                         ),
                       ),
                   ],
@@ -152,9 +242,28 @@ class DashboardPage extends ConsumerWidget {
   }
 }
 
-class _MetricsGrid extends StatelessWidget {
-  final DashboardSummary summary;
-  const _MetricsGrid({required this.summary});
+/// Tono semántico de un nivel de riesgo. El NIVEL lo decide el backend; esto
+/// solo elige el par (texto, fondo) que lo representa en el tema activo.
+SemanticKind _tonoDeRiesgo(RiskLevel nivel) => switch (nivel) {
+      RiskLevel.high => SemanticKind.danger,
+      RiskLevel.medium => SemanticKind.warning,
+      RiskLevel.low => SemanticKind.success,
+    };
+
+String _textoDeFecha(Activity actividad) {
+  final fecha = actividad.dueAt;
+  if (fecha == null) return 'sin fecha límite';
+  final dia = fecha.day.toString().padLeft(2, '0');
+  final mes = fecha.month.toString().padLeft(2, '0');
+  final hora = fecha.hour.toString().padLeft(2, '0');
+  final minuto = fecha.minute.toString().padLeft(2, '0');
+  return 'vence $dia/$mes · $hora:$minuto';
+}
+
+/// Cuadrícula 2×2 de indicadores.
+class _CuadriculaDeIndicadores extends StatelessWidget {
+  final DashboardSummary resumen;
+  const _CuadriculaDeIndicadores({required this.resumen});
 
   @override
   Widget build(BuildContext context) {
@@ -162,115 +271,85 @@ class _MetricsGrid extends StatelessWidget {
       crossAxisCount: 2,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 1.45,
+      crossAxisSpacing: AppSpacing.gapSm,
+      mainAxisSpacing: AppSpacing.gapSm,
+      // 2.2 y no 1.45: con la cifra en `h3` en vez de `h2`, la tarjeta ya no
+      // necesita ser casi cuadrada y las cuatro caben en dos filas cortas.
+      childAspectRatio: 2.2,
       children: [
-        StatTile(
-          label: 'Promedio',
-          value: summary.averageGrade.toStringAsFixed(2),
-          hint: 'sobre cortes calificados',
-          icon: Icons.school_outlined,
-          tone: summary.averageGrade >= 3
-              ? SemanticKind.success
-              : SemanticKind.danger,
+        CompactStat(
+          etiqueta: 'Promedio',
+          // El promedio lo calcula el backend sobre los cortes ya calificados.
+          valor: resumen.averageGrade.toStringAsFixed(2),
+          pista: 'cortes calificados',
+          icono: Icons.school_outlined,
+          tono: resumen.averageGrade >= 3 ? SemanticKind.success : SemanticKind.danger,
         ),
-        StatTile(
-          label: 'Aprobados',
-          value: '${summary.approvedStudents}',
-          hint: 'proyección al día',
-          icon: Icons.check_circle_outline,
-          tone: SemanticKind.success,
+        CompactStat(
+          etiqueta: 'Asistencia',
+          valor: '${resumen.averageAttendance.toStringAsFixed(0)}%',
+          pista: 'ponderada por minutos',
+          icono: Icons.event_available_outlined,
+          tono: SemanticKind.info,
         ),
-        StatTile(
-          label: 'Reprobados',
-          value: '${summary.failedStudents}',
-          hint: 'al menos una materia',
-          icon: Icons.cancel_outlined,
-          tone: SemanticKind.danger,
+        CompactStat(
+          etiqueta: 'En riesgo',
+          valor: '${resumen.riskStudents}',
+          pista: 'requieren seguimiento',
+          icono: Icons.warning_amber_outlined,
+          tono: SemanticKind.warning,
         ),
-        StatTile(
-          label: 'En riesgo',
-          value: '${summary.riskStudents}',
-          hint: 'requieren seguimiento',
-          icon: Icons.warning_amber_outlined,
-          tone: SemanticKind.warning,
-        ),
-        StatTile(
-          label: 'Asistencia',
-          value: '${summary.averageAttendance.toStringAsFixed(0)}%',
-          hint: 'ponderada por minutos',
-          icon: Icons.event_available_outlined,
-          tone: SemanticKind.info,
-        ),
-        StatTile(
-          label: 'Estudiantes',
-          value: '${summary.totalStudents}',
-          hint: '${summary.totalSubjects} materias',
-          icon: Icons.people_outline,
+        CompactStat(
+          etiqueta: 'Estudiantes',
+          valor: '${resumen.totalStudents}',
+          pista: '${resumen.totalSubjects} materias',
+          icono: Icons.people_outline,
         ),
       ],
     );
   }
 }
 
-class _RiskRow extends StatelessWidget {
-  final RiskItem risk;
+/// Acceso rápido: icono grande, etiqueta corta, objetivo táctil generoso.
+class _AccionRapida extends StatelessWidget {
+  final IconData icono;
+  final String etiqueta;
   final VoidCallback onTap;
-  const _RiskRow({required this.risk, required this.onTap});
+
+  const _AccionRapida({
+    required this.icono,
+    required this.etiqueta,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
-    final style = RiskStyle.from(context, risk.level.name);
+    final esquema = Theme.of(context).colorScheme;
 
-    return AppCard(
-      onTap: onTap,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      child: Row(
-        children: [
-          Container(
-            width: 4,
-            height: 42,
-            decoration: BoxDecoration(
-              color: style.color,
-              borderRadius: BorderRadius.circular(999),
-            ),
+    return Semantics(
+      button: true,
+      label: etiqueta,
+      child: AppCard(
+        onTap: onTap,
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.gapSm),
+        child: SizedBox(
+          // Por encima del objetivo táctil recomendado, con el icono y la
+          // etiqueta apilados: 56 de alto para dos líneas cortas.
+          height: 44,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icono, size: 20, color: esquema.primary),
+              const SizedBox(height: AppSpacing.gapXs / 2),
+              Text(
+                etiqueta,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppType.captionStrong,
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(risk.fullName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppType.bodyStrong),
-                const SizedBox(height: 2),
-                // El motivo, no solo el color: de esto depende que el docente
-                // decida intervenir.
-                Text(
-                  risk.reasons.isNotEmpty
-                      ? risk.reasons.first
-                      : 'Nota ${risk.finalGrade.toStringAsFixed(2)} · '
-                          'asistencia ${risk.attendanceRate.toStringAsFixed(0)}%',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppType.caption.copyWith(color: muted, height: 1.3),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            style.label,
-            style: AppType.captionStrong.copyWith(
-              fontWeight: FontWeight.w800,
-              color: style.color,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

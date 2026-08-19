@@ -33,6 +33,9 @@ const ENTIDADES_DEL_BACKEND: SyncEntity[] = [
   'reportTemplate',
   'feedback',
   'thesisFormat',
+  'period',
+  'attendanceCase',
+  'clientError',
 ];
 
 describe('mapa de invalidación', () => {
@@ -69,6 +72,26 @@ describe('mapa de invalidación', () => {
   it('un evento del calendario tira la agenda', () => {
     expect(INVALIDATION_MAP.calendar).toContain(queryKeys.agenda.all);
     expect(INVALIDATION_MAP.activity).toContain(queryKeys.agenda.all);
+  });
+
+  it('cerrar un periodo tira las cachés que el cierre bloquea', () => {
+    // Con el semestre cerrado, notas, asistencia y matrículas dejan de admitir
+    // escrituras. Un formulario abierto que no se entere manda el cambio y
+    // recibe un 409 que no espera.
+    expect(INVALIDATION_MAP.period).toContain(queryKeys.grades.all);
+    expect(INVALIDATION_MAP.period).toContain(queryKeys.attendance.all);
+    expect(INVALIDATION_MAP.period).toContain(queryKeys.enrollments.all);
+  });
+
+  it('una actividad tira su propia pantalla, no solo la agenda', () => {
+    // Antes solo caía la agenda: crear una actividad desde otro equipo no la
+    // hacía aparecer en el listado hasta recargar.
+    expect(INVALIDATION_MAP.activity).toContain(queryKeys.activities.all);
+  });
+
+  it('un caso de inasistencia tira riesgo e historial', () => {
+    expect(INVALIDATION_MAP.attendanceCase).toContain(queryKeys.attendanceCases.all);
+    expect(INVALIDATION_MAP.attendanceCase).toContain(queryKeys.timeline.all);
   });
 
   it('las preferencias tiran la caché de notificaciones', () => {

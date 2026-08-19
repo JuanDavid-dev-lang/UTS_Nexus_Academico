@@ -482,6 +482,20 @@ CLIENT_ORIGIN=*
 # Escaneo automático de riesgo (0 = desactivado)
 RISK_SCAN_INTERVAL_MIN=30
 
+# Tareas periódicas añadidas en la v3
+# Avisos de vencimiento de actividades. 15 min basta: las antelaciones son de
+# 48 h, 24 h y 2 h, y la ventana de disparo se deriva de este mismo valor.
+ACTIVITY_DUE_INTERVAL_MIN=15
+# Patrones de inasistencia. Apagado por defecto: la pasada recorre la
+# asistencia de todo el alcance. Con varias instancias, actívalo en UNA.
+ATTENDANCE_PATTERN_INTERVAL_MIN=0
+# Días que se conserva un error de cliente ya resuelto. 0 = para siempre.
+TELEMETRY_RETENTION_DAYS=90
+
+# Base aislada para la suite E2E. Nunca un mongodb+srv: la suite borra la base
+# al terminar y la propia suite se niega a arrancar contra un clúster remoto.
+E2E_MONGODB_URI=mongodb://127.0.0.1:27017
+
 # Asistente de IA local (Ollama)
 AI_ENABLED=1
 AI_BASE_URL=http://localhost:11434
@@ -495,7 +509,15 @@ AI_MODEL=llama3.1:8b
 | `JWT_REFRESH_SECRET` | `dev-refresh` | Ídem para los refresh tokens |
 | `CLIENT_ORIGIN` | `*` | Ninguna en local; restringir solo en despliegue público |
 | `RISK_SCAN_INTERVAL_MIN` | `0` | Sin escaneo automático de riesgo |
+| `ACTIVITY_DUE_INTERVAL_MIN` | `15` | Sin avisos de vencimiento de actividades |
+| `ATTENDANCE_PATTERN_INTERVAL_MIN` | `0` | Sin detección de patrones de inasistencia |
+| `TELEMETRY_RETENTION_DAYS` | `90` | Los errores resueltos no se purgan nunca |
+| `E2E_MONGODB_URI` | `mongodb://127.0.0.1:27017` | La suite E2E busca un mongod local |
 | `AI_ENABLED` | `1` | — |
+
+`npm run check:env` avisa de cualquier variable que el backend no lea: casi
+siempre es una errata en el nombre, y una errata no da error — cae en silencio
+al valor por defecto.
 
 > ### CORS y la app de escritorio
 >
@@ -544,9 +566,12 @@ AI_MODEL=llama3.1:8b
 
 ## API REST — referencia rápida
 
-Esto es un resumen. **La referencia completa y siempre al día es Swagger, en
-`http://localhost:4000/docs` con el servidor arriba**: se genera del código, así
-que no puede quedarse atrás como sí puede esta tabla.
+Esto es el listado completo. Swagger vive en `http://localhost:4000/docs` con el
+servidor arriba y se genera de los comentarios `@openapi` de las rutas, así que
+lo que muestra no puede quedarse atrás — pero **su cobertura es parcial**: están
+anotados los módulos de la evolución v3 (periodos, actividades, auditoría,
+salud, telemetría e historial) y el resto se irá anotando cuando se toquen. Los
+endpoints que aún no aparecen ahí existen y funcionan; están en esta tabla.
 
 Todos los endpoints requieren `Authorization: Bearer <token>` excepto `/auth/login`,
 `/registro` y `/descargas`.
@@ -652,6 +677,71 @@ estudiante que no existe y lo matricula, y eso se descubre semanas después.
 CSV/TSV se interpreta en el escritorio y pasa por la misma previsualización.
 El formato binario `.xls` legado no se procesa: debe guardarse como `.xlsx` o
 `.csv`; intentar tratarlo como OOXML sería aceptar resultados corruptos.
+
+### Actividades académicas
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `GET` | `/activities` | Listado paginado y filtrable (materia, grupo, periodo, estado, fechas) |
+| `GET` | `/activities/:id` | Detalle. Comprueba el alcance por documento, no solo al listar |
+| `POST` | `/activities` | Crear. El `teacherId` de un docente se fuerza al de su sesión |
+| `PATCH` | `/activities/:id` | Editar título, descripción, fecha, peso o adjunto |
+| `POST` | `/activities/:id/cierre` | Cerrar. Lo puede hacer el docente dueño |
+| `POST` | `/activities/:id/reapertura` | Reabrir. **Solo ADMIN/COORDINATOR** |
+| `DELETE` | `/activities/:id` | Eliminación lógica |
+| `POST` | `/activities/avisos/scan` | Pasada manual del escáner de vencimientos |
+
+**`LATE` no se persiste.** El estado guardado es `OPEN` o `CLOSED` —una decisión
+de una persona— y el `estado` que devuelve la API se deriva comparando `dueAt`
+con el reloj del servidor. Guardarlo obligaría a un proceso que recorriera todas
+las actividades cada minuto, y cualquier fallo suyo dejaría vencidas
+presentándose como abiertas sin que nadie lo notara.
+
+### Periodos académicos y cierre oficial
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `GET` | `/periods` | Todos: los registrados y los que solo existen por sus datos |
+| `GET` | `/periods/:period` | Estado, progreso del cierre y resumen de la fotografía |
+| `POST` | `/periods/:period/cierre` | Inicia o **retoma** el cierre (ADMIN/COORDINATOR) |
+| `POST` | `/periods/:period/cierre/abortar` | Devuelve a `OPEN` un cierre atascado (ADMIN) |
+| `POST` | `/periods/:period/reapertura` | Reabre con motivo obligatorio (**solo ADMIN**) |
+| `GET` | `/periods/:period/fotografia` | Consolidado congelado, paginado |
+| `GET` | `/periods/:period/fotografia/resumen` | Contadores de la fotografía |
+
+Con el periodo en `CLOSING` o `CLOSED`, **notas, asistencia y matrículas
+responden 409** con un mensaje que explica el estado. Horarios, actividades,
+avisos y eventos del calendario siguen editables: no forman parte del acta, y
+bloquearlos impediría corregir datos sin proteger nada.
+
+### Casos de inasistencia
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `GET` | `/attendance/casos` | Casos abiertos por patrón, acotados al docente |
+| `POST` | `/attendance/casos/:id/intervencion` | Registrar seguimiento |
+| `POST` | `/attendance/patrones/scan` | Pasada manual del escáner (ADMIN/COORDINATOR) |
+
+### Historial del estudiante
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `GET` | `/students/:id/historial` | Línea de tiempo unida y ordenada por el backend |
+
+Une matrículas, notas, ausencias y retrasos, alertas de riesgo, intervenciones,
+patrones de inasistencia, actividades y cierres de periodo. **El cliente no
+cruza colecciones**: si lo hiciera, el escritorio y el móvil contarían dos
+historias distintas del mismo estudiante.
+
+### Administración
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `GET` | `/audit` · `/audit/:id` · `/audit/catalogo` | Registro de auditoría (**solo ADMIN**) |
+| `GET` | `/system/health` | Estado profundo: integraciones y tareas (ADMIN/COORDINATOR) |
+| `POST` | `/telemetry/errores` | Alta de un error de cliente (cualquier sesión) |
+| `GET` | `/telemetry/errores` | Listado de defectos (ADMIN/COORDINATOR) |
+| `PATCH` | `/telemetry/errores/:id` | Marcar resuelto o ignorado (ADMIN) |
+| `POST` | `/telemetry/errores/purga` | Purga según `TELEMETRY_RETENTION_DAYS` (ADMIN) |
+
+`/health` (sin `/api/v1`) sigue siendo la sonda pública y mínima. El estado
+profundo va autenticado: contar qué integraciones hay configuradas sin sesión
+sería regalar el mapa de la instalación.
 
 ### Otros
 | Método | Ruta | Descripción |
@@ -767,8 +857,13 @@ npm run dev              # Servidor con recarga automática (desarrollo)
 npm run build            # Compilar TypeScript
 npm start                # Servidor compilado (producción)
 npm run seed             # Sembrar / resetear datos de demo
-npm run smoke            # Smoke test end-to-end (servidor debe estar arriba)
+npm run smoke            # Smoke test (servidor debe estar arriba y sembrado)
+npm run test:e2e         # Suite E2E completa sobre una base aislada
+npm test                 # Pruebas del dominio puro (Vitest, sin base ni servidor)
+npm run lint             # ESLint
 npm run migrate:enrollments  # Migrar studentIds[] a colección Matrículas
+npm run migrate:v3           # Periodos, lateMinutes y periodo de actividades
+npm run migrate:v3 -- --aplicar   # …y escribirlo de verdad (por defecto simula)
 
 # Desde /desktop
 npm run dev              # Interfaz en el navegador (no requiere Rust)
@@ -822,6 +917,7 @@ docker compose up --build   # Levantar backend en contenedor
 | Documento | Contenido |
 |-----------|-----------|
 | [`docs/AGENDA_Y_NOTIFICACIONES.md`](docs/AGENDA_Y_NOTIFICACIONES.md) | Agenda, recordatorios locales, push de Android y qué configurar |
+| [`docs/CIERRE_Y_ADMINISTRACION.md`](docs/CIERRE_Y_ADMINISTRACION.md) | Cierre de periodos, auditoría, centro de salud, patrones de inasistencia, telemetría, historial, migración v3 y suite E2E |
 | [`docs/RUBRI.md`](docs/RUBRI.md) | Arquitectura segura, clasificador NLP, métricas, privacidad y sprites de Rubri |
 | [`docs/PUBLICAR_VERSION.md`](docs/PUBLICAR_VERSION.md) | Publicar una versión, secretos de CI y claves de firma |
 | [`docs/DESPLIEGUE_AWS.md`](docs/DESPLIEGUE_AWS.md) | Puesta en producción con Docker y Caddy |

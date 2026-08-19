@@ -127,6 +127,64 @@ export const queryKeys = {
     me: () => ['profile', 'me'] as const,
   },
 
+  /**
+   * Periodos académicos. `list` no lleva parámetros porque el selector los
+   * necesita todos; `fotografia` sí, porque cada combinación es otra consulta.
+   */
+  periods: {
+    all: ['periods'] as const,
+    list: () => ['periods', 'list'] as const,
+    detail: (period: string) => ['periods', 'detail', period] as const,
+    snapshot: (period: string, filtro?: Record<string, unknown>) =>
+      ['periods', 'snapshot', period, filtro ?? null] as const,
+  },
+
+  activities: {
+    all: ['activities'] as const,
+    list: (filtro?: Record<string, unknown>) =>
+      filtro ? (['activities', 'list', filtro] as const) : (['activities', 'list'] as const),
+    detail: (id: string) => ['activities', 'detail', id] as const,
+  },
+
+  /** Casos abiertos por patrón de inasistencia. */
+  attendanceCases: {
+    all: ['attendance-cases'] as const,
+    list: (filtro?: Record<string, unknown>) =>
+      filtro
+        ? (['attendance-cases', 'list', filtro] as const)
+        : (['attendance-cases', 'list'] as const),
+  },
+
+  /**
+   * Historial del estudiante. La clave incluye el estudiante y el filtro: sin
+   * el id, abrir la ficha de otro mostraría el historial del anterior hasta
+   * que llegara la respuesta.
+   */
+  timeline: {
+    all: ['timeline'] as const,
+    student: (studentId: string, filtro?: Record<string, unknown>) =>
+      ['timeline', studentId, filtro ?? null] as const,
+  },
+
+  audit: {
+    all: ['audit'] as const,
+    list: (filtro?: Record<string, unknown>) =>
+      filtro ? (['audit', 'list', filtro] as const) : (['audit', 'list'] as const),
+    detail: (id: string) => ['audit', 'detail', id] as const,
+    catalogo: () => ['audit', 'catalogo'] as const,
+  },
+
+  system: {
+    all: ['system'] as const,
+    health: () => ['system', 'health'] as const,
+  },
+
+  telemetry: {
+    all: ['telemetry'] as const,
+    list: (filtro?: Record<string, unknown>) =>
+      filtro ? (['telemetry', 'list', filtro] as const) : (['telemetry', 'list'] as const),
+  },
+
   // Vista previa de reportes: consulta bajo demanda al abrir el diálogo. La
   // clave incluye el alcance porque cada combinación periodo/materia es una
   // consulta distinta.

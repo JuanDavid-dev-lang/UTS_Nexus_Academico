@@ -6,166 +6,185 @@ import '../../core/data/models.dart';
 import '../../core/data/providers.dart';
 import '../../core/network/api_error.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/compact.dart';
+import '../../core/widgets/debounced_search_field.dart';
 import '../../core/widgets/period_selector.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
 
 /// Listado de materias — punto de entrada a los estudiantes.
 ///
-/// La versión anterior tenía "Estudiantes" como una lista plana de todos los
+/// La versión anterior tenía «Estudiantes» como una lista plana de todos los
 /// alumnos del docente. Eso no coincide con cómo se trabaja: un docente piensa
-/// "mis estudiantes de Cálculo I", no "todos mis estudiantes". Aquí la materia
+/// «mis estudiantes de Cálculo I», no «todos mis estudiantes». Aquí la materia
 /// es el contenedor y los estudiantes viven dentro de ella.
-class SubjectsPage extends ConsumerWidget {
+///
+/// Las cifras —promedio, asistencia, cuántos en riesgo— las calcula el
+/// backend. Esta pantalla las pinta; no las deriva de la lista.
+class SubjectsPage extends ConsumerStatefulWidget {
   const SubjectsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SubjectsPage> createState() => _SubjectsPageState();
+}
+
+class _SubjectsPageState extends ConsumerState<SubjectsPage> {
+  final _busqueda = TextEditingController();
+
+  /// Texto ya reposado. Sin el rebote, escribir nueve letras son nueve pasadas
+  /// de filtrado sobre la lista completa, ocho de las cuales nadie ve.
+  String _query = '';
+
+  @override
+  void dispose() {
+    _busqueda.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final subjects = ref.watch(periodSubjectsProvider);
     final period = ref.watch(selectedPeriodProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Mis materias'),
-        actions: const [PeriodSelector(), SessionMenuButton()],
+      appBar: CompactHeader(
+        titulo: 'Mis materias',
+        contexto: period,
+        acciones: const [PeriodSelector(), SessionMenuButton()],
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(subjectsProvider);
-          await ref.read(subjectsProvider.future);
-        },
-        child: subjects.when(
-          loading: () => ListView(
-            padding: AppSpacing.pagePadding,
-            children: const [
-              SkeletonBox(height: 108, radius: 18),
-              SizedBox(height: 12),
-              SkeletonBox(height: 108, radius: 18),
-              SizedBox(height: 12),
-              SkeletonBox(height: 108, radius: 18),
-            ],
+      body: Column(
+        children: [
+          // El buscador va fijo bajo la cabecera: si se desplazara con la
+          // lista, buscar obligaría a subir hasta arriba cada vez.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.page,
+              AppSpacing.gapSm,
+              AppSpacing.page,
+              AppSpacing.gapSm,
+            ),
+            child: DebouncedSearchField(
+              controller: _busqueda,
+              labelText: 'Buscar materia',
+              onChanged: (valor) => setState(() => _query = valor),
+            ),
           ),
-          error: (error, _) => ListView(
-            children: [
-              const SizedBox(height: 60),
-              StateView.error(
-                ApiError.from(error).message,
-                action: FilledButton(
-                  onPressed: () => ref.invalidate(subjectsProvider),
-                  child: const Text('Reintentar'),
-                ),
-              ),
-            ],
-          ),
-          data: (items) {
-            if (items.isEmpty) {
-              return ListView(
-                children: [
-                  const SizedBox(height: 60),
-                  StateView.empty(
-                    'No tienes materias en el periodo $period.\n'
-                    'Cambia de periodo o pide que te asignen una.',
-                  ),
-                ],
-              );
-            }
 
-            return ListView.separated(
-              padding: AppSpacing.pagePadding,
-              itemCount: items.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (_, index) => _SubjectCard(subject: items[index]),
-            );
-          },
-        ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async {
+                ref.invalidate(subjectsProvider);
+                await ref.read(subjectsProvider.future);
+              },
+              child: subjects.when(
+                loading: () => const Padding(
+                  padding: AppSpacing.listPadding,
+                  child: SkeletonRows(filas: 7),
+                ),
+                error: (error, _) => ListView(
+                  padding: AppSpacing.listPadding,
+                  children: [
+                    StateView.error(
+                      ApiError.from(error).message,
+                      action: FilledButton(
+                        onPressed: () => ref.invalidate(subjectsProvider),
+                        child: const Text('Reintentar'),
+                      ),
+                    ),
+                  ],
+                ),
+                data: (items) {
+                  final q = _query.trim().toLowerCase();
+                  final visibles = q.isEmpty
+                      ? items
+                      : items
+                          .where((m) =>
+                              m.name.toLowerCase().contains(q) ||
+                              m.code.toLowerCase().contains(q))
+                          .toList();
+
+                  if (visibles.isEmpty) {
+                    return ListView(
+                      padding: AppSpacing.listPadding,
+                      children: [
+                        CompactEmpty(
+                          icono: Icons.menu_book_outlined,
+                          mensaje: q.isEmpty
+                              ? 'No tienes materias en el periodo $period. Cambia '
+                                  'de periodo o pide que te asignen una.'
+                              : 'Ninguna materia coincide con «$_query».',
+                        ),
+                      ],
+                    );
+                  }
+
+                  // `ListView.builder`: solo se construye lo visible.
+                  return ListView.separated(
+                    padding: AppSpacing.listPadding,
+                    itemCount: visibles.length,
+                    separatorBuilder: (_, __) =>
+                        const SizedBox(height: AppSpacing.gapSm),
+                    itemBuilder: (_, indice) => _FilaMateria(subject: visibles[indice]),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _SubjectCard extends ConsumerWidget {
+/// Fila compacta de materia.
+///
+/// Antes era una tarjeta de 108 dp con el icono en un cuadrado de 44, el
+/// nombre en dos líneas y las cifras en una fila de chips debajo: en pantalla
+/// cabían cuatro materias. Ahora el código, el grupo y el periodo van en la
+/// misma línea de metadatos y las cifras a la derecha, en 56 dp.
+class _FilaMateria extends ConsumerWidget {
   final Subject subject;
-  const _SubjectCard({required this.subject});
+  const _FilaMateria({required this.subject});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final stats = ref.watch(subjectStatsProvider(subject.id));
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
-    final primary = Theme.of(context).colorScheme.primary;
 
-    return AppCard(
-      onTap: () => context.go('/subjects/${subject.id}'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                height: 44,
-                width: 44,
-                decoration: BoxDecoration(
-                  color: primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(Icons.menu_book_outlined, color: primary, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      subject.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style:
-                          AppType.bodyStrong.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${subject.code} · ${subject.credits} créditos',
-                      style: AppType.caption.copyWith(color: muted),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right, color: muted),
-            ],
-          ),
-          const SizedBox(height: 14),
-          stats.when(
-            loading: () => const Row(
-              children: [
-                SkeletonBox(height: 22, width: 96, radius: 999),
-                SizedBox(width: 8),
-                SkeletonBox(height: 22, width: 96, radius: 999),
-              ],
-            ),
-            // Un fallo al contar no debe ocultar la materia: la tarjeta sigue
-            // siendo navegable, solo sin las cifras.
-            error: (_, __) => Text(
-              'No se pudieron cargar las cifras',
-              style: AppType.caption.copyWith(color: muted),
-            ),
-            data: (data) => Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                StatusPill('${data.students} estudiantes'),
-                if (data.averageGrade > 0)
-                  StatusPill(
-                    'Promedio ${data.averageGrade.toStringAsFixed(2)}',
-                    kind: data.averageGrade >= 3
-                        ? SemanticKind.success
-                        : SemanticKind.danger,
-                  ),
-                if (data.atRisk > 0)
-                  StatusPill.warning('${data.atRisk} en riesgo'),
-              ],
-            ),
-          ),
+    return stats.when(
+      // Mientras llegan las cifras la fila ya es navegable: esperar a los
+      // números para poder entrar a la materia sería esperar por nada.
+      loading: () => AcademicRow(
+        titulo: subject.name,
+        metadatos: [subject.code, '${subject.credits} créditos', subject.period],
+        onTap: () => context.go('/subjects/${subject.id}'),
+      ),
+      // Un fallo al contar no debe ocultar la materia.
+      error: (_, __) => AcademicRow(
+        titulo: subject.name,
+        metadatos: [subject.code, 'sin cifras disponibles'],
+        onTap: () => context.go('/subjects/${subject.id}'),
+      ),
+      data: (data) => AcademicRow(
+        titulo: subject.name,
+        metadatos: [
+          subject.code,
+          '${data.students} estudiantes',
+          subject.period,
         ],
+        // El promedio y el umbral vienen del backend; aquí solo se elige el
+        // par de colores que representa el resultado.
+        indicador: data.averageGrade > 0
+            ? MetricChip(
+                data.averageGrade.toStringAsFixed(2),
+                etiqueta: 'Prom.',
+                tono: data.averageGrade >= 3
+                    ? SemanticKind.success
+                    : SemanticKind.danger,
+              )
+            : null,
+        estado: data.atRisk > 0 ? StatusPill.warning('${data.atRisk} riesgo') : null,
+        acento: data.atRisk > 0 ? SemanticKind.warning : null,
+        onTap: () => context.go('/subjects/${subject.id}'),
       ),
     );
   }

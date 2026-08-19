@@ -9,6 +9,7 @@ import { auditChange } from '../../shared/audit.js';
 import { emitSync } from '../../shared/socket.js';
 import { getProfessorScope } from '../../shared/professor-scope.js';
 import { filtroDeListado } from '../../domains/scope/professor-scope.js';
+import { exigirPeriodoAbierto } from '../../shared/period-guard.js';
 
 export const attendanceRouter = Router();
 attendanceRouter.use(identificar);
@@ -44,8 +45,19 @@ attendanceRouter.post('/', requireRole('ADMIN', 'PROFESSOR'), async (req, res, n
       date: z.coerce.date(),
       durationMinutes: z.number().int().min(30).max(300).optional(),
       present: z.boolean().default(true),
+      /**
+       * Minutos de retraso. Opcional y con 0 por defecto para no romper a los
+       * clientes ya instalados, que no lo mandan. **No se deduce de nada**: un
+       * listado escaneado no trae la hora de llegada, y un retraso inventado
+       * abriría casos de seguimiento sobre estudiantes puntuales.
+       */
+      lateMinutes: z.number().int().min(0).max(300).default(0),
       notes: campo.nota.default(''),
     }).parse(req.body);
+
+    // El porcentaje de asistencia entra en la fotografía del periodo: con el
+    // semestre cerrado, una marca más la desmiente.
+    await exigirPeriodoAbierto(body.period, 'attendance');
 
     if (req.user?.role === 'PROFESSOR') {
       const scope = await getProfessorScope(req.user.id);
@@ -129,12 +141,15 @@ attendanceRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR'), async (req, re
           z.object({
             studentId: idMongo,
             present: z.boolean().default(true),
+            lateMinutes: z.number().int().min(0).max(300).default(0),
             notes: campo.nota.default(''),
           })
         )
         .min(1)
         .max(500),
     }).parse(req.body);
+
+    await exigirPeriodoAbierto(body.period, 'attendance');
 
     if (req.user?.role === 'PROFESSOR') {
       const scope = await getProfessorScope(req.user.id);
@@ -186,6 +201,7 @@ attendanceRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR'), async (req, re
               date: body.date,
               durationMinutes,
               present: registro.present,
+              lateMinutes: registro.lateMinutes,
               notes: registro.notes,
             },
           },

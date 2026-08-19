@@ -23,6 +23,7 @@ import {
   type Column,
 } from '@/shared/ui';
 import { useRisks } from '@/features/dashboard/hooks/use-dashboard';
+import { AttendanceCasesCard } from '@/features/risk/components/attendance-cases-card';
 import {
   INTERVENTION_LABELS,
   INTERVENTION_ORDER,
@@ -322,6 +323,14 @@ export default function RiskPage() {
           </Card>
         </>
       )}
+
+      {/*
+        Los patrones de inasistencia van aquí y no en pantalla propia: responden
+        la misma pregunta que el riesgo —«¿a quién hay que atender?»— desde el
+        otro lado. El riesgo mira el acumulado del semestre; esto mira la FORMA
+        de las faltas, que es lo que detecta a tiempo.
+      */}
+      <AttendanceCasesCard />
 
       {/* La alerta dice quién y por qué; esto guarda qué se hizo al respecto. */}
       <InterventionDialog

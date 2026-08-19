@@ -2,9 +2,13 @@ import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import {
+  Activity,
   BarChart3,
   Bell,
   BookMarked,
+  CalendarRange,
+  ClipboardList,
+  ScrollText,
   Megaphone,
   MessageSquare,
   BookOpen,
@@ -52,6 +56,9 @@ const NAV_ITEMS: NavItem[] = [
   // mismo, por hora en vez de por asignatura.
   { to: '/agenda', label: 'Agenda', icon: CalendarDays },
   { to: '/asistencia', label: 'Asistencia', icon: CalendarCheck, capability: 'attendance.read' },
+  // Las actividades van junto a la asistencia: son las dos cosas que un
+  // docente registra a diario, y la agenda las muestra a las dos.
+  { to: '/actividades', label: 'Actividades', icon: ClipboardList, capability: 'activities.read' },
   { to: '/riesgo', label: 'Riesgo', icon: BarChart3, capability: 'analytics.risks' },
   { to: '/asistente', label: 'Asistente IA', icon: Bot, capability: 'assistant.use' },
   { to: '/reportes', label: 'Reportes', icon: FileSpreadsheet, capability: 'reports.export' },
@@ -59,6 +66,9 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/sugerencias', label: 'Sugerencias', icon: MessageSquare },
   { to: '/trabajos-grado', label: 'Trabajos de grado', icon: BookMarked, requiresDirector: true },
   { to: '/docentes', label: 'Docentes', icon: UserCog, capability: 'professors.manage' },
+  { to: '/periodos', label: 'Periodos', icon: CalendarRange, capability: 'periods.close' },
+  { to: '/auditoria', label: 'Auditoría', icon: ScrollText, capability: 'audit.read' },
+  { to: '/estado-sistema', label: 'Estado del sistema', icon: Activity, capability: 'system.health' },
   { to: '/notificaciones', label: 'Notificaciones', icon: Bell, badge: 'notifications' },
   { to: '/configuracion', label: 'Configuración', icon: Settings },
 ];

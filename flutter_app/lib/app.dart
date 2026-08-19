@@ -12,6 +12,7 @@ import './core/widgets/app_scaffold.dart';
 import './core/widgets/update_prompt.dart';
 import './core/notifications/local_notifications_service.dart';
 import './core/notifications/push_service.dart';
+import './features/activities/activities_page.dart';
 import './features/agenda/agenda_page.dart';
 import './features/ai/ai_page.dart';
 import './features/auth/login_page.dart';
@@ -93,6 +94,13 @@ final router = GoRouter(
     /// que abrir la aplicación no cuesta más que antes.
     StatefulShellRoute.indexedStack(
       builder: (_, __, navigationShell) => AppScaffold(navigationShell: navigationShell),
+      /*
+       * El ORDEN de estas ramas es el contrato con `rutasDeRama` de
+       * `app_scaffold.dart`: la rama N atiende a `rutasDeRama[N]`.
+       * Reordenarlas aquí sin reordenarlas allí compila igual y manda cada
+       * pestaña a la pantalla equivocada, así que `test/router_test.dart` lo
+       * fija. Las cuatro primeras son las de la barra inferior.
+       */
       branches: [
         _rama('/', (_, __) => const DashboardPage()),
         _rama(
@@ -111,6 +119,16 @@ final router = GoRouter(
             ),
           ],
         ),
+        // `?item=` lo pone la notificación: al tocarla se abre esa clase, no la
+        // agenda genérica. Sin eso, el aviso obliga a repetir a mano la
+        // búsqueda que él mismo ya había hecho.
+        _rama('/agenda',
+            (_, state) => AgendaPage(itemDestacado: state.uri.queryParameters['item'])),
+        _rama('/ai', (_, __) => const AiPage()),
+
+        // ── A partir de aquí, lo que vive dentro de «Más» ──────────────
+        _rama('/students', (_, __) => const StudentsPage()),
+        _rama('/grades', (_, __) => const GradesPage()),
         _rama(
           '/attendance',
           (_, __) => const AttendancePage(),
@@ -118,14 +136,10 @@ final router = GoRouter(
             GoRoute(path: 'scan', builder: (_, __) => const ScanSheetPage()),
           ],
         ),
-        _rama('/ai', (_, __) => const AiPage()),
-        // `?item=` lo pone la notificación: al tocarla se abre esa clase, no la
-        // agenda genérica. Sin eso, el aviso obliga a repetir a mano la
-        // búsqueda que él mismo ya había hecho.
-        _rama('/agenda',
-            (_, state) => AgendaPage(itemDestacado: state.uri.queryParameters['item'])),
-        _rama('/grades', (_, __) => const GradesPage()),
-        _rama('/students', (_, __) => const StudentsPage()),
+        // Igual que la agenda, `?item=` lo pone el aviso de vencimiento para
+        // abrir exactamente esa entrega.
+        _rama('/actividades',
+            (_, state) => ActivitiesPage(itemDestacado: state.uri.queryParameters['item'])),
         _rama('/schedule', (_, __) => const SchedulePage()),
         _rama('/reports', (_, __) => const ReportsPage()),
         _rama('/avisos', (_, __) => const AnnouncementsPage()),
@@ -273,11 +287,34 @@ class _UtsAppState extends ConsumerState<UtsApp> {
             ref.invalidate(agendaProximaProvider);
             unawaited(_reprogramarRecordatorios());
           case 'calendar':
-          case 'activity':
             ref.invalidate(agendaResumenProvider);
             ref.invalidate(agendaSemanaProvider);
             ref.invalidate(agendaProximaProvider);
             unawaited(_reprogramarRecordatorios());
+          // Una actividad sale en la agenda ADEMÁS de en su propia pantalla.
+          // Antes solo caía la agenda, así que crear una entrega desde el
+          // escritorio no la hacía aparecer en el listado del teléfono.
+          case 'activity':
+            ref.invalidate(actividadesProvider);
+            ref.invalidate(agendaResumenProvider);
+            ref.invalidate(agendaSemanaProvider);
+            ref.invalidate(agendaProximaProvider);
+            unawaited(_reprogramarRecordatorios());
+          /*
+           * Cerrar un periodo bloquea notas, asistencia y matrículas. Sin esta
+           * entrada, el docente con la pantalla de notas abierta seguiría
+           * pudiendo escribir y recibiría un 409 que no espera; con ella, la
+           * pantalla se entera y desactiva la captura.
+           */
+          case 'period':
+            ref.invalidate(periodosProvider);
+            ref.invalidate(consolidatedGradesProvider);
+            ref.invalidate(pendingGradesProvider);
+            ref.invalidate(dashboardProvider);
+          // Un caso de inasistencia abierto por el escáner del servidor.
+          case 'attendanceCase':
+            ref.invalidate(casosAsistenciaProvider);
+            ref.invalidate(dashboardProvider);
           // Cambiar la antelación en el escritorio tiene que reprogramar las
           // alarmas de este teléfono; si no, seguiría avisando con la vieja.
           case 'preferences':

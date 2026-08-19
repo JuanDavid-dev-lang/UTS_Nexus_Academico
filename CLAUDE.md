@@ -16,7 +16,9 @@ npm run dev              # tsx watch, puerto 4000
 npm run build            # tsc
 npm start                # servidor compilado
 npm run seed             # sembrar/resetear datos de demo (credenciales demo en README)
-npm run smoke            # smoke test E2E — requiere el servidor arriba
+npm run smoke            # smoke test — requiere el servidor arriba y sembrado
+npm run test:e2e         # suite E2E completa sobre una base aislada (mongod local)
+npm run migrate:v3       # migración v3 — simula; con -- --aplicar escribe
 npm run check:env        # valida .env sin imprimir secretos
 npm test                 # Vitest — dominio puro (tests/)
 npm run lint             # eslint
@@ -130,6 +132,93 @@ El docente escribe (escritorio y móvil), ADMIN revisa y cambia el estado; al re
 ### Directores de trabajo de grado
 `esDirectorTrabajoGrado` en `Profesor` lo activa ADMIN/COORDINATOR desde la pantalla Docentes del escritorio (`PATCH /professors/:id`; nunca editable por `/me`). El middleware `requireDirector` consulta la ficha —no el token—, así que activar el flag surte efecto sin cerrar sesión. Los formatos oficiales (`/trabajos-grado/formatos`) se guardan en `backend/formatos/`, **fuera** de `uploads/` que es estático y público: se descargan solo por la ruta autenticada. El gate del menú en los dos clientes lee el flag del perfil (`sidebar.tsx` / `esDirectorProvider`).
 
+### Ciclo de vida del periodo académico
+
+`AcademicPeriod` da estado a lo que antes era solo la cadena `'2026-1'`:
+`OPEN` → `CLOSING` → `CLOSED`. Con `CLOSING` o `CLOSED`, **notas, asistencia y
+matrículas responden 409** (`shared/period-guard.ts`, con caché de 10 s para no
+consultar el estado 500 veces en una importación). Horarios, actividades y
+avisos siguen editables: no forman parte del acta, así que bloquearlos
+impediría corregir datos sin proteger nada. La lista está en
+`domains/periods/period-lifecycle.ts` y la fijan pruebas.
+
+`CLOSING` existe porque el cierre puede interrumpirse: marcarlo cerrado desde
+el principio dejaría un periodo cerrado con la fotografía a medias, y no
+bloquear nada dejaría notas fuera del acta sin que nadie lo notara. El cierre
+es idempotente y reanudable; **nunca queda `CLOSED` con la fotografía
+incompleta**.
+
+La fotografía es **un documento por (estudiante, materia, periodo)**, no uno
+por periodo: uno solo superaría los 16 MB de MongoDB el día del cierre. Lo que
+guarda ya viene de `computeAcademicRecords()`; aquí no se recalcula nada.
+Reabrir **no borra** la fotografía anterior: anota autor, fecha, motivo y
+versión en `reopenings[]`.
+
+### Estado de una actividad: `LATE` no se persiste
+
+Lo guardado es `OPEN` o `CLOSED` —una decisión de una persona— y el `estado`
+que devuelve la API lo deriva `domains/activities/activity-status.ts`
+comparando `dueAt` con el reloj del servidor. Persistirlo obligaría a un
+proceso que recorriera todas las actividades cada minuto, y cualquier fallo
+suyo dejaría vencidas presentándose como abiertas sin que nada lo delatara. Los
+clientes **no** comparan fechas: un equipo con la hora mal puesta mostraría
+vencida una entrega que no lo está.
+
+### Saneado de auditoría y telemetría
+
+`shared/sanitize.ts` es el punto único, y se aplica **al escribir** dentro de
+`auditChange`/`auditBatch`, no al leer: sanear solo al leer dejaría las
+contraseñas guardadas en la colección. Elimina por nombre de campo y enmascara
+por patrón (correos, JWT, cadenas de conexión, cédulas) dentro de cadenas
+libres. `calcularDiff()` registra solo lo que cambió.
+
+La lectura (`/audit`) es **solo ADMIN**: contiene los cambios de todo el mundo,
+y abrirla a coordinación la convertiría en una forma de vigilar al personal.
+
+### Patrones de inasistencia
+
+`domains/attendance/patterns.ts` es puro y tiene pruebas. Los umbrales viven en
+`UMBRALES_PATRON`, en un solo sitio: **no se replican en los clientes**, que
+solo llevan el título legible. Dos reglas que las pruebas fijan: se mira la
+racha **final** (una racha de marzo que terminó no es un problema en mayo) y
+con 3 o más consecutivas no se emite además el patrón de 2.
+
+`lateMinutes` en Asistencia es opcional con defecto 0 y **no se infiere**: un
+listado escaneado no trae la hora de llegada, y un retraso inventado abriría
+casos sobre estudiantes puntuales.
+
+Un `CasoAsistencia` es único por (estudiante, materia, periodo, patrón), sin
+fecha: el hecho seguido es el problema, no el día. Que el patrón desaparezca lo
+pasa a `RESUELTO`; **no lo borra**.
+
+### Centro de salud
+
+`GET /system/health` (ADMIN/COORDINATOR) frente a `/health`, que sigue siendo
+la sonda pública y mínima. Cuatro estados —desactivado, configurado, saludable,
+con error— porque «rojo o verde» dejaría en rojo permanente lo que nadie quiso
+activar. Las comprobaciones remotas van en paralelo y con tiempo de espera
+corto: encadenadas, el panel tardaría más cuanto peor estuviera el sistema.
+
+Las tareas se leen de `ejecuciones_tareas` (`shared/job-run.ts`), no de una
+variable del proceso: con dos instancias, la que atiende la consulta no tiene
+por qué ser la que ejecutó la tarea.
+
+### Telemetría de clientes
+
+Un documento **por firma**, no por ocurrencia. La firma la calcula el servidor;
+si la calculara el cliente, dos versiones agruparían distinto el mismo defecto.
+El usuario sale de la sesión, nunca del cuerpo. Los dos clientes deduplican
+antes de enviar y **un fallo al reportar no se reporta**: reintentar convierte
+un error en un bucle.
+
+### Historial del estudiante
+
+`GET /students/:id/historial` une seis colecciones **en el backend**. El cliente
+no cruza nada: si lo hiciera, escritorio y móvil contarían dos historias
+distintas del mismo estudiante. Distingue el hecho académico del evento técnico
+—la auditoría vive en su panel— y el orden desempata por `id` para que la
+paginación sea estable.
+
 ### Modelo de datos
 `Estudiante` existe globalmente por cédula. `Matrícula` lo vincula a un grupo de una materia en un semestre (`2026-1`/`2026-2`). Nota atómica por (estudiante, materia, corte, componente). Asistencia registra minutos reales por clase.
 
@@ -167,6 +256,62 @@ Reparto de responsabilidades entre los dos mecanismos de aviso en Android:
 El dispositivo se registra con `localClassReminders: true` y el servidor deja de mandarle push de tipo `CLASS`: sin eso el docente recibe el mismo aviso dos veces.
 
 Detalle completo en `docs/AGENDA_Y_NOTIFICACIONES.md`.
+
+### Sincronización — entidades de la v3
+
+Además de las anteriores, el backend emite `period`, `attendanceCase` y
+`clientError`, y `activity` ahora invalida también su propia pantalla (antes
+solo la agenda, así que crear una entrega desde el escritorio no la hacía
+aparecer en el listado del teléfono).
+
+`period` es la que más arrastra: cerrar un semestre bloquea notas, asistencia y
+matrículas, así que tira esas tres cachés. Un formulario abierto que no se
+entere manda el cambio y recibe un 409 que no espera.
+
+Las actividades salen por `emitToUser`, no por difusión: llevan el título de
+una evaluación y la fecha de un parcial, y emitirlas a `role:PROFESSOR` las
+mandaría a todos los docentes de la institución.
+
+`desktop/tests/unit/sync-map.test.ts` fija que ninguna entidad emitida se quede
+sin entrada en el mapa: ese fallo no rompe nada visiblemente —el evento llega,
+no encuentra la entidad y sale por `if (!keys) return`— y ya pasó tres veces en
+este proyecto.
+
+### Navegación del móvil — cinco destinos
+
+La barra inferior tiene **Inicio · Materias · Agenda · Asistente · Más**, y las
+cuatro primeras son **las cuatro primeras ramas** de `rutasDeRama`, en ese
+orden. No es casualidad: el botón «Más» ocupa la posición
+`primaryDestinations.length`, así que si los principales no fueran las primeras
+ramas ese cálculo señalaría a una pantalla real y tocar «Más» abriría cualquier
+cosa. `test/router_test.dart` lo fija.
+
+La agenda subió a la barra porque es la respuesta a «¿qué tengo ahora?» y se
+abre a diario; la asistencia bajó a «Más» porque se entra a ella desde la clase
+concreta. «Más» es una cuadrícula de tres columnas, no una columna de
+`ListTile`: diez entradas en columna son unos 560 dp y no caben en ningún
+teléfono, y un menú que hay que desplazar deja de ser un menú.
+
+Los destinos secundarios declaran `roles`, así que el menú no ofrece entradas
+que el backend va a rechazar con un 403.
+
+### Componentes compactos del móvil
+
+`core/widgets/compact.dart` es el kit denso: `CompactHeader` (56 dp frente a
+los 88 del `AppBar` con subtítulo), `AcademicRow` (56 frente a ~92),
+`CompactStat`, `FilterBar`, `FilterChipCompact`, `CollapsibleSection`,
+`showCompactSheet`, `StickySummaryBar`, `SkeletonRows`, `CompactEmpty`,
+`CompactSectionHeader` e `InitialsAvatar`.
+
+Existe porque convivían tres formas de pintar «un estudiante con su nota y su
+estado» —notas, asistencia y riesgo— con tres altos y tres criterios distintos
+sobre qué es un metadato. Ninguna era peor; el problema era que fueran tres.
+
+`ui_kit.dart` sigue vivo para lo que no es lista: `AppCard`, `StatusPill`,
+`RiskBadge`, `AppToast`, `StateView`, `SkeletonBox`.
+
+**La densidad no se gana encogiendo lo que se toca**: 48 dp de objetivo táctil,
+44 de mínimo absoluto. Detalle en DESIGN.md §7.2.
 
 ### Escritorio v2 — capas
 `domain/` (esquemas Zod + puertos, sin React) → `infrastructure/` (adaptadores HTTP de los puertos) → `features/` (una pantalla por capacidad) → `shared/` (design system según `DESIGN.md`). Estado de servidor con TanStack Query, estado de cliente con Zustand. Tokens en `keyring` (Rust) vía `src-tauri/src/commands/`. `desktop_python/` (PySide6) está **muerto**: su lanzador se eliminó y no recibe cambios. No añadir nada ahí ni tomarlo como referencia.
@@ -246,6 +391,7 @@ Los dos clientes se actualizan desde **GitHub Releases**; el proceso completo es
 ## Documentación de referencia
 
 - `docs/AGENDA_Y_NOTIFICACIONES.md` — agenda, recordatorios, push de Android, sincronización y qué hay que configurar.
+- `docs/CIERRE_Y_ADMINISTRACION.md` — cierre de periodos, auditoría, centro de salud, patrones de inasistencia, telemetría, historial, migración v3 y suite E2E.
 - `docs/PUBLICAR_VERSION.md` — publicar una versión, secretos de CI y manejo de las claves de firma.
 - `desktop/README.md` — guía completa del cliente de escritorio v2.
 - `ml_service/README.md` — ciclo de entrenamiento, endpoints y variables del modelo.

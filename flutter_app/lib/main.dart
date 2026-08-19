@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import './app.dart';
 import './core/storage/offline_status.dart';
+import './core/telemetry/error_reporter.dart';
 import './core/network/backend_bootstrap.dart';
 import './core/notifications/local_notifications_service.dart';
 import './core/notifications/push_service.dart';
@@ -9,6 +10,10 @@ import './core/theme/theme_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Lo primero después del binding: un fallo durante el arranque ocurre antes
+  // de que ninguna pantalla pueda enganchar nada, y es justo el que más
+  // interesa. `instalar()` no lanza aunque no haya red ni sesión.
+  await ErrorReporter.instance.instalar();
   // Recupera del disco la última sincronización conocida: «hace 4 minutos»
   // tiene que seguir siendo cierto después de cerrar y abrir la aplicación.
   await OfflineStatus.instance.cargar();

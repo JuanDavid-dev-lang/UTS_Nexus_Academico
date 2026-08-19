@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { History, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import {
   Button,
   ConfirmDialog,
   DataTable,
+  Dialog,
+  DialogContent,
   ErrorState,
   Input,
   NativeSelect,
@@ -16,6 +18,10 @@ import {
 } from '@/shared/ui';
 import { Avatar } from '@/shared/ui/primitives';
 import { StudentFormDialog } from '@/features/students/components/student-form-dialog';
+import { StudentTimeline } from '@/features/students/components/student-timeline';
+import { periodosRepository } from '@/infrastructure/repositories/administracion.repository';
+import { queryKeys } from '@/core/api/query-keys';
+import { useQuery } from '@tanstack/react-query';
 import {
   useCreateStudent,
   useDeleteStudent,
@@ -36,6 +42,14 @@ export default function StudentsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Student | undefined>(undefined);
   const [deleting, setDeleting] = useState<Student | null>(null);
+  /**
+   * Estudiante cuyo historial se está viendo.
+   *
+   * El historial va en un diálogo y no en una pantalla aparte porque se
+   * consulta DESDE la lista: obligar a navegar y volver por cada estudiante
+   * convierte una revisión de cinco fichas en diez cambios de pantalla.
+   */
+  const [historial, setHistorial] = useState<Student | null>(null);
   const [subjectFilter, setSubjectFilter] = useState(searchParams.get('materia') ?? '');
 
   const role = useUserRole();
@@ -97,14 +111,35 @@ export default function StudentsPage() {
       },
     ];
 
-    if (canWrite || canDelete) {
-      base.push({
-        key: 'actions',
-        header: 'Acciones',
-        width: '100px',
-        align: 'right',
-        cell: (row) => (
-          <div className="flex justify-end gap-1">
+    /*
+     * La columna de acciones existe siempre: el historial no es una operación
+     * de escritura, así que un rol que solo lee tiene que poder abrirlo. Antes
+     * la columna entera dependía de `canWrite || canDelete`, y añadir el
+     * historial dentro lo habría escondido justo para quien más lo consulta.
+     */
+    base.push({
+      key: 'actions',
+      header: 'Acciones',
+      width: '140px',
+      align: 'right',
+      cell: (row) => (
+        <div className="flex justify-end gap-1">
+          <Tooltip content="Ver historial académico">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={`Ver el historial de ${row.fullName}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                setHistorial(row);
+              }}
+            >
+              <History aria-hidden />
+            </Button>
+          </Tooltip>
+
+          {canWrite || canDelete ? (
+            <>
             {canWrite ? (
               <Tooltip content="Editar">
                 <Button
@@ -137,10 +172,11 @@ export default function StudentsPage() {
                 </Button>
               </Tooltip>
             ) : null}
-          </div>
-        ),
-      });
-    }
+            </>
+          ) : null}
+        </div>
+      ),
+    });
 
     return base;
   }, [canWrite, canDelete]);
@@ -155,6 +191,14 @@ export default function StudentsPage() {
       createStudent.mutate(input, { onSuccess: () => setFormOpen(false) });
     }
   }
+
+  const periodos = useQuery({
+    queryKey: queryKeys.periods.list(),
+    queryFn: () => periodosRepository.list(),
+    // Solo cuando hace falta: la lista de estudiantes no necesita periodos.
+    enabled: historial !== null,
+    staleTime: 5 * 60_000,
+  });
 
   function handleSearch(value: string) {
     setQuery(value);
@@ -254,6 +298,21 @@ export default function StudentsPage() {
         onSubmit={handleSubmit}
         submitting={createStudent.isPending || updateStudent.isPending}
       />
+
+      <Dialog open={historial !== null} onOpenChange={(open) => !open && setHistorial(null)}>
+        <DialogContent
+          title={`Historial de ${historial?.fullName ?? ''}`}
+          description="Matrículas, notas, ausencias, alertas y cierres en orden. Lo arma el servidor: aquí no se cruza nada."
+          className="max-w-3xl"
+        >
+          {historial ? (
+            <StudentTimeline
+              studentId={historial._id}
+              periodos={(periodos.data ?? []).map((registro) => registro.period)}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDialog
         open={deleting !== null}

@@ -14,6 +14,7 @@ import './models.dart';
 // líneas de `export` no es un archivo central: es un sitio desde el que
 // navegar. Lo que era un problema no era el import compartido, era que el
 // código viviera todo junto.
+export '../../features/activities/activities_providers.dart';
 export '../../features/agenda/agenda_providers.dart';
 export '../../features/feedback/feedback_providers.dart';
 export '../../features/grades/grades_providers.dart';

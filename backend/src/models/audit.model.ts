@@ -14,5 +14,19 @@ const schema = new Schema(
   { timestamps: true }
 );
 
+/**
+ * Índices del panel de consulta.
+ *
+ * La colección de auditoría solo crece y nunca se borra; sin un índice por
+ * fecha, la primera página del panel obliga a un recorrido completo, y eso se
+ * nota a los pocos meses de uso. Los compuestos cubren los dos filtros que se
+ * usan de verdad —«qué hizo esta persona» y «qué le pasó a este documento»—
+ * manteniendo el orden descendente que la tabla necesita.
+ */
+schema.index({ createdAt: -1 });
+schema.index({ actorId: 1, createdAt: -1 });
+schema.index({ entity: 1, createdAt: -1 });
+schema.index({ entityId: 1, createdAt: -1 });
+
 export const AuditModel = model('Auditoria', schema, 'auditoria');
 

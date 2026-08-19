@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../core/data/models.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/compact.dart';
 import '../../core/widgets/ui_kit.dart';
+import './widgets/student_timeline_sheet.dart';
 
 /// Ficha de un estudiante dentro de una materia.
 ///
@@ -30,7 +32,6 @@ class _StudentDetailSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
-    final primary = Theme.of(context).colorScheme.primary;
     final cuts = entry.grades?.cuts ?? const <CutSummary>[];
 
     return DraggableScrollableSheet(
@@ -40,46 +41,57 @@ class _StudentDetailSheet extends StatelessWidget {
       minChildSize: 0.4,
       builder: (_, controller) => ListView(
         controller: controller,
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.page,
+          0,
+          AppSpacing.page,
+          AppSpacing.page + AppSpacing.gap,
+        ),
         children: [
+          // Identidad en una sola fila de 40 dp: el avatar de 52 y el título
+          // en `h3` gastaban 96 antes de la primera cifra útil, y quien abre
+          // esta ficha ya sabe a quién ha tocado.
           Row(
             children: [
-              CircleAvatar(
-                radius: 26,
-                backgroundColor: primary.withValues(alpha: 0.12),
-                child: Text(
-                  _initials(entry.student.fullName),
-                  style: AppType.bodyStrong.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: primary,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 14),
+              InitialsAvatar(entry.student.fullName, size: 36),
+              const SizedBox(width: AppSpacing.gap),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       entry.student.fullName,
-                      style: AppType.h3.copyWith(fontWeight: FontWeight.w800),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.bodyStrong.copyWith(fontWeight: FontWeight.w800),
                     ),
-                    const SizedBox(height: 2),
                     Text(
-                      'Cédula ${entry.student.code}',
+                      [
+                        'Cédula ${entry.student.code}',
+                        if (entry.student.program.isNotEmpty) entry.student.program,
+                      ].join(' · '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: AppType.caption.copyWith(color: muted),
                     ),
-                    if (entry.student.program.isNotEmpty)
-                      Text(
-                        entry.student.program,
-                        style: AppType.caption.copyWith(color: muted),
-                      ),
                   ],
                 ),
               ),
+              // El historial se abre desde aquí y no desde otra pantalla: es
+              // la ficha del estudiante, y llegar a su cronología no debería
+              // costar salir de ella.
+              IconButton(
+                onPressed: () => showStudentTimelineSheet(
+                  context,
+                  studentId: entry.student.id,
+                  nombre: entry.student.fullName,
+                ),
+                icon: const Icon(Icons.history_outlined),
+                tooltip: 'Ver historial académico',
+              ),
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: AppSpacing.gap),
 
           // El motivo del riesgo va primero y completo: de esta ficha depende
           // que el docente decida contactar al estudiante, y un color solo no
@@ -89,7 +101,7 @@ class _StudentDetailSheet extends StatelessWidget {
             const SizedBox(height: 8),
             if (entry.risk!.reasons.isNotEmpty)
               AppCard(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(AppSpacing.gap),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -119,36 +131,38 @@ class _StudentDetailSheet extends StatelessWidget {
                   ],
                 ),
               ),
-            const SizedBox(height: 18),
+            const SizedBox(height: AppSpacing.gap),
           ],
 
           Row(
             children: [
               Expanded(
-                child: StatTile(
-                  label: 'Nota final',
-                  value: (entry.finalGrade ?? 0) == 0
+                child: CompactStat(
+                  etiqueta: 'Nota final',
+                  valor: (entry.finalGrade ?? 0) == 0
                       ? '—'
                       : entry.finalGrade!.toStringAsFixed(2),
-                  hint: entry.grades?.complete == true
+                  pista: entry.grades?.complete == true
                       ? 'los 3 cortes completos'
                       : 'aún en curso',
-                  tone: (entry.finalGrade ?? 0) >= 3
+                  // La nota y el umbral los calcula el backend; aquí solo se
+                  // elige el par de colores que representa el resultado.
+                  tono: (entry.finalGrade ?? 0) >= 3
                       ? SemanticKind.success
                       : SemanticKind.danger,
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: AppSpacing.gapSm),
               Expanded(
-                child: StatTile(
-                  label: 'Asistencia',
-                  value: entry.attendanceRate == null
+                child: CompactStat(
+                  etiqueta: 'Asistencia',
+                  valor: entry.attendanceRate == null
                       ? '—'
                       : '${entry.attendanceRate!.toStringAsFixed(0)}%',
-                  hint: entry.risk == null
+                  pista: entry.risk == null
                       ? 'sin registros'
                       : '${entry.risk!.missed} faltas',
-                  tone: (entry.attendanceRate ?? 100) >= 80
+                  tono: (entry.attendanceRate ?? 100) >= 80
                       ? SemanticKind.info
                       : SemanticKind.warning,
                 ),
@@ -157,7 +171,7 @@ class _StudentDetailSheet extends StatelessWidget {
           ),
 
           if (cuts.isNotEmpty) ...[
-            const SizedBox(height: 20),
+            const SizedBox(height: AppSpacing.gap),
             Text(
               'DESGLOSE POR CORTE',
               style: AppType.captionStrong.copyWith(
@@ -228,11 +242,4 @@ class _StudentDetailSheet extends StatelessWidget {
     );
   }
 
-  static String _initials(String name) {
-    final parts =
-        name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
-    if (parts.isEmpty) return '?';
-    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
-    return (parts[0][0] + parts[1][0]).toUpperCase();
-  }
 }

@@ -46,6 +46,33 @@ export const env = {
    */
   CLASS_REMINDER_INTERVAL_MIN: Number(process.env.CLASS_REMINDER_INTERVAL_MIN ?? 1),
 
+  // ── Actividades y patrones de asistencia ───────────────────────────────
+  /**
+   * Minutos entre pasadas del aviso de vencimiento de actividades. 0 = apagado.
+   *
+   * Quince y no uno: las antelaciones son de 48 h, 24 h y 2 h, así que una
+   * precisión de un cuarto de hora sobra. Y la ventana de disparo se calcula a
+   * partir de este valor, de modo que subirlo no pierde avisos: solo los
+   * adelanta como mucho ese mismo cuarto de hora.
+   */
+  ACTIVITY_DUE_INTERVAL_MIN: Number(process.env.ACTIVITY_DUE_INTERVAL_MIN ?? 15),
+  /**
+   * Minutos entre escaneos de patrones de inasistencia. 0 = apagado.
+   *
+   * Va a 0 por defecto, al revés que los recordatorios: la pasada recorre la
+   * asistencia de todos los estudiantes del alcance, así que en una
+   * instalación local recién clonada no debería arrancar sola. Se activa en el
+   * servidor, y con varias instancias, en una sola.
+   */
+  ATTENDANCE_PATTERN_INTERVAL_MIN: Number(process.env.ATTENDANCE_PATTERN_INTERVAL_MIN ?? 0),
+  /**
+   * Días que se conserva un error de cliente ya resuelto. 0 = para siempre.
+   *
+   * La telemetría es diagnóstico, no archivo histórico: un defecto arreglado
+   * hace medio año no ayuda a nadie y sí engorda la colección.
+   */
+  TELEMETRY_RETENTION_DAYS: Number(process.env.TELEMETRY_RETENTION_DAYS ?? 90),
+
   // ── Notificaciones push (Firebase Cloud Messaging, API HTTP v1) ─────────
   // Sin las tres variables el envío queda desactivado y se anota en el log,
   // igual que el correo: una instalación local no debería necesitar una cuenta

@@ -8,10 +8,15 @@ import { env } from './env.js';
 import { generateRiskNotifications } from '../modules/notifications/risk-notifier.service.js';
 import { notificarVersionNueva } from '../modules/notifications/release-notifier.service.js';
 import { generarRecordatorios } from '../modules/notifications/class-reminder.service.js';
+import { generarAvisosDeVencimiento } from '../modules/activities/activity-due.service.js';
+import { escanearPatronesDeAsistencia } from '../modules/attendance/attendance-patterns.service.js';
+import { ejecutarTarea } from './job-run.js';
 
 let timer: NodeJS.Timeout | null = null;
 let releaseTimer: NodeJS.Timeout | null = null;
 let recordatoriosTimer: NodeJS.Timeout | null = null;
+let actividadesTimer: NodeJS.Timeout | null = null;
+let patronesTimer: NodeJS.Timeout | null = null;
 
 /**
  * Comprobación periódica de versión nueva.
@@ -29,16 +34,15 @@ export function startReleaseWatcher() {
   }
 
   const run = async () => {
-    try {
-      const resultado = await notificarVersionNueva();
-      if (!resultado.sinCambios) {
-        console.log(
-          `[version] ${resultado.version}: ${resultado.avisados} docentes avisados` +
-            (resultado.correoEnviado ? ' (correo enviado).' : ' (sin correo).')
-        );
-      }
-    } catch (err) {
-      console.error('[version] fallo comprobando publicaciones:', err);
+    const resultado = await ejecutarTarea('release-check', async () => {
+      const salida = await notificarVersionNueva();
+      return { ...salida } as Record<string, unknown>;
+    });
+    if (resultado && !resultado.sinCambios) {
+      console.log(
+        `[version] ${resultado.version}: ${resultado.avisados} docentes avisados` +
+          (resultado.correoEnviado ? ' (correo enviado).' : ' (sin correo).')
+      );
     }
   };
 
@@ -76,16 +80,15 @@ export function startClassReminders() {
   }
 
   const run = async () => {
-    try {
-      const resultado = await generarRecordatorios();
-      if (resultado.avisos > 0) {
-        console.log(
-          `[agenda] ${resultado.avisos} recordatorio(s) enviados ` +
-            `(${resultado.clasesRevisadas} clases y ${resultado.eventosRevisados} eventos en ventana).`,
-        );
-      }
-    } catch (err) {
-      console.error('[agenda] fallo generando recordatorios:', err);
+    const resultado = await ejecutarTarea('class-reminders', async () => {
+      const salida = await generarRecordatorios();
+      return { ...salida };
+    });
+    if (resultado && Number(resultado.avisos) > 0) {
+      console.log(
+        `[agenda] ${resultado.avisos} recordatorio(s) enviados ` +
+          `(${resultado.clasesRevisadas} clases y ${resultado.eventosRevisados} eventos en ventana).`,
+      );
     }
   };
 
@@ -102,6 +105,88 @@ export function stopClassReminders() {
   }
 }
 
+/**
+ * Avisos de vencimiento de actividades.
+ *
+ * Va aparte del recordatorio de clases porque su ritmo es otro: una clase se
+ * avisa con quince minutos, una entrega con dos días. Compartir intervalo
+ * obligaría a elegir el más agresivo y a recorrer las actividades cada minuto
+ * para no encontrar nada.
+ */
+export function startActivityDueWatcher() {
+  if (actividadesTimer) return;
+  const minutos = env.ACTIVITY_DUE_INTERVAL_MIN;
+  if (!minutos || minutos <= 0) {
+    console.log('Avisos de vencimiento desactivados (ACTIVITY_DUE_INTERVAL_MIN=0).');
+    return;
+  }
+
+  const run = async () => {
+    const resultado = await ejecutarTarea('activity-due', async () => {
+      const salida = await generarAvisosDeVencimiento();
+      return { ...salida };
+    });
+    if (resultado && Number(resultado.avisos) > 0) {
+      console.log(
+        `[actividades] ${resultado.avisos} aviso(s) de vencimiento ` +
+          `(${resultado.proximas} próximas, ${resultado.vencidas} vencidas).`,
+      );
+    }
+  };
+
+  actividadesTimer = setInterval(run, minutos * 60 * 1000);
+  console.log(`Avisos de vencimiento activos cada ${minutos} min.`);
+  setTimeout(run, 25 * 1000);
+}
+
+export function stopActivityDueWatcher() {
+  if (actividadesTimer) {
+    clearInterval(actividadesTimer);
+    actividadesTimer = null;
+  }
+}
+
+/**
+ * Escaneo de patrones de inasistencia.
+ *
+ * Apagado por defecto, al revés que los recordatorios: la pasada recorre la
+ * asistencia de todos los estudiantes del alcance, así que una instalación
+ * local recién clonada no debería arrancarla sola. Con varias instancias,
+ * activarlo en una: el `dedupeKey` evita el aviso doble, no el trabajo doble.
+ */
+export function startAttendancePatternScanner() {
+  if (patronesTimer) return;
+  const minutos = env.ATTENDANCE_PATTERN_INTERVAL_MIN;
+  if (!minutos || minutos <= 0) {
+    console.log('Escaneo de patrones de inasistencia desactivado (ATTENDANCE_PATTERN_INTERVAL_MIN=0).');
+    return;
+  }
+
+  const run = async () => {
+    const resultado = await ejecutarTarea('attendance-patterns', async () => {
+      const salida = await escanearPatronesDeAsistencia();
+      return { ...salida };
+    });
+    if (resultado && Number(resultado.casosAbiertos) + Number(resultado.casosActualizados) > 0) {
+      console.log(
+        `[asistencia] ${resultado.casosAbiertos} caso(s) nuevo(s) y ` +
+          `${resultado.casosActualizados} actualizado(s).`,
+      );
+    }
+  };
+
+  patronesTimer = setInterval(run, minutos * 60 * 1000);
+  console.log(`Escaneo de patrones de inasistencia activo cada ${minutos} min.`);
+  setTimeout(run, 40 * 1000);
+}
+
+export function stopAttendancePatternScanner() {
+  if (patronesTimer) {
+    clearInterval(patronesTimer);
+    patronesTimer = null;
+  }
+}
+
 export function startScheduler() {
   if (timer) return;
   const minutes = env.RISK_SCAN_INTERVAL_MIN;
@@ -110,12 +195,17 @@ export function startScheduler() {
     return;
   }
 
+  // Envuelto en `ejecutarTarea`: el centro de salud necesita saber cuándo
+  // corrió por última vez, y esa respuesta no puede vivir en una variable del
+  // proceso — con dos instancias, la que atiende la consulta no es la que
+  // ejecutó la tarea y contestaría "nunca" sobre algo que sí corrió.
   const run = async () => {
-    try {
-      const result = await generateRiskNotifications();
+    const result = await ejecutarTarea('risk-scan', async () => {
+      const salida = await generateRiskNotifications();
+      return { enRiesgo: salida.enRiesgo, notificaciones: salida.notificaciones };
+    });
+    if (result) {
       console.log(`[riesgo] escaneo automático: ${result.enRiesgo} en riesgo, ${result.notificaciones} notificaciones.`);
-    } catch (err) {
-      console.error('[riesgo] fallo en escaneo automático:', err);
     }
   };
 

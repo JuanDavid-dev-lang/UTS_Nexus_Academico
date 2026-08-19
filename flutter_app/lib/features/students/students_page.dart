@@ -5,9 +5,11 @@ import '../../core/data/models.dart';
 import '../../core/data/providers.dart';
 import '../../core/network/api_error.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/compact.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
 import '../../core/widgets/debounced_search_field.dart';
+import './widgets/student_timeline_sheet.dart';
 
 /// Directorio global de estudiantes.
 ///
@@ -33,9 +35,12 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
     final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Directorio'),
-        actions: [
+      appBar: CompactHeader(
+        titulo: 'Directorio',
+        contexto: students.valueOrNull == null
+            ? null
+            : '${students.valueOrNull!.length}',
+        acciones: [
           IconButton(
             icon: const Icon(Icons.upload_file_outlined),
             tooltip: 'Importar lista',
@@ -45,15 +50,9 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
         ],
       ),
       body: students.when(
-        loading: () => ListView(
-          padding: AppSpacing.pagePadding,
-          children: List.generate(
-            8,
-            (_) => const Padding(
-              padding: EdgeInsets.only(bottom: 10),
-              child: SkeletonBox(height: 64, radius: 18),
-            ),
-          ),
+        loading: () => const Padding(
+          padding: AppSpacing.listPadding,
+          child: SkeletonRows(filas: 9),
         ),
         error: (error, _) => StateView.error(
           ApiError.from(error).message,
@@ -79,7 +78,11 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
                 // Cabecera fija sobre la lista: mismo horizontal que
                 // AppSpacing.pagePadding para que el buscador no baile.
                 padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.page, 12, AppSpacing.page, 8),
+                  AppSpacing.page,
+                  AppSpacing.gapSm,
+                  AppSpacing.page,
+                  AppSpacing.gapSm,
+                ),
                 child: DebouncedSearchField(
                   hintText: 'Buscar por nombre, cédula o programa…',
                   onChanged: (value) => setState(() => _query = value),
@@ -88,7 +91,11 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
               if (subjects.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.page, 0, AppSpacing.page, 8),
+                    AppSpacing.page,
+                    0,
+                    AppSpacing.page,
+                    AppSpacing.gapSm,
+                  ),
                   child: DropdownButtonFormField<String?>(
                     initialValue: subjectFilter,
                     isExpanded: true,
@@ -115,7 +122,7 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
                   ),
                 ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.page),
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
@@ -124,7 +131,7 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.gapSm),
               Expanded(
                 child: filtered.isEmpty
                     ? StateView.empty(
@@ -133,9 +140,10 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
                             : 'Sin coincidencias para "$_query".',
                       )
                     : ListView.separated(
-                        padding: AppSpacing.pagePadding,
+                        padding: AppSpacing.listPadding,
                         itemCount: filtered.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: AppSpacing.gapSm),
                         itemBuilder: (_, index) =>
                             _StudentTile(student: filtered[index]),
                       ),
@@ -251,61 +259,35 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
   }
 }
 
+/// Fila del directorio.
+///
+/// Antes era una tarjeta de 64 dp con un avatar de 40 y dos líneas sueltas;
+/// ahora reutiliza [AcademicRow], que es la misma forma que usan la asistencia
+/// y las notas. La diferencia importa: tres listas con tres alturas y tres
+/// criterios distintos sobre qué es un metadato obligaban a releer cada
+/// pantalla desde cero.
+///
+/// Tocarla abre el historial. Es el gesto que faltaba: el directorio servía
+/// para encontrar a alguien y ahí se acababa, sin forma de ver qué le había
+/// pasado durante el semestre.
 class _StudentTile extends StatelessWidget {
   final Student student;
   const _StudentTile({required this.student});
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
-    final primary = Theme.of(context).colorScheme.primary;
-
-    return AppCard(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: primary.withValues(alpha: 0.12),
-            child: Text(
-              _initials(student.fullName),
-              style: AppType.captionStrong
-                  .copyWith(fontWeight: FontWeight.w700, color: primary),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(student.fullName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppType.bodyStrong),
-                const SizedBox(height: 2),
-                Text(
-                  [
-                    student.code,
-                    if (student.program.isNotEmpty) student.program,
-                  ].join(' · '),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppType.caption.copyWith(color: muted),
-                ),
-              ],
-            ),
-          ),
-        ],
+    return AcademicRow(
+      titulo: student.fullName,
+      metadatos: [
+        student.code,
+        if (student.program.isNotEmpty) student.program,
+      ],
+      avatar: InitialsAvatar(student.fullName, size: 32),
+      onTap: () => showStudentTimelineSheet(
+        context,
+        studentId: student.id,
+        nombre: student.fullName,
       ),
     );
-  }
-
-  static String _initials(String name) {
-    final parts =
-        name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
-    if (parts.isEmpty) return '?';
-    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
-    return (parts[0][0] + parts[1][0]).toUpperCase();
   }
 }

@@ -3,26 +3,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/tutorial/tutorial_page.dart';
 import 'package:go_router/go_router.dart';
 
+import '../auth/auth_controller.dart';
 import '../data/providers.dart';
+import '../telemetry/error_reporter.dart';
 import '../theme/app_theme.dart';
 import './offline_banner.dart';
 import './session_menu.dart';
 
 /// Estructura de navegación.
 ///
-/// La versión anterior tenía dos defectos que se notaban al primer toque:
+/// Cinco destinos abajo y el resto en «Más». Material especifica entre tres y
+/// cinco: con nueve las etiquetas se recortan y los toques se solapan, y con
+/// cuatro —como estaba— sobraba un hueco que obligaba a esconder la agenda
+/// dentro de una hoja, cuando es la pantalla que un docente abre a diario.
 ///
-///  - `selectedIndex: 0` estaba fijo, así que la barra nunca marcaba en qué
-///    pantalla estabas. Ahora el índice se deriva de la ruta activa, que es la
-///    única fuente de verdad.
-///  - Metía nueve destinos en una `NavigationBar`. Material especifica entre
-///    tres y cinco; con nueve, las etiquetas se recortan y los toques se
-///    solapan. Ahora hay cuatro destinos principales y un botón "Más" que abre
-///    el resto en una hoja inferior.
-///
-/// La lógica de navegación estaba además duplicada entre el riel lateral y la
-/// barra inferior, con dos `switch` que había que mantener en paralelo. Ahora
-/// hay una sola lista de destinos.
+/// La lógica de navegación no está duplicada entre el riel lateral y la barra
+/// inferior: hay una sola lista de destinos y los dos la consumen.
 class NavDestination {
   final String route;
   final String label;
@@ -31,29 +27,42 @@ class NavDestination {
   /// color, no un cambio de estilo de icono.
   final IconData icon;
 
+  /// Roles que lo ven. Vacío = todos.
+  final List<String> roles;
+
   const NavDestination({
     required this.route,
     required this.label,
     required this.icon,
+    this.roles = const [],
   });
+
+  bool visiblePara(String? rol) => roles.isEmpty || (rol != null && roles.contains(rol));
 }
 
 /// Rutas de las ramas del shell, **en el mismo orden que en `app.dart`**.
 ///
 /// Es el contrato entre el router y este menú: la rama número N atiende a
 /// `rutasDeRama[N]`. Se declara aquí y no en el router porque es lo que el
-/// menú necesita para traducir "el docente tocó Materias" al índice de rama
+/// menú necesita para traducir «el docente tocó Materias» al índice de rama
 /// que entiende `goBranch`. Cambiar el orden en un sitio y no en el otro
-/// mandaría cada pestaña a la pantalla equivocada, así que va en una sola
-/// lista y el router la usa para generar sus claves.
+/// mandaría cada pestaña a la pantalla equivocada sin ningún error de
+/// compilación, así que `test/router_test.dart` lo fija.
+///
+/// Los cuatro primeros son los destinos de la barra inferior, en su orden. No
+/// es casualidad ni se puede reordenar sin más: `primaryDestinations` se
+/// compara contra esta lista y el quinto botón —«Más»— ocupa la posición
+/// `primaryDestinations.length`.
 const rutasDeRama = <String>[
   '/',
   '/subjects',
-  '/attendance',
-  '/ai',
   '/agenda',
-  '/grades',
+  '/ai',
+  // A partir de aquí, lo que vive dentro de «Más».
   '/students',
+  '/grades',
+  '/attendance',
+  '/actividades',
   '/schedule',
   '/reports',
   '/avisos',
@@ -67,82 +76,54 @@ const rutasDeRama = <String>[
 /// Índice de la rama que atiende una ruta. -1 si ninguna.
 int indiceDeRama(String ruta) => rutasDeRama.indexOf(ruta);
 
-/// Destinos que caben en la barra inferior de un teléfono.
+/// Los cuatro que caben en la barra, más «Más» que se dibuja aparte.
 ///
-/// "Materias" ocupa el lugar que antes tenía "Estudiantes": desde ahí se llega
-/// a los estudiantes de cada materia, que es como los busca un docente.
+/// «Materias» ocupa el lugar que antes tenía «Estudiantes»: desde ahí se llega
+/// a los estudiantes de cada materia, que es como los busca un docente. La
+/// agenda sube a la barra porque es la respuesta a «¿qué tengo ahora?», y la
+/// asistencia baja a «Más» porque se entra a ella desde la clase concreta.
 const primaryDestinations = <NavDestination>[
+  NavDestination(route: '/', label: 'Inicio', icon: Icons.space_dashboard_outlined),
+  NavDestination(route: '/subjects', label: 'Materias', icon: Icons.menu_book_outlined),
+  NavDestination(route: '/agenda', label: 'Agenda', icon: Icons.calendar_month_outlined),
+  NavDestination(route: '/ai', label: 'Asistente', icon: Icons.auto_awesome_outlined),
+];
+
+/// El resto, accesible desde «Más», agrupado por lo que se hace con ello.
+const secondaryDestinations = <NavDestination>[
   NavDestination(
-    route: '/',
-    label: 'Panel',
-    icon: Icons.space_dashboard_outlined,
+    route: '/students',
+    label: 'Estudiantes',
+    icon: Icons.people_outline,
+    roles: ['ADMIN', 'PROFESSOR', 'COORDINATOR'],
   ),
-  NavDestination(
-    route: '/subjects',
-    label: 'Materias',
-    icon: Icons.menu_book_outlined,
-  ),
+  NavDestination(route: '/grades', label: 'Notas', icon: Icons.school_outlined),
   NavDestination(
     route: '/attendance',
     label: 'Asistencia',
     icon: Icons.fact_check_outlined,
+    roles: ['ADMIN', 'PROFESSOR', 'COORDINATOR'],
   ),
   NavDestination(
-    route: '/ai',
-    label: 'Asistente',
-    icon: Icons.auto_awesome_outlined,
+    route: '/actividades',
+    label: 'Actividades',
+    icon: Icons.assignment_outlined,
   ),
-];
-
-/// El resto, accesible desde "Más".
-const secondaryDestinations = <NavDestination>[
-  // Primera de la lista: es a donde lleva el aviso de "tu clase empieza en 15
-  // minutos", y es lo que un docente consulta a diario.
-  NavDestination(
-    route: '/agenda',
-    label: 'Agenda y clases',
-    icon: Icons.calendar_month_outlined,
-  ),
-  NavDestination(
-    route: '/grades',
-    label: 'Consolidado de notas',
-    icon: Icons.school_outlined,
-  ),
-  NavDestination(
-    route: '/students',
-    label: 'Directorio de estudiantes',
-    icon: Icons.people_outline,
-  ),
-  NavDestination(
-    route: '/schedule',
-    label: 'Horario',
-    icon: Icons.schedule_outlined,
-  ),
+  NavDestination(route: '/schedule', label: 'Horario', icon: Icons.schedule_outlined),
   NavDestination(
     route: '/reports',
     label: 'Reportes',
     icon: Icons.description_outlined,
+    roles: ['ADMIN', 'PROFESSOR', 'COORDINATOR'],
   ),
-  NavDestination(
-    route: '/avisos',
-    label: 'Avisos',
-    icon: Icons.campaign_outlined,
-  ),
-  NavDestination(
-    route: '/sugerencias',
-    label: 'Sugerencias',
-    icon: Icons.feedback_outlined,
-  ),
+  NavDestination(route: '/avisos', label: 'Avisos', icon: Icons.campaign_outlined),
+  NavDestination(route: '/sugerencias', label: 'Sugerencias', icon: Icons.feedback_outlined),
   NavDestination(
     route: '/notifications',
     label: 'Notificaciones',
     icon: Icons.notifications_outlined,
   ),
-  NavDestination(
-    route: '/settings',
-    label: 'Ajustes',
-    icon: Icons.settings_outlined,
-  ),
+  NavDestination(route: '/settings', label: 'Configuración', icon: Icons.settings_outlined),
 ];
 
 /// Solo para docentes directores de trabajo de grado. No va en la lista const:
@@ -188,7 +169,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
   /// `goBranch` en vez de `context.go`: vuelve a la pestaña **donde se dejó**,
   /// con su desplazamiento y su pila. `initialLocation` solo se activa al
   /// tocar la pestaña en la que ya se está, que es el gesto universal de
-  /// "llévame al principio de esto".
+  /// «llévame al principio de esto».
   void _irA(String ruta) {
     final rama = indiceDeRama(ruta);
     if (rama < 0) return;
@@ -206,6 +187,11 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     final ramaActual = widget.navigationShell.currentIndex;
     final rutaActual = rutasDeRama[ramaActual];
 
+    // Un error reportado sin decir en qué pantalla ocurrió obliga a adivinar.
+    // La rama viva es la respuesta más fiable que hay, y no cuesta nada: es
+    // una asignación sobre un dato que este widget ya tenía calculado.
+    ErrorReporter.instance.rutaActual = rutaActual;
+
     // `sizeOf` y no `of`: este widget envuelve TODAS las pantallas con sesión,
     // y `MediaQuery.of` lo suscribe al MediaQueryData entero. El teclado anima
     // `viewInsets` fotograma a fotograma, así que cada apertura reconstruía la
@@ -213,30 +199,32 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     // por segundo, para leer un ancho que no había cambiado.
     final isWide = MediaQuery.sizeOf(context).width > 900;
 
+    final rol = ref.watch(authControllerProvider).user?.role;
+
     // La sección de trabajos de grado solo existe para quien la puede usar.
     // La rama existe igualmente; lo que se esconde es la entrada del menú.
     final esDirector = ref.watch(esDirectorProvider);
     final secundarios = [
-      ...secondaryDestinations,
+      ...secondaryDestinations.where((d) => d.visiblePara(rol)),
       if (esDirector) thesisDestination,
     ];
-    final allDestinations = [...primaryDestinations, ...secundarios];
 
     if (isWide) {
-      final index = allDestinations.indexWhere((d) => d.route == rutaActual);
+      final todos = [...primaryDestinations, ...secundarios];
+      final indice = todos.indexWhere((d) => d.route == rutaActual);
       return Scaffold(
         body: Row(
           children: [
             NavigationRail(
               // NavigationRail exige un índice válido; -1 lo haría fallar.
-              selectedIndex: index < 0 ? 0 : index,
-              onDestinationSelected: (i) => _irA(allDestinations[i].route),
+              selectedIndex: indice < 0 ? 0 : indice,
+              onDestinationSelected: (i) => _irA(todos[i].route),
               labelType: NavigationRailLabelType.all,
               destinations: [
-                for (final destination in allDestinations)
+                for (final destino in todos)
                   NavigationRailDestination(
-                    icon: Icon(destination.icon),
-                    label: Text(destination.label),
+                    icon: Icon(destino.icon),
+                    label: Text(destino.label),
                   ),
               ],
             ),
@@ -254,10 +242,9 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       );
     }
 
-    // En un teléfono: cuatro destinos + "Más".
-    final primaryIndex =
-        primaryDestinations.indexWhere((d) => d.route == rutaActual);
-    final isSecondary = primaryIndex < 0;
+    // En un teléfono: cuatro destinos + «Más».
+    final indicePrimario = primaryDestinations.indexWhere((d) => d.route == rutaActual);
+    final esSecundaria = indicePrimario < 0;
 
     return Scaffold(
       // La franja va por encima de la pantalla, no dentro: aplica a todas y
@@ -269,62 +256,72 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         ],
       ),
       bottomNavigationBar: NavigationBar(
-        // En una pantalla secundaria se resalta "Más", que es desde donde llegó.
-        selectedIndex: isSecondary ? primaryDestinations.length : primaryIndex,
-        onDestinationSelected: (index) {
-          if (index == primaryDestinations.length) {
-            _openMoreSheet(context, rutaActual, secundarios);
+        // 64 en vez de los 80 por defecto. La etiqueta sigue visible y el
+        // objetivo táctil sigue por encima de 48; lo que desaparece es el aire
+        // que Material reserva para una tablet.
+        height: 64,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        // En una pantalla secundaria se resalta «Más», que es desde donde llegó.
+        selectedIndex: esSecundaria ? primaryDestinations.length : indicePrimario,
+        onDestinationSelected: (indice) {
+          if (indice == primaryDestinations.length) {
+            _abrirHojaDeMas(context, rutaActual, secundarios);
             return;
           }
-          _irA(primaryDestinations[index].route);
+          _irA(primaryDestinations[indice].route);
         },
         destinations: [
-          for (final destination in primaryDestinations)
-            NavigationDestination(
-              icon: Icon(destination.icon),
-              label: destination.label,
-            ),
-          const NavigationDestination(
-            icon: Icon(Icons.more_horiz_outlined),
-            label: 'Más',
-          ),
+          for (final destino in primaryDestinations)
+            NavigationDestination(icon: Icon(destino.icon), label: destino.label),
+          const NavigationDestination(icon: Icon(Icons.more_horiz_outlined), label: 'Más'),
         ],
       ),
     );
   }
 
-  void _openMoreSheet(
+  /// Hoja de «Más»: cuadrícula de accesos en vez de una columna de `ListTile`.
+  ///
+  /// Diez entradas en columna son unos 560 dp y no caben sin desplazar en
+  /// ningún teléfono; en cuadrícula de tres caben todas de un vistazo, que es
+  /// lo que un menú tiene que hacer. Cada celda mantiene 72 dp de alto, por
+  /// encima del objetivo táctil.
+  void _abrirHojaDeMas(
     BuildContext context,
-    String currentRoute,
+    String rutaActual,
     List<NavDestination> secundarios,
   ) {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      // La hoja lista siete secciones más perfil y salida. En un teléfono bajo,
-      // o con el tamaño de fuente del sistema subido, esa columna no cabe: sin
-      // desplazamiento propio Flutter la recorta y las últimas filas dejan de
-      // existir. `isScrollControlled` es lo que le permite pasar de la mitad de
-      // la pantalla; el tope evita que tape la pantalla entera.
+      // Sin `isScrollControlled` la hoja se queda en media pantalla y, con el
+      // tamaño de fuente del sistema subido, Flutter recorta las últimas filas
+      // sin barra de desplazamiento: dejan de existir.
       isScrollControlled: true,
       constraints: BoxConstraints(
         maxHeight: MediaQuery.sizeOf(context).height * 0.85,
       ),
-      builder: (sheetContext) {
-        final isDark = Theme.of(sheetContext).brightness == Brightness.dark;
+      builder: (contextoHoja) {
+        final isDark = Theme.of(contextoHoja).brightness == Brightness.dark;
         final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
         // El rojo canónico está calibrado para texto sobre blanco; en oscuro
         // hay que aclararlo o cae por debajo del AA que exige DESIGN.md.
         final danger = isDark ? AppColors.dangerDark : AppColors.danger;
+        final esquema = Theme.of(contextoHoja).colorScheme;
 
         return SafeArea(
           child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.page,
+              0,
+              AppSpacing.page,
+              AppSpacing.gap,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+                  padding: const EdgeInsets.only(bottom: AppSpacing.gapSm),
                   child: Text(
                     'MÁS SECCIONES',
                     style: AppType.captionStrong.copyWith(
@@ -334,31 +331,36 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                     ),
                   ),
                 ),
-                for (final destination in secundarios)
-                  ListTile(
-                    leading: Icon(
-                      destination.icon,
-                      color: currentRoute == destination.route
-                          ? Theme.of(sheetContext).colorScheme.primary
-                          : null,
-                    ),
-                    title: Text(destination.label),
-                    selected: currentRoute == destination.route,
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      _irA(destination.route);
-                    },
-                  ),
 
-                // La sesión va abajo y separada: no es "otra sección más", y
+                GridView.count(
+                  crossAxisCount: 3,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisSpacing: AppSpacing.gapSm,
+                  mainAxisSpacing: AppSpacing.gapSm,
+                  childAspectRatio: 1.0,
+                  children: [
+                    for (final destino in secundarios)
+                      _CeldaDeMenu(
+                        destino: destino,
+                        activo: rutaActual == destino.route,
+                        onTap: () {
+                          Navigator.of(contextoHoja).pop();
+                          _irA(destino.route);
+                        },
+                      ),
+                  ],
+                ),
+
+                // La sesión va abajo y separada: no es «otra sección más», y
                 // cerrarla por error al buscar Reportes sería caro.
-                const Divider(height: 20),
+                const Divider(height: AppSpacing.gap * 2),
                 ListTile(
-                  leading: const Icon(Icons.person_outline),
+                  leading: Icon(Icons.person_outline, color: esquema.primary),
                   title: const Text('Mi perfil'),
-                  selected: currentRoute == '/profile',
+                  selected: rutaActual == '/profile',
                   onTap: () {
-                    Navigator.of(sheetContext).pop();
+                    Navigator.of(contextoHoja).pop();
                     _irA('/profile');
                   },
                 ),
@@ -366,16 +368,71 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                   leading: Icon(Icons.logout_outlined, color: danger),
                   title: Text('Cerrar sesión', style: TextStyle(color: danger)),
                   onTap: () async {
-                    Navigator.of(sheetContext).pop();
+                    Navigator.of(contextoHoja).pop();
                     await confirmLogout(context, ref);
                   },
                 ),
-                const SizedBox(height: 8),
               ],
             ),
           ),
         );
       },
+    );
+  }
+}
+
+/// Celda de la cuadrícula de «Más».
+class _CeldaDeMenu extends StatelessWidget {
+  final NavDestination destino;
+  final bool activo;
+  final VoidCallback onTap;
+
+  const _CeldaDeMenu({
+    required this.destino,
+    required this.activo,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final esquema = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final borde = isDark ? AppColors.borderDark : AppColors.border;
+
+    return Semantics(
+      button: true,
+      selected: activo,
+      label: destino.label,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppSpacing.radiusCard),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.gapSm),
+          decoration: BoxDecoration(
+            color: activo ? esquema.primary.withValues(alpha: 0.12) : Colors.transparent,
+            borderRadius: BorderRadius.circular(AppSpacing.radiusCard),
+            border: Border.all(color: activo ? esquema.primary : borde),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(destino.icon, size: 22, color: activo ? esquema.primary : muted),
+              const SizedBox(height: AppSpacing.gapXs),
+              Text(
+                destino.label,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: AppType.caption.copyWith(
+                  color: activo ? esquema.primary : null,
+                  fontWeight: activo ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

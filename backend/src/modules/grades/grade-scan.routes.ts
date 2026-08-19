@@ -16,6 +16,7 @@ import {
   type FilaNotasLeida,
 } from '../../domains/grading/import-notas.js';
 import type { Matriculado } from '../../domains/attendance/sheet-match.js';
+import { exigirPeriodoAbierto } from '../../shared/period-guard.js';
 
 /**
  * Importación de calificaciones en dos pasos, con el mismo contrato que el
@@ -241,6 +242,8 @@ gradeScanRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR'), async (req, res
       return res.status(owned.error.status).json({ ok: false, message: owned.error.message });
     }
     const group = owned.group!;
+
+    await exigirPeriodoAbierto(String(group.period), 'grade');
 
     // Solo matriculados del grupo: un id colado escribiría la nota de un
     // estudiante ajeno con el nombre de este grupo.
