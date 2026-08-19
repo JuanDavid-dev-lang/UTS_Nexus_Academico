@@ -85,12 +85,21 @@ echo "Subiendo $(basename "$archivo") ($bytes bytes) sobre $ruta…"
 argumentos=$(jq -nca --arg ruta "$ruta" \
   '{path: $ruta, mode: "overwrite", autorename: false, mute: true}')
 
-resultado=$(curl -sS --fail-with-body \
+respuesta_temporal=$(mktemp)
+codigo_http=$(curl -sS -o "$respuesta_temporal" -w '%{http_code}' \
   -X POST https://content.dropboxapi.com/2/files/upload \
   -H "Authorization: Bearer $token" \
   -H "Dropbox-API-Arg: $argumentos" \
   -H 'Content-Type: application/octet-stream' \
   --data-binary @"$archivo")
+
+resultado=$(cat "$respuesta_temporal")
+rm -f "$respuesta_temporal"
+if [ "$codigo_http" -lt 200 ] || [ "$codigo_http" -ge 300 ]; then
+  resumen=$(printf '%s' "$resultado" | jq -r '.error_summary // .error_description // "error desconocido"' 2>/dev/null || true)
+  echo "::error::Dropbox rechazó la subida (HTTP $codigo_http): $resumen"
+  exit 1
+fi
 
 printf 'Listo: %s (rev %s)\n' \
   "$(printf '%s' "$resultado" | jq -r '.path_display')" \
