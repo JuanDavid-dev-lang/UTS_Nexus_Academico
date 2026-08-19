@@ -44,7 +44,9 @@ if (hasReleaseKeystore) {
 
 android {
     namespace = "co.edu.uts.nexus.academico"
-    compileSdk = flutter.compileSdkVersion
+    // flutter_secure_storage 11 compila contra API 37. Mantenerlo explícito
+    // evita que el valor por defecto de Flutter quede una versión atrás.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
