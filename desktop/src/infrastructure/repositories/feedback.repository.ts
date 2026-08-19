@@ -10,6 +10,12 @@ import {
   okResponse,
 } from './academic-base';
 
+/**
+ * Buzón de sugerencias de la aplicación.
+ *
+ * El docente escribe y ve solo lo suyo; la administración ve todo y cambia el
+ * estado. El servidor decide qué devuelve según el rol — aquí no se filtra.
+ */
 export const feedbackRepository = {
   async list(filtro?: { estado?: EstadoFeedback; tipo?: TipoFeedback }): Promise<Feedback[]> {
     const data = await http.get('/feedback', {
@@ -31,10 +37,3 @@ export const feedbackRepository = {
     await http.delete(`/feedback/${id}`, { schema: okResponse });
   },
 };
-
-/**
- * Enlaces de la página pública de descargas.
- *
- * Viven en el servidor, no en el HTML del sitio, para que publicar una versión
- * no obligue a editar y desplegar la página.
- */

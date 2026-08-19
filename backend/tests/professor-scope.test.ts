@@ -206,8 +206,12 @@ describe('filtroDeListado', () => {
   it('un estudiante sin ficha vinculada no ve nada, en vez de verlo todo', () => {
     // El caso peligroso: sin ficha, `studentId` sería `undefined` y quedaría
     // fuera del filtro — es decir, sin acotar. Se cierra a un id imposible.
+    // Con forma de ObjectId (24 ceros hex) para no chocar con el cast de
+    // Mongoose: un valor sin esa forma provoca un CastError que error.ts
+    // traduce a 404, en vez de la lista vacía que se busca.
     const filtro = filtroDeListado({}, { id: 'u1', role: 'STUDENT' });
-    expect(filtro.studentId).toBe('__sin_estudiante__');
+    expect(filtro.studentId).toBe('000000000000000000000000');
+    expect(filtro.studentId).toMatch(/^[0-9a-f]{24}$/);
   });
 
   it('un ADMIN sí puede acotar por estudiante', () => {

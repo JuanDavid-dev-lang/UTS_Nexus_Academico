@@ -180,33 +180,15 @@ authRouter.post('/refresh', async (req, res, next) => {
     const payload = verifyRefreshToken(body.refreshToken);
     const tokenHash = hashToken(body.refreshToken);
 
-    const session = await SessionModel.findOne({
-      userId: payload.sub,
-      refreshTokenHash: tokenHash,
-      revokedAt: null,
-      expiresAt: { $gt: new Date() },
-    });
-
-    if (!session) {
-      // ¿Existe pero ya estaba revocada? Entonces alguien está reutilizando un
-      // token quemado y no se puede saber quién es el legítimo.
-      const reutilizada = await SessionModel.exists({
-        userId: payload.sub,
-        refreshTokenHash: tokenHash,
-      });
-      if (reutilizada) {
-        await SessionModel.updateMany(
-          { userId: payload.sub, revokedAt: null },
-          { $set: { revokedAt: new Date() } },
-        );
-        console.warn(`[auth] refresh token reutilizado por ${payload.sub}: sesiones revocadas.`);
-      }
-      return res.status(401).json({ ok: false, message: 'Invalid session' });
-    }
-
     const user = await UserModel.findById(payload.sub);
     if (!user || user.deletedAt) {
-      await SessionModel.updateOne({ _id: session._id }, { $set: { revokedAt: new Date() } });
+      // Cierra por si acaso la sesión que ese token identifica, sin filtrar
+      // si existía: la respuesta es la misma tanto si el usuario no existe
+      // como si la sesión ya no era válida.
+      await SessionModel.updateMany(
+        { userId: payload.sub, refreshTokenHash: tokenHash, revokedAt: null },
+        { $set: { revokedAt: new Date() } },
+      );
       return res.status(401).json({ ok: false, message: 'Invalid session' });
     }
 
@@ -217,11 +199,60 @@ authRouter.post('/refresh', async (req, res, next) => {
       studentId: user.studentId?.toString(),
     });
 
-    // La sesión es la misma —no se crea una fila por renovación, que llenaba la
-    // colección—: cambia el hash y se estira el vencimiento.
-    session.refreshTokenHash = hashToken(pair.refreshToken);
-    session.expiresAt = daysFromNow(30);
-    await session.save();
+    /**
+     * Rotación atómica: la comprobación y la escritura son una sola
+     * operación de Mongo, no un `findOne` seguido de `session.save()`.
+     *
+     * Con lectura y escritura separadas, dos renovaciones concurrentes con
+     * el mismo token —un reintento de red del móvil, dos pestañas— podían
+     * pasar las dos la lectura antes de que ninguna hubiera escrito. Las dos
+     * firmaban un par válido, pero solo el de la que guardara al final
+     * quedaba coincidiendo con lo almacenado: la otra recibía un par de
+     * tokens que parecía correcto y fallaba, sin explicación, en la
+     * siguiente renovación. Con `findOneAndUpdate` solo una puede ganar la
+     * condición `refreshTokenHash: tokenHash`, y la que pierde se entera en
+     * el momento en vez de arrastrar un token ya inservible.
+     */
+    const session = await SessionModel.findOneAndUpdate(
+      {
+        userId: payload.sub,
+        refreshTokenHash: tokenHash,
+        revokedAt: null,
+        expiresAt: { $gt: new Date() },
+      },
+      {
+        $set: {
+          refreshTokenHash: hashToken(pair.refreshToken),
+          previousRefreshTokenHash: tokenHash,
+          expiresAt: daysFromNow(30),
+        },
+      },
+    );
+
+    if (!session) {
+      /**
+       * ¿El hash que llegó es el que la ÚLTIMA rotación dejó atrás? Entonces
+       * alguien está reutilizando un token ya canjeado por el siguiente, y no
+       * se puede saber quién es el legítimo: el ladrón y el dueño no pueden
+       * canjear los dos. Se compara contra `previousRefreshTokenHash`, no
+       * contra `refreshTokenHash`: ese campo ya se sobrescribió con el hash
+       * siguiente en cuanto hubo una sola rotación, así que comparar contra
+       * él nunca encuentra nada y la detección de reuso quedaba muerta en la
+       * práctica.
+       */
+      const reutilizada = await SessionModel.exists({
+        userId: payload.sub,
+        previousRefreshTokenHash: tokenHash,
+      });
+      if (reutilizada) {
+        await SessionModel.updateMany(
+          { userId: payload.sub, revokedAt: null },
+          { $set: { revokedAt: new Date() } },
+        );
+        console.warn(`[auth] refresh token reutilizado por ${payload.sub}: sesiones revocadas.`);
+      }
+      return res.status(401).json({ ok: false, message: 'Invalid session' });
+    }
 
     res.json({ ok: true, ...pair });
   } catch (err) {

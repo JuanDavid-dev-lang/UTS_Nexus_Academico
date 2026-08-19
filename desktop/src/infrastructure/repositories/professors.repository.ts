@@ -13,6 +13,14 @@ import {
   z,
 } from './academic-base';
 
+/**
+ * Gestión administrativa de docentes.
+ *
+ * Es la pantalla donde la administración busca a un docente por carrera y le
+ * activa (o quita) la dirección de trabajos de grado. El flag es institucional:
+ * el propio docente no puede dárselo (por eso va a `PATCH /professors/:id`,
+ * nunca a `/me`).
+ */
 export const professorAdminRepository = {
   async list(filtro?: { q?: string; programa?: string; director?: boolean }): Promise<ProfesorAdmin[]> {
     const data = await http.get('/professors', {
@@ -34,8 +42,12 @@ export const professorAdminRepository = {
   },
 };
 
-/** Repositorio de formatos oficiales de trabajo de grado. */
-
+/**
+ * Registro de docentes y avisos institucionales.
+ *
+ * `catalogo` y `solicitar` van sin token a propósito: el formulario de registro
+ * los necesita antes de que exista la cuenta.
+ */
 export const registroRepository = {
   async catalogo(): Promise<Catalogo> {
     return http.get('/registro/catalogo', { schema: catalogoSchema, anonymous: true });

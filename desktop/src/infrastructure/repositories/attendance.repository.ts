@@ -74,11 +74,3 @@ export const attendanceScanRepository = {
     });
   },
 };
-
-/**
- * Importación de calificaciones en dos pasos.
- *
- * Aparte del `gradeRepository` por la misma razón que el escáner de
- * asistencia: primero se propone, luego una persona revisa, y solo entonces se
- * escribe. Mezclarlo con el alta directa invitaría a saltarse la revisión.
- */

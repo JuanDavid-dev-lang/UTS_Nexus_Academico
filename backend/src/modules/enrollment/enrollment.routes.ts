@@ -222,10 +222,19 @@ enrollmentRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'),
             // Sin `academicHistory`: es un array del esquema, Mongoose lo
             // entrega como `[]` al leer aunque el documento no lo traiga, y
             // declararlo aquí rompe el tipado de `bulkWrite`.
+            //
+            // `attendanceRate`/`academicPerformance` sí van explícitos: a
+            // diferencia de `findOneAndUpdate({ setDefaultsOnInsert: true })`,
+            // `bulkWrite` no aplica los valores por defecto del esquema al
+            // insertar. Sin esto, un estudiante dado de alta por esta ruta
+            // quedaba sin esos dos campos (`undefined`, no `0`), a diferencia
+            // de uno creado por `POST /students/bulk`.
             $setOnInsert: {
               code: row.code,
               email: row.email ?? `${row.code}@estudiantes.uts.edu.co`,
               program: row.program ?? 'UTS',
+              attendanceRate: 0,
+              academicPerformance: 0,
             },
           },
           upsert: true,

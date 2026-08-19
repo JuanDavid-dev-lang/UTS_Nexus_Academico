@@ -147,6 +147,19 @@ export type CriteriosDeListado = {
  * docente no elige de qué docente son las notas; un estudiante no elige de qué
  * estudiante.
  */
+/**
+ * Id imposible con forma de `ObjectId` (24 ceros hexadecimales).
+ *
+ * Cierra el listado de un estudiante sin ficha vinculada a "nada", pero tiene
+ * que seguir pareciendo un `ObjectId` de Mongoose: `studentId` es un campo
+ * `ObjectId` en Nota y en Asistencia, y un valor como `'__sin_estudiante__'`
+ * no castea — Mongoose lanza `CastError`, que `error.ts` traduce a 404. Un
+ * estudiante sin ficha vinculada pedía "sin resultados" y recibía un error
+ * genérico en su lugar. Con forma de `ObjectId` el filtro casa limpio y no
+ * encuentra nada, que es justo lo que se buscaba.
+ */
+const SIN_ESTUDIANTE_ID = '000000000000000000000000';
+
 export function filtroDeListado(
   criterios: CriteriosDeListado,
   usuario?: SolicitanteConAlcance,
@@ -164,7 +177,7 @@ export function filtroDeListado(
   if (usuario?.role === 'PROFESSOR') filtro.teacherId = usuario.id;
   if (usuario?.role === 'STUDENT') {
     // Sin ficha vinculada no se abre el listado a todos: se cierra a nada.
-    filtro.studentId = usuario.studentId ?? '__sin_estudiante__';
+    filtro.studentId = usuario.studentId ?? SIN_ESTUDIANTE_ID;
   }
 
   return filtro;

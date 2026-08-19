@@ -49,15 +49,20 @@ final _clavesDeRama = List.generate(
   (i) => GlobalKey<NavigatorState>(debugLabel: 'rama-${rutasDeRama[i]}'),
 );
 
+/// Cuenta las ramas construidas hasta ahora: el índice de la siguiente es
+/// simplemente su posición en la lista, así que no hace falta escribirlo a
+/// mano en cada llamada a `_rama` (y desincronizarlo si alguien reordena o
+/// inserta una rama sin renumerar las que siguen).
+int _indiceDeRama = 0;
+
 /// Construye una rama del shell con su ruta raíz y, si las tiene, sus hijas.
 StatefulShellBranch _rama(
-  int indice,
   String ruta,
   Widget Function(BuildContext, GoRouterState) constructor, {
   List<RouteBase> hijas = const [],
 }) {
   return StatefulShellBranch(
-    navigatorKey: _clavesDeRama[indice],
+    navigatorKey: _clavesDeRama[_indiceDeRama++],
     routes: [GoRoute(path: ruta, builder: constructor, routes: hijas)],
   );
 }
@@ -89,9 +94,8 @@ final router = GoRouter(
     StatefulShellRoute.indexedStack(
       builder: (_, __, navigationShell) => AppScaffold(navigationShell: navigationShell),
       branches: [
-        _rama(0, '/', (_, __) => const DashboardPage()),
+        _rama('/', (_, __) => const DashboardPage()),
         _rama(
-          1,
           '/subjects',
           (_, __) => const SubjectsPage(),
           hijas: [
@@ -108,33 +112,32 @@ final router = GoRouter(
           ],
         ),
         _rama(
-          2,
           '/attendance',
           (_, __) => const AttendancePage(),
           hijas: [
             GoRoute(path: 'scan', builder: (_, __) => const ScanSheetPage()),
           ],
         ),
-        _rama(3, '/ai', (_, __) => const AiPage()),
+        _rama('/ai', (_, __) => const AiPage()),
         // `?item=` lo pone la notificación: al tocarla se abre esa clase, no la
         // agenda genérica. Sin eso, el aviso obliga a repetir a mano la
         // búsqueda que él mismo ya había hecho.
-        _rama(4, '/agenda',
+        _rama('/agenda',
             (_, state) => AgendaPage(itemDestacado: state.uri.queryParameters['item'])),
-        _rama(5, '/grades', (_, __) => const GradesPage()),
-        _rama(6, '/students', (_, __) => const StudentsPage()),
-        _rama(7, '/schedule', (_, __) => const SchedulePage()),
-        _rama(8, '/reports', (_, __) => const ReportsPage()),
-        _rama(9, '/avisos', (_, __) => const AnnouncementsPage()),
-        _rama(10, '/sugerencias', (_, __) => const FeedbackPage()),
-        _rama(11, '/notifications', (_, __) => const NotificationsPage()),
-        _rama(12, '/settings', (_, __) => const SettingsPage()),
+        _rama('/grades', (_, __) => const GradesPage()),
+        _rama('/students', (_, __) => const StudentsPage()),
+        _rama('/schedule', (_, __) => const SchedulePage()),
+        _rama('/reports', (_, __) => const ReportsPage()),
+        _rama('/avisos', (_, __) => const AnnouncementsPage()),
+        _rama('/sugerencias', (_, __) => const FeedbackPage()),
+        _rama('/notifications', (_, __) => const NotificationsPage()),
+        _rama('/settings', (_, __) => const SettingsPage()),
         // La rama existe siempre aunque el menú la esconda: las rutas son
         // estáticas y el permiso —`esDirectorProvider`— llega después, al
         // cargar la ficha. Montarla condicionalmente dejaría la sección
         // inaccesible hasta reiniciar.
-        _rama(13, '/trabajos-grado', (_, __) => const ThesisFormatsPage()),
-        _rama(14, '/profile', (_, __) => const ProfilePage()),
+        _rama('/trabajos-grado', (_, __) => const ThesisFormatsPage()),
+        _rama('/profile', (_, __) => const ProfilePage()),
       ],
     ),
   ],

@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +5,7 @@ import '../../core/network/api_error.dart';
 import '../../core/network/api_client.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/debounced_search_field.dart';
 import '../../core/widgets/session_menu.dart';
 
 /// Toma de asistencia de una clase.
@@ -36,11 +35,10 @@ class AttendancePage extends ConsumerStatefulWidget {
 class _AttendancePageState extends ConsumerState<AttendancePage> {
   final _studentSearch = TextEditingController();
 
-  /// Texto de búsqueda ya reposado. Va aparte del controlador a propósito:
-  /// escribir mueve el controlador en cada tecla, pero la lista solo se
-  /// refiltra cuando el docente deja de escribir.
+  /// Texto de búsqueda ya reposado. `DebouncedSearchField` avisa solo cuando
+  /// el docente deja de escribir, así que la lista no se refiltra en cada
+  /// tecla.
   String _query = '';
-  Timer? _debounce;
 
   String _period = '2026-1';
   String? _subjectId;
@@ -66,7 +64,6 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
 
   @override
   void dispose() {
-    _debounce?.cancel();
     _studentSearch.dispose();
     super.dispose();
   }
@@ -136,14 +133,6 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
       return (s['code'] ?? '').toString().toLowerCase().contains(q) ||
           (s['fullName'] ?? '').toString().toLowerCase().contains(q);
     }).toList();
-  }
-
-  /// Reposa la búsqueda: refiltrar en cada tecla es trabajo que se tira.
-  void _buscar(String valor) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 250), () {
-      if (mounted && valor != _query) setState(() => _query = valor);
-    });
   }
 
   /// Guarda la lista completa en una sola petición.
@@ -343,14 +332,10 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
           ],
         ),
         const SizedBox(height: 12),
-        TextField(
+        DebouncedSearchField(
           controller: _studentSearch,
-          onChanged: _buscar,
-          decoration: const InputDecoration(
-            labelText: 'Buscar estudiante',
-            prefixIcon: Icon(Icons.search),
-            isDense: true,
-          ),
+          labelText: 'Buscar estudiante',
+          onChanged: (valor) => setState(() => _query = valor),
         ),
         const SizedBox(height: 12),
         Row(

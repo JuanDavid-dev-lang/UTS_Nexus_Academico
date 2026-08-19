@@ -8,6 +8,7 @@ import {
   thesisFormatSchema,
 } from './academic-base';
 
+/** Repositorio de formatos oficiales de trabajo de grado. */
 export const thesisRepository = {
   async list(filtro?: { etapa?: EtapaTrabajoGrado; q?: string }): Promise<ThesisFormat[]> {
     const data = await http.get('/trabajos-grado/formatos', {
@@ -47,10 +48,3 @@ export const thesisRepository = {
     await http.delete(`/trabajos-grado/formatos/${id}`, { schema: okResponse });
   },
 };
-
-/**
- * Registro de docentes y avisos institucionales.
- *
- * `catalogo` y `solicitar` van sin token a propósito: el formulario de registro
- * los necesita antes de que exista la cuenta.
- */

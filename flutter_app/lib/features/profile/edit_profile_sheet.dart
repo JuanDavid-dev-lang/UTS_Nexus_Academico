@@ -7,8 +7,8 @@ import '../../core/network/api_error.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/theme/app_theme.dart';
 
-// Los providers del perfil viven en `core/data/providers.dart` (la regla del
-// repo): declararlos aquí obligaba a importar esta hoja para leer la ficha, y
+// Los providers del perfil viven en `features/profile/profile_providers.dart`:
+// declararlos aquí obligaba a importar esta hoja para leer la ficha, y
 // el gate de trabajos de grado la necesita fuera de esta pantalla.
 
 /// Edición del perfil propio.

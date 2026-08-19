@@ -4,6 +4,20 @@ const schema = new Schema(
   {
     userId: { type: Schema.Types.ObjectId, ref: 'Usuario', required: true, index: true },
     refreshTokenHash: { type: String, required: true },
+    /**
+     * Hash del token que la última rotación dejó atrás.
+     *
+     * `refreshTokenHash` se sobrescribe en cada `/auth/refresh`: el hash
+     * anterior deja de existir en cualquier documento. Sin guardarlo aparte,
+     * la comprobación de reuso de `/auth/refresh` no tenía contra qué
+     * comparar un token ya canjeado — buscaba el hash viejo en
+     * `refreshTokenHash`, campo que ya lo había reemplazado por el nuevo, así
+     * que nunca coincidía con nada y la detección de robo estaba muerta en la
+     * práctica salvo para un token ya cerrado con `/logout`. Guarda solo una
+     * generación atrás: es la que corresponde a "alguien canjeó el token que
+     * el dueño legítimo todavía tenía".
+     */
+    previousRefreshTokenHash: { type: String, default: null, index: true },
     revokedAt: { type: Date, default: null, index: true },
     expiresAt: { type: Date, required: true },
     device: { type: String, default: 'unknown' },
@@ -20,6 +34,9 @@ const schema = new Schema(
  * el hash a mano en cada renovación.
  */
 schema.index({ userId: 1, refreshTokenHash: 1 });
+
+/** La misma consulta, pero para la detección de reuso sobre el hash anterior. */
+schema.index({ userId: 1, previousRefreshTokenHash: 1 });
 
 /**
  * Barrido automático de sesiones vencidas.

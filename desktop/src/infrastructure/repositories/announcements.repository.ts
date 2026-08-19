@@ -40,10 +40,3 @@ export const avisoRepository = {
     await http.delete(`/avisos/${id}`, { schema: okResponse });
   },
 };
-
-/**
- * Buzón de sugerencias de la aplicación.
- *
- * El docente escribe y ve solo lo suyo; la administración ve todo y cambia el
- * estado. El servidor decide qué devuelve según el rol — aquí no se filtra.
- */

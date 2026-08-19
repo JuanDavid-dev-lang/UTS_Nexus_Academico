@@ -27,12 +27,15 @@ final subjectRosterProvider =
   final repository = ref.watch(academicRepositoryProvider);
   final period = ref.watch(selectedPeriodProvider);
 
-  // En paralelo: las tres llamadas son independientes entre sí.
+  // En paralelo: las cuatro llamadas son independientes entre sí. Los riesgos
+  // pasan por `risksProvider` en vez de `repository.risks()` para compartir
+  // una sola petición con el resto de la pantalla en vez de repetirla por
+  // cada materia de la lista.
   final results = await Future.wait([
     repository.enrollments(subjectId: subjectId, period: period),
     repository.students(),
     repository.consolidated(period: period, subjectId: subjectId),
-    repository.risks(),
+    ref.watch(risksProvider.future),
   ]);
 
   final enrollments = results[0] as List<Enrollment>;
@@ -96,7 +99,7 @@ final subjectStatsProvider =
 
   final results = await Future.wait([
     repository.consolidated(period: period, subjectId: subjectId),
-    repository.risks(),
+    ref.watch(risksProvider.future),
   ]);
 
   final grades = results[0] as List<ConsolidatedRow>;
