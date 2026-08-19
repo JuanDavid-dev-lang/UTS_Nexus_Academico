@@ -128,7 +128,13 @@ if [ -z "$enlace" ]; then
   exit 1
 fi
 
-enlace="${enlace%?dl=0}?dl=1"
+if [[ "$enlace" == *"dl=0" ]]; then
+  enlace="${enlace%dl=0}dl=1"
+elif [[ "$enlace" == *"?"* ]]; then
+  enlace="${enlace}&dl=1"
+else
+  enlace="${enlace}?dl=1"
+fi
 echo "Enlace estable: $enlace"
 if [ -n "${GITHUB_OUTPUT:-}" ]; then
   printf 'url=%s\n' "$enlace" >> "$GITHUB_OUTPUT"
