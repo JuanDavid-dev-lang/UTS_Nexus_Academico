@@ -1,10 +1,11 @@
-# UTS Nexus Académico — Cliente de escritorio v2
+# UTS Nexus Académico — Cliente de escritorio
 
 Aplicación de escritorio nativa construida con **Tauri 2 + React 19 + TypeScript**.
-Sustituye a `desktop_python/` (PySide6), que se conserva hasta alcanzar paridad
-funcional verificada.
+Es *la* aplicación de escritorio: reemplazó a `desktop_python/` (PySide6), que
+ya no tiene lanzador y solo queda como referencia histórica.
 
-El diseño técnico completo está en [`../docs/ARQUITECTURA_V2.md`](../docs/ARQUITECTURA_V2.md).
+La decisión técnica que le dio origen está en
+[`../docs/ARQUITECTURA_V2.md`](../docs/ARQUITECTURA_V2.md) (documento histórico).
 
 ---
 
@@ -109,8 +110,10 @@ VITE_REQUEST_TIMEOUT_MS=20000
 # Presupuesto para operaciones lentas: reportes y respuestas de IA local
 VITE_LONG_REQUEST_TIMEOUT_MS=120000
 
-# Versión mostrada en Configuración
-VITE_APP_VERSION=2.0.0
+# Versión mostrada en Configuración. La rellena el build desde
+# `src-tauri/tauri.conf.json`; solo hace falta ponerla a mano en `npm run dev`,
+# que corre en el navegador y no tiene el shell nativo que la aporta.
+VITE_APP_VERSION=2.6.0
 ```
 
 La dirección del servidor también se puede cambiar desde la propia app, en

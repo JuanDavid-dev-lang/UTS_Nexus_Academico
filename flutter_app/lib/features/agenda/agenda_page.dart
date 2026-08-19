@@ -5,13 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/data/campus_time.dart';
 import '../../core/data/providers.dart';
-import '../../core/models/agenda.dart';
+import './data/agenda_models.dart';
 import '../../core/network/api_error.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
-import 'widgets/event_sheet.dart';
-import 'widgets/next_class_card.dart';
+import './widgets/event_sheet.dart';
+import './widgets/next_class_card.dart';
 
 /// Agenda académica en el teléfono.
 ///

@@ -6,6 +6,7 @@
  *
  * Es la ÚNICA ruta de agregación académica: evita fórmulas paralelas.
  */
+import { Types } from 'mongoose';
 import { GradeModel } from '../models/grade.model.js';
 import { AttendanceModel } from '../models/attendance.model.js';
 import { StudentModel } from '../models/student.model.js';
@@ -54,27 +55,118 @@ type Bucket = {
   asistencia: { present: boolean; durationMinutes?: number | null }[];
 };
 
-function baseFilter(filter: AcademicFilter): Record<string, unknown> {
+/**
+ * Filtro de la etapa `$match`.
+ *
+ * **Los identificadores se convierten a ObjectId a mano.** `find()` los castea
+ * solo a partir del esquema; `aggregate()` no lo hace, así que un `teacherId`
+ * en texto no casa con el ObjectId guardado y la etapa devuelve cero
+ * documentos — sin error, sin aviso, solo un panel vacío. Es la trampa clásica
+ * al pasar de una a otra.
+ */
+function baseMatch(filter: AcademicFilter): Record<string, unknown> {
+  const aId = (valor: string) => (Types.ObjectId.isValid(valor) ? new Types.ObjectId(valor) : valor);
+
   const query: Record<string, unknown> = { deletedAt: null };
-  if (filter.teacherId) query.teacherId = filter.teacherId;
+  if (filter.teacherId) query.teacherId = aId(filter.teacherId);
   if (filter.period) query.period = filter.period;
-  if (filter.studentId) query.studentId = filter.studentId;
-  else if (filter.studentIds) query.studentId = { $in: filter.studentIds };
+  if (filter.studentId) query.studentId = aId(filter.studentId);
+  else if (filter.studentIds) query.studentId = { $in: filter.studentIds.map(aId) };
   return query;
 }
 
-const keyOf = (studentId: string, subjectId: string, period: string) =>
-  `${studentId}::${subjectId}::${period}`;
+/** Agrupación común: una entrada por (estudiante, materia, periodo). */
+const CLAVE_GRUPO = { studentId: '$studentId', subjectId: '$subjectId', period: '$period' };
 
+type ClaveAgrupada = { studentId: unknown; subjectId: unknown; period: string };
+
+/**
+ * Reúne notas y asistencia por (estudiante, materia, periodo).
+ *
+ * Antes esto eran dos `find()` sin límite: **todas** las notas y **toda** la
+ * asistencia del alcance, documentos enteros, a memoria de Node, para después
+ * agruparlas con un `Map`. Con un ADMIN —que no lleva `teacherId`— el alcance
+ * es la institución completa, y esta función la usan el panel, el listado de
+ * riesgo, las notificaciones, los reportes y cada mensaje del asistente. Era
+ * el techo real del proceso, y se alcanzaba a la vez desde cinco sitios.
+ *
+ * Ahora agrupa Mongo. Viaja solo lo que los dominios puros necesitan —tres
+ * campos por nota, dos por clase— en vez del documento completo con sus
+ * marcas de tiempo, sus ObjectId y sus notas de texto. El resultado por
+ * bucket es el mismo, así que `grading` y `risk` siguen recibiendo
+ * exactamente lo que recibían: aquí no se calcula nada, solo se recoge.
+ */
 export async function computeAcademicRecords(filter: AcademicFilter): Promise<AcademicRecord[]> {
-  const [grades, attendance] = await Promise.all([
-    GradeModel.find(baseFilter(filter)).lean(),
-    AttendanceModel.find(baseFilter(filter)).lean(),
+  const match = baseMatch(filter);
+
+  const [gradeGroups, attendanceGroups] = await Promise.all([
+    GradeModel.aggregate<
+      ClaveAgrupada & {
+        groupId: unknown;
+        teacherId: unknown;
+        notas: { corte: number; tipo: string; score: number }[];
+      }
+    >([
+      // El corte y el componente tienen que ser válidos: el filtro estaba antes
+      // en el bucle de Node y baja aquí para no traer lo que se iba a descartar.
+      { $match: { ...match, corte: { $in: [1, 2, 3] }, componentType: { $ne: null } } },
+      {
+        $group: {
+          _id: CLAVE_GRUPO,
+          groupId: { $first: '$groupId' },
+          teacherId: { $first: '$teacherId' },
+          notas: {
+            $push: { corte: '$corte', tipo: '$componentType', score: { $ifNull: ['$score', 0] } },
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          studentId: '$_id.studentId',
+          subjectId: '$_id.subjectId',
+          period: '$_id.period',
+          groupId: 1,
+          teacherId: 1,
+          notas: 1,
+        },
+      },
+    ]),
+    AttendanceModel.aggregate<
+      ClaveAgrupada & {
+        groupId: unknown;
+        teacherId: unknown;
+        asistencia: { present: boolean; durationMinutes: number | null }[];
+      }
+    >([
+      { $match: match },
+      {
+        $group: {
+          _id: CLAVE_GRUPO,
+          groupId: { $first: '$groupId' },
+          teacherId: { $first: '$teacherId' },
+          asistencia: {
+            $push: { present: '$present', durationMinutes: '$durationMinutes' },
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          studentId: '$_id.studentId',
+          subjectId: '$_id.subjectId',
+          period: '$_id.period',
+          groupId: 1,
+          teacherId: 1,
+          asistencia: 1,
+        },
+      },
+    ]),
   ]);
 
   const buckets = new Map<string, Bucket>();
   const ensure = (studentId: string, subjectId: string, period: string, groupId: any, teacherId: any): Bucket => {
-    const key = keyOf(studentId, subjectId, period);
+    const key = `${studentId}::${subjectId}::${period}`;
     let bucket = buckets.get(key);
     if (!bucket) {
       bucket = {
@@ -91,19 +183,34 @@ export async function computeAcademicRecords(filter: AcademicFilter): Promise<Ac
     return bucket;
   };
 
-  for (const g of grades) {
-    if (!(g.corte === 1 || g.corte === 2 || g.corte === 3) || !g.componentType) continue;
-    const bucket = ensure(String(g.studentId), String(g.subjectId), String(g.period), g.groupId, g.teacherId);
-    bucket.notas.push({
-      corte: g.corte as CorteNumero,
-      tipo: g.componentType as ComponenteTipo,
-      score: Number(g.score ?? 0),
-    });
+  for (const grupo of gradeGroups) {
+    const bucket = ensure(
+      String(grupo.studentId),
+      String(grupo.subjectId),
+      String(grupo.period),
+      grupo.groupId,
+      grupo.teacherId,
+    );
+    for (const nota of grupo.notas) {
+      bucket.notas.push({
+        corte: nota.corte as CorteNumero,
+        tipo: nota.tipo as ComponenteTipo,
+        score: Number(nota.score ?? 0),
+      });
+    }
   }
 
-  for (const a of attendance) {
-    const bucket = ensure(String(a.studentId), String(a.subjectId), String(a.period), a.groupId, a.teacherId);
-    bucket.asistencia.push({ present: a.present, durationMinutes: a.durationMinutes });
+  for (const grupo of attendanceGroups) {
+    const bucket = ensure(
+      String(grupo.studentId),
+      String(grupo.subjectId),
+      String(grupo.period),
+      grupo.groupId,
+      grupo.teacherId,
+    );
+    for (const clase of grupo.asistencia) {
+      bucket.asistencia.push({ present: clase.present, durationMinutes: clase.durationMinutes });
+    }
   }
 
   const studentIds = [...new Set([...buckets.values()].map(b => b.studentId))];

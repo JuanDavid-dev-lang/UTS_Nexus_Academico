@@ -43,3 +43,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Sesiones del compilador de Kotlin. Las deja el build de Gradle dentro de
+# `android/` y no son del proyecto: cambian en cada compilación y ensucian el
+# estado del repositorio con ficheros que nadie va a mirar.
+android/.kotlin/

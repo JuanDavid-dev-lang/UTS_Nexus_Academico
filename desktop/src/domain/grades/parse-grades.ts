@@ -75,7 +75,10 @@ export function parseGrades(text: string): GradesParseResult {
   const seen = new Set<string>();
   let duplicates = 0;
 
-  const clean = text.replace(/^﻿/, '');
+  // \uFEFF y no el carácter literal: es una marca de orden de bytes, invisible
+  // en el editor, y escrita tal cual el analizador la marca como espacio
+  // irregular — con razón, porque nadie puede ver si sigue ahí.
+  const clean = text.replace(/^\uFEFF/, '');
   const lines = clean.split(/\r?\n/);
   const meaningful = lines.filter((line) => line.trim().length > 0);
   if (meaningful.length === 0) return { rows, errors, columns: 0, duplicates };

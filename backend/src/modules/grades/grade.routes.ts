@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import * as campo from '../../shared/validation.js';
 import { GradeModel } from '../../models/grade.model.js';
 import { StudentModel } from '../../models/student.model.js';
 import { SubjectModel } from '../../models/subject.model.js';
@@ -8,6 +9,7 @@ import { identificar, requireRole } from '../../middlewares/auth.js';
 import { auditChange } from '../../shared/audit.js';
 import { emitToUser } from '../../shared/socket.js';
 import { getProfessorScope } from '../../shared/professor-scope.js';
+import { filtroDeListado } from '../../domains/scope/professor-scope.js';
 import {
   calcularNotaFinal,
   type NotaComponente,
@@ -46,15 +48,18 @@ function aNotasComponente(
 // Listado plano de notas (scoped a profesor o al propio estudiante).
 gradeRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR', 'STUDENT'), async (req, res, next) => {
   try {
-    const filter: Record<string, unknown> = { deletedAt: null };
-    if (req.user?.role === 'PROFESSOR') filter.teacherId = req.user.id;
-    if (req.user?.role === 'STUDENT') filter.studentId = req.user.studentId;
-    if (req.query.studentId) filter.studentId = String(req.query.studentId);
-    if (req.query.subjectId) filter.subjectId = String(req.query.subjectId);
-    if (req.query.groupId) filter.groupId = String(req.query.groupId);
-    if (req.query.period) filter.period = String(req.query.period);
-    const items = await GradeModel.find(filter).limit(1000).lean();
-    res.json({ ok: true, items });
+    // Una sola función para el acotado por rol, compartida con asistencia: el
+    // ámbito del rol se aplica DESPUÉS de lo que pide la URL. Escrito al revés
+    // —como estaba aquí— un estudiante recuperaba las notas de otro pasando
+    // `?studentId=` y la respuesta era un 200 con una lista impecable.
+    const filter = filtroDeListado(req.query, req.user);
+    const pagina = campo.paginacionCon(1000).parse(req.query);
+    const { skip, limit } = campo.saltoYTope(pagina);
+    const [items, total] = await Promise.all([
+      GradeModel.find(filter).sort({ studentId: 1, corte: 1 }).skip(skip).limit(limit).lean(),
+      GradeModel.countDocuments(filter),
+    ]);
+    res.json(campo.respuestaPaginada(items, total, pagina));
   } catch (err) {
     next(err);
   }

@@ -3,41 +3,64 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'core/data/providers.dart';
-import 'core/services/auth_controller.dart';
-import 'core/services/realtime_service.dart';
-import 'core/theme/app_theme.dart';
-import 'core/theme/theme_controller.dart';
-import 'core/widgets/app_scaffold.dart';
-import 'core/widgets/update_prompt.dart';
-import 'core/services/local_notifications_service.dart';
-import 'core/services/push_service.dart';
-import 'features/agenda/agenda_page.dart';
-import 'features/ai/ai_page.dart';
-import 'features/auth/login_page.dart';
-import 'features/auth/recovery_page.dart';
-import 'features/dashboard/dashboard_page.dart';
-import 'features/notifications/notifications_page.dart';
-import 'features/profile/profile_page.dart';
-import 'features/attendance/attendance_page.dart';
-import 'features/attendance/scan_sheet_page.dart';
-import 'features/announcements/announcements_page.dart';
-import 'features/auth/register_page.dart';
-import 'features/tutorial/tutorial_page.dart';
-import 'features/reports/reports_page.dart';
-import 'features/schedule/schedule_page.dart';
-import 'features/settings/settings_page.dart';
-import 'features/students/students_page.dart';
-import 'features/subjects/subjects_page.dart';
-import 'features/subjects/subject_detail_page.dart';
-import 'features/grades/grades_page.dart';
-import 'features/feedback/feedback_page.dart';
-import 'features/thesis/thesis_formats_page.dart';
+import './core/data/providers.dart';
+import './core/auth/auth_controller.dart';
+import './core/network/realtime_service.dart';
+import './core/theme/app_theme.dart';
+import './core/theme/theme_controller.dart';
+import './core/widgets/app_scaffold.dart';
+import './core/widgets/update_prompt.dart';
+import './core/notifications/local_notifications_service.dart';
+import './core/notifications/push_service.dart';
+import './features/agenda/agenda_page.dart';
+import './features/ai/ai_page.dart';
+import './features/auth/login_page.dart';
+import './features/auth/recovery_page.dart';
+import './features/dashboard/dashboard_page.dart';
+import './features/notifications/notifications_page.dart';
+import './features/profile/profile_page.dart';
+import './features/attendance/attendance_page.dart';
+import './features/attendance/scan_sheet_page.dart';
+import './features/announcements/announcements_page.dart';
+import './features/auth/register_page.dart';
+import './features/tutorial/tutorial_page.dart';
+import './features/reports/reports_page.dart';
+import './features/schedule/schedule_page.dart';
+import './features/settings/settings_page.dart';
+import './features/students/students_page.dart';
+import './features/subjects/subjects_page.dart';
+import './features/subjects/subject_detail_page.dart';
+import './features/grades/grades_page.dart';
+import './features/feedback/feedback_page.dart';
+import './features/thesis/thesis_formats_page.dart';
 
 /// Navigator raíz. Lo necesita [UpdateGate]: el `builder` de `MaterialApp` se
 /// dibuja por encima del Navigator del router, así que desde su contexto no hay
 /// ninguno al que pedirle un diálogo.
 final rootNavigatorKey = GlobalKey<NavigatorState>();
+
+/// Claves de navegador de cada rama del shell.
+///
+/// Una por rama, y estables entre reconstrucciones: son lo que le permite a
+/// `StatefulShellRoute` conservar el navegador —y con él la pila y el estado—
+/// de la pestaña que se deja atrás.
+final _clavesDeRama = List.generate(
+  rutasDeRama.length,
+  (i) => GlobalKey<NavigatorState>(debugLabel: 'rama-${rutasDeRama[i]}'),
+);
+
+/// Construye una rama del shell con su ruta raíz y, si las tiene, sus hijas.
+StatefulShellBranch _rama(
+  int indice,
+  String ruta,
+  Widget Function(BuildContext, GoRouterState) constructor, {
+  List<RouteBase> hijas = const [],
+}) {
+  return StatefulShellBranch(
+    navigatorKey: _clavesDeRama[indice],
+    routes: [GoRoute(path: ruta, builder: constructor, routes: hijas)],
+  );
+}
 
 final router = GoRouter(
   navigatorKey: rootNavigatorKey,
@@ -49,17 +72,33 @@ final router = GoRouter(
     // y el tutorial se abre en pantalla completa sobre cualquier estado.
     GoRoute(path: '/registro', builder: (_, __) => const RegisterPage()),
     GoRoute(path: '/tutorial', builder: (_, __) => const TutorialPage()),
-    ShellRoute(
-      builder: (_, __, child) => AppScaffold(child: child),
-      routes: [
-        GoRoute(path: '/', builder: (_, __) => const DashboardPage()),
-        GoRoute(path: '/students', builder: (_, __) => const StudentsPage()),
-        GoRoute(
-          path: '/subjects',
-          builder: (_, __) => const SubjectsPage(),
-          routes: [
+
+    /// Shell con estado por pestaña.
+    ///
+    /// Antes era un `ShellRoute` normal, y eso significaba que cambiar de
+    /// pestaña **destruía la anterior**: al volver, la lista arrancaba desde
+    /// arriba, el buscador aparecía vacío y cualquier despliegue a medio
+    /// rellenar se había perdido. Los datos sobrevivían —los providers no son
+    /// `autoDispose`— pero el árbol de widgets no, así que la pantalla se
+    /// reconstruía entera y el docente veía el parpadeo cada vez.
+    ///
+    /// `indexedStack` mantiene viva cada rama que ya se ha visitado, con su
+    /// propio navegador: volver a una pestaña es mostrarla, no rehacerla. Las
+    /// ramas se construyen la primera vez que se entra, no al arrancar, así
+    /// que abrir la aplicación no cuesta más que antes.
+    StatefulShellRoute.indexedStack(
+      builder: (_, __, navigationShell) => AppScaffold(navigationShell: navigationShell),
+      branches: [
+        _rama(0, '/', (_, __) => const DashboardPage()),
+        _rama(
+          1,
+          '/subjects',
+          (_, __) => const SubjectsPage(),
+          hijas: [
             // Los estudiantes cuelgan de su materia: es como trabaja un docente
-            // ("mis estudiantes de Cálculo I"), y la ruta lo refleja.
+            // ("mis estudiantes de Cálculo I"), y la ruta lo refleja. Va dentro
+            // de la rama para que el detalle se apile sobre el listado y volver
+            // atrás no salga de la pestaña.
             GoRoute(
               path: ':subjectId',
               builder: (_, state) => SubjectDetailPage(
@@ -68,25 +107,34 @@ final router = GoRouter(
             ),
           ],
         ),
-        GoRoute(path: '/grades', builder: (_, __) => const GradesPage()),
-        GoRoute(path: '/attendance', builder: (_, __) => const AttendancePage()),
-        GoRoute(path: '/attendance/scan', builder: (_, __) => const ScanSheetPage()),
-        GoRoute(path: '/avisos', builder: (_, __) => const AnnouncementsPage()),
-        GoRoute(path: '/sugerencias', builder: (_, __) => const FeedbackPage()),
-        GoRoute(path: '/trabajos-grado', builder: (_, __) => const ThesisFormatsPage()),
-        GoRoute(path: '/schedule', builder: (_, __) => const SchedulePage()),
+        _rama(
+          2,
+          '/attendance',
+          (_, __) => const AttendancePage(),
+          hijas: [
+            GoRoute(path: 'scan', builder: (_, __) => const ScanSheetPage()),
+          ],
+        ),
+        _rama(3, '/ai', (_, __) => const AiPage()),
         // `?item=` lo pone la notificación: al tocarla se abre esa clase, no la
         // agenda genérica. Sin eso, el aviso obliga a repetir a mano la
         // búsqueda que él mismo ya había hecho.
-        GoRoute(
-          path: '/agenda',
-          builder: (_, state) => AgendaPage(itemDestacado: state.uri.queryParameters['item']),
-        ),
-        GoRoute(path: '/ai', builder: (_, __) => const AiPage()),
-        GoRoute(path: '/reports', builder: (_, __) => const ReportsPage()),
-        GoRoute(path: '/notifications', builder: (_, __) => const NotificationsPage()),
-        GoRoute(path: '/settings', builder: (_, __) => const SettingsPage()),
-        GoRoute(path: '/profile', builder: (_, __) => const ProfilePage()),
+        _rama(4, '/agenda',
+            (_, state) => AgendaPage(itemDestacado: state.uri.queryParameters['item'])),
+        _rama(5, '/grades', (_, __) => const GradesPage()),
+        _rama(6, '/students', (_, __) => const StudentsPage()),
+        _rama(7, '/schedule', (_, __) => const SchedulePage()),
+        _rama(8, '/reports', (_, __) => const ReportsPage()),
+        _rama(9, '/avisos', (_, __) => const AnnouncementsPage()),
+        _rama(10, '/sugerencias', (_, __) => const FeedbackPage()),
+        _rama(11, '/notifications', (_, __) => const NotificationsPage()),
+        _rama(12, '/settings', (_, __) => const SettingsPage()),
+        // La rama existe siempre aunque el menú la esconda: las rutas son
+        // estáticas y el permiso —`esDirectorProvider`— llega después, al
+        // cargar la ficha. Montarla condicionalmente dejaría la sección
+        // inaccesible hasta reiniciar.
+        _rama(13, '/trabajos-grado', (_, __) => const ThesisFormatsPage()),
+        _rama(14, '/profile', (_, __) => const ProfilePage()),
       ],
     ),
   ],

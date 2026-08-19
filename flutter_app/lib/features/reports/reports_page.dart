@@ -8,7 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../core/data/models.dart';
 import '../../core/data/providers.dart';
 import '../../core/network/api_error.dart';
-import '../../core/data/offline_status.dart';
+import '../../core/storage/offline_status.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/offline_banner.dart';
 import '../../core/widgets/period_selector.dart';

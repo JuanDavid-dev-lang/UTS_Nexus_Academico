@@ -135,7 +135,7 @@ class _EventSheetState extends ConsumerState<EventSheet> {
 
     return Padding(
       // Deja sitio al teclado: sin esto, el campo enfocado queda debajo.
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: SafeArea(
         child: SingleChildScrollView(
           padding: AppSpacing.pagePadding,
@@ -334,7 +334,7 @@ Future<bool> mostrarHojaDeEvento(
     context: context,
     showDragHandle: true,
     isScrollControlled: true,
-    constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.92),
+    constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.92),
     builder: (_) => EventSheet(
       diaSugerido: diaSugerido,
       offsetCampusMinutos: offsetCampusMinutos,

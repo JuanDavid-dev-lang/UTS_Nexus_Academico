@@ -1,5 +1,7 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
+import * as campo from '../../shared/validation.js';
 import { exigirSesion, identificar, requireRole } from '../../middlewares/auth.js';
 import { GradeModel } from '../../models/grade.model.js';
 import { AttendanceModel } from '../../models/attendance.model.js';
@@ -25,6 +27,31 @@ import { pareceDeAgenda } from '../../domains/agenda/agenda-questions.js';
 
 export const aiRouter = Router();
 aiRouter.use(identificar);
+
+/**
+ * Límite de tasa propio del chat.
+ *
+ * El cupo general de la API (250 peticiones cada 15 minutos) no sirve aquí:
+ * cada mensaje arrastra la agregación académica completa **y** una inferencia
+ * del modelo local, que ocupa la CPU o la GPU durante segundos. Doscientas
+ * cincuenta de esas dejan la máquina sin atender nada más, incluida la toma de
+ * asistencia de quien está en clase en ese momento.
+ *
+ * Se cuenta por usuario y no por IP porque un campus sale a internet por una
+ * sola dirección: contar por IP dejaría a toda la facultad compartiendo el
+ * cupo de quien más pregunte.
+ */
+const limiteChat = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  // `requireRole` va delante en la ruta, así que aquí siempre hay usuario; el
+  // respaldo por IP solo existe para no dejar la clave vacía si eso cambiara.
+  keyGenerator: (req) => req.user?.id ?? req.ip ?? 'anonimo',
+  message: {
+    ok: false,
+    message: 'Has hecho muchas consultas al asistente. Espera unos minutos antes de seguir.',
+  },
+});
 
 /** Estado del asistente de IA local (Ollama): ¿está activo y disponible? */
 // `exigirSesion`: contar si hay un servicio de IA local encendido y con qué
@@ -115,17 +142,23 @@ aiRouter.post('/predict', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), asyn
   }
 });
 
-aiRouter.post('/chat', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
+aiRouter.post('/chat', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), limiteChat, async (req, res, next) => {
   try {
     const body = z.object({
-      message: z.string().min(1),
-      studentId: z.string().optional(),
-      subjectId: z.string().optional(),
-      groupId: z.string().optional(),
+      // Dos mil caracteres son cuatro párrafos largos: de sobra para cualquier
+      // pregunta real. Sin tope, el cuerpo entero de la petición —hasta 2 MB—
+      // se volcaba al prompt de Ollama, que no lo rechaza: lo intenta cargar y
+      // deja al proceso sin memoria o esperando hasta el corte del minuto.
+      message: z.string().trim().min(1).max(2000),
+      studentId: campo.codigo.optional(),
+      subjectId: campo.codigo.optional(),
+      groupId: campo.codigo.optional(),
+      // El historial lo manda el cliente, así que también se acota: seis turnos
+      // es lo que el servicio usa, y cada uno cabe en un mensaje del chat.
       history: z.array(z.object({
         role: z.enum(['user', 'assistant']),
-        content: z.string(),
-      })).optional(),
+        content: z.string().max(4000),
+      })).max(20).optional(),
     }).parse(req.body);
 
     // Aislamiento: un docente solo consulta lo suyo.

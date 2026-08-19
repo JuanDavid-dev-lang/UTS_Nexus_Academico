@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/services/update_service.dart';
+import '../data/update_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/version.dart';
 import '../../../core/widgets/ui_kit.dart';

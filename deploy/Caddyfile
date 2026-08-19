@@ -18,6 +18,16 @@
 		-Server
 	}
 
+	# Tope de cuerpo en el perímetro. Caddy no impone ninguno por defecto, así
+	# que sin esto una subida de gigabytes llegaba hasta Node y solo la cortaba
+	# multer, después de haberla transferido entera. El tope queda por encima
+	# del archivo más grande que acepta la API —los 20 MB de un formato de
+	# trabajo de grado— para que el límite real lo siga poniendo la ruta, con
+	# su mensaje, y no un corte de conexión sin explicación.
+	request_body {
+		max_size 25MB
+	}
+
 	# El WebSocket de sincronización viaja por la misma ruta; Caddy conserva
 	# los encabezados de actualización de protocolo sin configuración extra.
 	reverse_proxy backend:4000 {

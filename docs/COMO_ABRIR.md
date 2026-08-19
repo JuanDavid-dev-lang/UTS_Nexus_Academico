@@ -115,8 +115,9 @@ volver a escribir la contraseña cada vez.
 <details>
 <summary>Versión anterior en Python (en desuso)</summary>
 
-`abrir_pc.bat` sigue abriendo la app v1 hecha con PySide6. Se conserva como
-referencia mientras se valida la v2, pero ya no recibe funcionalidades nuevas.
+La app v1 en PySide6 ya no tiene lanzador: se eliminó `abrir_pc.bat` porque
+abrirla por accidente, creyendo que era la versión actual, cuesta más que el
+rato que ahorraba. El código queda como referencia histórica.
 
 ```powershell
 cd desktop_python
@@ -215,7 +216,6 @@ conectarse.
 | **Android en Android Studio** | Doble clic en `abrir_android.bat` → opción **1** |
 | **Android directo en dispositivo** | Doble clic en `abrir_android.bat` → opción **2** |
 | **APK para instalar en un teléfono** | Doble clic en `abrir_android.bat` → opción **3** |
-| **PC — versión antigua en Python** | Doble clic en `abrir_pc.bat` |
 
 Credenciales de demo (todas con contraseña `(la que genere el seed)`):
 `admin@uts.edu.co` · `docente@uts.edu.co` · `estudiante@uts.edu.co`

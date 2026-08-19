@@ -1,9 +1,9 @@
 import 'package:dio/dio.dart';
 
-import '../services/api_client.dart';
-import 'models.dart';
-import 'offline_cache.dart';
-import 'offline_status.dart';
+import '../network/api_client.dart';
+import './models.dart';
+import '../storage/offline_cache.dart';
+import '../storage/offline_status.dart';
 
 /// Acceso a la API académica.
 ///

@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
+import { Types } from 'mongoose';
 import { AttendanceModel } from '../../models/attendance.model.js';
 import { GroupModel } from '../../models/group.model.js';
 import { StudentModel } from '../../models/student.model.js';
 import { identificar, requireRole } from '../../middlewares/auth.js';
-import { auditChange } from '../../shared/audit.js';
+import { auditBatch } from '../../shared/audit.js';
 import { emitSync } from '../../shared/socket.js';
 import { getEnrolledStudentIds, getProfessorScope } from '../../shared/professor-scope.js';
 import { cruzarConMatricula, ordenarPorApellido } from '../../domains/attendance/sheet-match.js';
@@ -214,48 +215,100 @@ attendanceScanRouter.post('/scan/confirm', requireRole('ADMIN', 'PROFESSOR'), as
       });
     }
 
-    let guardados = 0;
+    /**
+     * Escritura del lote en cuatro consultas, no en una por casilla.
+     *
+     * El bucle anterior hacía `findOne` + `findOneAndUpdate` + auditoría por
+     * cada cruce de estudiante y fecha, y en serie. Una planilla de 40
+     * estudiantes por 16 clases son 640 casillas, es decir cerca de dos mil
+     * viajes encadenados a la base: minutos de espera para una planilla que el
+     * docente ya había revisado entera.
+     */
+    // Los identificadores viajan como texto en el cuerpo, pero en el esquema
+    // son ObjectId: `bulkWrite` no los convierte solo, a diferencia de
+    // `findOneAndUpdate`. Sin esta conversión el filtro no casa con nada y
+    // cada casilla se insertaría en vez de actualizar la que ya existe.
+    const subjectId = group.subjectId;
+    const groupObjectId = new Types.ObjectId(body.groupId);
+    const teacherObjectId = new Types.ObjectId(String(group.professorId));
+    const studentIds = [...new Set(body.filas.map(fila => new Types.ObjectId(fila.studentId)))];
+
+    const casillas: Array<{ studentId: Types.ObjectId; date: Date; present: boolean }> = [];
     for (const fila of body.filas) {
       for (let i = 0; i < body.fechas.length; i++) {
-        const date = body.fechas[i] as Date;
-        const present = fila.presentes[i] as boolean;
+        casillas.push({
+          studentId: new Types.ObjectId(fila.studentId),
+          date: body.fechas[i] as Date,
+          present: fila.presentes[i] as boolean,
+        });
+      }
+    }
 
-        const antes = await AttendanceModel.findOne({
-          studentId: fila.studentId,
-          subjectId: group.subjectId,
-          date,
-          deletedAt: null,
-        }).lean();
+    /** Clave única de Asistencia (estudiante, materia, fecha), en texto. */
+    const claveDe = (studentId: unknown, date: Date | string) =>
+      `${String(studentId)}|${new Date(date).toISOString()}`;
 
-        const item = await AttendanceModel.findOneAndUpdate(
-          { studentId: fila.studentId, subjectId: group.subjectId, date },
-          {
+    const rangoFechas = { $in: body.fechas };
+    const previas = await AttendanceModel.find({
+      studentId: { $in: studentIds },
+      subjectId,
+      date: rangoFechas,
+      deletedAt: null,
+    }).lean();
+    const antesPorClave = new Map(
+      previas.map(fila => [claveDe(String(fila.studentId), fila.date as Date), fila]),
+    );
+
+    await AttendanceModel.bulkWrite(
+      casillas.map(casilla => ({
+        updateOne: {
+          filter: { studentId: casilla.studentId, subjectId, date: casilla.date },
+          update: {
             $set: {
-              present,
+              present: casilla.present,
               durationMinutes: body.durationMinutes,
-              groupId: body.groupId,
-              teacherId: String(group.professorId),
+              groupId: groupObjectId,
+              teacherId: teacherObjectId,
               period: group.period,
+              deletedAt: null,
               // Queda registrado de dónde salió el dato: si mañana alguien
               // reclama una falta, se puede saber que vino de una foto revisada
               // y no de un registro hecho en clase.
               notes: 'Importado desde una planilla fotografiada y revisada.',
             },
           },
-          { upsert: true, new: true, setDefaultsOnInsert: true },
-        );
+          upsert: true,
+        },
+      })),
+      { ordered: false },
+    );
 
-        await auditChange({
+    const despues = await AttendanceModel.find({
+      studentId: { $in: studentIds },
+      subjectId,
+      date: rangoFechas,
+      deletedAt: null,
+    }).lean();
+    const despuesPorClave = new Map(
+      despues.map(fila => [claveDe(String(fila.studentId), fila.date as Date), fila]),
+    );
+
+    await auditBatch(
+      casillas.map(casilla => {
+        const clave = claveDe(casilla.studentId, casilla.date);
+        const antes = antesPorClave.get(clave) ?? null;
+        return {
           actorId: req.user?.id,
           action: antes ? 'UPDATE' : 'CREATE',
           entity: 'Asistencia',
-          entityId: item.id,
+          entityId: String(despuesPorClave.get(clave)?._id ?? ''),
           before: antes,
-          after: item.toObject(),
-        });
-        guardados++;
-      }
-    }
+          after: despuesPorClave.get(clave) ?? null,
+        };
+      }),
+    );
+
+    const guardados = casillas.length;
 
     emitSync('sync:update', { entity: 'attendance', action: 'bulk', id: body.groupId });
     res.status(201).json({ ok: true, guardados, clases: body.fechas.length, estudiantes: body.filas.length });

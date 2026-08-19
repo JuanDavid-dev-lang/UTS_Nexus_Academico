@@ -46,7 +46,10 @@ export async function checkForUpdate(): Promise<UpdateInfo | null> {
   try {
     update = await check();
   } catch (causa) {
-    throw new Error(explicarFallo(causa));
+    // `cause` encadenado: sin él, el fallo real del plugin —firma inválida,
+    // red caída, servidor de versiones sin responder— desaparece y solo queda
+    // el texto explicativo, que es justo lo que no sirve para diagnosticar.
+    throw new Error(explicarFallo(causa), { cause: causa });
   }
   if (!update) return null;
 

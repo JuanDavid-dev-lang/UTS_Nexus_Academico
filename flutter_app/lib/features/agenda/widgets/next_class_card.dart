@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/data/campus_time.dart';
 import '../../../core/data/providers.dart';
-import '../../../core/models/agenda.dart';
+import '../data/agenda_models.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/ui_kit.dart';
 

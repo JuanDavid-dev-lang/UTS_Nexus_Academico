@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/network/connection_controller.dart';
-import '../../core/services/auth_controller.dart';
+import '../../core/auth/auth_controller.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
-import 'edit_profile_sheet.dart';
+import './edit_profile_sheet.dart';
 
 /// Perfil del usuario.
 class ProfilePage extends ConsumerWidget {

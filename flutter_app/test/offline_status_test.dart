@@ -6,7 +6,7 @@
 library;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:uts_academico/core/data/offline_status.dart';
+import 'package:uts_academico/core/storage/offline_status.dart';
 
 void main() {
   final ahora = DateTime.parse('2026-08-11T10:00:00');

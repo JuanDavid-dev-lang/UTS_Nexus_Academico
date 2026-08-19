@@ -1,9 +1,14 @@
 # Arquitectura V2 — UTS Nexus Académico (Escritorio)
 
-`Fase 2 · Diseño de la nueva arquitectura` · Estado: aprobado para implementación
-
-Documento de decisión técnica para la reestructuración completa del cliente de
-escritorio. Sustituye a `desktop_python/` (PySide6).
+> **📎 Documento histórico.** Es la decisión técnica que dio origen al cliente
+> de escritorio actual, escrita cuando todavía era un plan. **Ya está
+> implementado**: `desktop/` es la aplicación en producción y `desktop_python/`
+> quedó sin lanzador. Se conserva por la auditoría de la v1 y las razones de
+> cada elección, que siguen siendo válidas y no están escritas en ningún otro
+> sitio.
+>
+> Para el estado actual: [`desktop/README.md`](../desktop/README.md) y
+> [`CLAUDE.md`](../CLAUDE.md).
 
 ---
 
@@ -300,4 +305,4 @@ del empaquetado anterior con PyInstaller. Resultado: **2,1 MB**.
 
 **El backend y la base de datos no se tocan en ninguna fase** salvo para añadir
 el proxy hacia el servicio ML y los endpoints de realimentación (Fase 7).
-`desktop_python/` se conserva hasta que la Fase 5 alcance paridad funcional.
+`desktop_python/` se conservó hasta alcanzar paridad. Hoy está muerta: sin lanzador y sin cambios.

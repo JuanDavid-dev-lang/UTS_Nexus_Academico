@@ -7,8 +7,8 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/theme_controller.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
-import 'widgets/notifications_section.dart';
-import 'widgets/update_section.dart';
+import './widgets/notifications_section.dart';
+import './widgets/update_section.dart';
 
 /// Ajustes.
 ///
@@ -152,19 +152,56 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             child: Builder(
               builder: (context) {
                 final mode = ref.watch(themeModeProvider);
-                final dark = mode == ThemeMode.dark ||
+                // `platformBrightnessOf` y no `MediaQuery.of`: solo interesa el
+                // brillo del sistema, no cada cambio del MediaQueryData.
+                final oscuroAhora = mode == ThemeMode.dark ||
                     (mode == ThemeMode.system &&
                         MediaQuery.platformBrightnessOf(context) ==
                             Brightness.dark);
-                return SwitchListTile(
-                  value: dark,
-                  onChanged: (value) =>
-                      ref.read(themeModeProvider.notifier).toggleDark(value),
-                  title: const Text('Modo oscuro'),
-                  subtitle: const Text('Verde profundo con lettering lima'),
-                  secondary: Icon(dark
-                      ? Icons.dark_mode_outlined
-                      : Icons.light_mode_outlined),
+
+                // Tres opciones y no un interruptor. Con el interruptor, tocar
+                // el tema una sola vez dejaba la app clavada en claro u oscuro
+                // para siempre: «seguir al sistema» era el estado inicial y no
+                // había forma de volver a él, así que el teléfono que cambia
+                // solo al anochecer dejaba de hacerlo sin explicación.
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(oscuroAhora
+                            ? Icons.dark_mode_outlined
+                            : Icons.light_mode_outlined),
+                        title: const Text('Tema'),
+                        subtitle: const Text('Verde profundo con lettering lima'),
+                      ),
+                      SegmentedButton<ThemeMode>(
+                        segments: const [
+                          ButtonSegment(
+                            value: ThemeMode.light,
+                            icon: Icon(Icons.light_mode_outlined),
+                            label: Text('Claro'),
+                          ),
+                          ButtonSegment(
+                            value: ThemeMode.dark,
+                            icon: Icon(Icons.dark_mode_outlined),
+                            label: Text('Oscuro'),
+                          ),
+                          ButtonSegment(
+                            value: ThemeMode.system,
+                            icon: Icon(Icons.brightness_auto_outlined),
+                            label: Text('Sistema'),
+                          ),
+                        ],
+                        selected: {mode},
+                        showSelectedIcon: false,
+                        onSelectionChanged: (seleccion) =>
+                            ref.read(themeModeProvider.notifier).set(seleccion.first),
+                      ),
+                    ],
+                  ),
                 );
               },
             ),

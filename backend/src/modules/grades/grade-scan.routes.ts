@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
+import { Types } from 'mongoose';
 import ExcelJS from 'exceljs';
 import { GroupModel } from '../../models/group.model.js';
 import { EnrollmentModel } from '../../models/enrollment.model.js';
 import { GradeModel } from '../../models/grade.model.js';
 import { identificar, requireRole } from '../../middlewares/auth.js';
-import { auditChange } from '../../shared/audit.js';
+import { auditBatch } from '../../shared/audit.js';
 import { emitToUser } from '../../shared/socket.js';
 import { env } from '../../shared/env.js';
 import {
@@ -253,10 +254,31 @@ gradeScanRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR'), async (req, res
       });
     }
 
-    let creadas = 0;
-    let actualizadas = 0;
-    let omitidas = 0;
+    // Los ids llegan como texto y el esquema los guarda como ObjectId.
+    // `bulkWrite` no convierte por su cuenta —`findOneAndUpdate` sí—, y sin la
+    // conversión el filtro no encuentra la nota existente: en vez de
+    // sobrescribirla, intentaría crear una segunda y chocaría con el índice
+    // único.
+    const subjectId = new Types.ObjectId(String(group.subjectId));
+    const period = String(group.period);
+    const groupObjectId = new Types.ObjectId(body.groupId);
+    const teacherObjectId = new Types.ObjectId(String(group.professorId));
 
+    /**
+     * Escritura del lote, en cuatro consultas en vez de una por celda.
+     *
+     * Antes esto era un bucle anidado con `findOne` + `findOneAndUpdate` +
+     * auditoría por cada casilla: una planilla llena (500 filas × 10 columnas)
+     * salían unas quince mil idas y vueltas **en serie** contra Atlas. Con
+     * treinta milisegundos de latencia por consulta eso son siete minutos de
+     * petición colgada, y el docente ya había cerrado la ventana.
+     *
+     * Ahora: se leen de golpe las notas que ya existen, se escriben todas con
+     * un `bulkWrite`, se releen para auditar con el documento real y se
+     * registra la auditoría en una sola inserción.
+     */
+    let omitidas = 0;
+    const celdas: Array<{ studentId: string; label: string; score: number }> = [];
     for (const fila of body.filas) {
       for (let i = 0; i < body.labels.length; i++) {
         const score = fila.scores[i];
@@ -264,41 +286,91 @@ gradeScanRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR'), async (req, res
           omitidas++;
           continue;
         }
-        const key = {
-          studentId: fila.studentId,
-          subjectId: String(group.subjectId),
-          period: String(group.period),
-          corte: body.corte,
-          componentType: body.componentType,
-          label: body.labels[i],
-        };
-        const before = await GradeModel.findOne({ ...key, deletedAt: null }).lean();
-        const item = await GradeModel.findOneAndUpdate(
-          key,
-          {
-            $set: {
-              ...key,
-              groupId: body.groupId,
-              teacherId: String(group.professorId),
-              score,
-              maxScore: 5,
-              deletedAt: null,
-            },
-          },
-          { upsert: true, new: true, setDefaultsOnInsert: true }
-        );
-        await auditChange({
-          actorId: req.user?.id,
-          action: before ? 'UPDATE' : 'CREATE',
-          entity: 'Nota',
-          entityId: item.id,
-          before,
-          after: item.toObject(),
-        });
-        if (before) actualizadas++;
-        else creadas++;
+        celdas.push({ studentId: fila.studentId, label: body.labels[i] as string, score });
       }
     }
+
+    /** Clave única de Nota, en texto, para cruzar antes y después sin consultar. */
+    const claveDe = (studentId: string, label: string) => `${studentId}|${label}`;
+
+    const previas = celdas.length
+      ? await GradeModel.find({
+          subjectId,
+          period,
+          corte: body.corte,
+          componentType: body.componentType,
+          label: { $in: body.labels },
+          studentId: { $in: [...new Set(celdas.map(c => c.studentId))].map(id => new Types.ObjectId(id)) },
+          deletedAt: null,
+        }).lean()
+      : [];
+    const antesPorClave = new Map(
+      previas.map(nota => [claveDe(String(nota.studentId), String(nota.label)), nota]),
+    );
+
+    if (celdas.length > 0) {
+      await GradeModel.bulkWrite(
+        celdas.map(celda => ({
+          updateOne: {
+            filter: {
+              studentId: new Types.ObjectId(celda.studentId),
+              subjectId,
+              period,
+              corte: body.corte,
+              componentType: body.componentType,
+              label: celda.label,
+            },
+            update: {
+              $set: {
+                groupId: groupObjectId,
+                teacherId: teacherObjectId,
+                score: celda.score,
+                maxScore: 5,
+                deletedAt: null,
+              },
+            },
+            upsert: true,
+          },
+        })),
+        { ordered: false },
+      );
+    }
+
+    // Relectura única para auditar con el documento tal y como quedó: la
+    // auditoría tiene que poder responder "qué había" y "qué hay", y el
+    // resultado de `bulkWrite` no devuelve los documentos.
+    const despues = celdas.length
+      ? await GradeModel.find({
+          subjectId,
+          period,
+          corte: body.corte,
+          componentType: body.componentType,
+          label: { $in: body.labels },
+          studentId: { $in: [...new Set(celdas.map(c => c.studentId))].map(id => new Types.ObjectId(id)) },
+          deletedAt: null,
+        }).lean()
+      : [];
+    const despuesPorClave = new Map(
+      despues.map(nota => [claveDe(String(nota.studentId), String(nota.label)), nota]),
+    );
+
+    let creadas = 0;
+    let actualizadas = 0;
+    const registros = celdas.map(celda => {
+      const clave = claveDe(celda.studentId, celda.label);
+      const before = antesPorClave.get(clave) ?? null;
+      if (before) actualizadas++;
+      else creadas++;
+      return {
+        actorId: req.user?.id,
+        action: before ? 'UPDATE' : 'CREATE',
+        entity: 'Nota',
+        entityId: String(despuesPorClave.get(clave)?._id ?? ''),
+        before,
+        after: despuesPorClave.get(clave) ?? null,
+      };
+    });
+    await auditBatch(registros);
 
     emitToUser(String(group.professorId), 'sync:update', {
       entity: 'grade',

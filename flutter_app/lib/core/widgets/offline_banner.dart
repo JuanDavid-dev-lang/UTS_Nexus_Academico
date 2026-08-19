@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../data/offline_status.dart';
-import '../services/realtime_service.dart';
+import '../storage/offline_status.dart';
+import '../network/realtime_service.dart';
 import '../theme/app_theme.dart';
 
 /// Barra de estado de la sincronización.

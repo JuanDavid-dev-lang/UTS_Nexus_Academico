@@ -1,8 +1,13 @@
 # Refactor UTS Académico — Arquitectura unificada
 
-> Estado: la plataforma **ya** está separada en 3 soluciones (backend Node, escritorio
-> PySide6, móvil Flutter) sobre MongoDB Atlas. Este documento describe la arquitectura
-> objetivo, el modelo de datos corregido, el backlog priorizado y el plan de migración.
+> **📎 Documento histórico.** Describe el plan de migración que llevó a la
+> arquitectura actual, cuando el escritorio todavía era PySide6. Se conserva
+> porque explica **por qué** las cosas están como están —la decisión de que el
+> backend fuera la única fuente de verdad se tomó aquí—, no como referencia de
+> cómo están hoy.
+>
+> Para el estado actual: [`CLAUDE.md`](../CLAUDE.md) (arquitectura y reglas
+> vigentes) y [`README.md`](../README.md) (visión general).
 
 ## 1. Principio rector
 

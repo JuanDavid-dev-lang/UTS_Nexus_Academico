@@ -2,7 +2,7 @@
 
 # UTS Nexus Académico
 
-**Plataforma académica unificada · Unidades Tecnologicas de Santander (UTS)**
+**Plataforma académica unificada · Unidades Tecnológicas de Santander (UTS)**
 
 [![Node.js](https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -166,9 +166,9 @@ alfabéticamente.
 <details>
 <summary>Versión anterior (Python + PySide6) — en desuso</summary>
 
-`desktop_python/` sigue en el repositorio y funciona, pero ya no recibe
-funcionalidades nuevas. Se conserva únicamente como referencia hasta que la v2
-esté validada en producción. Ver [`docs/ARQUITECTURA_V2.md`](docs/ARQUITECTURA_V2.md)
+`desktop_python/` **está muerta**: se eliminó su lanzador y no recibe cambios.
+La v2 lleva tiempo siendo la aplicación de escritorio. El código queda como
+referencia histórica; ver [`docs/ARQUITECTURA_V2.md`](docs/ARQUITECTURA_V2.md)
 para la auditoría que motivó el reemplazo.
 
 | Tecnología | Uso |
@@ -256,12 +256,15 @@ Soporta clases de duración variable (30–300 min). Una clase de 3h pesa el dob
 ## Estructura del repositorio
 
 ```
-UTS-Nexus-Academico/
+UTS_Nexus_Academico/
 │
 ├── backend/                       # API central (Node.js / TypeScript)
 │   ├── src/
-│   │   ├── domains/               # Lógica pura: grades, attendance, risk
-│   │   ├── modules/               # Endpoints HTTP por módulo
+│   │   ├── domains/               # Lógica pura, sin I/O: grading, attendance,
+│   │   │                          #   risk, agenda, scope (quién ve qué)
+│   │   ├── modules/               # Una capacidad por carpeta:
+│   │   │                          #   X.routes.ts  → HTTP (no toca Modelos)
+│   │   │                          #   X.service.ts → datos y orquestación
 │   │   ├── models/                # Esquemas Mongoose
 │   │   ├── shared/                # Servicios transversales
 │   │   └── scripts/               # seed · smoke · migrate-enrollments
@@ -284,25 +287,33 @@ UTS-Nexus-Academico/
 │   ├── tests/                     # Pruebas unitarias (Vitest)
 │   └── README.md                  # Guía completa del cliente de escritorio
 │
-├── desktop_python/                # App de escritorio v1 (PySide6) — en desuso
-│   ├── ui/                        # Widgets: notas, asistencia, dashboard…
-│   ├── services/                  # API client + SyncWorker (WebSocket)
-│   └── main.py
+├── desktop_python/                # App de escritorio v1 (PySide6) — MUERTA
+│   └── …                          #   sin lanzador; solo referencia histórica
 │
-├── flutter_app/                   # App móvil (Flutter)
+├── flutter_app/                   # App móvil (Flutter / Android)
 │   ├── lib/
-│   │   ├── core/                  # HTTP client, WebSocket, widgets base
-│   │   └── features/              # auth, grades, attendance, notifications…
+│   │   ├── core/                  # Transversal, una carpeta por tema:
+│   │   │                          #   network · auth · notifications ·
+│   │   │                          #   storage · data · theme · widgets
+│   │   └── features/              # Una capacidad por carpeta: su pantalla,
+│   │                              #   sus providers y su data/
+│   ├── test/
+│   ├── README.md                  # Guía del cliente móvil
 │   └── pubspec.yaml
 │
 ├── docs/
 │   ├── COMO_ABRIR.md              # Cómo abrir cada aplicación, paso a paso
-│   ├── ARQUITECTURA_V2.md         # Auditoría, arquitectura y plan del escritorio v2
 │   ├── FUNCIONAMIENTO.md          # Guía de uso completa
-│   └── REFACTOR.md                # Arquitectura, modelo de datos y migración
+│   ├── AGENDA_Y_NOTIFICACIONES.md # Agenda, recordatorios y push
+│   ├── PUBLICAR_VERSION.md        # Publicar una versión y firmar
+│   ├── DESPLIEGUE_AWS.md          # Puesta en producción
+│   ├── ARQUITECTURA_V2.md         # 📎 Histórico: decisión del escritorio v2
+│   └── REFACTOR.md                # 📎 Histórico: plan de migración original
+│
+├── CLAUDE.md                      # Arquitectura vigente y reglas del proyecto
+├── DESIGN.md                      # Sistema de diseño (tokens, paleta, AA)
 │
 ├── abrir_escritorio.bat           # Lanzador de la app de escritorio v2
-├── abrir_pc.bat                   # Lanzador de la app v1 en Python (en desuso)
 ├── abrir_android.bat              # Lanzador de la app móvil
 ├── iniciar.ps1                    # Arranque automático — Windows
 ├── iniciar.sh                     # Arranque automático — Linux / macOS
@@ -368,11 +379,13 @@ desktop/src-tauri/target/release/uts-nexus-desktop.exe
 
 Y los instaladores en `desktop/src-tauri/target/release/bundle/`:
 
-| Artefacto | Tamaño | Para qué |
-|-----------|--------|----------|
-| `nsis/UTS Nexus Académico_2.0.0_x64-setup.exe` | 2,1 MB | Instalación normal (recomendado) |
-| `msi/UTS Nexus Académico_2.0.0_x64_en-US.msi` | 2,7 MB | Despliegue por política de dominio |
-| `uts-nexus-desktop.exe` | 4,7 MB | Ejecutar sin instalar (portable) |
+| Artefacto | Para qué |
+|-----------|----------|
+| `nsis/UTS Nexus Académico_<versión>_x64-setup.exe` | Instalación normal (recomendado) |
+| `msi/UTS Nexus Académico_<versión>_x64_en-US.msi` | Despliegue por política de dominio |
+| `uts-nexus-desktop.exe` | Ejecutar sin instalar (portable) |
+
+La versión del nombre es la de `desktop/src-tauri/tauri.conf.json`.
 
 **Requisitos para compilar** (solo la primera vez):
 
@@ -390,7 +403,9 @@ Para desarrollar la interfaz sin compilar Rust: `cd desktop && npm run dev`
 <details>
 <summary>App de escritorio v1 (Python) — en desuso</summary>
 
-Sigue funcionando con **doble clic en `abrir_pc.bat`**, o manualmente:
+Su lanzador se eliminó: abrirla por accidente y creer que era la versión
+actual es más caro que el rato que ahorra tenerla a mano. El código sigue en
+`desktop_python/` como referencia histórica y no recibe cambios.
 
 ```bash
 cd desktop_python
@@ -506,13 +521,37 @@ AI_MODEL=llama3.1:8b
 
 ## API REST — referencia rápida
 
-Todos los endpoints requieren `Authorization: Bearer <token>` excepto `/auth/login`.
+Esto es un resumen. **La referencia completa y siempre al día es Swagger, en
+`http://localhost:4000/docs` con el servidor arriba**: se genera del código, así
+que no puede quedarse atrás como sí puede esta tabla.
+
+Todos los endpoints requieren `Authorization: Bearer <token>` excepto `/auth/login`,
+`/registro` y `/descargas`.
+
+### Listados: paginación
+
+Los listados aceptan `?page=` y `?limit=` y responden con metadatos:
+
+```json
+{ "ok": true, "items": [ … ], "total": 3120, "page": 1, "limit": 1000, "hasMore": true }
+```
+
+`items` va en la raíz y **cada endpoint conserva por defecto el tope que ya
+devolvía**, así que un cliente antiguo que no pagine sigue recibiendo lo mismo
+que antes. Sin `total` y `hasMore`, un listado truncado era indistinguible de
+uno completo.
 
 ### Autenticación
 | Método | Ruta | Descripción |
 |--------|------|-------------|
 | `POST` | `/auth/login` | Login → devuelve `accessToken` + `refreshToken` |
-| `POST` | `/auth/refresh` | Renueva el access token |
+| `POST` | `/auth/refresh` | Renueva el par **rotando** el refresh token: el anterior queda quemado. Guarda siempre el que devuelve |
+| `POST` | `/auth/logout` | Revoca la sesión |
+| `POST` | `/auth/register` | Alta de cuenta — **solo ADMIN** |
+| `POST` | `/auth/recovery/request` | Envía el código de recuperación **por correo** |
+| `POST` | `/auth/recovery/reset` | Cambia la contraseña con el código |
+| `GET` | `/auth/me` | Usuario de la sesión |
+| `POST` | `/registro` | Autorregistro de docente → queda `PENDIENTE` de revisión |
 
 ### Notas
 | Método | Ruta | Descripción |
@@ -570,6 +609,35 @@ Todos los endpoints requieren `Authorization: Bearer <token>` excepto `/auth/log
 | `GET` | `/ai/status` | Estado de Ollama: activo, modelo cargado, URL |
 | `POST` | `/ai/chat` | Consulta en lenguaje natural con contexto académico real |
 | `POST` | `/ai/predict` | Nota necesaria para aprobar + escenarios por estudiante |
+
+### Agenda y horario
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `GET` | `/agenda` | Clases, evaluaciones y eventos con horas absolutas + `campusOffsetMinutes` |
+| `GET` | `/schedules` · `POST` | Franjas semanales — **único sitio donde se escribe una clase** |
+
+### Importación en dos pasos
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `POST` | `/enrollments/import/scan` | **Propone** un listado leído de PDF o foto, con confianza por fila |
+| `POST` | `/grades/import/scan` | **Propone** notas leídas de Excel, PDF o foto |
+| `POST` | `/attendance/scan` | **Propone** una planilla de asistencia fotografiada |
+| `POST` | `/grades/bulk` · `/attendance/scan/confirm` | **Escriben** lo que el docente ya revisó |
+
+Escanear nunca escribe. Una cédula mal reconocida no da error: crea un
+estudiante que no existe y lo matricula, y eso se descubre semanas después.
+
+### Otros
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `GET` | `/students` · `/subjects` · `/groups` | Catálogo académico del docente |
+| `GET` | `/students/search` | Directorio global — identidad mínima, sin notas ni riesgo |
+| `GET` | `/avisos` | Avisos institucionales por sede, facultad y programa |
+| `POST` | `/feedback` | Buzón de sugerencias y reportes de error |
+| `GET` | `/trabajos-grado/formatos` | Formatos oficiales — solo directores de trabajo de grado |
+| `GET` | `/professors` · `PATCH /professors/:id` | Gestión de docentes (ADMIN) |
+| `POST` | `/uploads/image` | Subida de imagen — solo JPG, PNG, WebP o GIF verificados |
+| `GET` | `/health` | Sonda: estado del servidor **y** de la base de datos |
 
 ---
 
@@ -662,7 +730,20 @@ npm run dev              # Interfaz en el navegador (no requiere Rust)
 npm run desktop:dev      # Ventana nativa con recarga en caliente
 npm run desktop:build    # Ejecutable + instaladores NSIS y MSI
 npm run typecheck        # Verificación de tipos
+npm run lint             # ESLint
 npm test                 # Pruebas unitarias (Vitest)
+
+# Desde /flutter_app
+flutter pub get          # Instalar dependencias
+flutter run              # Ejecutar en emulador o dispositivo
+flutter test             # Pruebas
+flutter analyze          # Análisis estático
+flutter build apk        # APK de instalación
+
+# Desde /ml_service
+python -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/python -m uvicorn app.main:app --port 8100
+.venv/bin/python -m pytest tests/
 
 # Docker
 docker compose up --build   # Levantar backend en contenedor
@@ -672,16 +753,39 @@ docker compose up --build   # Levantar backend en contenedor
 
 ## Documentación
 
+**Empezar aquí**
+
 | Documento | Contenido |
 |-----------|-----------|
-| [`docs/COMO_ABRIR.md`](docs/COMO_ABRIR.md) | Cómo abrir la app de PC y la de Android (Android Studio) paso a paso |
-| [`desktop/README.md`](desktop/README.md) | Cliente de escritorio v2: requisitos, comandos, estructura y decisiones |
-| [`docs/ARQUITECTURA_V2.md`](docs/ARQUITECTURA_V2.md) | Auditoría de la v1, arquitectura de la v2 y plan de fases |
+| [`docs/COMO_ABRIR.md`](docs/COMO_ABRIR.md) | Cómo abrir cada aplicación, paso a paso |
+| [`docs/FUNCIONAMIENTO.md`](docs/FUNCIONAMIENTO.md) | Guía de uso: roles, flujos, cálculos, preguntas frecuentes |
+| [`README.txt`](README.txt) | Arranque en texto plano, para abrir sin visor de Markdown |
+| `http://localhost:4000/docs` | **Swagger interactivo** — la referencia de la API siempre al día |
+
+**Para trabajar en el código**
+
+| Documento | Contenido |
+|-----------|-----------|
+| [`CLAUDE.md`](CLAUDE.md) | **Arquitectura vigente y reglas del proyecto**: el molde de un módulo, quién ve qué, rendimiento de los clientes, trampas conocidas |
 | [`DESIGN.md`](DESIGN.md) | Sistema de diseño: paleta, tipografía, componentes y accesibilidad |
-| [`docs/FUNCIONAMIENTO.md`](docs/FUNCIONAMIENTO.md) | Guía de uso completa: roles, flujos, cálculos, FAQ |
-| [`docs/REFACTOR.md`](docs/REFACTOR.md) | Arquitectura, modelo de datos, decisiones de diseño y plan de migración |
-| [`README.txt`](README.txt) | Guía de arranque en texto plano (sin dependencias de Markdown) |
-| `http://localhost:4000/docs` | Swagger interactivo (servidor debe estar arriba) |
+| [`desktop/README.md`](desktop/README.md) | Cliente de escritorio: requisitos, comandos, estructura |
+| [`flutter_app/README.md`](flutter_app/README.md) | Cliente móvil: estructura y reglas de rendimiento |
+| [`ml_service/README.md`](ml_service/README.md) | Ciclo de entrenamiento, endpoints y promoción de modelos |
+
+**Operación**
+
+| Documento | Contenido |
+|-----------|-----------|
+| [`docs/AGENDA_Y_NOTIFICACIONES.md`](docs/AGENDA_Y_NOTIFICACIONES.md) | Agenda, recordatorios locales, push de Android y qué configurar |
+| [`docs/PUBLICAR_VERSION.md`](docs/PUBLICAR_VERSION.md) | Publicar una versión, secretos de CI y claves de firma |
+| [`docs/DESPLIEGUE_AWS.md`](docs/DESPLIEGUE_AWS.md) | Puesta en producción con Docker y Caddy |
+
+**Histórico** — explican *por qué* las cosas están como están, no cómo están hoy
+
+| Documento | Contenido |
+|-----------|-----------|
+| [`docs/ARQUITECTURA_V2.md`](docs/ARQUITECTURA_V2.md) | Auditoría de la v1 en Python y decisión del escritorio actual |
+| [`docs/REFACTOR.md`](docs/REFACTOR.md) | Plan de migración a backend único como fuente de verdad |
 
 ---
 
@@ -689,12 +793,16 @@ docker compose up --build   # Levantar backend en contenedor
 
 | Componente | Estado |
 |-----------|--------|
-| Backend (Node.js / TypeScript) | ✅ Operativo |
-| App móvil (Flutter) | ✅ Operativa · 7 pruebas · APK firmado |
-| **App de escritorio v2 (Tauri + React)** | ✅ **Operativa · 31 pruebas · instalador 2,1 MB** |
-| App de escritorio v1 (PySide6) | 🗄️ En desuso, se conserva como referencia |
-| **Servicio de ML** (`ml_service/`) | ✅ **Operativo · 13 pruebas** — ver [`ml_service/README.md`](ml_service/README.md) |
-| Pruebas E2E | ⏳ Planificadas |
+| Backend (Node.js / TypeScript) | ✅ Operativo · **183 pruebas** |
+| App de escritorio (Tauri 2 + React 19) | ✅ Operativa · **92 pruebas** |
+| App móvil (Flutter / Android) | ✅ Operativa · **53 pruebas** |
+| Servicio de ML (`ml_service/`) | ✅ Operativo · **48 pruebas** — ver [`ml_service/README.md`](ml_service/README.md) |
+| App de escritorio v1 (PySide6) | 🪦 Muerta · sin lanzador, solo referencia histórica |
+| Pruebas E2E | ⏳ `npm run smoke` cubre el camino principal; falta cobertura de rutas |
+
+Las pruebas cubren **lógica pura**: cálculo de notas, riesgo, agenda, alcance
+por docente, filtros, paginación y navegación. Ninguna toca la base de datos;
+para eso está `npm run smoke`, que sí necesita servidor y Atlas arriba.
 
 ### Predicción de riesgo con aprendizaje
 

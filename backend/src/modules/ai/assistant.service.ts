@@ -40,8 +40,42 @@ REGLAS:
   escrita ahí. Si algo no aparece en la agenda, di que no está registrado: un
   horario inventado manda al docente a un aula equivocada.`;
 
-/** Convierte los registros académicos en un contexto compacto y legible. */
-function buildContext(records: AcademicRecord[]): string {
+/**
+ * Cuántos estudiantes se detallan como máximo en el contexto.
+ *
+ * El resumen agregado va siempre; lo que se recorta es el detalle línea a
+ * línea, y se recorta por prioridad, no por orden alfabético.
+ */
+const TOPE_DETALLE = 40;
+
+/** Orden de atención: primero lo que el docente necesita mirar. */
+const PESO_RIESGO: Record<string, number> = { ALTO: 0, MEDIO: 1, BAJO: 2 };
+
+/** Una línea de detalle por estudiante. */
+function lineaEstudiante(r: AcademicRecord): string {
+  const cortes = r.cortes.map((c, i) => `C${i + 1}=${c.toFixed(1)}`).join(' ');
+  const nota = r.tieneNotas ? r.riesgo.notaActual.toFixed(2) : 'sin notas';
+  return `- ${r.fullName} (cédula ${r.code}): promedio ${nota} [${cortes}], ` +
+    `asistencia ${r.riesgo.porcentajeAsistencia.toFixed(0)}%, ` +
+    `riesgo ${r.riesgo.nivel}${r.riesgo.motivos?.length ? ` (${r.riesgo.motivos.join('; ')})` : ''}`;
+}
+
+/**
+ * Convierte los registros académicos en un contexto compacto y legible.
+ *
+ * El detalle está **acotado y priorizado**, y las dos cosas por el mismo
+ * motivo. Antes se emitía una línea por estudiante sin techo: un ADMIN no
+ * lleva `teacherId`, así que su contexto era la institución entera. Ollama no
+ * protesta ante un prompt que no le cabe —lo recorta por `num_ctx` en
+ * silencio—, y lo que se cae del recorte es el final, es decir, **la pregunta
+ * del docente**. El modelo respondía entonces a un listado sin pregunta, que
+ * es la forma más discreta que tiene una respuesta de estar inventada.
+ *
+ * Cuando hay más estudiantes de los que caben se detallan los de riesgo alto
+ * primero y se dice cuántos quedaron fuera, para que el modelo pueda admitir
+ * que no los tiene en vez de dar por hecho que la lista está completa.
+ */
+export function buildContext(records: AcademicRecord[]): string {
   if (records.length === 0) {
     return 'No hay estudiantes con datos académicos en el alcance solicitado.';
   }
@@ -52,23 +86,40 @@ function buildContext(records: AcademicRecord[]): string {
     ? (conNotas.reduce((s, r) => s + r.riesgo.notaActual, 0) / conNotas.length).toFixed(2)
     : 'sin datos';
   const enRiesgo = records.filter(r => r.riesgo.nivel !== 'BAJO');
+  const reprobando = conNotas.filter(r => r.riesgo.notaActual < 3).length;
+  const asistenciaBaja = records.filter(r => r.riesgo.porcentajeAsistencia < 80).length;
 
-  const lineas = records.map(r => {
-    const cortes = r.cortes.map((c, i) => `C${i + 1}=${c.toFixed(1)}`).join(' ');
-    const nota = r.tieneNotas ? r.riesgo.notaActual.toFixed(2) : 'sin notas';
-    return `- ${r.fullName} (cédula ${r.code}): promedio ${nota} [${cortes}], ` +
-      `asistencia ${r.riesgo.porcentajeAsistencia.toFixed(0)}%, ` +
-      `riesgo ${r.riesgo.nivel}${r.riesgo.motivos?.length ? ` (${r.riesgo.motivos.join('; ')})` : ''}`;
+  // Riesgo alto primero, y a igual riesgo el de peor nota: si hay que cortar,
+  // que lo que sobreviva sea aquello sobre lo que se pregunta.
+  const priorizados = [...records].sort((a, b) => {
+    const porRiesgo = (PESO_RIESGO[a.riesgo.nivel] ?? 3) - (PESO_RIESGO[b.riesgo.nivel] ?? 3);
+    return porRiesgo !== 0 ? porRiesgo : a.riesgo.notaActual - b.riesgo.notaActual;
   });
+
+  const detallados = priorizados.slice(0, TOPE_DETALLE);
+  const omitidos = total - detallados.length;
 
   return [
     `RESUMEN DEL GRUPO:`,
     `- Estudiantes: ${total}`,
     `- Promedio del grupo (parcial): ${promedioGrupo}`,
     `- En riesgo (medio/alto): ${enRiesgo.length}`,
+    `- Por debajo de 3.0: ${reprobando}`,
+    `- Con asistencia bajo el 80%: ${asistenciaBaja}`,
     ``,
-    `DETALLE POR ESTUDIANTE:`,
-    ...lineas,
+    omitidos > 0
+      ? `DETALLE (${detallados.length} de ${total}, los de mayor riesgo primero):`
+      : `DETALLE POR ESTUDIANTE:`,
+    ...detallados.map(lineaEstudiante),
+    ...(omitidos > 0
+      ? [
+          ``,
+          `Hay ${omitidos} estudiante(s) más que no caben en este contexto. Si te ` +
+            `preguntan por alguien que no aparece arriba, di que no lo tienes a la ` +
+            `vista y pide que acoten por materia o por estudiante. NO lo des por ` +
+            `ausente ni supongas sus datos.`,
+        ]
+      : []),
   ].join('\n');
 }
 

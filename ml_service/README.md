@@ -174,9 +174,12 @@ que darle una estimación más simple. Y decirle cuál usó es cuestión de hone
 .venv\Scripts\python.exe -m pytest tests/ -q
 ```
 
-13 pruebas: orden de columnas, tendencia, división por cero al inicio del
-semestre, calibración del respaldo de reglas, rechazo de conjuntos pequeños o de
-clase única, y que **toda predicción de riesgo venga explicada**.
+48 pruebas. Del modelo (13): orden de columnas, tendencia, división por cero al
+inicio del semestre, calibración del respaldo de reglas, rechazo de conjuntos
+pequeños o de clase única, y que **toda predicción de riesgo venga explicada**.
+De la visión (35): lectura de planillas de asistencia, de listados y de
+calificaciones, con la confianza por fila que decide qué se marca para
+revisión.
 
 ---
 
