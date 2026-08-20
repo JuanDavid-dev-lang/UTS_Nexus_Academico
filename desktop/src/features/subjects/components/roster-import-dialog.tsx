@@ -42,7 +42,7 @@ export function RosterImportDialog({ open, onOpenChange, subjectId, subjectName 
   const [term, setTerm] = useState('');
   const [chosenGroup, setChosenGroup] = useState('');
   const [leyendo, setLeyendo] = useState(false);
-  const [nombreGrupo, setNombreGrupo] = useState('Grupo A');
+  const [nombreGrupo, setNombreGrupo] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
 
   const debouncedTerm = useDebounce(term, 300);
@@ -57,7 +57,11 @@ export function RosterImportDialog({ open, onOpenChange, subjectId, subjectName 
   // El periodo del grupo nuevo es el de la materia: es el único dato que el
   // diálogo no recibe y sin él el backend rechaza la creación.
   const subjectsQuery = useSubjects();
-  const subjectPeriod = subjectsQuery.data?.find((subject) => subject._id === subjectId)?.period;
+  const subjectData = subjectsQuery.data?.find((subject) => subject._id === subjectId);
+  const subjectPeriod = subjectData?.period;
+  // El nombre por defecto es el código de la materia: en la UTS el grupo se
+  // identifica por ese código, no por letras.
+  const nombreGrupoFinal = nombreGrupo.trim() || subjectData?.code || '';
   const groups = useMemo(
     () => (groupsQuery.data ?? []).filter((group) => group.subjectId === subjectId),
     [groupsQuery.data, subjectId],
@@ -169,6 +173,7 @@ export function RosterImportDialog({ open, onOpenChange, subjectId, subjectName 
               <Input
                 value={nombreGrupo}
                 onChange={(event) => setNombreGrupo(event.target.value)}
+                placeholder={subjectData?.code ?? 'Código del grupo'}
                 aria-label="Nombre del grupo nuevo"
                 className="h-9 flex-1"
               />
@@ -176,10 +181,10 @@ export function RosterImportDialog({ open, onOpenChange, subjectId, subjectName 
                 variant="primary"
                 size="sm"
                 loading={createGroup.isPending}
-                disabled={!nombreGrupo.trim() || !subjectPeriod || createGroup.isPending}
+                disabled={!nombreGrupoFinal || !subjectPeriod || createGroup.isPending}
                 onClick={() =>
                   createGroup.mutate(
-                    { name: nombreGrupo.trim(), subjectId, period: subjectPeriod ?? '' },
+                    { name: nombreGrupoFinal, subjectId, period: subjectPeriod ?? '' },
                     { onSuccess: (group) => setChosenGroup(group._id) },
                   )
                 }

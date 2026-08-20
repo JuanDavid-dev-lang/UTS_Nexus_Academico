@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import multer from 'multer';
+import { esExcel, excelAMatriz } from '../../shared/excel.js';
 import { z } from 'zod';
 import { Types } from 'mongoose';
-import ExcelJS from 'exceljs';
 import { GroupModel } from '../../models/group.model.js';
 import { EnrollmentModel } from '../../models/enrollment.model.js';
 import { GradeModel } from '../../models/grade.model.js';
@@ -59,35 +59,6 @@ async function matriculadosDe(groupId: string, period: string): Promise<Matricul
     .map(m => m.studentId as unknown as { _id: unknown; code?: string; fullName?: string } | null)
     .filter((s): s is { _id: unknown; code?: string; fullName?: string } => Boolean(s))
     .map(s => ({ id: String(s._id), code: s.code ?? '', fullName: s.fullName ?? '' }));
-}
-
-const EXCEL_MIMES = new Set([
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.ms-excel',
-]);
-
-function esExcel(file: { mimetype: string; originalname: string }): boolean {
-  return EXCEL_MIMES.has(file.mimetype) || /\.xlsx?$/i.test(file.originalname);
-}
-
-/** Primera hoja del Excel como matriz de textos. */
-async function excelAMatriz(buffer: Buffer): Promise<string[][]> {
-  const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(buffer as unknown as ArrayBuffer);
-  const ws = wb.worksheets[0];
-  if (!ws) return [];
-
-  const matriz: string[][] = [];
-  ws.eachRow({ includeEmpty: false }, fila => {
-    const celdas: string[] = [];
-    fila.eachCell({ includeEmpty: true }, celda => {
-      const valor = celda.value;
-      // `text` resuelve fórmulas y rich text; los números conservan el punto.
-      celdas.push(valor === null || valor === undefined ? '' : String(celda.text ?? valor));
-    });
-    matriz.push(celdas);
-  });
-  return matriz;
 }
 
 gradeScanRouter.post(

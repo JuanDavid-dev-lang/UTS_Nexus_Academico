@@ -55,9 +55,11 @@ export default function SubjectsPage() {
 
   const subjects = useSubjects();
   const createSubject = useCreateSubject();
-  // El Grupo A nace con la materia: sin ningún grupo no se puede matricular a
-  // nadie, y hasta ahora no había ningún sitio donde crear uno — la
-  // importación de listas moría en «esta materia no tiene grupos».
+  // El primer grupo nace con la materia: sin ningún grupo no se puede
+  // matricular a nadie, y hasta ahora no había ningún sitio donde crear uno —
+  // la importación de listas moría en «esta materia no tiene grupos». Se llama
+  // como el código de la materia, que es como la UTS nombra los grupos: B191
+  // no es «la materia y su grupo A», es el grupo en sí.
   const createGroup = useCreateGroup({ avisar: false });
   const updateSubject = useUpdateSubject();
   const deleteSubject = useDeleteSubject();
@@ -130,7 +132,7 @@ export default function SubjectsPage() {
       {
         onSuccess(subject) {
           setFormOpen(false);
-          createGroup.mutate({ name: 'Grupo A', subjectId: subject._id, period: subject.period });
+          createGroup.mutate({ name: subject.code, subjectId: subject._id, period: subject.period });
         },
       },
     );

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
-import ExcelJS from 'exceljs';
+import { esExcel, excelAMatriz } from '../../shared/excel.js';
 import { z } from 'zod';
 import * as campo from '../../shared/validation.js';
 import { EnrollmentModel } from '../../models/enrollment.model.js';
@@ -21,28 +21,6 @@ const subirArchivo = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 12 * 1024 * 1024 },
 });
-
-const EXCEL_MIMES = new Set([
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-]);
-
-function esXlsx(file: { mimetype: string; originalname: string }): boolean {
-  return EXCEL_MIMES.has(file.mimetype) || /\.xlsx$/i.test(file.originalname);
-}
-
-async function excelAMatriz(buffer: Buffer): Promise<string[][]> {
-  const libro = new ExcelJS.Workbook();
-  await libro.xlsx.load(buffer as unknown as ArrayBuffer);
-  const hoja = libro.worksheets[0];
-  if (!hoja) return [];
-  const matriz: string[][] = [];
-  hoja.eachRow({ includeEmpty: false }, fila => {
-    const celdas: string[] = [];
-    fila.eachCell({ includeEmpty: true }, celda => celdas.push(String(celda.text ?? celda.value ?? '')));
-    matriz.push(celdas);
-  });
-  return matriz;
-}
 
 /** Verifica que el grupo pertenezca al profesor autenticado (o que sea ADMIN/COORDINATOR). */
 async function assertGroupOwnership(req: any, groupId: string) {
@@ -142,7 +120,7 @@ enrollmentRouter.post(
         return res.status(owned.error.status).json({ ok: false, message: owned.error.message });
       }
 
-      if (esXlsx(req.file)) {
+      if (esExcel(req.file)) {
         const lectura = interpretarMatrizListado(await excelAMatriz(req.file.buffer));
         return res.json({
           ok: true,

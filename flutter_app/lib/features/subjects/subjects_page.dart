@@ -46,12 +46,12 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
     final creada = await showCompactSheet<bool>(
       context: context,
       titulo: 'Nueva materia',
-      subtitulo: 'Se crea en el periodo $period con su Grupo A',
+      subtitulo: 'Se crea en el periodo $period con su grupo',
       constructor: (_) => _FormularioMateria(period: period),
     );
     if (creada == true && mounted) {
       AppToast.success(this.context, 'Materia creada',
-          'Con su Grupo A, lista para matricular estudiantes.');
+          'Con su grupo, lista para matricular estudiantes.');
     }
   }
 
@@ -218,9 +218,11 @@ class _FilaMateria extends ConsumerWidget {
 
 /// Formulario de materia nueva, dentro de la hoja.
 ///
-/// Crea la materia y, acto seguido, su Grupo A: la matrícula cuelga del
-/// grupo, y una materia sin ninguno es un callejón sin salida — no se puede
-/// matricular a nadie ni importar una lista.
+/// Crea la materia y, acto seguido, su primer grupo, llamado como el código
+/// de la materia — que es como la UTS identifica los grupos: B191 no es «la
+/// materia y su grupo A», es el grupo en sí. La matrícula cuelga del grupo, y
+/// una materia sin ninguno es un callejón sin salida — no se puede matricular
+/// a nadie ni importar una lista.
 class _FormularioMateria extends ConsumerStatefulWidget {
   final String period;
   const _FormularioMateria({required this.period});
@@ -285,7 +287,7 @@ class _FormularioMateriaState extends ConsumerState<_FormularioMateria> {
     // listas del escritorio.
     try {
       await repo.createGroup(
-        name: 'Grupo A',
+        name: codigo,
         subjectId: materia.id,
         period: widget.period,
       );
