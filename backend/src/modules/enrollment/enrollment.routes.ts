@@ -37,13 +37,20 @@ enrollmentRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), asyn
   try {
     const filter: Record<string, unknown> = { deletedAt: null };
     if (req.user?.role === 'PROFESSOR') filter.professorId = req.user.id;
+    // subjectId faltaba y los dos clientes lo mandan: sin él, la «lista de la
+    // materia» eran las matrículas de TODAS las materias del docente, y sobre
+    // esa lista se ofrecía capturar notas y asistencia de quien no cursa esta.
+    if (req.query.subjectId) filter.subjectId = String(req.query.subjectId);
     if (req.query.groupId) filter.groupId = String(req.query.groupId);
     if (req.query.period) filter.period = String(req.query.period);
     const pagina = campo.paginacionCon(2000).parse(req.query);
     const { skip, limit } = campo.saltoYTope(pagina);
     const [items, total] = await Promise.all([
+      // Sin populate: ningún cliente usa la identidad incrustada —los dos la
+      // reducían al id y cruzaban nombres con /students— y el objeto poblado
+      // es justo la forma que los rompió. Ids planos es lo que toda versión
+      // instalada entiende.
       EnrollmentModel.find(filter)
-        .populate('studentId', 'code fullName email program')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -63,6 +70,13 @@ enrollmentRouter.post('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), asy
     const owned = await assertGroupOwnership(req, body.groupId);
     if (owned.error) return res.status(owned.error.status).json({ ok: false, message: owned.error.message });
     const group = owned.group!;
+
+    // El upsert creaba la matrícula aunque el estudiante no existiera: una
+    // referencia colgante que ningún listado puede resolver después.
+    const existe = await StudentModel.exists({ _id: body.studentId, deletedAt: null });
+    if (!existe) {
+      return res.status(404).json({ ok: false, message: 'El estudiante no existe.' });
+    }
 
     // La matrícula define quién sale en el acta: con el periodo cerrado, una
     // matrícula nueva añadiría un estudiante que la fotografía no contempla.

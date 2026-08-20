@@ -60,12 +60,15 @@ export function useEnrolledStudents(scope: { subjectId?: string; period: string 
   const data = useMemo(() => {
     if (!enrollments.data || !students.data) return [];
 
-    const enrolledIds = new Set(enrollments.data.map((enrollment) => enrollment.studentId));
-    const matched = students.data.filter((student) => enrolledIds.has(student._id));
+    // El respaldo a la lista completa existe SOLO para instalaciones legadas
+    // sin ninguna matrícula formal. Antes también se activaba cuando había
+    // matrículas pero ningún id casaba —que es exactamente cómo se ve un
+    // contrato roto— y enmascaraba el fallo ofreciendo a todos los
+    // estudiantes del docente como calificables en cualquier materia.
+    if (enrollments.data.length === 0) return students.data;
 
-    // Some installations capture grades without a formal enrollment record.
-    // Falling back to the full scoped list keeps those teachers unblocked.
-    return matched.length > 0 ? matched : students.data;
+    const enrolledIds = new Set(enrollments.data.map((enrollment) => enrollment.studentId));
+    return students.data.filter((student) => enrolledIds.has(student._id));
   }, [enrollments.data, students.data]);
 
   return {
@@ -73,6 +76,10 @@ export function useEnrolledStudents(scope: { subjectId?: string; period: string 
     isPending: enrollments.isPending || students.isPending,
     isError: enrollments.isError || students.isError,
     error: enrollments.error ?? students.error,
+    refetch: () => {
+      void enrollments.refetch();
+      void students.refetch();
+    },
   };
 }
 

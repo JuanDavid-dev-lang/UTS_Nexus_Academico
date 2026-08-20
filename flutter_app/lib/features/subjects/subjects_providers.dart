@@ -49,7 +49,12 @@ final subjectRosterProvider =
       item.studentId: item,
   };
 
-  final enrolledIds = enrollments.map((e) => e.studentId).toSet();
+  // Sin los '' de las referencias colgantes: un id vacío no casa con nadie
+  // pero hacía «no vacío» el conjunto y suprimía el respaldo de abajo.
+  final enrolledIds = enrollments
+      .map((e) => e.studentId)
+      .where((id) => id.isNotEmpty)
+      .toSet();
 
   // Algunas instalaciones capturan notas sin matrícula formal. Si no hay
   // matrículas, se cae a los estudiantes que sí tienen consolidado en esta

@@ -13,6 +13,27 @@ import { z } from 'zod';
 /** Mongo ObjectId serialised as a string. */
 export const objectId = z.string().min(1);
 
+/**
+ * Referencia que puede llegar poblada, normalizada SIEMPRE al id.
+ *
+ * `populate()` de Mongoose entrega el documento en lugar del id, y una
+ * referencia colgante llega como null. Rechazar esas formas en el esquema no
+ * da un error visible: tumba el parse del array entero y la pantalla se queda
+ * vacía en silencio — ya pasó con las matrículas. Este es el normalizador
+ * canónico para «quiero el id»; `autorAviso` y `usuarioPoblado` existen para
+ * lo contrario (conservar la identidad poblada) y no son copias de esto.
+ *
+ * Una referencia nula u opaca produce '' y el llamador decide si filtra la
+ * fila; nunca revienta la lista completa.
+ */
+export const refId = z.union([
+  objectId,
+  z
+    .object({ _id: objectId.optional(), id: objectId.optional() })
+    .transform((doc) => doc._id ?? doc.id ?? ''),
+  z.null().transform(() => ''),
+]);
+
 /** Mongoose documents expose `_id`; some aggregated endpoints expose `id`. */
 export const mongoDoc = z.object({
   _id: objectId,

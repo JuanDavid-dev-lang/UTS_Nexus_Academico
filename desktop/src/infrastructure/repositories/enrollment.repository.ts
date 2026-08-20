@@ -18,7 +18,8 @@ export const enrollmentRepository: EnrollmentRepository = {
       schema: enrollmentsResponse,
       query: scopeToQuery(scope),
     });
-    return data.items;
+    // Una referencia colgante normaliza a '': se descarta la fila, no la lista.
+    return data.items.filter((item) => item.studentId !== '');
   },
 
   async enroll(input: { studentId: string; groupId: string }) {

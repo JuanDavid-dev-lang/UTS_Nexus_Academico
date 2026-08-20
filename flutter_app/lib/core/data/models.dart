@@ -491,9 +491,11 @@ class Group {
   });
 
   factory Group.fromJson(Map<String, dynamic> json) => Group(
-        id: (json['_id'] ?? json['id'] ?? '').toString(),
-        name: (json['name'] ?? '').toString(),
-        subjectId: json['subjectId']?.toString(),
-        period: (json['period'] ?? '').toString(),
+        id: _toId(json['_id'] ?? json['id']),
+        name: _toStr(json['name']),
+        // `_toId` y no `toString()`: si el backend poblara esta referencia,
+        // toString() daría un id basura que no casa con nada, en silencio.
+        subjectId: json['subjectId'] == null ? null : _toId(json['subjectId']),
+        period: _toStr(json['period']),
       );
 }

@@ -232,6 +232,16 @@ export default function GradesPage() {
         }
       />
 
+      {/*
+        El fallo de la matrícula tiene que verse: antes solo apagaba el botón
+        de registrar y el docente reportaba «dejó de funcionar» sin más pista.
+      */}
+      {enrolled.isError ? (
+        <Card>
+          <ErrorState error={enrolled.error} onRetry={enrolled.refetch} />
+        </Card>
+      ) : null}
+
       {canWrite && <GradesImportDialog open={importOpen} onOpenChange={setImportOpen} />}
 
       {/* Los filtros van en un pozo: son lo que acota la tabla de abajo, y
