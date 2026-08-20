@@ -20,9 +20,11 @@ import '../theme/app_theme.dart';
 ///   🟡 Reconectando   · reintentando en segundo plano
 ///   🔴 Sin conexión   · datos guardados hace X
 ///
-/// El verde va en tono apagado y en una franja fina: es la situación normal y
-/// no debe competir con el contenido. Los otros dos sí destacan, porque cambian
-/// lo que se puede hacer con lo que hay en pantalla.
+/// El verde va en tono apagado y en una franja fina, y además **se retira
+/// solo**: es la situación normal, y una franja que confirma lo normal de
+/// forma permanente es ruido. Aparece unos segundos al conectar (o reconectar)
+/// y se pliega. Los otros dos estados sí se quedan, porque cambian lo que se
+/// puede hacer con lo que hay en pantalla.
 class OfflineBanner extends ConsumerStatefulWidget {
   const OfflineBanner({super.key});
 
@@ -32,6 +34,13 @@ class OfflineBanner extends ConsumerStatefulWidget {
 
 class _OfflineBannerState extends ConsumerState<OfflineBanner> {
   Timer? _reloj;
+
+  /// Cierre programado de la franja verde. Solo del verde: los estados de
+  /// aviso no se cierran solos, porque el docente tiene que saberlos mientras
+  /// duren.
+  Timer? _cierreVerde;
+  bool _verdeVisible = true;
+  SemanticKind? _ultimoKind;
 
   @override
   void initState() {
@@ -46,6 +55,7 @@ class _OfflineBannerState extends ConsumerState<OfflineBanner> {
   @override
   void dispose() {
     _reloj?.cancel();
+    _cierreVerde?.cancel();
     super.dispose();
   }
 
@@ -85,31 +95,53 @@ class _OfflineBannerState extends ConsumerState<OfflineBanner> {
         ),
     };
 
+    // El verde se programa para cerrarse; cualquier otro estado lo reabre.
+    // Se decide aquí y no con setState: si el estado acaba de cambiar, este
+    // build ya está pintando lo correcto.
+    if (kind != _ultimoKind) {
+      _ultimoKind = kind;
+      _cierreVerde?.cancel();
+      if (kind == SemanticKind.success) {
+        _verdeVisible = true;
+        _cierreVerde = Timer(const Duration(seconds: 4), () {
+          if (mounted) setState(() => _verdeVisible = false);
+        });
+      }
+    }
+
     final tono = SemanticTone.of(context, kind);
     final normal = kind == SemanticKind.success;
+    final oculto = normal && !_verdeVisible;
 
-    return Material(
-      color: tono.bg,
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: normal ? 4 : 8),
-          child: Row(
-            children: [
-              Icon(icono, size: normal ? 13 : 16, color: tono.fg),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  texto,
-                  style: AppType.caption.copyWith(color: tono.fg),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+    // Sin SafeArea: el alto de la barra de estado lo descuenta el AppScaffold
+    // una sola vez para toda la columna. Ponerlo aquí lo cobraba dos veces.
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+      alignment: Alignment.topCenter,
+      child: oculto
+          ? const SizedBox(width: double.infinity)
+          : Material(
+              color: tono.bg,
+              child: Padding(
+                padding:
+                    EdgeInsets.symmetric(horizontal: 16, vertical: normal ? 4 : 8),
+                child: Row(
+                  children: [
+                    Icon(icono, size: normal ? 13 : 16, color: tono.fg),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        texto,
+                        style: AppType.caption.copyWith(color: tono.fg),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
+            ),
     );
   }
 }

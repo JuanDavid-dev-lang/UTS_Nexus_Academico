@@ -17,9 +17,9 @@ export function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivEl
   );
 }
 
-export function SkeletonStatGrid({ count = 6 }: { count?: number }) {
+export function SkeletonStatGrid({ count = 6, className }: { count?: number; className?: string }) {
   return (
-    <div className="grid grid-cols-2 gap-4 @3xl:grid-cols-3 @6xl:grid-cols-6">
+    <div className={cn('grid grid-cols-2 gap-4 @3xl:grid-cols-3 @6xl:grid-cols-6', className)}>
       {Array.from({ length: count }, (_, index) => (
         <div key={index} className="surface-card flex flex-col gap-3 p-5">
           <Skeleton className="h-3 w-20" />

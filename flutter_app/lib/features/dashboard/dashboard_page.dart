@@ -40,16 +40,15 @@ class DashboardPage extends ConsumerWidget {
     final risks = ref.watch(risksProvider);
     final actividades = ref.watch(actividadesProvider);
     final user = ref.watch(authControllerProvider).user;
-    final periodo = ref.watch(selectedPeriodProvider);
 
     final nombre = (user?.fullName ?? 'Docente').split(' ').first;
 
     return Scaffold(
-      // Saludo y periodo en la misma zona compacta: 56 dp en vez de los 88 que
-      // gastaba el `AppBar` con título grande más subtítulo debajo.
+      // Solo el saludo: el periodo ya lo muestra (y lo cambia) el
+      // `PeriodSelector` de la derecha, y repetirlo junto al nombre era decir
+      // «2026-2» dos veces en la misma línea.
       appBar: CompactHeader(
         titulo: 'Hola, $nombre',
-        contexto: periodo,
         acciones: const [PeriodSelector(), SessionMenuButton()],
       ),
       body: RefreshIndicator(

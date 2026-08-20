@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/data/models.dart';
+import '../../core/data/providers.dart';
 import '../../core/storage/offline_status.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/offline_banner.dart';
+import '../../core/widgets/compact.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/rubri.dart';
 import './ai_service.dart';
@@ -24,6 +27,22 @@ class _AiPageState extends ConsumerState<AiPage> {
     '¿Qué estudiante tiene la peor asistencia?',
     'Dame recomendaciones para los estudiantes en riesgo',
   ];
+
+  /// Consultas por botón: la pregunta de todos los días sin redactarla.
+  ///
+  /// El `tipo` es el contrato con `/ai/quick`, que responde con números del
+  /// motor canónico y del modelo de predicción —nunca del conversacional—,
+  /// así que el botón contesta lo mismo con y sin Ollama.
+  static const _consultas = <({String tipo, String etiqueta})>[
+    (tipo: 'estado', etiqueta: '¿Cómo va el grupo?'),
+    (tipo: 'riesgo', etiqueta: '¿Quiénes están en riesgo?'),
+    (tipo: 'asistencia', etiqueta: '¿Cómo está la asistencia?'),
+    (tipo: 'aprobacion', etiqueta: '¿Cuántos van aprobando?'),
+    (tipo: 'necesita', etiqueta: '¿Cuánto necesitan para aprobar?'),
+  ];
+
+  /// Materia que acota las consultas rápidas. Null = todo el alcance.
+  Subject? _materia;
 
   @override
   void dispose() {
@@ -50,6 +69,98 @@ class _AiPageState extends ConsumerState<AiPage> {
     _input.clear();
     ref.read(chatControllerProvider.notifier).send(text);
     _scrollToBottom();
+  }
+
+  void _consultar(({String tipo, String etiqueta}) consulta) {
+    final materia = _materia;
+    ref.read(chatControllerProvider.notifier).quick(
+          consulta.tipo,
+          materia == null
+              ? consulta.etiqueta
+              : '${consulta.etiqueta} — ${materia.name}',
+          subjectId: materia?.id,
+        );
+    _scrollToBottom();
+  }
+
+  Future<void> _elegirMateria() async {
+    final List<Subject> materias;
+    try {
+      materias = await ref.read(subjectsProvider.future);
+    } catch (_) {
+      // Sin materias no hay nada que elegir; la consulta sigue valiendo sin
+      // acotar.
+      return;
+    }
+    if (!mounted) return;
+
+    // 'todas' como centinela: pop(null) es cerrar la hoja sin decidir, y
+    // quitar el filtro es una decisión.
+    final elegida = await showCompactSheet<Object>(
+      context: context,
+      titulo: 'Materia de la consulta',
+      subtitulo: 'Acota las consultas rápidas a una materia',
+      constructor: (contextoHoja) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.all_inclusive_outlined),
+            title: const Text('Todas mis materias'),
+            selected: _materia == null,
+            onTap: () => Navigator.of(contextoHoja).pop('todas'),
+          ),
+          for (final materia in materias)
+            ListTile(
+              leading: const Icon(Icons.menu_book_outlined),
+              title: Text(materia.name),
+              subtitle: Text(materia.code),
+              selected: _materia?.id == materia.id,
+              onTap: () => Navigator.of(contextoHoja).pop(materia),
+            ),
+        ],
+      ),
+    );
+    if (elegida == null) return;
+    setState(() => _materia = elegida is Subject ? elegida : null);
+  }
+
+  /// Fila de consultas rápidas, encima del cuadro de texto.
+  Widget _barraConsultas() {
+    final enviando = ref.watch(chatControllerProvider).sending;
+    final palette = context.palette;
+
+    return SizedBox(
+      height: 48,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.page,
+          vertical: 6,
+        ),
+        children: [
+          ActionChip(
+            avatar: Icon(Icons.filter_list_outlined,
+                size: 16, color: palette.primary),
+            label: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 140),
+              child: Text(
+                _materia?.name ?? 'Todas mis materias',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            onPressed: enviando ? null : _elegirMateria,
+          ),
+          for (final consulta in _consultas) ...[
+            const SizedBox(width: AppSpacing.gapSm),
+            ActionChip(
+              label: Text(consulta.etiqueta),
+              onPressed: enviando ? null : () => _consultar(consulta),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   @override
@@ -101,6 +212,9 @@ class _AiPageState extends ConsumerState<AiPage> {
                     },
                   ),
           ),
+          // Botones antes que teclado: las preguntas de todos los días no
+          // deberían exigir redactarlas.
+          if (!sinConexion) _barraConsultas(),
           if (!sinConexion)
             _InputBar(
               controller: _input,
@@ -124,16 +238,20 @@ class _StatusBanner extends ConsumerWidget {
       loading: () => const SizedBox.shrink(),
       error: (_, __) => const SizedBox.shrink(),
       data: (s) {
-        final ok = (s.enabled && s.available && s.modelReady) || s.rubriAvailable;
+        final ok = (s.enabled && s.available && s.modelReady) ||
+            s.mlAvailable ||
+            s.rubriAvailable;
         final tone = SemanticTone.of(
             context, ok ? SemanticKind.success : SemanticKind.warning);
         final color = tone.fg;
         final bg = tone.bg;
         final text = s.enabled && s.available && s.modelReady
             ? 'Rubri disponible · modelo conversacional ${s.model ?? ''}'
-            : s.rubriAvailable
-                ? 'Rubri disponible · clasificador NLP interno activo'
-                : 'Rubri sin conexión — respuestas básicas por reglas';
+            : s.mlAvailable
+                ? 'Rubri activo · modelo de predicción interno (ML en Python)'
+                : s.rubriAvailable
+                    ? 'Rubri disponible · clasificador NLP interno activo'
+                    : 'Rubri sin conexión — respuestas básicas por reglas';
         return Container(
           width: double.infinity,
           color: bg,
@@ -260,6 +378,16 @@ class _Bubble extends StatelessWidget {
           children: [
             Text(message.content,
                 style: AppType.body.copyWith(color: fg, height: 1.35)),
+            if (!isUser && message.source == 'datos') ...[
+              const SizedBox(height: 4),
+              Text('cálculo directo con tus datos',
+                  style: AppType.caption.copyWith(color: AppColors.textMuted)),
+            ],
+            if (!isUser && message.source == 'ml') ...[
+              const SizedBox(height: 4),
+              Text('modelo de predicción interno',
+                  style: AppType.caption.copyWith(color: AppColors.textMuted)),
+            ],
             if (!isUser && message.source == 'rules') ...[
               const SizedBox(height: 4),
               Text('modo básico (sin IA)',

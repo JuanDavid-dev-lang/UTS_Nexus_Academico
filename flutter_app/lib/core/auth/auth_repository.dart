@@ -1,5 +1,6 @@
 import '../../features/dashboard/data/dashboard_summary.dart';
 import '../network/api_client.dart';
+import '../storage/offline_cache.dart';
 
 class AuthRepository {
   final ApiClient _api = ApiClient.instance;
@@ -15,8 +16,13 @@ class AuthRepository {
   }
 
   Future<DashboardData> dashboard() async {
-    final response = await _api.get('/analytics/dashboard');
-    return DashboardData.fromJson(Map<String, dynamic>.from(response.data as Map));
+    // Con caché: el panel es lo primero que se abre, y sin red debe mostrar
+    // la última fotografía en vez de un error a pantalla completa.
+    final cuerpo = await mapaConCache('dashboard', () async {
+      final response = await _api.get('/analytics/dashboard');
+      return Map<String, dynamic>.from(response.data as Map);
+    });
+    return DashboardData.fromJson(cuerpo);
   }
 }
 

@@ -184,6 +184,55 @@ export function calcularPromedioParcial(notas: NotaComponente[]): {
  * asumiendo que los otros cortes ya están fijos. Devuelve null si ya no es
  * alcanzable o si ya aprobó con lo acumulado.
  */
+/** Lo que le falta a un estudiante mirando solo sus cortes agregados. */
+export type NecesidadRestante = {
+  /** Cortes aún sin calificar. */
+  cortesRestantes: number;
+  /**
+   * Promedio que necesita en los cortes restantes para llegar a 3.0.
+   * 0 = ya lo asegura con lo acumulado; null = no le alcanza ni con 5.0
+   * en todo lo que falta, o ya no quedan cortes (mirar `aprobado`).
+   */
+  requerido: number | null;
+  /** Si con lo que hay (asegurado o cerrado) el 3.0 está conseguido. */
+  aprobado: boolean;
+};
+
+/**
+ * Nota media necesaria en los cortes restantes, a partir de los cortes ya
+ * agregados `[C1, C2, C3]`.
+ *
+ * A diferencia de `notaNecesariaParaAprobar`, no recibe las notas sueltas:
+ * trabaja sobre el agregado que expone `computeAcademicRecords()`, que es lo
+ * que tienen a mano el asistente y el puente de ML. Usa la misma aproximación
+ * que ese puente: **un corte en 0 cuenta como sin calificar**. Un 0.0 real es
+ * indistinguible en el agregado, y tratarlo como pendiente es el lado seguro:
+ * pide más nota de la necesaria, nunca menos.
+ */
+export function notaNecesariaEnRestantes(cortes: number[]): NecesidadRestante {
+  let acumulado = 0;
+  let pesoRestante = 0;
+  let cortesRestantes = 0;
+
+  for (const corte of [1, 2, 3] as CorteNumero[]) {
+    const nota = cortes[corte - 1] ?? 0;
+    if (nota > 0) acumulado += nota * RUBRICA.CORTES[corte];
+    else {
+      pesoRestante += RUBRICA.CORTES[corte];
+      cortesRestantes += 1;
+    }
+  }
+
+  if (cortesRestantes === 0) {
+    return { cortesRestantes: 0, requerido: null, aprobado: acumulado >= RUBRICA.NOTA_APROBACION };
+  }
+
+  const requerida = (RUBRICA.NOTA_APROBACION - acumulado) / pesoRestante;
+  if (requerida <= RUBRICA.NOTA_MINIMA) return { cortesRestantes, requerido: 0, aprobado: true };
+  if (requerida > RUBRICA.NOTA_MAXIMA) return { cortesRestantes, requerido: null, aprobado: false };
+  return { cortesRestantes, requerido: redondear(requerida), aprobado: false };
+}
+
 export function notaNecesariaParaAprobar(
   notas: NotaComponente[],
   corteObjetivo: CorteNumero

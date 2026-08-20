@@ -8,6 +8,7 @@ import {
   Button,
   Card,
   CardContent,
+  NativeSelect,
   PageContainer,
   PageHeader,
   Textarea,
@@ -16,15 +17,33 @@ import {
 } from '@/shared/ui';
 import { queryKeys } from '@/core/api/query-keys';
 import { assistantRepository } from '@/infrastructure/repositories/insights.repository';
+import { subjectRepository } from '@/infrastructure/repositories/subjects.repository';
 import { toast } from '@/state/toast.store';
 import { cn } from '@/shared/lib/cn';
-import type { ChatMessage } from '@/domain/schemas/insights';
+import type { ChatMessage, QuickQueryType } from '@/domain/schemas/insights';
 
 const SUGGESTIONS = [
   '¿Quiénes están en riesgo y por qué?',
   '¿Cuál es el promedio general de mis grupos?',
   '¿Qué estudiante tiene la peor asistencia?',
   'Dame recomendaciones para los que van mal',
+];
+
+/**
+ * Consultas rápidas: la pregunta de todos los días sin escribirla.
+ *
+ * Van contra `/ai/quick`, que responde con números del motor canónico y del
+ * modelo de predicción —nunca con el modelo conversacional—, así que el botón
+ * da la misma respuesta con y sin Ollama. Las etiquetas coinciden con la
+ * `pregunta` que devuelve el backend para que burbuja y respuesta hablen de
+ * lo mismo.
+ */
+const CONSULTAS: { tipo: QuickQueryType; etiqueta: string }[] = [
+  { tipo: 'estado', etiqueta: '¿Cómo va el grupo?' },
+  { tipo: 'riesgo', etiqueta: '¿Quiénes están en riesgo?' },
+  { tipo: 'asistencia', etiqueta: '¿Cómo está la asistencia?' },
+  { tipo: 'aprobacion', etiqueta: '¿Cuántos van aprobando?' },
+  { tipo: 'necesita', etiqueta: '¿Cuánto necesitan para aprobar?' },
 ];
 
 /**
@@ -42,14 +61,23 @@ export default function AssistantPage() {
     ?.rubriContext;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
-  const [lastSource, setLastSource] = useState<'ollama' | 'rules' | 'intent-model' | null>(null);
+  const [lastSource, setLastSource] = useState<'ollama' | 'ml' | 'datos' | 'rules' | 'intent-model' | null>(null);
   const [emotion, setEmotion] = useState<RubriEmotion>('neutral');
   const [action, setAction] = useState<{ route: string; label: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // La materia elegida acota las consultas rápidas; vacío = todo el alcance.
+  const [materiaId, setMateriaId] = useState('');
+
   const status = useQuery({
     queryKey: queryKeys.assistant.status(),
     queryFn: () => assistantRepository.status(),
+    staleTime: 60_000,
+  });
+
+  const subjects = useQuery({
+    queryKey: queryKeys.subjects.list(),
+    queryFn: () => subjectRepository.list(),
     staleTime: 60_000,
   });
 
@@ -72,14 +100,44 @@ export default function AssistantPage() {
     },
   });
 
+  const quick = useMutation({
+    mutationFn: (tipo: QuickQueryType) =>
+      assistantRepository.quick({ tipo, ...(materiaId ? { subjectId: materiaId } : {}) }),
+
+    onMutate(tipo) {
+      const etiqueta = CONSULTAS.find((consulta) => consulta.tipo === tipo)?.etiqueta ?? tipo;
+      const materia = subjects.data?.find((subject) => subject._id === materiaId)?.name;
+      setMessages((current) => [
+        ...current,
+        { role: 'user', content: materia ? `${etiqueta} — ${materia}` : etiqueta },
+      ]);
+    },
+
+    onSuccess(response) {
+      setMessages((current) => [...current, { role: 'assistant', content: response.answer }]);
+      setLastSource(response.source);
+      setEmotion('neutral');
+      setAction(null);
+    },
+
+    onError(error) {
+      toast.fromError(error, 'La consulta no pudo responderse');
+      setMessages((current) => current.slice(0, -1));
+      setEmotion('sad');
+      setAction(null);
+    },
+  });
+
+  const ocupado = chat.isPending || quick.isPending;
+
   // Auto-scroll to the newest message.
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  }, [messages, chat.isPending]);
+  }, [messages, ocupado]);
 
   function send(text: string) {
     const message = text.trim();
-    if (!message || chat.isPending) return;
+    if (!message || ocupado) return;
 
     setMessages((current) => [...current, { role: 'user', content: message }]);
     setDraft('');
@@ -105,6 +163,11 @@ export default function AssistantPage() {
                 <Sparkles className="size-3" aria-hidden />
                 {status.data?.model || 'Modelo local'}
               </Badge>
+            ) : status.data?.ml?.available ? (
+              <Badge tone="success">
+                <Sparkles className="size-3" aria-hidden />
+                Modelo de predicción activo
+              </Badge>
             ) : status.data?.rubri?.available ? (
               <Badge tone="success">NLP interno activo</Badge>
             ) : (
@@ -117,10 +180,11 @@ export default function AssistantPage() {
           <div className="flex items-start gap-2.5 rounded-lg border border-warning/30 bg-warning-soft px-4 py-3 text-caption text-warning">
             <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
             <p>
-              Ollama no responde en <code className="font-mono">{status.data?.baseUrl}</code>. El
-              modelo conversacional contestará con reglas hasta que vuelva. El clasificador NLP de
-              Rubri sigue siendo interno e independiente.
-              Inicia Ollama y descarga el modelo con{' '}
+              Ollama no responde en <code className="font-mono">{status.data?.baseUrl}</code>.
+              {status.data?.ml?.available
+                ? ' Las preguntas académicas las responde el modelo interno de predicción (ML en Python); solo falta la redacción conversacional.'
+                : ' El asistente contestará con reglas hasta que vuelva.'}{' '}
+              Para recuperar la conversación, inicia Ollama y descarga el modelo con{' '}
               <code className="font-mono">ollama pull {status.data?.model}</code>.
             </p>
           </div>
@@ -198,7 +262,7 @@ export default function AssistantPage() {
                   ))}
                 </AnimatePresence>
 
-                {chat.isPending ? (
+                {ocupado ? (
                   <div className="flex gap-3">
                     <Rubri emotion="neutral" size="small" />
                     <div className="flex items-center gap-1.5 rounded-xl bg-surface-alt px-4 py-3">
@@ -214,13 +278,25 @@ export default function AssistantPage() {
                   </div>
                 ) : null}
 
-                {lastSource === 'rules' && !chat.isPending ? (
+                {lastSource === 'ml' && !ocupado ? (
+                  <p className="text-center text-caption text-muted">
+                    Análisis del modelo interno de predicción, sin IA conversacional.
+                  </p>
+                ) : null}
+
+                {lastSource === 'datos' && !ocupado ? (
+                  <p className="text-center text-caption text-muted">
+                    Cálculo directo sobre tus datos académicos.
+                  </p>
+                ) : null}
+
+                {lastSource === 'rules' && !ocupado ? (
                   <p className="text-center text-caption text-muted">
                     Respuesta generada por reglas, sin el modelo de IA.
                   </p>
                 ) : null}
 
-                {action && !chat.isPending ? (
+                {action && !ocupado ? (
                   <div className="flex justify-center">
                     <Button variant="secondary" onClick={() => navigate(action.route)}>
                       {action.label}
@@ -232,6 +308,37 @@ export default function AssistantPage() {
           </div>
 
           <CardContent className="border-t border-border pt-4">
+            {/*
+              Botones antes que teclado: las preguntas de todos los días no
+              deberían exigir redactarlas. El selector acota a una materia; el
+              resto del alcance lo impone el backend igual que en el chat.
+            */}
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <NativeSelect
+                value={materiaId}
+                onChange={(event) => setMateriaId(event.target.value)}
+                aria-label="Materia de las consultas rápidas"
+                className="h-8 w-auto max-w-56 py-0 text-caption"
+              >
+                <option value="">Todas mis materias</option>
+                {(subjects.data ?? []).map((subject) => (
+                  <option key={subject._id} value={subject._id}>
+                    {subject.name}
+                  </option>
+                ))}
+              </NativeSelect>
+              {CONSULTAS.map((consulta) => (
+                <button
+                  key={consulta.tipo}
+                  type="button"
+                  onClick={() => quick.mutate(consulta.tipo)}
+                  disabled={ocupado}
+                  className="rounded-full border border-border px-3.5 py-1.5 text-caption text-muted transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {consulta.etiqueta}
+                </button>
+              ))}
+            </div>
             <div className="flex items-end gap-2">
               <Textarea
                 value={draft}
@@ -253,7 +360,7 @@ export default function AssistantPage() {
                 variant="primary"
                 size="icon"
                 onClick={() => send(draft)}
-                disabled={!draft.trim() || chat.isPending}
+                disabled={!draft.trim() || ocupado}
                 aria-label="Enviar mensaje"
                 className="size-10"
               >

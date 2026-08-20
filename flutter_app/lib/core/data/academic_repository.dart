@@ -87,12 +87,15 @@ class AcademicRepository {
     return _items(response.data).map(Student.fromJson).toList();
   }
 
-  Future<List<Enrollment>> enrollments({String? subjectId, String? period}) async {
-    final response = await _api.get('/enrollments', query: {
-      if (subjectId != null) 'subjectId': subjectId,
-      if (period != null) 'period': period,
-    });
-    return _items(response.data).map(Enrollment.fromJson).toList();
+  Future<List<Enrollment>> enrollments({String? subjectId, String? period}) {
+    return _leerConCache(
+      'matriculas.${subjectId ?? "todas"}.${period ?? "todos"}',
+      () => _api.get('/enrollments', query: {
+        if (subjectId != null) 'subjectId': subjectId,
+        if (period != null) 'period': period,
+      }),
+      Enrollment.fromJson,
+    );
   }
 
   Future<List<ConsolidatedRow>> consolidated({
@@ -116,12 +119,15 @@ class AcademicRepository {
   Future<List<PendingSubject>> pendingGrades({
     required String period,
     String? subjectId,
-  }) async {
-    final response = await _api.get('/grades/pendientes', query: {
-      'period': period,
-      if (subjectId != null) 'subjectId': subjectId,
-    });
-    return _items(response.data).map(PendingSubject.fromJson).toList();
+  }) {
+    return _leerConCache(
+      'pendientes.$period.${subjectId ?? "todas"}',
+      () => _api.get('/grades/pendientes', query: {
+        'period': period,
+        if (subjectId != null) 'subjectId': subjectId,
+      }),
+      PendingSubject.fromJson,
+    );
   }
 
   Future<List<RiskItem>> risks() {
@@ -149,9 +155,12 @@ class AcademicRepository {
     });
   }
 
-  Future<List<AppNotification>> notifications() async {
-    final response = await _api.get('/notifications');
-    return _items(response.data).map(AppNotification.fromJson).toList();
+  Future<List<AppNotification>> notifications() {
+    return _leerConCache(
+      'notificaciones',
+      () => _api.get('/notifications'),
+      AppNotification.fromJson,
+    );
   }
 
   Future<void> markNotificationRead(String id) async {
@@ -167,12 +176,15 @@ class AcademicRepository {
   Future<List<Map<String, dynamic>>> attendance({
     String? subjectId,
     String? period,
-  }) async {
-    final response = await _api.get('/attendance', query: {
-      if (subjectId != null) 'subjectId': subjectId,
-      if (period != null) 'period': period,
-    });
-    return _items(response.data);
+  }) {
+    return _leerConCache(
+      'asistencia.${subjectId ?? "todas"}.${period ?? "todos"}',
+      () => _api.get('/attendance', query: {
+        if (subjectId != null) 'subjectId': subjectId,
+        if (period != null) 'period': period,
+      }),
+      (registro) => registro,
+    );
   }
 
   Future<void> markAttendance({

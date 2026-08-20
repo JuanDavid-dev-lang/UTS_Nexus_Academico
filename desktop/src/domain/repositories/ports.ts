@@ -32,6 +32,8 @@ import type {
   DashboardSummary,
   Notification,
   Prediction,
+  QuickQueryType,
+  QuickResponse,
   ReportPreview,
   ReportTemplate,
   ReportTemplateData,
@@ -206,6 +208,8 @@ export interface AssistantRepository {
     context?: { page?: string; courseId?: string; groupId?: string };
   }): Promise<ChatResponse>;
   predict(input: { studentId: string; subjectId: string }): Promise<Prediction>;
+  /** Consulta rápida por botón: determinista, sin modelo conversacional. */
+  quick(input: { tipo: QuickQueryType; subjectId?: string; groupId?: string }): Promise<QuickResponse>;
 }
 
 export type ReportFormat = 'pdf' | 'excel';

@@ -1,4 +1,5 @@
 import '../../../core/network/api_client.dart';
+import '../../../core/storage/offline_cache.dart';
 import './activity_models.dart';
 
 /// Acceso HTTP a actividades, periodos, casos de inasistencia e historial.
@@ -23,12 +24,18 @@ class ActivityRepository {
     String? period,
     String? estado,
   }) async {
-    final response = await _api.get('/activities', query: {
-      if (subjectId != null) 'subjectId': subjectId,
-      if (period != null) 'period': period,
-      if (estado != null) 'estado': estado,
-    });
-    return _items(response.data).map(Activity.fromJson).toList();
+    final items = await listaConCache(
+      'actividades.${subjectId ?? "todas"}.${period ?? "todos"}.${estado ?? "todos"}',
+      () async {
+        final response = await _api.get('/activities', query: {
+          if (subjectId != null) 'subjectId': subjectId,
+          if (period != null) 'period': period,
+          if (estado != null) 'estado': estado,
+        });
+        return _items(response.data);
+      },
+    );
+    return items.map(Activity.fromJson).toList();
   }
 
   Future<Activity> crearActividad({
@@ -95,8 +102,11 @@ class ActivityRepository {
   // ── Periodos ──────────────────────────────────────────────────────────
 
   Future<List<AcademicPeriod>> periodos() async {
-    final response = await _api.get('/periods');
-    return _items(response.data).map(AcademicPeriod.fromJson).toList();
+    final items = await listaConCache('periodos', () async {
+      final response = await _api.get('/periods');
+      return _items(response.data);
+    });
+    return items.map(AcademicPeriod.fromJson).toList();
   }
 
   // ── Casos de inasistencia ─────────────────────────────────────────────
@@ -107,13 +117,19 @@ class ActivityRepository {
     String? period,
     String? estado,
   }) async {
-    final response = await _api.get('/attendance/casos', query: {
-      if (studentId != null) 'studentId': studentId,
-      if (subjectId != null) 'subjectId': subjectId,
-      if (period != null) 'period': period,
-      if (estado != null) 'status': estado,
-    });
-    return _items(response.data).map(AttendanceCase.fromJson).toList();
+    final items = await listaConCache(
+      'casos.${studentId ?? "todos"}.${subjectId ?? "todas"}.${period ?? "todos"}.${estado ?? "todos"}',
+      () async {
+        final response = await _api.get('/attendance/casos', query: {
+          if (studentId != null) 'studentId': studentId,
+          if (subjectId != null) 'subjectId': subjectId,
+          if (period != null) 'period': period,
+          if (estado != null) 'status': estado,
+        });
+        return _items(response.data);
+      },
+    );
+    return items.map(AttendanceCase.fromJson).toList();
   }
 
   Future<void> intervenirCaso(

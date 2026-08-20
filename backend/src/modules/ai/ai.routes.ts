@@ -23,6 +23,9 @@ import {
   type ChatMessage,
 } from './assistant.service.js';
 import { contextoAgenda, responderAgenda } from './agenda-context.js';
+import { mlStatus } from '../ml/ml.service.js';
+import { pareceAcademica, responderConModelo } from './ml-fallback.js';
+import { consultaRapida, TIPOS_CONSULTA } from './consultas-rapidas.js';
 import { pareceDeAgenda } from '../../domains/agenda/agenda-questions.js';
 import { accionSegura, estadoRubri, interpretarConRubri } from './rubri.service.js';
 
@@ -58,10 +61,13 @@ const limiteChat = rateLimit({
 // `exigirSesion`: contar si hay un servicio de IA local encendido y con qué
 // modelo es reconocimiento gratis para quien no ha iniciado sesión.
 aiRouter.get('/status', exigirSesion, async (_req, res) => {
-  const rubri = await estadoRubri();
+  // El estado del modelo de ML va siempre: cuando Ollama no está, es lo que
+  // responde las preguntas académicas, y el cliente necesita poder decirlo.
+  const [rubri, ml] = await Promise.all([estadoRubri(), mlStatus()]);
+  const mlInfo = { enabled: ml.enabled, available: ml.available, version: ml.version ?? null };
   if (!env.AI_ENABLED) {
     return res.json({
-      ok: true, enabled: false, available: false, rubri,
+      ok: true, enabled: false, available: false, rubri, ml: mlInfo,
       message: 'Modelo conversacional desactivado; clasificador interno disponible por separado.',
     });
   }
@@ -76,6 +82,7 @@ aiRouter.get('/status', exigirSesion, async (_req, res) => {
     modelReady: status.models.some(m => m === env.AI_MODEL || m.startsWith(env.AI_MODEL.split(':')[0])),
     error: status.error,
     rubri,
+    ml: mlInfo,
   });
 });
 
@@ -143,6 +150,59 @@ aiRouter.post('/predict', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), asyn
     });
 
     res.json({ ok: true, result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Cupo propio de las consultas rápidas, más holgado que el del chat: no hay
+ * inferencia de un modelo grande detrás, pero cada una sí arrastra la
+ * agregación académica completa, así que tampoco puede ir con el cupo general.
+ */
+const limiteConsultas = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  keyGenerator: (req) => req.user?.id ?? req.ip ?? 'anonimo',
+  message: {
+    ok: false,
+    message: 'Has hecho muchas consultas rápidas. Espera unos minutos antes de seguir.',
+  },
+});
+
+/**
+ * Consulta rápida por botón: determinista, sin modelo conversacional.
+ *
+ * La respuesta sale del motor canónico y del modelo de predicción, así que es
+ * idéntica con o sin Ollama. El alcance se comprueba igual que en el chat: un
+ * docente solo consulta sus materias y sus grupos.
+ */
+aiRouter.post('/quick', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), limiteConsultas, async (req, res, next) => {
+  try {
+    const body = z.object({
+      tipo: z.enum(TIPOS_CONSULTA),
+      subjectId: campo.codigo.optional(),
+      groupId: campo.codigo.optional(),
+    }).parse(req.body);
+
+    let teacherId: string | undefined;
+    if (req.user?.role === 'PROFESSOR') {
+      const scope = await getProfessorScope(req.user.id);
+      if (body.subjectId && !scope.subjectIds.includes(body.subjectId)) {
+        return res.status(403).json({ ok: false, message: 'Subject not assigned' });
+      }
+      if (body.groupId && !scope.groupIds.includes(body.groupId)) {
+        return res.status(403).json({ ok: false, message: 'Group not assigned' });
+      }
+      teacherId = req.user.id;
+    }
+
+    const respuesta = await consultaRapida(body.tipo, {
+      teacherId,
+      subjectId: body.subjectId,
+      groupId: body.groupId,
+    });
+    res.json({ ok: true, ...respuesta });
   } catch (err) {
     next(err);
   }
@@ -251,6 +311,33 @@ aiRouter.post('/chat', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), limiteC
       const respuesta = await responderAgenda(body.message, alcanceAgenda);
       if (respuesta) {
         return res.json({ ok: true, source: 'rules', answer: `${respuesta}\n\n${fallbackNote}`, emotion: 'offline', rubri });
+      }
+    }
+
+    // ── Respaldo con el modelo interno de ML (Python) ──────────────────────
+    // Sin Ollama, una pregunta académica no se despacha con una plantilla: la
+    // responde el mismo modelo de scikit-learn que alimenta la pantalla de
+    // riesgo, con sus probabilidades y sus motivos. Si el servicio de ML
+    // tampoco está, `predictRisk()` degrada solo a reglas y aquí se declara.
+    if (pareceAcademica(body.message)) {
+      const respuestaMl = await responderConModelo({
+        teacherId,
+        studentId: body.studentId,
+        subjectId,
+      });
+      if (respuestaMl) {
+        const nota = respuestaMl.source === 'ml'
+          ? 'ⓘ Sin IA conversacional; análisis del modelo interno de predicción (ML).'
+          : fallbackNote;
+        return res.json({
+          ok: true,
+          source: respuestaMl.source,
+          answer: `${respuestaMl.answer}
+
+${nota}`,
+          emotion: 'neutral',
+          rubri,
+        });
       }
     }
 

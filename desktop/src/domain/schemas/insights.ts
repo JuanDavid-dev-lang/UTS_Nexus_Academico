@@ -84,6 +84,12 @@ export const aiStatusSchema = z.object({
     model: z.string().optional(),
     metrics: z.unknown().optional(),
   }).optional(),
+  /** Modelo de predicción (scikit-learn): responde lo académico sin Ollama. */
+  ml: z.object({
+    enabled: z.boolean(),
+    available: z.boolean(),
+    version: z.string().nullable().optional(),
+  }).optional(),
 });
 export type AiStatus = z.infer<typeof aiStatusSchema>;
 
@@ -96,8 +102,8 @@ export type ChatMessage = z.infer<typeof chatMessageSchema>;
 export const chatResponseSchema = z.object({
   ok: z.literal(true),
   answer: z.string(),
-  /** 'ollama' when the local model answered, 'rules' when it fell back. */
-  source: z.enum(['ollama', 'rules', 'intent-model']).optional().default('rules'),
+  /** 'ollama' si respondió el modelo conversacional, 'ml' si el de predicción, 'rules' si las reglas. */
+  source: z.enum(['ollama', 'ml', 'rules', 'intent-model']).optional().default('rules'),
   model: z.string().optional(),
   emotion: z.enum(['neutral', 'happy', 'sad', 'offline']).optional().default('neutral'),
   rubri: z.object({
@@ -113,6 +119,19 @@ export const chatResponseSchema = z.object({
   }).nullable().optional().default(null),
 });
 export type ChatResponse = z.infer<typeof chatResponseSchema>;
+
+/** Consultas rápidas: botones que preguntan por el grupo sin escribir. */
+export const QUICK_QUERY_TYPES = ['estado', 'riesgo', 'asistencia', 'aprobacion', 'necesita'] as const;
+export type QuickQueryType = (typeof QUICK_QUERY_TYPES)[number];
+
+export const quickResponseSchema = z.object({
+  ok: z.literal(true),
+  pregunta: z.string(),
+  answer: z.string(),
+  /** 'ml' si intervino el modelo de predicción; 'datos' si es aritmética directa. */
+  source: z.enum(['ml', 'datos']).optional().default('datos'),
+});
+export type QuickResponse = z.infer<typeof quickResponseSchema>;
 
 // ── Report preview ──────────────────────────────────────────────────────────
 /**

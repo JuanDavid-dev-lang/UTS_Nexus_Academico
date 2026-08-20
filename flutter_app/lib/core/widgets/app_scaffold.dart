@@ -213,7 +213,13 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       final todos = [...primaryDestinations, ...secundarios];
       final indice = todos.indexWhere((d) => d.route == rutaActual);
       return Scaffold(
-        body: Row(
+        // El alto de la barra de estado se paga UNA vez, aquí. Antes lo pagaba
+        // el SafeArea de la franja de sincronización y, además, el AppBar de
+        // cada pantalla —que lee MediaQuery.padding.top por su cuenta—, así
+        // que toda pantalla arrastraba una banda vacía arriba.
+        body: SafeArea(
+          bottom: false,
+          child: Row(
           children: [
             NavigationRail(
               // NavigationRail exige un índice válido; -1 lo haría fallar.
@@ -233,11 +239,18 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
               child: Column(
                 children: [
                   const OfflineBanner(),
-                  Expanded(child: widget.navigationShell),
+                  Expanded(
+                    child: MediaQuery.removePadding(
+                      context: context,
+                      removeTop: true,
+                      child: widget.navigationShell,
+                    ),
+                  ),
                 ],
               ),
             ),
           ],
+          ),
         ),
       );
     }
@@ -249,11 +262,26 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     return Scaffold(
       // La franja va por encima de la pantalla, no dentro: aplica a todas y
       // ninguna debería tener que acordarse de mostrarla.
-      body: Column(
-        children: [
-          const OfflineBanner(),
-          Expanded(child: widget.navigationShell),
-        ],
+      //
+      // El SafeArea de fuera y el removePadding de dentro son la misma
+      // decisión: el alto de la barra de estado se descuenta UNA vez. Sin el
+      // segundo, el AppBar de cada pantalla volvía a leer
+      // MediaQuery.padding.top y lo sumaba otra vez: una banda vacía de ~30 dp
+      // encima de todas las pantallas.
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            const OfflineBanner(),
+            Expanded(
+              child: MediaQuery.removePadding(
+                context: context,
+                removeTop: true,
+                child: widget.navigationShell,
+              ),
+            ),
+          ],
+        ),
       ),
       bottomNavigationBar: NavigationBar(
         // 64 en vez de los 80 por defecto. La etiqueta sigue visible y el

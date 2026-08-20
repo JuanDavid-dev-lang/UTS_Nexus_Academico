@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import './offline_status.dart';
+
 /// Caché local de lo último que respondió el servidor.
 ///
 /// La aplicación se usa en un salón, que es exactamente donde el wifi
@@ -75,4 +77,54 @@ class Cached<T> {
   final DateTime? cachedAt;
 
   const Cached(this.data, {this.fromCache = false, this.cachedAt});
+}
+
+
+/// Lee una lista del servidor con respaldo en caché.
+///
+/// El mismo contrato que `AcademicRepository._leerConCache`, disponible para
+/// cualquier repositorio: se intenta la red, lo que llega se guarda y se marca
+/// en línea; si falla, se sirve lo último guardado —fechado, vía
+/// [OfflineStatus]— y solo si no hay nada el error sube. Existe para que
+/// «funciona sin red» sea una propiedad de toda lectura y no un privilegio de
+/// las pantallas que alguien se acordó de cachear.
+///
+/// Solo LECTURAS. Una escritura sin red no puede fingirse con lo guardado.
+Future<List<Map<String, dynamic>>> listaConCache(
+  String clave,
+  Future<List<Map<String, dynamic>>> Function() pedir,
+) async {
+  try {
+    final items = await pedir();
+    await OfflineCache.save(clave, items);
+    OfflineStatus.instance.marcarEnLinea();
+    return items;
+  } catch (_) {
+    final guardado = await OfflineCache.read(clave);
+    if (guardado == null) rethrow;
+    OfflineStatus.instance.marcarDesdeCache(guardado.guardadoEn);
+    return (guardado.dato as List)
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+}
+
+/// Igual que [listaConCache] pero para una respuesta que es un objeto, no una
+/// lista: el resumen del panel, unas preferencias.
+Future<Map<String, dynamic>> mapaConCache(
+  String clave,
+  Future<Map<String, dynamic>> Function() pedir,
+) async {
+  try {
+    final cuerpo = await pedir();
+    await OfflineCache.save(clave, cuerpo);
+    OfflineStatus.instance.marcarEnLinea();
+    return cuerpo;
+  } catch (_) {
+    final guardado = await OfflineCache.read(clave);
+    if (guardado == null || guardado.dato is! Map) rethrow;
+    OfflineStatus.instance.marcarDesdeCache(guardado.guardadoEn);
+    return Map<String, dynamic>.from(guardado.dato as Map);
+  }
 }

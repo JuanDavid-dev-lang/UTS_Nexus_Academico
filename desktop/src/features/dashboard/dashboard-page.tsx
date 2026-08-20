@@ -208,14 +208,20 @@ export default function DashboardPage() {
         )}
       </PageHero>
 
+      {/*
+        mt-2 sobre el gap-4 del contenedor: el bloque de marca pesa visualmente
+        más que una tarjeta, y con los 16px estándar los indicadores —que además
+        entran subiendo— aterrizaban pegados a él. 24px es el mismo aire que el
+        margen de página, así que no inventa un escalón nuevo.
+      */}
       {dashboard.isPending ? (
-        <SkeletonStatGrid />
+        <SkeletonStatGrid className="mt-2" />
       ) : dashboard.isError ? (
-        <Card>
+        <Card className="mt-2">
           <ErrorState error={dashboard.error} onRetry={() => void dashboard.refetch()} />
         </Card>
       ) : (
-        <div className="grid grid-cols-2 gap-4 @3xl:grid-cols-3 @6xl:grid-cols-6">
+        <div className="mt-2 grid grid-cols-2 gap-4 @3xl:grid-cols-3 @6xl:grid-cols-6">
           <StatCard
             index={0}
             label="Promedio actual"

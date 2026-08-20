@@ -4,6 +4,7 @@ import { itemsResponse, okResponse } from '@/domain/schemas/common';
 import { riskResponseSchema, type InterventionStatus } from '@/domain/schemas/academic';
 import {
   aiStatusSchema,
+  quickResponseSchema,
   chatResponseSchema,
   dashboardResponseSchema,
   notificationSchema,
@@ -106,6 +107,18 @@ export const assistantRepository: AssistantRepository = {
       { schema: predictionSchema },
     );
     return data.result;
+  },
+
+  async quick(input) {
+    return http.post(
+      '/ai/quick',
+      {
+        tipo: input.tipo,
+        ...(input.subjectId ? { subjectId: input.subjectId } : {}),
+        ...(input.groupId ? { groupId: input.groupId } : {}),
+      },
+      { schema: quickResponseSchema, timeoutMs: env.longRequestTimeoutMs },
+    );
   },
 };
 

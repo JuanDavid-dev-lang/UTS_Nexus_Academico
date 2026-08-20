@@ -6,7 +6,7 @@ import '../../core/network/api_client.dart';
 class ChatMessage {
   final String role; // 'user' | 'assistant'
   final String content;
-  final String? source; // 'ollama' | 'rules' | 'error'
+  final String? source; // 'ollama' | 'ml' | 'rules' | 'error'
   final String emotion;
   const ChatMessage({
     required this.role,
@@ -27,12 +27,17 @@ class AiStatus {
   final String? model;
   final bool modelReady;
   final bool rubriAvailable;
+
+  /// Modelo de predicción (scikit-learn, en Python): sin Ollama, es quien
+  /// responde las preguntas académicas.
+  final bool mlAvailable;
   const AiStatus({
     required this.enabled,
     required this.available,
     this.model,
     this.modelReady = false,
     this.rubriAvailable = false,
+    this.mlAvailable = false,
   });
 
   factory AiStatus.fromJson(Map<String, dynamic> j) => AiStatus(
@@ -42,6 +47,7 @@ class AiStatus {
         modelReady: j['modelReady'] == true,
         rubriAvailable:
             j['rubri'] is Map && (j['rubri'] as Map)['available'] == true,
+        mlAvailable: j['ml'] is Map && (j['ml'] as Map)['available'] == true,
       );
 }
 
@@ -115,6 +121,60 @@ class ChatController extends StateNotifier<ChatState> {
         sending: false,
       );
     } catch (e) {
+      state = state.copyWith(
+        messages: [
+          ...state.messages,
+          ChatMessage(
+              role: 'assistant',
+              content: 'Ocurrió un error inesperado.',
+              source: 'error',
+              emotion: 'sad'),
+        ],
+        sending: false,
+      );
+    }
+  }
+
+  /// Consulta rápida por botón, contra `/ai/quick`.
+  ///
+  /// La burbuja del usuario lleva la pregunta ya redactada; la respuesta sale
+  /// del motor canónico y del modelo de predicción, nunca del conversacional,
+  /// así que es la misma con y sin Ollama.
+  Future<void> quick(String tipo, String pregunta, {String? subjectId}) async {
+    if (state.sending) return;
+
+    state = state.copyWith(
+      messages: [...state.messages, ChatMessage(role: 'user', content: pregunta)],
+      sending: true,
+    );
+
+    try {
+      final res = await ApiClient.instance.post('/ai/quick', data: {
+        'tipo': tipo,
+        if (subjectId != null) 'subjectId': subjectId,
+      });
+      final data = Map<String, dynamic>.from(res.data as Map);
+      final reply = ChatMessage(
+        role: 'assistant',
+        content: data['answer']?.toString() ?? '(sin respuesta)',
+        source: data['source']?.toString(),
+      );
+      state =
+          state.copyWith(messages: [...state.messages, reply], sending: false);
+    } on DioException catch (e) {
+      final code = e.response?.statusCode;
+      final msg = code == 403
+          ? 'Este asistente es para docentes. Tu rol no tiene acceso.'
+          : 'Rubri no pudo comunicarse con UTS Nexus. Revisa la conexión e inténtalo de nuevo.';
+      state = state.copyWith(
+        messages: [
+          ...state.messages,
+          ChatMessage(
+              role: 'assistant', content: msg, source: 'error', emotion: 'sad'),
+        ],
+        sending: false,
+      );
+    } catch (_) {
       state = state.copyWith(
         messages: [
           ...state.messages,

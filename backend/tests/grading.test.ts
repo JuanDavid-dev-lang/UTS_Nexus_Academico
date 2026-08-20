@@ -4,6 +4,7 @@ import {
   calcularCorte,
   calcularNotaFinal,
   calcularPromedioParcial,
+  notaNecesariaEnRestantes,
   notaNecesariaParaAprobar,
   type CorteNumero,
   type NotaComponente,
@@ -209,6 +210,51 @@ describe('calcularPromedioParcial', () => {
 
   it('sin notas devuelve cero cortes, que es lo que distingue "va mal" de "aún no empieza"', () => {
     expect(calcularPromedioParcial([])).toEqual({ promedio: 0, cortesConNota: 0 });
+  });
+});
+
+describe('notaNecesariaEnRestantes', () => {
+  it('sin ningún corte calificado necesita 3.0 de media en los tres', () => {
+    expect(notaNecesariaEnRestantes([0, 0, 0])).toEqual({
+      cortesRestantes: 3,
+      requerido: 3,
+      aprobado: false,
+    });
+  });
+
+  it('con dos cortes en 5.0 el tercero ya está asegurado', () => {
+    // 5×0.33 + 5×0.33 = 3.3 ≥ 3.0
+    const r = notaNecesariaEnRestantes([5, 5, 0]);
+    expect(r).toEqual({ cortesRestantes: 1, requerido: 0, aprobado: true });
+  });
+
+  it('con dos cortes en 1.0 ya no alcanza ni con 5.0', () => {
+    // Acumulado 0.66; necesitaría (3 − 0.66) / 0.34 = 6.88 > 5.
+    const r = notaNecesariaEnRestantes([1, 1, 0]);
+    expect(r).toEqual({ cortesRestantes: 1, requerido: null, aprobado: false });
+  });
+
+  it('con dos cortes en 2.0 pide 4.94 en el que falta', () => {
+    const r = notaNecesariaEnRestantes([2, 2, 0]);
+    expect(r.cortesRestantes).toBe(1);
+    expect(r.requerido).toBeCloseTo(4.94, 2);
+    expect(r.aprobado).toBe(false);
+  });
+
+  it('con los tres cortes cerrados solo dictamina', () => {
+    expect(notaNecesariaEnRestantes([3, 3, 3])).toEqual({
+      cortesRestantes: 0,
+      requerido: null,
+      aprobado: true,
+    });
+    expect(notaNecesariaEnRestantes([2, 2, 2]).aprobado).toBe(false);
+  });
+
+  it('un corte en 0 cuenta como pendiente, no como perdido', () => {
+    // La aproximación declarada: el agregado no distingue un 0.0 real.
+    const r = notaNecesariaEnRestantes([0, 4, 0]);
+    expect(r.cortesRestantes).toBe(2);
+    expect(r.requerido).toBeCloseTo((3 - 4 * 0.33) / 0.67, 2);
   });
 });
 
