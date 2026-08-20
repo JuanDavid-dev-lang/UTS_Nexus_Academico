@@ -39,18 +39,24 @@ export function startPdf(
 }
 
 export function drawHeader(doc: any, title: string, plantilla: Plantilla) {
-  // Membrete: logo subido si existe y se puede leer; si no, el recuadro con la
-  // sigla. Un logo corrupto no debe tumbar el acta que el docente entrega.
+  // Membrete, en orden de preferencia: el logo que subió la administración,
+  // el logo institucional de la UTS que viaja empaquetado con el backend, y
+  // solo si ninguno se puede leer, el recuadro con la sigla. Un logo corrupto
+  // no debe tumbar el acta que el docente entrega.
   let logoDibujado = false;
+  const candidatos: string[] = [];
   if (plantilla.logoUrl) {
-    const ruta = path.join(process.cwd(), 'uploads', path.basename(plantilla.logoUrl));
-    if (fs.existsSync(ruta)) {
-      try {
-        doc.image(ruta, 32, 26, { fit: [58, 58] });
-        logoDibujado = true;
-      } catch {
-        logoDibujado = false;
-      }
+    candidatos.push(path.join(process.cwd(), 'uploads', path.basename(plantilla.logoUrl)));
+  }
+  candidatos.push(path.join(process.cwd(), 'assets', 'logo-uts.png'));
+  for (const ruta of candidatos) {
+    if (!fs.existsSync(ruta)) continue;
+    try {
+      doc.image(ruta, 32, 26, { fit: [58, 58] });
+      logoDibujado = true;
+      break;
+    } catch {
+      logoDibujado = false;
     }
   }
   if (!logoDibujado) {

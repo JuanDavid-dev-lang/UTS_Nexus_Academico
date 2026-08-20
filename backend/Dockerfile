@@ -15,6 +15,8 @@ ENV NODE_ENV=production
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder /app/dist ./dist
+# Recursos empaquetados (logo institucional de los reportes).
+COPY assets ./assets
 
 # Los reportes y las imágenes subidas van a un volumen montado aquí. Sin crear
 # el directorio con el dueño correcto, el proceso sin privilegios no puede

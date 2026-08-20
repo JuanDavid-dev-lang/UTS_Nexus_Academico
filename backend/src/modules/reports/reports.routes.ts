@@ -17,6 +17,7 @@ import { enviarExcel, hojaDeCatalogo } from './excel.renderer.js';
 import {
   buscarAsistencia,
   buscarNotas,
+  ordenarNotasParaActa,
   consolidadoOrdenado,
   filtrosDeConsulta,
   resolveMaps,
@@ -203,7 +204,7 @@ reportsRouter.get('/pdf/grades', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'
     if (filters.subjectId) doc.text(`Materia: ${filters.subjectId}`);
     doc.moveDown(0.6);
 
-    tablaDeCatalogo(doc, columnas, construirFilasTexto(columnas, grades, maps), plantilla);
+    tablaDeCatalogo(doc, columnas, construirFilasTexto(columnas, ordenarNotasParaActa(grades, maps), maps), plantilla);
     if (!grades.length) doc.fillColor('#dbe6ec').fontSize(10).text('Sin notas registradas.');
     doc.end();
   } catch (err) {
@@ -258,7 +259,7 @@ reportsRouter.get('/pdf/combined', requireRole('ADMIN', 'PROFESSOR', 'COORDINATO
     doc.moveDown(0.5);
 
     doc.fontSize(13).fillColor('#0b1115').text('Notas');
-    tablaDeCatalogo(doc, columnasNotas, construirFilasTexto(columnasNotas, grades, maps), plantilla);
+    tablaDeCatalogo(doc, columnasNotas, construirFilasTexto(columnasNotas, ordenarNotasParaActa(grades, maps), maps), plantilla);
 
     doc.fontSize(13).fillColor('#0b1115').text('Asistencias');
     tablaDeCatalogo(doc, columnasAsistencia, construirFilasTexto(columnasAsistencia, attendance, maps), plantilla);
@@ -287,7 +288,7 @@ reportsRouter.get('/excel/grades', requireRole('ADMIN', 'PROFESSOR', 'COORDINATO
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Notas');
     hojaDeCatalogo(ws, columnas, plantilla);
-    construirFilas(columnas, grades, maps).forEach(fila => ws.addRow(fila));
+    construirFilas(columnas, ordenarNotasParaActa(grades, maps), maps).forEach(fila => ws.addRow(fila));
 
     await enviarExcel(res, wb, 'reporte-notas.xlsx');
   } catch (err) {
@@ -335,7 +336,7 @@ reportsRouter.get('/excel/combined', requireRole('ADMIN', 'PROFESSOR', 'COORDINA
     const wb = new ExcelJS.Workbook();
     const gradeWs = wb.addWorksheet('Notas');
     hojaDeCatalogo(gradeWs, columnasNotas, plantilla);
-    construirFilas(columnasNotas, grades, maps).forEach(fila => gradeWs.addRow(fila));
+    construirFilas(columnasNotas, ordenarNotasParaActa(grades, maps), maps).forEach(fila => gradeWs.addRow(fila));
 
     const attendanceWs = wb.addWorksheet('Asistencia');
     hojaDeCatalogo(attendanceWs, columnasAsistencia, plantilla);

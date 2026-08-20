@@ -88,6 +88,33 @@ export function buscarNotas(filters: ReportFilters, orden: Record<string, 1 | -1
   return GradeModel.find(filtroDeNotas(filters)).sort(orden).lean();
 }
 
+const ORDEN_COMPONENTE: Record<string, number> = { TRABAJOS: 0, PARCIALES: 1, AUTOEVALUACION: 2 };
+
+/**
+ * Notas en el orden en que se leen en un acta: estudiante (alfabético),
+ * materia, corte 1→3 y componente en el orden de la rúbrica (30/60/10).
+ *
+ * Ordenar en Mongo por `studentId` agrupa por estudiante pero en el orden del
+ * ObjectId —es decir, por fecha de creación del registro—, así que el listado
+ * salía con los estudiantes barajados. El nombre vive en el diccionario, no en
+ * la fila, por eso se ordena aquí y después de resolver los mapas.
+ */
+export function ordenarNotasParaActa<T extends { studentId?: unknown; subjectId?: unknown; corte?: unknown; componentType?: unknown }>(
+  grades: T[],
+  maps: MapBundle,
+): T[] {
+  const nombre = (fila: T) => maps.students.get(String(fila.studentId))?.fullName ?? '';
+  const materia = (fila: T) => maps.subjects.get(String(fila.subjectId))?.name ?? '';
+  return [...grades].sort(
+    (a, b) =>
+      nombre(a).localeCompare(nombre(b)) ||
+      materia(a).localeCompare(materia(b)) ||
+      Number(a.corte ?? 0) - Number(b.corte ?? 0) ||
+      (ORDEN_COMPONENTE[String(a.componentType ?? '')] ?? 9) -
+        (ORDEN_COMPONENTE[String(b.componentType ?? '')] ?? 9),
+  );
+}
+
 export function buscarAsistencia(filters: ReportFilters, orden: Record<string, 1 | -1> = { date: -1 }) {
   return AttendanceModel.find(filtroDeAsistencia(filters)).sort(orden).lean();
 }
