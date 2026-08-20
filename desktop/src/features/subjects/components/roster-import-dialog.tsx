@@ -4,6 +4,7 @@ import {
   Badge,
   Button,
   Dialog,
+  EmptyState,
   DialogContent,
   DialogFooter,
   Input,
@@ -211,8 +212,17 @@ export function RosterImportDialog({ open, onOpenChange, subjectId, subjectName 
           </NativeSelect>
         )}
 
-        <Tabs defaultValue="import">
+        <Tabs defaultValue="lista">
           <TabsList>
+            {/*
+              La lista va primero: la pregunta más frecuente al abrir esto no
+              es «cómo importo», es «quiénes están». Importar y buscar son las
+              acciones que se hacen una vez por semestre.
+            */}
+            <TabsTrigger value="lista">
+              <Users className="size-4" aria-hidden />
+              Matriculados{groupId && enrolledQuery.data ? ` (${enrolledQuery.data.length})` : ''}
+            </TabsTrigger>
             <TabsTrigger value="import">
               <FileUp className="size-4" aria-hidden />
               Importar lista
@@ -222,6 +232,35 @@ export function RosterImportDialog({ open, onOpenChange, subjectId, subjectName 
               Buscar existente
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="lista" className="flex flex-col gap-3 pt-4">
+            {!groupId ? (
+              <p className="py-6 text-center text-body text-muted">
+                Crea o elige un grupo para ver su lista.
+              </p>
+            ) : enrolledQuery.isLoading ? (
+              <p className="py-6 text-center text-body text-muted">Cargando la lista…</p>
+            ) : (enrolledQuery.data?.length ?? 0) === 0 ? (
+              <EmptyState
+                title="Nadie matriculado todavía"
+                message="Importa una lista o busca estudiantes ya registrados en las otras pestañas."
+              />
+            ) : (
+              <div className="flex max-h-80 flex-col divide-y divide-border overflow-y-auto">
+                {(enrolledQuery.data ?? []).map((student) => (
+                  <div key={student._id} className="flex items-center justify-between gap-3 py-2.5">
+                    <div className="min-w-0">
+                      <p className="truncate text-body font-medium text-text">{student.fullName}</p>
+                      <p className="truncate text-caption text-muted">
+                        {student.code}
+                        {student.program ? ` · ${student.program}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </TabsContent>
 
           <TabsContent value="import" className="flex flex-col gap-3 pt-4">
             <div className="flex items-center gap-2">
