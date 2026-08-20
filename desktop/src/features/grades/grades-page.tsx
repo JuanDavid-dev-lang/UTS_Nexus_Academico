@@ -6,7 +6,6 @@ import {
   ListChecks,
   ListTree,
   Plus,
-  Save,
   Sigma,
   XCircle,
 } from 'lucide-react';
@@ -15,14 +14,10 @@ import {
   Button,
   Card,
   DataTable,
-  Dialog,
-  DialogContent,
-  DialogFooter,
   EmptyState,
   ErrorState,
   Field,
   GradeBadge,
-  Input,
   NativeSelect,
   PageContainer,
   PageHeader,
@@ -33,7 +28,6 @@ import {
 import {
   useConsolidated,
   useEnrolledStudents,
-  useSaveGrade,
 } from '@/features/grades/hooks/use-grades';
 import { GradesImportDialog } from '@/features/grades/components/grades-import-dialog';
 import { PendingGradesCard } from '@/features/grades/components/pending-grades-card';
@@ -42,7 +36,7 @@ import { useSubjects } from '@/features/subjects/hooks/use-subjects';
 import { useCurrentUser, useUserRole } from '@/state/session.store';
 import { can } from '@/core/auth/permissions';
 import { currentPeriod, formatGrade, recentPeriods } from '@/shared/lib/format';
-import type { ConsolidatedRow, CutNumber, ComponentType } from '@/domain/schemas/academic';
+import type { ConsolidatedRow, CutNumber } from '@/domain/schemas/academic';
 
 /**
  * Grade capture and consolidated view.
@@ -53,20 +47,17 @@ import type { ConsolidatedRow, CutNumber, ComponentType } from '@/domain/schemas
  * students see has to be the authoritative one.
  */
 
-const COMPONENT_LABELS: Record<ComponentType, string> = {
-  TRABAJOS: 'Trabajos (30%)',
-  PARCIALES: 'Parciales (60%)',
-  AUTOEVALUACION: 'Autoevaluación (10%)',
-};
-
 const CUTS: CutNumber[] = [1, 2, 3];
 
 export default function GradesPage() {
   const [period, setPeriod] = useState(currentPeriod());
   const [subjectId, setSubjectId] = useState('');
-  const [captureOpen, setCaptureOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [desglose, setDesglose] = useState<ConsolidatedRow | null>(null);
+  // Se guarda el ID y no la fila: la fila es una foto, y el desglose ahora
+  // también registra notas — con la foto, cada nota añadida no se vería hasta
+  // cerrar y volver a abrir. Con el ID, la fila se re-deriva del consolidado
+  // fresco en cada render.
+  const [desgloseId, setDesgloseId] = useState<string | null>(null);
 
   const user = useCurrentUser();
   const role = useUserRole();
@@ -75,7 +66,6 @@ export default function GradesPage() {
   const subjects = useSubjects();
   const consolidated = useConsolidated({ period, subjectId: subjectId || undefined }, true);
   const enrolled = useEnrolledStudents({ subjectId, period });
-  const saveGrade = useSaveGrade();
 
   // Default to the first subject of the selected period so the page is useful
   // immediately instead of showing an empty selector.
@@ -92,6 +82,19 @@ export default function GradesPage() {
 
   const rows = consolidated.data ?? [];
   const materiaActiva = periodSubjects.find((subject) => subject._id === subjectId);
+
+  // La fila viva del estudiante abierto (null si aún no tiene notas) y su
+  // identidad, que para un estudiante sin notas sale de la matrícula.
+  const desgloseRow = rows.find((row) => row.studentId === desgloseId) ?? null;
+  const desgloseStudent = desgloseId
+    ? desgloseRow ??
+      (() => {
+        const enrolledStudent = enrolled.data.find((student) => student._id === desgloseId);
+        return enrolledStudent
+          ? { studentId: enrolledStudent._id, code: enrolledStudent.code, fullName: enrolledStudent.fullName }
+          : null;
+      })()
+    : null;
 
   const stats = useMemo(() => {
     if (rows.length === 0) return { average: 0, passing: 0, failing: 0, complete: 0 };
@@ -180,7 +183,7 @@ export default function GradesPage() {
             variant="ghost"
             size="icon"
             aria-label={`Ver el desglose de ${row.fullName}`}
-            onClick={() => setDesglose(row)}
+            onClick={() => setDesgloseId(row.studentId)}
           >
             <ListTree className="size-4" aria-hidden />
           </Button>
@@ -215,7 +218,10 @@ export default function GradesPage() {
               </Button>
               <Button
                 variant="primary"
-                onClick={() => setCaptureOpen(true)}
+                // Abre el menú completo del primer matriculado: el desglose es
+                // ahora donde se registra, con cada componente y sus subnotas
+                // a la vista y un selector para cambiar de estudiante.
+                onClick={() => setDesgloseId(enrolled.data[0]?._id ?? null)}
                 disabled={!subjectId || enrolled.data.length === 0}
               >
                 <Plus aria-hidden />
@@ -339,186 +345,21 @@ export default function GradesPage() {
         <DataTable rows={rows} columns={columns} getRowId={(row) => row.studentId} />
       )}
 
-      <GradeCaptureDialog
-        open={captureOpen}
-        onOpenChange={setCaptureOpen}
-        period={period}
-        subjectId={subjectId}
-        teacherId={user?.id ?? ''}
-        students={enrolled.data}
-        onSave={(input) => saveGrade.mutate(input, { onSuccess: () => setCaptureOpen(false) })}
-        saving={saveGrade.isPending}
-      />
-
-      {/* La fila del consolidado dice cuánto sacó; esto, de qué notas salió. */}
+      {/* La fila del consolidado dice cuánto sacó; esto, de qué notas salió —
+          y es donde se registran las nuevas, componente por componente. */}
       <StudentBreakdownDialog
-        row={desglose}
-        onOpenChange={(open) => !open && setDesglose(null)}
+        open={desgloseId !== null}
+        onOpenChange={(next) => !next && setDesgloseId(null)}
+        student={desgloseStudent}
+        row={desgloseRow}
+        {...(canWrite && enrolled.data.length > 0
+          ? { students: enrolled.data, onSelectStudent: setDesgloseId }
+          : {})}
         canWrite={canWrite}
+        {...(canWrite && subjectId && user
+          ? { capture: { subjectId, teacherId: user.id, period } }
+          : {})}
       />
     </PageContainer>
-  );
-}
-
-/** Capture dialog for a single component score inside a cut. */
-function GradeCaptureDialog({
-  open,
-  onOpenChange,
-  period,
-  subjectId,
-  teacherId,
-  students,
-  onSave,
-  saving,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  period: string;
-  subjectId: string;
-  teacherId: string;
-  students: { _id: string; fullName: string; code: string }[];
-  onSave: (input: {
-    studentId: string;
-    subjectId: string;
-    teacherId: string;
-    corte: CutNumber;
-    componentType: ComponentType;
-    label: string;
-    score: number;
-    period: string;
-  }) => void;
-  saving: boolean;
-}) {
-  const [studentId, setStudentId] = useState('');
-  const [cut, setCut] = useState<CutNumber>(1);
-  const [component, setComponent] = useState<ComponentType>('PARCIALES');
-  const [label, setLabel] = useState('');
-  const [score, setScore] = useState('');
-  const [error, setError] = useState<string>();
-
-  useEffect(() => {
-    if (!open) return;
-    setStudentId(students[0]?._id ?? '');
-    setLabel('');
-    setScore('');
-    setError(undefined);
-  }, [open, students]);
-
-  function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-
-    const numericScore = Number(score.replace(',', '.'));
-    if (!studentId) return setError('Selecciona un estudiante.');
-    if (!Number.isFinite(numericScore)) return setError('La nota debe ser un número.');
-    if (numericScore < 0 || numericScore > 5) return setError('La nota debe estar entre 0.0 y 5.0.');
-
-    setError(undefined);
-    onSave({
-      studentId,
-      subjectId,
-      teacherId,
-      corte: cut,
-      componentType: component,
-      label: label.trim() || 'Nota',
-      score: numericScore,
-      period,
-    });
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        title="Registrar nota"
-        description="La nota del corte se recalcula automáticamente con la rúbrica institucional."
-      >
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
-          <Field label="Estudiante" required>
-            {(props) => (
-              <NativeSelect
-                {...props}
-                value={studentId}
-                onChange={(event) => setStudentId(event.target.value)}
-              >
-                {students.map((student) => (
-                  <option key={student._id} value={student._id}>
-                    {student.fullName} — {student.code}
-                  </option>
-                ))}
-              </NativeSelect>
-            )}
-          </Field>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Corte" required>
-              {(props) => (
-                <NativeSelect
-                  {...props}
-                  value={cut}
-                  onChange={(event) => setCut(Number(event.target.value) as CutNumber)}
-                >
-                  {CUTS.map((option) => (
-                    <option key={option} value={option}>
-                      Corte {option}
-                    </option>
-                  ))}
-                </NativeSelect>
-              )}
-            </Field>
-
-            <Field label="Componente" required>
-              {(props) => (
-                <NativeSelect
-                  {...props}
-                  value={component}
-                  onChange={(event) => setComponent(event.target.value as ComponentType)}
-                >
-                  {(Object.keys(COMPONENT_LABELS) as ComponentType[]).map((option) => (
-                    <option key={option} value={option}>
-                      {COMPONENT_LABELS[option]}
-                    </option>
-                  ))}
-                </NativeSelect>
-              )}
-            </Field>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Descripción" hint="Opcional: “Parcial 1”, “Taller 3”…">
-              {(props) => (
-                <Input
-                  {...props}
-                  value={label}
-                  onChange={(event) => setLabel(event.target.value)}
-                  placeholder="Nota"
-                />
-              )}
-            </Field>
-
-            <Field label="Nota (0.0 – 5.0)" error={error} required>
-              {(props) => (
-                <Input
-                  {...props}
-                  inputMode="decimal"
-                  value={score}
-                  onChange={(event) => setScore(event.target.value)}
-                  placeholder="3.5"
-                  className="font-mono"
-                />
-              )}
-            </Field>
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" variant="primary" loading={saving}>
-              <Save aria-hidden />
-              Guardar nota
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }

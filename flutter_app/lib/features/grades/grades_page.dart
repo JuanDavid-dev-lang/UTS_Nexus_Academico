@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/auth/auth_controller.dart';
 import '../../core/data/models.dart';
 import '../../core/data/providers.dart';
 import '../../core/network/api_error.dart';
@@ -36,6 +37,93 @@ class _GradesPageState extends ConsumerState<GradesPage> {
   String? _subjectId;
   String _query = '';
 
+  /// Abre el menú completo del estudiante: desglose por componente con
+  /// registro en línea. Si aún no tiene notas, con la estructura vacía.
+  void _abrirDesglose({
+    required String studentId,
+    required String code,
+    required String fullName,
+  }) {
+    final subjectId = _subjectId;
+    final user = ref.read(authControllerProvider).user;
+    final filas =
+        ref.read(consolidatedProvider(subjectId)).valueOrNull ?? const [];
+    final existente =
+        filas.where((row) => row.studentId == studentId).toList();
+    final row = existente.isNotEmpty
+        ? existente.first
+        : filaVaciaDeEstudiante(
+            studentId: studentId, code: code, fullName: fullName);
+
+    showGradeBreakdown(
+      context,
+      row,
+      () {
+        ref.invalidate(consolidatedProvider(subjectId));
+        ref.invalidate(pendingGradesProvider(subjectId));
+      },
+      subjectIdFiltro: subjectId,
+      // Registrar exige una materia concreta: con «Todas», una nota nueva no
+      // sabría a cuál pertenece.
+      captura: subjectId != null && user != null
+          ? CapturaNotas(
+              subjectId: subjectId,
+              teacherId: user.id,
+              period: ref.read(selectedPeriodProvider),
+            )
+          : null,
+    );
+  }
+
+  Future<void> _registrarNotas() async {
+    final subjectId = _subjectId;
+    if (subjectId == null) return;
+
+    final List<Student> estudiantes;
+    try {
+      estudiantes = await ref
+          .read(academicRepositoryProvider)
+          .students(subjectId: subjectId);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ApiError.from(error).message)),
+      );
+      return;
+    }
+    if (!mounted) return;
+    if (estudiantes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Esta materia no tiene estudiantes matriculados.')),
+      );
+      return;
+    }
+
+    final elegido = await showCompactSheet<Student>(
+      context: context,
+      titulo: 'Registrar notas',
+      subtitulo: 'Elige al estudiante',
+      constructor: (contextoHoja) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final estudiante in estudiantes)
+            ListTile(
+              title: Text(estudiante.fullName),
+              subtitle: Text(estudiante.code),
+              onTap: () => Navigator.of(contextoHoja).pop(estudiante),
+            ),
+        ],
+      ),
+    );
+    if (elegido == null || !mounted) return;
+    _abrirDesglose(
+      studentId: elegido.id,
+      code: elegido.code,
+      fullName: elegido.fullName,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final subjects = ref.watch(periodSubjectsProvider);
@@ -43,12 +131,25 @@ class _GradesPageState extends ConsumerState<GradesPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
 
+    final rol = ref.watch(authControllerProvider).user?.role;
+    final puedeRegistrar =
+        _subjectId != null && (rol == 'ADMIN' || rol == 'PROFESSOR');
+
     return Scaffold(
       appBar: CompactHeader(
         titulo: 'Consolidado',
         contexto: ref.watch(selectedPeriodProvider),
         acciones: const [PeriodSelector(), SessionMenuButton()],
       ),
+      // Registrar abre el menú completo del estudiante: cada componente con
+      // sus subnotas y su renglón de añadir. Solo con una materia elegida.
+      floatingActionButton: puedeRegistrar
+          ? FloatingActionButton.extended(
+              onPressed: _registrarNotas,
+              icon: const Icon(Icons.add),
+              label: const Text('Registrar nota'),
+            )
+          : null,
       body: Column(
         children: [
           /*
@@ -164,15 +265,10 @@ class _GradesPageState extends ConsumerState<GradesPage> {
                           row: row,
                           // Tocar la fila abre de qué notas sale cada promedio,
                           // que es donde se corrige la que está mal digitada.
-                          onTap: () => showGradeBreakdown(
-                            context,
-                            row,
-                            () {
-                              ref.invalidate(consolidatedProvider(_subjectId));
-                              // Quitar una nota devuelve ese componente a la
-                              // lista de pendientes.
-                              ref.invalidate(pendingGradesProvider(_subjectId));
-                            },
+                          onTap: () => _abrirDesglose(
+                            studentId: row.studentId,
+                            code: row.code,
+                            fullName: row.fullName,
                           ),
                         ),
                         const SizedBox(height: 10),
