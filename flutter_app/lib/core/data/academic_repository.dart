@@ -190,6 +190,50 @@ class AcademicRepository {
     });
   }
 
+  // ── Seguimiento: episodios de acompañamiento ──────────────────────────
+
+  /// Episodios del caso, con `huboNegado`, `nivelActual` y `progreso` que
+  /// calcula el servidor.
+  Future<Map<String, dynamic>> seguimientos({
+    required String studentId,
+    required String subjectId,
+    required String period,
+  }) async {
+    final response = await _api.get('/analytics/risks/seguimientos', query: {
+      'studentId': studentId,
+      'subjectId': subjectId,
+      'period': period,
+    });
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<void> crearSeguimiento({
+    required String studentId,
+    required String subjectId,
+    required String period,
+    required String accion,
+    String nota = '',
+  }) async {
+    await _api.post('/analytics/risks/seguimientos', data: {
+      'studentId': studentId,
+      'subjectId': subjectId,
+      'period': period,
+      'accion': accion,
+      'nota': nota,
+    });
+  }
+
+  Future<void> cerrarSeguimiento(
+    String id, {
+    required String resultado, // 'BIEN' | 'NEGADO'
+    String nota = '',
+  }) async {
+    await _api.patch('/analytics/risks/seguimientos/$id', data: {
+      'resultado': resultado,
+      'nota': nota,
+    });
+  }
+
   Future<List<AppNotification>> notifications() {
     return _leerConCache(
       'notificaciones',

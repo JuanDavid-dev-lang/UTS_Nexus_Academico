@@ -11,7 +11,9 @@ import type {
   Attendance,
   ConsolidatedRow,
   PendingSubject,
+  AccionSeguimiento,
   InterventionStatus,
+  SeguimientosData,
   Enrollment,
   Grade,
   GradeInput,
@@ -160,6 +162,16 @@ export interface AnalyticsRepository {
     estado: InterventionStatus;
     nota: string;
   }): Promise<void>;
+  /** Episodios de acompañamiento del caso, con nivel actual y progreso. */
+  seguimientos(input: { studentId: string; subjectId: string; period: string }): Promise<SeguimientosData>;
+  crearSeguimiento(input: {
+    studentId: string;
+    subjectId: string;
+    period: string;
+    accion: AccionSeguimiento;
+    nota: string;
+  }): Promise<void>;
+  cerrarSeguimiento(id: string, input: { resultado: 'BIEN' | 'NEGADO'; nota: string }): Promise<void>;
 }
 
 export interface NotificationRepository {

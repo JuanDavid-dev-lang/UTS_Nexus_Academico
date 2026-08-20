@@ -18,6 +18,7 @@ export type NombreTarea =
   | 'class-reminders'
   | 'activity-due'
   | 'attendance-patterns'
+  | 'seguimiento-recordatorios'
   | 'release-check';
 
 /**

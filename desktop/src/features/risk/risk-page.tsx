@@ -28,8 +28,8 @@ import {
   INTERVENTION_LABELS,
   INTERVENTION_ORDER,
   INTERVENTION_TONE,
-  InterventionDialog,
 } from '@/features/risk/components/intervention-dialog';
+import { SeguimientoDialog } from '@/features/risk/components/seguimiento-dialog';
 import { useScanRisks } from '@/features/notifications/hooks/use-notifications';
 import { useDebounce } from '@/shared/hooks/use-debounce';
 import { formatGrade, formatPercent } from '@/shared/lib/format';
@@ -332,8 +332,9 @@ export default function RiskPage() {
       */}
       <AttendanceCasesCard />
 
-      {/* La alerta dice quién y por qué; esto guarda qué se hizo al respecto. */}
-      <InterventionDialog
+      {/* La alerta dice quién y por qué; esto es el expediente y el
+          acompañamiento: faltas, notas, episodios y su resultado. */}
+      <SeguimientoDialog
         row={seguimiento}
         onOpenChange={(open) => !open && setSeguimiento(null)}
       />

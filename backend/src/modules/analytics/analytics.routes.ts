@@ -160,6 +160,202 @@ analyticsRouter.patch('/risks/intervencion', requireRole('ADMIN', 'PROFESSOR', '
   }
 });
 
+// ── Seguimiento: episodios de acompañamiento ────────────────────────────────
+
+/** Nivel de riesgo actual del estudiante en la materia, según el motor canónico. */
+async function nivelActualDe(
+  studentId: string,
+  subjectId: string,
+  period: string,
+  teacherId?: string,
+): Promise<'BAJO' | 'MEDIO' | 'ALTO'> {
+  const filter: AcademicFilter = { studentId, period };
+  if (teacherId) filter.teacherId = teacherId;
+  const records = await computeAcademicRecords(filter);
+  const record = records.find(r => String(r.subjectId) === subjectId);
+  const nivel = record?.riesgo.nivel;
+  return nivel === 'ALTO' || nivel === 'MEDIO' ? nivel : 'BAJO';
+}
+
+function progresoEntre(desde: string, hasta: string): 'MEJORA' | 'IGUAL' | 'EMPEORA' {
+  const peso: Record<string, number> = { BAJO: 0, MEDIO: 1, ALTO: 2 };
+  const delta = (peso[hasta] ?? 0) - (peso[desde] ?? 0);
+  return delta < 0 ? 'MEJORA' : delta > 0 ? 'EMPEORA' : 'IGUAL';
+}
+
+async function exigirAlcance(req: any, studentId: string, subjectId: string): Promise<boolean> {
+  if (req.user?.role !== 'PROFESSOR') return true;
+  const scope = await getProfessorScope(req.user.id);
+  return scope.studentIds.includes(studentId) && scope.subjectIds.includes(subjectId);
+}
+
+/**
+ * Episodios de seguimiento de un caso, más lo que el cliente necesita para
+ * decidir: si alguno terminó NEGADO (para advertir antes de abrir otro), el
+ * nivel actual y el progreso del episodio abierto respecto a su apertura.
+ */
+analyticsRouter.get('/risks/seguimientos', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
+  try {
+    const query = z.object({
+      studentId: z.string().min(1),
+      subjectId: z.string().min(1),
+      period: z.string().min(4),
+    }).parse(req.query);
+
+    if (!(await exigirAlcance(req, query.studentId, query.subjectId))) {
+      return res.status(403).json({ ok: false, message: 'Fuera de tu alcance' });
+    }
+
+    const caso = await RiskFeedbackModel.findOne({
+      studentId: query.studentId,
+      subjectId: query.subjectId,
+      period: query.period,
+    }).lean();
+
+    const episodios = [...(caso?.seguimientos ?? [])].reverse();
+    const nivelActual = await nivelActualDe(
+      query.studentId,
+      query.subjectId,
+      query.period,
+      req.user?.role === 'PROFESSOR' ? req.user.id : undefined,
+    );
+    const abierto = episodios.find(e => e.estado === 'EN_CURSO');
+
+    res.json({
+      ok: true,
+      items: episodios,
+      huboNegado: episodios.some(e => e.estado === 'NEGADO'),
+      nivelActual,
+      // El progreso del episodio abierto: cómo está hoy frente a cómo estaba
+      // cuando el docente decidió intervenir. Lo calcula el servidor.
+      progreso: abierto ? progresoEntre(String(abierto.nivelAlCrear), nivelActual) : null,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Abre un episodio de seguimiento: qué se va a hacer con el estudiante.
+ *
+ * La advertencia de «ya estuvo en acompañamiento y fue negado» la muestra el
+ * cliente con el `huboNegado` del GET; aquí no se bloquea nada — reintentar es
+ * legítimo, solo tiene que ser una decisión informada.
+ */
+analyticsRouter.post('/risks/seguimientos', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
+  try {
+    const body = z.object({
+      studentId: z.string().min(1),
+      subjectId: z.string().min(1),
+      period: z.string().min(4),
+      accion: z.enum(['LLAMADA', 'TUTORIA', 'CHARLA', 'OTRA']),
+      nota: z.string().max(500).default(''),
+    }).parse(req.body);
+
+    if (!(await exigirAlcance(req, body.studentId, body.subjectId))) {
+      return res.status(403).json({ ok: false, message: 'Fuera de tu alcance' });
+    }
+
+    // Un episodio abierto a la vez: el recordatorio y el progreso hablan de
+    // «el seguimiento» de este caso, y con dos abiertos ninguno sabría cuál.
+    const previo = await RiskFeedbackModel.findOne({
+      studentId: body.studentId,
+      subjectId: body.subjectId,
+      period: body.period,
+      'seguimientos.estado': 'EN_CURSO',
+    }).lean();
+    if (previo) {
+      return res.status(409).json({
+        ok: false,
+        message: 'Ya hay un seguimiento en curso para este estudiante en esta materia. Ciérralo antes de abrir otro.',
+      });
+    }
+
+    const nivelAlCrear = await nivelActualDe(
+      body.studentId,
+      body.subjectId,
+      body.period,
+      req.user?.role === 'PROFESSOR' ? req.user.id : undefined,
+    );
+
+    const item = await RiskFeedbackModel.findOneAndUpdate(
+      { studentId: body.studentId, subjectId: body.subjectId, period: body.period },
+      {
+        $push: {
+          seguimientos: {
+            accion: body.accion,
+            nota: body.nota,
+            estado: 'EN_CURSO',
+            nivelAlCrear,
+            creadoPor: req.user?.id,
+            creadoEn: new Date(),
+          },
+        },
+        $set: { teacherId: req.user?.id },
+        // Solo al crear el caso: si ya existía por el modelo, su predicción no
+        // se pisa con un valor de relleno.
+        $setOnInsert: { predictedLevel: 'MEDIUM' },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    emitToUser(String(req.user?.id), 'sync:update', { entity: 'risk', action: 'update', id: String(item._id) });
+    res.status(201).json({ ok: true, item: item.seguimientos[item.seguimientos.length - 1] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Cierra un episodio con su resultado: BIEN (hubo charla o solución) o NEGADO
+ * (el estudiante no aceptó el acompañamiento). El nivel al cierre lo mide el
+ * servidor y con él queda dicho si el riesgo mejoró, siguió igual o empeoró.
+ */
+analyticsRouter.patch('/risks/seguimientos/:id', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
+  try {
+    const body = z.object({
+      resultado: z.enum(['BIEN', 'NEGADO']),
+      nota: z.string().max(500).default(''),
+    }).parse(req.body);
+
+    const caso = await RiskFeedbackModel.findOne({ 'seguimientos._id': req.params.id });
+    if (!caso) return res.status(404).json({ ok: false, message: 'Seguimiento no encontrado' });
+
+    if (!(await exigirAlcance(req, String(caso.studentId), String(caso.subjectId)))) {
+      return res.status(403).json({ ok: false, message: 'Fuera de tu alcance' });
+    }
+
+    const episodio = (caso.seguimientos as any).id(req.params.id);
+    if (!episodio) return res.status(404).json({ ok: false, message: 'Seguimiento no encontrado' });
+    if (episodio.estado !== 'EN_CURSO') {
+      return res.status(409).json({ ok: false, message: 'Este seguimiento ya está cerrado.' });
+    }
+
+    const nivelAlCerrar = await nivelActualDe(
+      String(caso.studentId),
+      String(caso.subjectId),
+      String(caso.period),
+      req.user?.role === 'PROFESSOR' ? req.user.id : undefined,
+    );
+
+    episodio.estado = body.resultado;
+    episodio.notaCierre = body.nota;
+    episodio.nivelAlCerrar = nivelAlCerrar;
+    episodio.cerradoEn = new Date();
+    await caso.save();
+
+    emitToUser(String(req.user?.id), 'sync:update', { entity: 'risk', action: 'update', id: String(caso._id) });
+    res.json({
+      ok: true,
+      item: episodio,
+      progreso: progresoEntre(String(episodio.nivelAlCrear), nivelAlCerrar),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+
 analyticsRouter.get('/risks', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
     const filter = await scopedFilter(req);

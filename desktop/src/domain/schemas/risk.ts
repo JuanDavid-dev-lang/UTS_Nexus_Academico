@@ -46,3 +46,34 @@ export const riskResponseSchema = z.object({
   ok: z.literal(true),
   items: z.array(riskItemSchema),
 });
+
+// ── Seguimiento: episodios de acompañamiento ────────────────────────────────
+
+export const accionSeguimiento = z.enum(['LLAMADA', 'TUTORIA', 'CHARLA', 'OTRA']);
+export type AccionSeguimiento = z.infer<typeof accionSeguimiento>;
+
+export const nivelSeguimiento = z.enum(['BAJO', 'MEDIO', 'ALTO']);
+
+export const seguimientoSchema = z.object({
+  _id: objectId,
+  accion: accionSeguimiento,
+  nota: z.string().optional().default(''),
+  estado: z.enum(['EN_CURSO', 'BIEN', 'NEGADO']),
+  nivelAlCrear: nivelSeguimiento,
+  nivelAlCerrar: nivelSeguimiento.nullable().optional(),
+  notaCierre: z.string().optional().default(''),
+  creadoEn: z.string().optional(),
+  cerradoEn: z.string().nullable().optional(),
+});
+export type Seguimiento = z.infer<typeof seguimientoSchema>;
+
+export const seguimientosResponseSchema = z.object({
+  ok: z.literal(true),
+  items: z.array(seguimientoSchema),
+  /** Si algún episodio anterior terminó NEGADO: la advertencia antes de reabrir. */
+  huboNegado: z.boolean(),
+  nivelActual: nivelSeguimiento,
+  /** Progreso del episodio abierto respecto a su apertura. Lo calcula el servidor. */
+  progreso: z.enum(['MEJORA', 'IGUAL', 'EMPEORA']).nullable().optional().default(null),
+});
+export type SeguimientosData = z.infer<typeof seguimientosResponseSchema>;

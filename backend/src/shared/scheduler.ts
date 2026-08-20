@@ -10,6 +10,7 @@ import { notificarVersionNueva } from '../modules/notifications/release-notifier
 import { generarRecordatorios } from '../modules/notifications/class-reminder.service.js';
 import { generarAvisosDeVencimiento } from '../modules/activities/activity-due.service.js';
 import { escanearPatronesDeAsistencia } from '../modules/attendance/attendance-patterns.service.js';
+import { recordarSeguimientosPendientes } from '../modules/analytics/seguimiento-reminder.service.js';
 import { ejecutarTarea } from './job-run.js';
 
 let timer: NodeJS.Timeout | null = null;
@@ -206,6 +207,16 @@ export function startScheduler() {
     });
     if (result) {
       console.log(`[riesgo] escaneo automático: ${result.enRiesgo} en riesgo, ${result.notificaciones} notificaciones.`);
+    }
+
+    // Mismo intervalo que el riesgo, tarea aparte: el centro de salud tiene
+    // que poder decir cuándo corrió cada una. Un seguimiento abierto hace más
+    // de 24 h sin actualizar genera su recordatorio (una sola vez).
+    const seguimientos = await ejecutarTarea('seguimiento-recordatorios', async () => {
+      return await recordarSeguimientosPendientes();
+    });
+    if (seguimientos && Number(seguimientos.recordatorios) > 0) {
+      console.log(`[seguimiento] ${seguimientos.recordatorios} recordatorio(s) de actualización.`);
     }
   };
 

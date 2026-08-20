@@ -52,6 +52,44 @@ const schema = new Schema(
 
     /** Señales congeladas en el momento de la predicción. */
     features: { type: Object, default: {} },
+
+    // ── Seguimiento: episodios de acompañamiento ────────────────────────────
+    //
+    // Un episodio nace cuando el docente decide QUÉ va a hacer con el caso
+    // (llamar, recomendar tutoría, una charla) y se cierra con su resultado:
+    // BIEN (hubo charla o solución) o NEGADO (el estudiante no aceptó el
+    // acompañamiento). Un caso puede acumular varios episodios a lo largo del
+    // semestre; que uno anterior haya terminado NEGADO es justo lo que el
+    // docente necesita saber antes de abrir otro.
+    //
+    // Vive dentro del mismo caso que la predicción y la intervención porque es
+    // la misma historia: qué predijo el sistema, qué hizo el docente y cómo
+    // terminó.
+    seguimientos: [
+      {
+        accion: {
+          type: String,
+          enum: ['LLAMADA', 'TUTORIA', 'CHARLA', 'OTRA'],
+          required: true,
+        },
+        nota: { type: String, default: '' },
+        estado: {
+          type: String,
+          enum: ['EN_CURSO', 'BIEN', 'NEGADO'],
+          default: 'EN_CURSO',
+        },
+        /** Nivel de riesgo cuando se abrió: contra esto se evalúa el progreso. */
+        nivelAlCrear: { type: String, enum: ['BAJO', 'MEDIO', 'ALTO'], required: true },
+        /** Nivel al cerrarse. Comparado con el de apertura dice si mejoró. */
+        nivelAlCerrar: { type: String, enum: ['BAJO', 'MEDIO', 'ALTO'], default: null },
+        notaCierre: { type: String, default: '' },
+        creadoPor: { type: Schema.Types.ObjectId, ref: 'Usuario' },
+        creadoEn: { type: Date, default: Date.now },
+        cerradoEn: { type: Date, default: null },
+        /** El recordatorio de las 24 h se envía una sola vez. */
+        recordatorioEnviado: { type: Boolean, default: false },
+      },
+    ],
   },
   { timestamps: true }
 );

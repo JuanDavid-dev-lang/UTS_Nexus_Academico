@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { http } from '@/core/api/http-client';
 import { itemsResponse, okResponse } from '@/domain/schemas/common';
-import { riskResponseSchema, type InterventionStatus } from '@/domain/schemas/academic';
+import { riskResponseSchema,
+  seguimientosResponseSchema, type InterventionStatus } from '@/domain/schemas/academic';
 import {
   aiStatusSchema,
   quickResponseSchema,
@@ -52,6 +53,25 @@ export const analyticsRepository: AnalyticsRepository = {
     nota: string;
   }) {
     await http.patch('/analytics/risks/intervencion', input, {
+      schema: z.object({ ok: z.literal(true) }).passthrough(),
+    });
+  },
+
+  async seguimientos(input) {
+    return http.get('/analytics/risks/seguimientos', {
+      schema: seguimientosResponseSchema,
+      query: input,
+    });
+  },
+
+  async crearSeguimiento(input) {
+    await http.post('/analytics/risks/seguimientos', input, {
+      schema: z.object({ ok: z.literal(true) }).passthrough(),
+    });
+  },
+
+  async cerrarSeguimiento(id, input) {
+    await http.patch(`/analytics/risks/seguimientos/${id}`, input, {
       schema: z.object({ ok: z.literal(true) }).passthrough(),
     });
   },

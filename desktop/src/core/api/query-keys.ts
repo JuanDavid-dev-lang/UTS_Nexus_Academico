@@ -57,6 +57,8 @@ export const queryKeys = {
     all: ['analytics'] as const,
     dashboard: () => ['analytics', 'dashboard'] as const,
     risks: () => ['analytics', 'risks'] as const,
+    seguimientos: (scope: { studentId: string; subjectId: string; period: string }) =>
+      ['analytics', 'seguimientos', scope] as const,
   },
 
   notifications: {
