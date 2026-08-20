@@ -50,8 +50,7 @@ class CompactHeader extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final palette = context.palette;
 
     return AppBar(
       toolbarHeight: 56,
@@ -67,7 +66,10 @@ class CompactHeader extends StatelessWidget implements PreferredSizeWidget {
               titulo,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: AppType.bodyStrong.copyWith(fontWeight: FontWeight.w800),
+              style: AppType.bodyStrong.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.2,
+              ),
             ),
           ),
           if (contexto != null && contexto!.isNotEmpty) ...[
@@ -77,7 +79,7 @@ class CompactHeader extends StatelessWidget implements PreferredSizeWidget {
                 contexto!,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: AppType.caption.copyWith(color: muted),
+                style: AppType.caption.copyWith(color: palette.muted),
               ),
             ),
           ],
@@ -115,6 +117,9 @@ class AcademicRow extends StatelessWidget {
   /// Franja de color a la izquierda que comunica severidad de un vistazo.
   final SemanticKind? acento;
 
+  /// Marca la fila como elegida dentro de una selección múltiple.
+  final bool seleccionada;
+
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
 
@@ -126,19 +131,20 @@ class AcademicRow extends StatelessWidget {
     this.estado,
     this.avatar,
     this.acento,
+    this.seleccionada = false,
     this.onTap,
     this.onLongPress,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
-    final borde = isDark ? AppColors.borderDark : AppColors.border;
-    final superficie = isDark ? AppColors.surfaceDark : AppColors.surface;
+    final palette = context.palette;
     final tono = acento == null ? null : SemanticTone.of(context, acento!);
+    final radio = BorderRadius.circular(AppSpacing.radiusCard);
 
-    final contenido = Container(
+    final contenido = AnimatedContainer(
+      duration: AppMotion.fast,
+      curve: AppMotion.curve,
       // 56 de mínimo: por encima del objetivo táctil sin que la fila parezca
       // un botón. El `constraints` y no un `height` fijo para que el texto
       // escalado del sistema pueda crecer sin recortarse.
@@ -148,22 +154,29 @@ class AcademicRow extends StatelessWidget {
         vertical: AppSpacing.gapSm,
       ),
       decoration: BoxDecoration(
-        color: superficie,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusCard),
-        border: Border.all(color: borde),
+        color: seleccionada ? palette.primarySoft : palette.surface,
+        borderRadius: radio,
+        border: Border.all(
+          color: seleccionada ? palette.primary : palette.border,
+          width: seleccionada ? 1.5 : 1,
+        ),
+        boxShadow: AppShadows.sm(palette.isDark),
       ),
       child: Row(
         children: [
           if (tono != null) ...[
+            // 4 de ancho y toda la altura de la fila, no 3×32 centrado. La
+            // franja tiene que leerse como el borde de la fila —«esta fila
+            // entera está en rojo»— y no como un elemento más dentro de ella.
             Container(
-              width: 3,
-              height: 32,
+              width: 4,
+              height: 36,
               decoration: BoxDecoration(
                 color: tono.fg,
                 borderRadius: BorderRadius.circular(AppSpacing.radiusPill),
               ),
             ),
-            const SizedBox(width: AppSpacing.gapSm),
+            const SizedBox(width: AppSpacing.gap),
           ],
           if (avatar != null) ...[
             avatar!,
@@ -188,7 +201,7 @@ class AcademicRow extends StatelessWidget {
                     metadatos.where((m) => m.isNotEmpty).join(' · '),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AppType.caption.copyWith(color: muted),
+                    style: AppType.caption.copyWith(color: palette.muted),
                   ),
                 ],
               ],
@@ -202,6 +215,13 @@ class AcademicRow extends StatelessWidget {
             const SizedBox(width: AppSpacing.gapSm),
             estado!,
           ],
+          // La flecha solo aparece si la fila lleva a algún sitio, y solo
+          // cuando no hay ya un estado ocupando ese extremo: dos elementos a la
+          // derecha compitiendo hacen que ninguno de los dos se lea.
+          if (onTap != null && estado == null) ...[
+            const SizedBox(width: AppSpacing.gapXs),
+            Icon(Icons.chevron_right, size: 18, color: palette.subtle),
+          ],
         ],
       ),
     );
@@ -211,7 +231,7 @@ class AcademicRow extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(AppSpacing.radiusCard),
+        borderRadius: radio,
         onTap: onTap,
         onLongPress: onLongPress,
         child: contenido,
@@ -228,7 +248,7 @@ class AcademicRow extends StatelessWidget {
 class InitialsAvatar extends StatelessWidget {
   final String nombre;
   final double size;
-  const InitialsAvatar(this.nombre, {super.key, this.size = 32});
+  const InitialsAvatar(this.nombre, {super.key, this.size = 34});
 
   @override
   Widget build(BuildContext context) {
@@ -245,10 +265,17 @@ class InitialsAvatar extends StatelessWidget {
       width: size,
       height: size,
       alignment: Alignment.center,
-      decoration: BoxDecoration(color: tono.bg, shape: BoxShape.circle),
+      decoration: BoxDecoration(
+        color: tono.bg,
+        shape: BoxShape.circle,
+        // El anillo separa el avatar de la fila sin dibujar un borde de 1 px:
+        // en una lista de treinta, treinta bordes son treinta líneas más
+        // compitiendo con las que ya separan las filas.
+        border: Border.all(color: tono.border),
+      ),
       child: Text(
         iniciales,
-        style: AppType.captionStrong.copyWith(color: tono.fg),
+        style: AppType.captionStrong.copyWith(color: tono.fg, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -278,11 +305,9 @@ class MetricChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
-    final color = tono == null
-        ? (isDark ? AppColors.textDark : AppColors.text)
-        : SemanticTone.of(context, tono!).fg;
+    final palette = context.palette;
+    final color =
+        tono == null ? palette.text : SemanticTone.of(context, tono!).fg;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -290,13 +315,19 @@ class MetricChip extends StatelessWidget {
       children: [
         if (etiqueta != null)
           Text(
-            etiqueta!,
-            style: AppType.caption.copyWith(color: muted, fontSize: 13),
+            etiqueta!.toUpperCase(),
+            style: AppType.caption.copyWith(
+              color: palette.subtle,
+              fontSize: 11,
+              letterSpacing: 0.5,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         Text(
           valor,
           style: AppType.bodyStrong.copyWith(
             color: color,
+            fontWeight: FontWeight.w700,
             fontFeatures: const [FontFeature.tabularFigures()],
           ),
         ),
@@ -320,6 +351,9 @@ class CompactStat extends StatelessWidget {
   final IconData? icono;
   final VoidCallback? onTap;
 
+  /// Barra 0–1 al pie, para métricas que son una proporción de un total.
+  final double? progreso;
+
   const CompactStat({
     super.key,
     required this.etiqueta,
@@ -328,58 +362,97 @@ class CompactStat extends StatelessWidget {
     this.tono,
     this.icono,
     this.onTap,
+    this.progreso,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
-    final color = tono == null
-        ? (isDark ? AppColors.textDark : AppColors.primary)
-        : SemanticTone.of(context, tono!).fg;
+    final palette = context.palette;
+    final semantico = tono == null ? null : SemanticTone.of(context, tono!);
+    final color = semantico?.fg ?? (palette.isDark ? palette.text : palette.primary);
+    final rail = semantico?.fg ?? palette.primary;
 
     return AppCard(
       onTap: onTap,
-      padding: const EdgeInsets.all(AppSpacing.gap),
+      padding: EdgeInsets.zero,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              if (icono != null) ...[
-                Icon(icono, size: 14, color: color),
-                const SizedBox(width: AppSpacing.gapXs),
-              ],
-              Expanded(
-                child: Text(
-                  etiqueta.toUpperCase(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppType.captionStrong.copyWith(
-                    letterSpacing: 0.6,
-                    color: muted,
-                  ),
-                ),
+          // Franja de tono: es lo que permite reconocer la tarjeta de un
+          // vistazo. Con el color solo en la cifra y en un icono de 14 px,
+          // cuatro tarjetas en cuadrícula eran cuatro rectángulos iguales.
+          Container(
+            height: 3,
+            decoration: BoxDecoration(
+              color: rail,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(AppSpacing.radiusCard),
               ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.gapXs),
-          Text(
-            valor,
-            maxLines: 1,
-            style: AppType.h3.copyWith(
-              color: color,
-              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
-          if (pista != null)
-            Text(
-              pista!,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppType.caption.copyWith(color: muted),
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.gap),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    if (icono != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: semantico?.bg ?? palette.primarySoft,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Icon(icono, size: 13, color: color),
+                      ),
+                      const SizedBox(width: AppSpacing.gapSm),
+                    ],
+                    Expanded(
+                      child: Text(
+                        etiqueta.toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppType.captionStrong.copyWith(
+                          letterSpacing: 0.6,
+                          color: palette.muted,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.gapSm),
+                Text(
+                  valor,
+                  maxLines: 1,
+                  style: AppType.metric.copyWith(color: color),
+                ),
+                if (progreso != null) ...[
+                  const SizedBox(height: AppSpacing.gapSm),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusPill),
+                    child: LinearProgressIndicator(
+                      value: progreso!.clamp(0.0, 1.0),
+                      minHeight: 4,
+                      backgroundColor: palette.surfaceSunken,
+                      valueColor: AlwaysStoppedAnimation(rail),
+                    ),
+                  ),
+                ],
+                if (pista != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    pista!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppType.caption.copyWith(color: palette.muted),
+                  ),
+                ],
+              ],
             ),
+          ),
         ],
       ),
     );
@@ -397,19 +470,21 @@ class FilterBar extends StatelessWidget implements PreferredSizeWidget {
   const FilterBar({super.key, required this.hijos});
 
   @override
-  Size get preferredSize => const Size.fromHeight(48);
+  Size get preferredSize => const Size.fromHeight(52);
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final borde = isDark ? AppColors.borderDark : AppColors.border;
-    final superficie = isDark ? AppColors.surfaceDark : AppColors.surface;
+    final palette = context.palette;
 
     return Container(
-      height: 48,
+      height: 52,
       decoration: BoxDecoration(
-        color: superficie,
-        border: Border(bottom: BorderSide(color: borde)),
+        // Del color del fondo de página y no de la superficie de card: la barra
+        // de filtros contiene, no presenta, y con el color de card era otra
+        // superficie blanca más pegada a la cabecera, con una línea entre las
+        // dos que no separaba nada.
+        color: palette.bg,
+        border: Border(bottom: BorderSide(color: palette.border)),
       ),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
@@ -432,55 +507,166 @@ class FilterChipCompact extends StatelessWidget {
   final VoidCallback onTap;
   final IconData? icono;
 
+  /// Cifra a la derecha de la etiqueta: cuántos hay bajo ese filtro.
+  final int? recuento;
+
   const FilterChipCompact({
     super.key,
     required this.etiqueta,
     required this.activo,
     required this.onTap,
     this.icono,
+    this.recuento,
   });
 
   @override
   Widget build(BuildContext context) {
-    final esquema = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
-    final borde = isDark ? AppColors.borderDark : AppColors.border;
+    final palette = context.palette;
+    // Seleccionado va RELLENO, no con una capa al 16% y borde de color. Con la
+    // capa translúcida, en una barra de seis chips el activo se distinguía por
+    // un fondo dos tonos más oscuro y había que buscarlo; relleno se encuentra
+    // sin buscarlo, que es lo único que un filtro activo tiene que hacer.
+    final fondo = activo ? palette.primary : palette.surface;
+    final frente = activo
+        ? (palette.isDark ? AppColors.bgDark : Colors.white)
+        : palette.muted;
 
     return Semantics(
       button: true,
       selected: activo,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppSpacing.radiusPill),
-        onTap: onTap,
-        child: Container(
-          // El alto mínimo garantiza el objetivo táctil aunque el chip mida
-          // poco de ancho; el relleno solo controla la densidad horizontal.
-          constraints: const BoxConstraints(minHeight: AppSpacing.tapTargetMin - 12),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            // El lima/verde de marca solo aquí: selección, que es uno de los
-            // usos que DESIGN.md §4 permite.
-            color: activo ? esquema.primary.withValues(alpha: 0.16) : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppSpacing.radiusPill),
-            border: Border.all(color: activo ? esquema.primary : borde),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (icono != null) ...[
-                Icon(icono, size: 14, color: activo ? esquema.primary : muted),
-                const SizedBox(width: AppSpacing.gapXs),
-              ],
-              Text(
-                etiqueta,
-                style: AppType.captionStrong.copyWith(
-                  color: activo ? esquema.primary : muted,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusPill),
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: AppMotion.fast,
+            curve: AppMotion.curve,
+            // El alto mínimo garantiza el objetivo táctil aunque el chip mida
+            // poco de ancho; el relleno solo controla la densidad horizontal.
+            constraints: const BoxConstraints(minHeight: AppSpacing.tapTargetMin - 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+            decoration: BoxDecoration(
+              color: fondo,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusPill),
+              border: Border.all(color: activo ? palette.primary : palette.border),
+              boxShadow: activo ? AppShadows.sm(palette.isDark) : null,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icono != null) ...[
+                  Icon(icono, size: 15, color: frente),
+                  const SizedBox(width: AppSpacing.gapXs + 1),
+                ],
+                Text(
+                  etiqueta,
+                  style: AppType.captionStrong.copyWith(
+                    color: frente,
+                    fontWeight: activo ? FontWeight.w700 : FontWeight.w600,
+                  ),
                 ),
-              ),
-            ],
+                if (recuento != null) ...[
+                  const SizedBox(width: AppSpacing.gapXs + 1),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: activo
+                          ? frente.withValues(alpha: 0.2)
+                          : palette.surfaceSunken,
+                      borderRadius: BorderRadius.circular(AppSpacing.radiusPill),
+                    ),
+                    child: Text(
+                      '$recuento',
+                      style: AppType.caption.copyWith(
+                        color: frente,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ── Control segmentado ──────────────────────────────────────────────────────
+
+/// Elige una vista entre dos o tres mutuamente excluyentes.
+///
+/// No es lo mismo que [FilterChipCompact] y por eso es otro componente: los
+/// chips son filtros —se pueden apagar todos, se pueden combinar— y esto es un
+/// interruptor de posición, donde siempre hay exactamente una elegida. Pintar
+/// un interruptor como una fila de chips deja al usuario preguntándose si
+/// puede apagar el que está encendido.
+///
+/// Máximo tres opciones: con cuatro las etiquetas se recortan en un teléfono
+/// de 360 dp y deja de leerse cuál es cuál.
+class SegmentedTabs extends StatelessWidget {
+  final List<String> opciones;
+  final int indice;
+  final ValueChanged<int> onCambio;
+
+  const SegmentedTabs({
+    super.key,
+    required this.opciones,
+    required this.indice,
+    required this.onCambio,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        // El carril va hundido y la pestaña activa elevada: es esa relación la
+        // que se lee como «esta está encima» en vez de «esta está pintada de
+        // otro color».
+        color: palette.surfaceSunken,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusInput),
+      ),
+      child: Row(
+        children: [
+          for (var i = 0; i < opciones.length; i++)
+            Expanded(
+              child: Semantics(
+                button: true,
+                selected: i == indice,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => onCambio(i),
+                  child: AnimatedContainer(
+                    duration: AppMotion.fast,
+                    curve: AppMotion.curve,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: i == indice ? palette.surface : Colors.transparent,
+                      borderRadius: BorderRadius.circular(AppSpacing.radiusInput - 3),
+                      boxShadow: i == indice ? AppShadows.sm(palette.isDark) : null,
+                    ),
+                    child: Text(
+                      opciones[i],
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.captionStrong.copyWith(
+                        color: i == indice ? palette.text : palette.muted,
+                        fontWeight: i == indice ? FontWeight.w700 : FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -510,8 +696,7 @@ class CollapsibleSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final palette = context.palette;
 
     return AppCard(
       padding: EdgeInsets.zero,
@@ -521,6 +706,8 @@ class CollapsibleSection extends StatelessWidget {
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           initiallyExpanded: abiertaPorDefecto,
+          shape: const Border(),
+          collapsedShape: const Border(),
           tilePadding: const EdgeInsets.symmetric(horizontal: AppSpacing.gap),
           childrenPadding: const EdgeInsets.fromLTRB(
             AppSpacing.gap,
@@ -528,11 +715,20 @@ class CollapsibleSection extends StatelessWidget {
             AppSpacing.gap,
             AppSpacing.gap,
           ),
-          leading: icono == null ? null : Icon(icono, size: 18, color: muted),
+          leading: icono == null
+              ? null
+              : Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: palette.surfaceAlt,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icono, size: 16, color: palette.muted),
+                ),
           title: Text(titulo, style: AppType.bodyStrong),
           subtitle: resumen == null
               ? null
-              : Text(resumen!, style: AppType.caption.copyWith(color: muted)),
+              : Text(resumen!, style: AppType.caption.copyWith(color: palette.muted)),
           expandedCrossAxisAlignment: CrossAxisAlignment.start,
           children: hijos,
         ),
@@ -566,8 +762,7 @@ Future<T?> showCompactSheet<T>({
       maxHeight: MediaQuery.sizeOf(context).height * 0.88,
     ),
     builder: (contextoHoja) {
-      final isDark = Theme.of(contextoHoja).brightness == Brightness.dark;
-      final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+      final palette = AppPalette.of(contextoHoja);
 
       return SafeArea(
         child: Padding(
@@ -584,7 +779,7 @@ Future<T?> showCompactSheet<T>({
                   AppSpacing.page,
                   0,
                   AppSpacing.page,
-                  AppSpacing.gapSm,
+                  AppSpacing.gap,
                 ),
                 child: Row(
                   children: [
@@ -592,11 +787,14 @@ Future<T?> showCompactSheet<T>({
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(titulo, style: AppType.bodyStrong),
+                          Text(
+                            titulo,
+                            style: AppType.bodyStrong.copyWith(fontWeight: FontWeight.w700),
+                          ),
                           if (subtitulo != null)
                             Text(
                               subtitulo,
-                              style: AppType.caption.copyWith(color: muted),
+                              style: AppType.caption.copyWith(color: palette.muted),
                             ),
                         ],
                       ),
@@ -605,11 +803,15 @@ Future<T?> showCompactSheet<T>({
                   ],
                 ),
               ),
+              // Un separador bajo el título: sin él, el contenido de la hoja
+              // empieza pegado al encabezado y las dos cosas se leen como un
+              // bloque, sobre todo cuando lo primero es una lista.
+              Divider(height: 1, color: palette.border),
               Flexible(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(
                     AppSpacing.page,
-                    0,
+                    AppSpacing.gap,
                     AppSpacing.page,
                     AppSpacing.gap,
                   ),
@@ -649,22 +851,23 @@ class StickySummaryBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final borde = isDark ? AppColors.borderDark : AppColors.border;
-    final superficie = isDark ? AppColors.surfaceDark : AppColors.surface;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final palette = context.palette;
 
-    return Container(
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: superficie,
-        border: Border(top: BorderSide(color: borde)),
+        color: palette.surface,
+        border: Border(top: BorderSide(color: palette.border)),
+        // La sombra hacia arriba es lo que separa la barra del contenido que
+        // pasa por debajo. Con solo el borde, en una lista larga la última fila
+        // quedaba pegada a la barra y parecía formar parte de ella.
+        boxShadow: AppShadows.md(palette.isDark),
       ),
       child: SafeArea(
         top: false,
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.page,
-            vertical: AppSpacing.gapSm,
+            vertical: AppSpacing.gapSm + 2,
           ),
           child: Row(
             children: [
@@ -677,21 +880,27 @@ class StickySummaryBar extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            metrica.etiqueta,
-                            style: AppType.caption.copyWith(color: muted),
+                            metrica.etiqueta.toUpperCase(),
+                            style: AppType.caption.copyWith(
+                              color: palette.subtle,
+                              fontSize: 11,
+                              letterSpacing: 0.5,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                           Text(
                             metrica.valor,
                             style: AppType.bodyStrong.copyWith(
+                              fontWeight: FontWeight.w700,
                               color: metrica.tono == null
-                                  ? null
+                                  ? palette.text
                                   : SemanticTone.of(context, metrica.tono!).fg,
                               fontFeatures: const [FontFeature.tabularFigures()],
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(width: AppSpacing.gap),
+                      const SizedBox(width: AppSpacing.gap + 4),
                     ],
                   ],
                 ),
@@ -753,17 +962,23 @@ class CompactEmpty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final palette = context.palette;
 
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.gap),
       child: Row(
         children: [
-          Icon(icono, size: 18, color: muted),
-          const SizedBox(width: AppSpacing.gapSm),
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: palette.surfaceAlt,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icono, size: 16, color: palette.muted),
+          ),
+          const SizedBox(width: AppSpacing.gap),
           Expanded(
-            child: Text(mensaje, style: AppType.caption.copyWith(color: muted)),
+            child: Text(mensaje, style: AppType.caption.copyWith(color: palette.muted)),
           ),
           if (accion != null) accion!,
         ],
@@ -785,22 +1000,25 @@ class CompactSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final palette = context.palette;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.gapSm),
       child: Row(
         children: [
-          Expanded(
-            child: Text(
-              titulo.toUpperCase(),
-              style: AppType.captionStrong.copyWith(
-                letterSpacing: 0.8,
-                color: muted,
-              ),
+          Text(
+            titulo.toUpperCase(),
+            style: AppType.captionStrong.copyWith(
+              letterSpacing: 0.8,
+              color: palette.muted,
+              fontWeight: FontWeight.w700,
             ),
           ),
+          // Una línea que ocupa lo que sobra. Convierte un texto suelto en un
+          // encabezado de verdad: separa lo de arriba de lo de abajo sin gastar
+          // ni un dp más de alto que el propio texto.
+          const SizedBox(width: AppSpacing.gapSm),
+          Expanded(child: Divider(height: 1, color: palette.border)),
           if (accion != null && onAccion != null)
             // `TextButton` respeta el objetivo táctil por su relleno mínimo:
             // el texto mide 13 px pero la zona pulsable sigue en 48.

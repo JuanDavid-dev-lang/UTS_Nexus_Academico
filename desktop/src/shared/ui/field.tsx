@@ -11,12 +11,16 @@ import { cn } from '@/shared/lib/cn';
 
 const controlStyles = cn(
   'w-full rounded-lg border border-border bg-surface px-3 text-body text-text',
-  'placeholder:text-muted',
-  'transition-colors duration-200 ease-out',
+  // El marcador de posición va en `--text-subtle`, no en `--text-muted`: con el
+  // mismo tono que un subtítulo, un campo vacío parecía un campo relleno y en
+  // un formulario de seis campos había que tocarlos para saber cuáles faltaban.
+  'placeholder:text-subtle',
+  'shadow-[inset_0_1px_1px_rgb(16_24_40_/_0.03)]',
+  'transition-[border-color,box-shadow] duration-200 ease-out',
   'hover:border-border-strong',
-  'focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/30',
-  'disabled:cursor-not-allowed disabled:opacity-60',
-  'aria-[invalid=true]:border-danger aria-[invalid=true]:ring-danger/25',
+  'focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/25',
+  'disabled:cursor-not-allowed disabled:bg-surface-alt disabled:opacity-70',
+  'aria-[invalid=true]:border-danger aria-[invalid=true]:ring-2 aria-[invalid=true]:ring-danger/20',
 );
 
 export const Input = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(

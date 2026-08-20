@@ -301,12 +301,10 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         maxHeight: MediaQuery.sizeOf(context).height * 0.85,
       ),
       builder: (contextoHoja) {
-        final isDark = Theme.of(contextoHoja).brightness == Brightness.dark;
-        final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+        final palette = AppPalette.of(contextoHoja);
         // El rojo canónico está calibrado para texto sobre blanco; en oscuro
         // hay que aclararlo o cae por debajo del AA que exige DESIGN.md.
-        final danger = isDark ? AppColors.dangerDark : AppColors.danger;
-        final esquema = Theme.of(contextoHoja).colorScheme;
+        final danger = palette.isDark ? AppColors.dangerDark : AppColors.danger;
 
         return SafeArea(
           child: SingleChildScrollView(
@@ -321,14 +319,20 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.gapSm),
-                  child: Text(
-                    'MÁS SECCIONES',
-                    style: AppType.captionStrong.copyWith(
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.8,
-                      color: muted,
-                    ),
+                  padding: const EdgeInsets.only(bottom: AppSpacing.gap),
+                  child: Row(
+                    children: [
+                      Text(
+                        'MÁS SECCIONES',
+                        style: AppType.captionStrong.copyWith(
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.8,
+                          color: palette.muted,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.gapSm),
+                      Expanded(child: Divider(height: 1, color: palette.border)),
+                    ],
                   ),
                 ),
 
@@ -338,7 +342,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                   physics: const NeverScrollableScrollPhysics(),
                   crossAxisSpacing: AppSpacing.gapSm,
                   mainAxisSpacing: AppSpacing.gapSm,
-                  childAspectRatio: 1.0,
+                  childAspectRatio: 0.95,
                   children: [
                     for (final destino in secundarios)
                       _CeldaDeMenu(
@@ -354,10 +358,17 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
 
                 // La sesión va abajo y separada: no es «otra sección más», y
                 // cerrarla por error al buscar Reportes sería caro.
-                const Divider(height: AppSpacing.gap * 2),
+                const SizedBox(height: AppSpacing.gap),
+                Divider(height: 1, color: palette.border),
+                const SizedBox(height: AppSpacing.gapSm),
                 ListTile(
-                  leading: Icon(Icons.person_outline, color: esquema.primary),
+                  leading: _IconoDeMenu(
+                    icono: Icons.person_outline,
+                    color: palette.primary,
+                    fondo: palette.primarySoft,
+                  ),
                   title: const Text('Mi perfil'),
+                  trailing: Icon(Icons.chevron_right, size: 18, color: palette.subtle),
                   selected: rutaActual == '/profile',
                   onTap: () {
                     Navigator.of(contextoHoja).pop();
@@ -365,8 +376,15 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                   },
                 ),
                 ListTile(
-                  leading: Icon(Icons.logout_outlined, color: danger),
-                  title: Text('Cerrar sesión', style: TextStyle(color: danger)),
+                  leading: _IconoDeMenu(
+                    icono: Icons.logout_outlined,
+                    color: danger,
+                    fondo: SemanticTone.of(contextoHoja, SemanticKind.danger).bg,
+                  ),
+                  title: Text(
+                    'Cerrar sesión',
+                    style: TextStyle(color: danger, fontWeight: FontWeight.w600),
+                  ),
                   onTap: () async {
                     Navigator.of(contextoHoja).pop();
                     await confirmLogout(context, ref);
@@ -377,6 +395,34 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
           ),
         );
       },
+    );
+  }
+}
+
+/// Icono de una entrada de menú, dentro de su cuadro de color.
+///
+/// El cuadro le da al icono un tamaño constante independientemente del glifo:
+/// sin él, `Icons.description_outlined` ocupa visualmente bastante menos que
+/// `Icons.campaign_outlined` al mismo `size`, y una columna de entradas de menú
+/// queda con los iconos bailando de tamaño.
+class _IconoDeMenu extends StatelessWidget {
+  final IconData icono;
+  final Color color;
+  final Color fondo;
+
+  const _IconoDeMenu({required this.icono, required this.color, required this.fondo});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 34,
+      height: 34,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: fondo,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusInput - 2),
+      ),
+      child: Icon(icono, size: 18, color: color),
     );
   }
 }
@@ -395,41 +441,52 @@ class _CeldaDeMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final esquema = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
-    final borde = isDark ? AppColors.borderDark : AppColors.border;
+    final palette = context.palette;
 
     return Semantics(
       button: true,
       selected: activo,
       label: destino.label,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppSpacing.radiusCard),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(AppSpacing.gapSm),
-          decoration: BoxDecoration(
-            color: activo ? esquema.primary.withValues(alpha: 0.12) : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppSpacing.radiusCard),
-            border: Border.all(color: activo ? esquema.primary : borde),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(destino.icon, size: 22, color: activo ? esquema.primary : muted),
-              const SizedBox(height: AppSpacing.gapXs),
-              Text(
-                destino.label,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: AppType.caption.copyWith(
-                  color: activo ? esquema.primary : null,
-                  fontWeight: activo ? FontWeight.w700 : FontWeight.w500,
-                ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusCard),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.gapXs,
+              vertical: AppSpacing.gapSm,
+            ),
+            decoration: BoxDecoration(
+              color: activo ? palette.primarySoft : palette.surface,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusCard),
+              border: Border.all(
+                color: activo ? palette.primary : palette.border,
+                width: activo ? 1.5 : 1,
               ),
-            ],
+              boxShadow: AppShadows.sm(palette.isDark),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _IconoDeMenu(
+                  icono: destino.icon,
+                  color: activo ? palette.primary : palette.muted,
+                  fondo: activo ? palette.primaryTint : palette.surfaceAlt,
+                ),
+                const SizedBox(height: AppSpacing.gapSm),
+                Text(
+                  destino.label,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppType.caption.copyWith(
+                    color: activo ? palette.primary : palette.text,
+                    fontWeight: activo ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

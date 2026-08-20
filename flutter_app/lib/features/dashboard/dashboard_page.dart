@@ -267,15 +267,25 @@ class _CuadriculaDeIndicadores extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.count(
-      crossAxisCount: 2,
+    return GridView(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: AppSpacing.gapSm,
-      mainAxisSpacing: AppSpacing.gapSm,
-      // 2.2 y no 1.45: con la cifra en `h3` en vez de `h2`, la tarjeta ya no
-      // necesita ser casi cuadrada y las cuatro caben en dos filas cortas.
-      childAspectRatio: 2.2,
+      /*
+       * `mainAxisExtent` y no `childAspectRatio`.
+       *
+       * La proporción ata el alto al ancho: la misma tarjeta mide 73 dp en un
+       * teléfono de 360 y 90 en uno de 430, aunque el contenido —una etiqueta,
+       * una cifra y una pista— ocupe exactamente lo mismo en los dos. En el
+       * teléfono estrecho eso es la franja amarilla y negra de desbordamiento,
+       * y en el ancho, aire vacío. El alto se declara en dp porque es lo que
+       * realmente necesita el contenido; el ancho que sobre se reparte solo.
+       */
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: AppSpacing.gapSm,
+        mainAxisSpacing: AppSpacing.gapSm,
+        mainAxisExtent: 120,
+      ),
       children: [
         CompactStat(
           etiqueta: 'Promedio',
@@ -284,6 +294,9 @@ class _CuadriculaDeIndicadores extends StatelessWidget {
           pista: 'cortes calificados',
           icono: Icons.school_outlined,
           tono: resumen.averageGrade >= 3 ? SemanticKind.success : SemanticKind.danger,
+          // La escala es 0–5, así que el promedio sobre 5 es la proporción
+          // real. Sin la barra, un 3.2 y un 4.7 ocupan lo mismo en pantalla.
+          progreso: resumen.averageGrade / 5,
         ),
         CompactStat(
           etiqueta: 'Asistencia',
@@ -291,6 +304,7 @@ class _CuadriculaDeIndicadores extends StatelessWidget {
           pista: 'ponderada por minutos',
           icono: Icons.event_available_outlined,
           tono: SemanticKind.info,
+          progreso: resumen.averageAttendance / 100,
         ),
         CompactStat(
           etiqueta: 'En riesgo',
@@ -324,7 +338,7 @@ class _AccionRapida extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final esquema = Theme.of(context).colorScheme;
+    final palette = context.palette;
 
     return Semantics(
       button: true,
@@ -335,12 +349,25 @@ class _AccionRapida extends StatelessWidget {
         child: SizedBox(
           // Por encima del objetivo táctil recomendado, con el icono y la
           // etiqueta apilados: 56 de alto para dos líneas cortas.
-          height: 44,
+          height: 52,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icono, size: 20, color: esquema.primary),
-              const SizedBox(height: AppSpacing.gapXs / 2),
+              // El icono va dentro de su cuadro de color. Suelto, tres accesos
+              // rápidos eran tres glifos flotando sobre blanco, del mismo peso
+              // visual que cualquier icono decorativo de la pantalla; en su
+              // cuadro se leen como los botones que son.
+              Container(
+                width: 30,
+                height: 30,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: palette.primarySoft,
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusInput - 3),
+                ),
+                child: Icon(icono, size: 17, color: palette.primary),
+              ),
+              const SizedBox(height: AppSpacing.gapXs + 1),
               Text(
                 etiqueta,
                 maxLines: 1,

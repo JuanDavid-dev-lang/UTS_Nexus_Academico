@@ -74,61 +74,70 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
 
           return Column(
             children: [
-              Padding(
-                // Cabecera fija sobre la lista: mismo horizontal que
-                // AppSpacing.pagePadding para que el buscador no baile.
+              /*
+               * Buscador, filtro y recuento en un solo bloque separado de la
+               * lista por su borde inferior.
+               *
+               * Eran tres `Padding` encadenados sobre el mismo fondo que las
+               * filas: nada decía que los tres van juntos ni que lo que hacen
+               * es acotar la lista de abajo, y el recuento —que es la respuesta
+               * a «¿esto es todo o está filtrado?»— parecía la primera línea
+               * del listado.
+               */
+              Container(
+                decoration: BoxDecoration(
+                  color: context.palette.bg,
+                  border: Border(bottom: BorderSide(color: context.palette.border)),
+                ),
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.page,
                   AppSpacing.gapSm,
                   AppSpacing.page,
                   AppSpacing.gapSm,
                 ),
-                child: DebouncedSearchField(
-                  hintText: 'Buscar por nombre, cédula o programa…',
-                  onChanged: (value) => setState(() => _query = value),
-                ),
-              ),
-              if (subjects.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.page,
-                    0,
-                    AppSpacing.page,
-                    AppSpacing.gapSm,
-                  ),
-                  child: DropdownButtonFormField<String?>(
-                    initialValue: subjectFilter,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Materia',
-                      isDense: true,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    DebouncedSearchField(
+                      hintText: 'Buscar por nombre, cédula o programa…',
+                      onChanged: (value) => setState(() => _query = value),
                     ),
-                    items: [
-                      const DropdownMenuItem<String?>(
-                        value: null,
-                        child: Text('Todas mis materias'),
-                      ),
-                      ...subjects.map(
-                        (subject) => DropdownMenuItem<String?>(
-                          value: subject.id,
-                          child: Text(subject.name,
-                              overflow: TextOverflow.ellipsis),
+                    if (subjects.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.gapSm),
+                      DropdownButtonFormField<String?>(
+                        initialValue: subjectFilter,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Materia',
+                          isDense: true,
                         ),
+                        items: [
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('Todas mis materias'),
+                          ),
+                          ...subjects.map(
+                            (subject) => DropdownMenuItem<String?>(
+                              value: subject.id,
+                              child: Text(subject.name,
+                                  overflow: TextOverflow.ellipsis),
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) => ref
+                            .read(studentSubjectFilterProvider.notifier)
+                            .state = value,
                       ),
                     ],
-                    onChanged: (value) => ref
-                        .read(studentSubjectFilterProvider.notifier)
-                        .state = value,
-                  ),
-                ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.page),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    '${filtered.length} de ${items.length} estudiantes',
-                    style: AppType.caption.copyWith(color: muted),
-                  ),
+                    const SizedBox(height: AppSpacing.gapSm),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '${filtered.length} de ${items.length} estudiantes',
+                        style: AppType.caption.copyWith(color: muted),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: AppSpacing.gapSm),
@@ -166,9 +175,14 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
       builder: (sheetContext) => StatefulBuilder(
         builder: (innerContext, setSheetState) => Padding(
           padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            bottom: MediaQuery.of(innerContext).viewInsets.bottom + 20,
+            left: AppSpacing.page + 4,
+            right: AppSpacing.page + 4,
+            // `viewInsetsOf` y no `of`: `MediaQuery.of` suscribe al
+            // `MediaQueryData` entero, y el teclado anima `viewInsets`
+            // fotograma a fotograma. En una hoja cuyo único control es un campo
+            // de texto de diez líneas, eso es reconstruir la hoja completa
+            // sesenta veces por segundo cada vez que el teclado sube.
+            bottom: MediaQuery.viewInsetsOf(innerContext).bottom + AppSpacing.page + 4,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,

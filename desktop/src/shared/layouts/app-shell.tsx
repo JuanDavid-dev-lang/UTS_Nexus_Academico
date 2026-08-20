@@ -8,6 +8,7 @@ import { CommandPalette } from '@/shared/layouts/command-palette';
 import { useHotkeys } from '@/shared/hooks/use-hotkeys';
 import { LAYOUT_QUERIES, useMediaQuery } from '@/shared/hooks/use-media-query';
 import { SkeletonStatGrid } from '@/shared/ui/skeleton';
+import { cn } from '@/shared/lib/cn';
 import { Rubri } from '@/shared/ui';
 import { useTheme } from '@/state/theme.store';
 import { useSession } from '@/state/session.store';
@@ -163,7 +164,16 @@ export function AppShell() {
           aria-label="Abrir a Rubri, asistente de UTS Nexus"
           title="Pregúntale a Rubri"
           onClick={() => navigate('/asistente', { state: { rubriContext: { page: location.pathname } } })}
-          className="fixed bottom-5 right-5 z-30 grid size-16 place-items-center overflow-hidden rounded-full border border-border bg-surface shadow-pop transition-transform hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+          className={cn(
+            'fixed bottom-5 right-5 z-30 grid size-16 place-items-center overflow-hidden rounded-full',
+            'border border-border bg-surface shadow-pop',
+            'transition-transform duration-200 ease-out hover:-translate-y-1 active:translate-y-0',
+            // `ring-focus` no existía: el token se llama `ring`, así que esta
+            // clase no generaba ninguna regla y el botón se quedaba sin anillo
+            // de foco. Con el teclado no había forma de saber que estaba
+            // seleccionado.
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          )}
         >
           <Rubri emotion="neutral" size="small" />
         </button>

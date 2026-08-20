@@ -21,9 +21,10 @@ final consolidatedGradesProvider = consolidatedProvider;
 /// El cliente NO calcula nada: la rúbrica 30/60/10 y los pesos 33/33/34 viven
 /// solo en el backend. Aquí se muestra lo que el motor consolidó.
 ///
-/// Los cortes incompletos se marcan en cursiva. Un 2.0 al que aún le faltan
-/// componentes por calificar no significa lo mismo que un 2.0 definitivo, y
-/// confundirlos lleva a alarmar a un estudiante que todavía va bien.
+/// Los cortes incompletos se marcan con un asterisco. Un 2.0 al que aún le
+/// faltan componentes por calificar no significa lo mismo que un 2.0
+/// definitivo, y confundirlos lleva a alarmar a un estudiante que todavía va
+/// bien.
 class GradesPage extends ConsumerStatefulWidget {
   const GradesPage({super.key});
 
@@ -50,47 +51,61 @@ class _GradesPageState extends ConsumerState<GradesPage> {
       ),
       body: Column(
         children: [
-          Padding(
-            // Cabecera fija sobre la lista: el horizontal debe ser el mismo de
-            // AppSpacing.pagePadding o el selector queda desalineado del listado.
+          /*
+           * Materia y búsqueda en un solo bloque, separado de la lista por una
+           * línea.
+           *
+           * Antes eran dos `Padding` sueltos con un `SizedBox` en medio: los
+           * dos controles flotaban sobre el mismo fondo que las filas y no
+           * había nada que dijera que acotan lo de abajo en vez de ser la
+           * primera fila del listado. El bloque con su borde inferior lo dice
+           * sin gastar ni una palabra.
+           */
+          Container(
+            decoration: BoxDecoration(
+              color: context.palette.bg,
+              border: Border(bottom: BorderSide(color: context.palette.border)),
+            ),
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.page,
               AppSpacing.gapSm,
               AppSpacing.page,
-              AppSpacing.gapSm,
+              AppSpacing.gap,
             ),
-            child: subjects.when(
-              loading: () => const SkeletonBox(height: 48, radius: 12),
-              error: (_, __) => const SizedBox.shrink(),
-              data: (items) => DropdownButtonFormField<String?>(
-                initialValue: _subjectId,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Materia',
-                  isDense: true,
-                ),
-                items: [
-                  const DropdownMenuItem(
-                      value: null, child: Text('Todas las materias')),
-                  for (final subject in items)
-                    DropdownMenuItem(
-                      value: subject.id,
-                      child: Text('${subject.name} (${subject.code})',
-                          overflow: TextOverflow.ellipsis),
+            child: Column(
+              children: [
+                subjects.when(
+                  loading: () => const SkeletonBox(height: 48, radius: 12),
+                  error: (_, __) => const SizedBox.shrink(),
+                  data: (items) => DropdownButtonFormField<String?>(
+                    initialValue: _subjectId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Materia',
+                      isDense: true,
                     ),
-                ],
-                onChanged: (value) => setState(() => _subjectId = value),
-              ),
+                    items: [
+                      const DropdownMenuItem(
+                          value: null, child: Text('Todas las materias')),
+                      for (final subject in items)
+                        DropdownMenuItem(
+                          value: subject.id,
+                          child: Text('${subject.name} (${subject.code})',
+                              overflow: TextOverflow.ellipsis),
+                        ),
+                    ],
+                    onChanged: (value) => setState(() => _subjectId = value),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.gapSm),
+                DebouncedSearchField(
+                  hintText: 'Buscar estudiante…',
+                  onChanged: (value) => setState(() => _query = value),
+                ),
+              ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: DebouncedSearchField(
-              hintText: 'Buscar estudiante…',
-              onChanged: (value) => setState(() => _query = value),
-            ),
-          ),
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpacing.gapSm),
           Expanded(
             child: rows.when(
               loading: () => ListView(
@@ -162,9 +177,15 @@ class _GradesPageState extends ConsumerState<GradesPage> {
                         ),
                         const SizedBox(height: 10),
                       ],
-                      const SizedBox(height: 6),
+                      const SizedBox(height: AppSpacing.gapSm),
+                      // La leyenda decía «en cursiva» y la fila marca los
+                      // cortes incompletos con un asterisco: la cursiva se
+                      // perdió cuando los cortes pasaron a la línea de
+                      // metadatos, donde no se distingue de la redonda. El
+                      // texto se quedó describiendo la versión anterior.
                       Text(
-                        'En cursiva, los cortes con componentes pendientes de calificar.',
+                        'Un asterisco (*) junto a un corte significa que le faltan '
+                        'componentes por calificar.',
                         style: AppType.caption.copyWith(color: muted),
                       ),
                     ],
@@ -206,37 +227,68 @@ class _PendingBanner extends ConsumerWidget {
 
         final tone = SemanticTone.of(context, SemanticKind.warning);
 
+        final palette = context.palette;
+        final totalFaltantes =
+            conFaltantes.fold<int>(0, (suma, materia) => suma + materia.missing);
+
         return Padding(
-          padding: const EdgeInsets.only(bottom: 14),
-          child: AppCard(
+          padding: const EdgeInsets.only(bottom: AppSpacing.gap + 2),
+          child: Container(
+            padding: const EdgeInsets.all(AppSpacing.gap),
+            decoration: BoxDecoration(
+              // Fondo y borde del tono de advertencia, no la superficie neutra
+              // de una tarjeta más: esto no es información del consolidado, es
+              // trabajo que le falta al docente, y en la semana de cierre es lo
+              // primero que tiene que saltar a la vista.
+              color: tone.bg,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusCard),
+              border: Border.all(color: tone.border),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(Icons.assignment_late_outlined,
-                        size: 18, color: tone.fg),
-                    const SizedBox(width: 8),
-                    Text('Te falta por calificar',
-                        style: AppType.bodyStrong.copyWith(color: tone.fg)),
+                    Icon(Icons.assignment_late_outlined, size: 18, color: tone.fg),
+                    const SizedBox(width: AppSpacing.gapSm),
+                    Expanded(
+                      child: Text(
+                        'Te falta por calificar',
+                        style: AppType.bodyStrong.copyWith(
+                          color: tone.fg,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    // El total va en la cabecera: sin él hay que sumar a mano
+                    // las líneas de abajo para saber si son cuatro notas o
+                    // cuarenta, que es lo que decide si esto se hace ahora.
+                    Text(
+                      '$totalFaltantes',
+                      style: AppType.bodyStrong.copyWith(
+                        color: tone.fg,
+                        fontWeight: FontWeight.w800,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpacing.gapSm),
                 for (final materia in conFaltantes) ...[
-                  Text('${materia.name} · ${materia.missing} notas',
-                      style: AppType.caption
-                          .copyWith(fontWeight: FontWeight.w600)),
-                  for (final corte
-                      in materia.cuts.where((cut) => cut.missing > 0))
+                  Text(
+                    '${materia.name} · ${materia.missing} notas',
+                    style: AppType.captionStrong.copyWith(color: palette.text),
+                  ),
+                  for (final corte in materia.cuts.where((cut) => cut.missing > 0))
                     Padding(
-                      padding: const EdgeInsets.only(left: 8, top: 2),
+                      padding: const EdgeInsets.only(left: AppSpacing.gapSm, top: 2),
                       child: Text(
                         'Corte ${corte.cut}: '
                         '${corte.components.where((c) => c.missing > 0).map((c) => '${_shortLabels[c.component] ?? c.component} ${c.missing}/${c.total}').join(' · ')}',
-                        style: AppType.caption,
+                        style: AppType.caption.copyWith(color: palette.muted),
                       ),
                     ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: AppSpacing.gapSm - 2),
                 ],
               ],
             ),

@@ -1,13 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FileUp, ListTree, Plus, Save } from 'lucide-react';
+import {
+  CalendarRange,
+  CheckCircle2,
+  FileUp,
+  ListChecks,
+  ListTree,
+  Plus,
+  Save,
+  Sigma,
+  XCircle,
+} from 'lucide-react';
 import {
   Badge,
   Button,
   Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   DataTable,
   Dialog,
   DialogContent,
@@ -20,8 +26,8 @@ import {
   NativeSelect,
   PageContainer,
   PageHeader,
-  Progress,
   SkeletonTable,
+  StatCard,
   type Column,
 } from '@/shared/ui';
 import {
@@ -85,6 +91,7 @@ export default function GradesPage() {
   );
 
   const rows = consolidated.data ?? [];
+  const materiaActiva = periodSubjects.find((subject) => subject._id === subjectId);
 
   const stats = useMemo(() => {
     if (rows.length === 0) return { average: 0, passing: 0, failing: 0, complete: 0 };
@@ -120,17 +127,24 @@ export default function GradesPage() {
         sortValue: (row) => row.cortes.find((item) => item.corte === cut)?.nota ?? 0,
         cell: (row) => {
           const summary = row.cortes.find((item) => item.corte === cut);
-          if (!summary) return <span className="text-muted">—</span>;
+          if (!summary) return <span className="text-subtle">—</span>;
           return (
+            /*
+              Un corte incompleto se marcaba en cursiva y gris. La cursiva no
+              dice qué le pasa a ese número —se lee como énfasis— y el gris lo
+              confunde con un dato ausente, cuando la nota está y es correcta:
+              lo que falta son componentes por calificar. El punto ámbar sí lo
+              dice, y no cambia el peso ni el color de la cifra.
+            */
             <span
-              className={
-                summary.completo
-                  ? 'font-mono tabular-nums'
-                  : 'font-mono tabular-nums text-muted italic'
-              }
+              className="inline-flex items-center justify-center gap-1 font-mono tabular"
               title={summary.completo ? 'Corte completo' : 'Faltan componentes por calificar'}
             >
               {formatGrade(summary.nota)}
+              {summary.completo ? null : (
+                <span className="size-1.5 shrink-0 rounded-full bg-warning" aria-hidden />
+              )}
+              {summary.completo ? null : <span className="sr-only">Corte incompleto</span>}
             </span>
           );
         },
@@ -179,6 +193,17 @@ export default function GradesPage() {
   return (
     <PageContainer>
       <PageHeader
+        // Periodo y materia son el contexto de todo lo que hay debajo: sin
+        // ellos a la vista, una tabla de doce filas puede ser el grupo entero o
+        // un resto de otro semestre y no hay forma de saberlo sin bajar a los
+        // desplegables.
+        eyebrow={
+          <>
+            <CalendarRange className="size-3.5" aria-hidden />
+            {period}
+            {materiaActiva ? ` · ${materiaActiva.name}` : ' · Todas las materias'}
+          </>
+        }
         title="Notas"
         subtitle="Captura por componente; el consolidado lo calcula el motor académico"
         actions={
@@ -203,7 +228,9 @@ export default function GradesPage() {
 
       {canWrite && <GradesImportDialog open={importOpen} onOpenChange={setImportOpen} />}
 
-      <div className="flex flex-wrap items-end gap-3">
+      {/* Los filtros van en un pozo: son lo que acota la tabla de abajo, y
+          sueltos sobre el fondo parecían dos campos de un formulario. */}
+      <div className="surface-well flex flex-wrap items-end gap-3 p-3">
         <Field label="Periodo" className="w-40">
           {(props) => (
             <NativeSelect
@@ -242,54 +269,52 @@ export default function GradesPage() {
         </Field>
       </div>
 
+      {/*
+        Las cuatro métricas usan el mismo componente que el panel.
+        Antes eran cuatro `Card` montadas a mano con `CardTitle` forzado a
+        `text-h3` y una `Progress` dentro: la misma información que el panel
+        muestra con `StatCard`, pintada de otra manera. Dos formas de dibujar
+        «una cifra con su contexto» en la misma aplicación es exactamente el
+        problema que el sistema de diseño existe para no tener.
+      */}
       {rows.length > 0 ? (
-        <div className="grid gap-4 @3xl:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Promedio del grupo</CardDescription>
-              <CardTitle className="font-mono text-h3">{formatGrade(stats.average)}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Progress
-                value={(stats.average / 5) * 100}
-                tone={stats.average >= 3 ? 'success' : 'danger'}
-                label="Promedio del grupo sobre 5.0"
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Aprobando</CardDescription>
-              <CardTitle className="font-mono text-h3 text-success">{stats.passing}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Progress value={(stats.passing / rows.length) * 100} tone="success" />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Reprobando</CardDescription>
-              <CardTitle className="font-mono text-h3 text-danger">{stats.failing}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Progress value={(stats.failing / rows.length) * 100} tone="danger" />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Con los 3 cortes completos</CardDescription>
-              <CardTitle className="font-mono text-h3">
-                {stats.complete}
-                <span className="text-body text-muted"> / {rows.length}</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Progress value={(stats.complete / rows.length) * 100} tone="primary" />
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-2 gap-4 @3xl:grid-cols-4">
+          <StatCard
+            index={0}
+            label="Promedio del grupo"
+            value={formatGrade(stats.average)}
+            hint="Sobre 5.0"
+            tone={stats.average >= 3 ? 'success' : 'danger'}
+            icon={Sigma}
+            progress={(stats.average / 5) * 100}
+          />
+          <StatCard
+            index={1}
+            label="Aprobando"
+            value={stats.passing}
+            hint={`de ${rows.length} estudiantes`}
+            tone="success"
+            icon={CheckCircle2}
+            progress={(stats.passing / rows.length) * 100}
+          />
+          <StatCard
+            index={2}
+            label="Reprobando"
+            value={stats.failing}
+            hint={`de ${rows.length} estudiantes`}
+            tone="danger"
+            icon={XCircle}
+            progress={(stats.failing / rows.length) * 100}
+          />
+          <StatCard
+            index={3}
+            label="Cortes completos"
+            value={`${stats.complete} / ${rows.length}`}
+            hint="Con los 3 cortes calificados"
+            tone="primary"
+            icon={ListChecks}
+            progress={(stats.complete / rows.length) * 100}
+          />
         </div>
       ) : null}
 

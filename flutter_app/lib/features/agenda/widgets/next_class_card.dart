@@ -123,6 +123,15 @@ class _NextClassCardState extends ConsumerState<NextClassCard> {
   }
 }
 
+/// La clase en curso o la siguiente, sobre la superficie de marca.
+///
+/// Es la única tarjeta de la aplicación que va en degradado institucional, y
+/// eso es deliberado: DESIGN.md reserva la superficie de marca para lo que
+/// representa a la aplicación, y en un panel docente eso es exactamente esto —
+/// la respuesta a «¿qué tengo ahora?», que es la razón por la que alguien saca
+/// el teléfono entre dos clases. Como tarjeta blanca igual que las otras seis
+/// de la pantalla, había que buscarla; en degradado es lo primero que se ve y
+/// no hace falta leer nada para encontrarla.
 class _Bloque extends StatelessWidget {
   final AgendaItem item;
   final int offset;
@@ -141,69 +150,105 @@ class _Bloque extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
-    // Se declara el significado y el tema resuelve el par (texto, fondo): pasar
-    // un color suelto rompería el modo oscuro.
-    final tono = SemanticTone.of(context, enCurso ? SemanticKind.danger : SemanticKind.brand);
+    // Sobre el degradado no valen los tonos del tema: el texto es blanco (u
+    // oliva claro en oscuro) y los secundarios son ese mismo color rebajado,
+    // que es lo único que conserva el contraste sobre un fondo que cambia de
+    // luminosidad a lo largo de la tarjeta.
+    final frente = isDark ? AppColors.textDark : Colors.white;
+    final tenue = frente.withValues(alpha: 0.72);
 
-    return AppCard(
+    return BrandSurface(
       onTap: onVerAgenda,
       child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              // La lima marca «esto está pasando ahora». Es el uso puntual que
+              // DESIGN.md §4 permite: un indicador, no un fondo.
+              if (enCurso)
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: AppColors.lime,
+                    shape: BoxShape.circle,
+                  ),
+                )
+              else
+                Icon(Icons.schedule_outlined, size: 15, color: tenue),
+              const SizedBox(width: AppSpacing.gapSm),
+              Text(
+                enCurso ? 'CLASE EN CURSO' : 'PRÓXIMA CLASE',
+                style: AppType.captionStrong.copyWith(
+                  color: enCurso ? AppColors.lime : tenue,
+                  letterSpacing: 1,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const Spacer(),
+              if (onVerAgenda != null)
+                Icon(Icons.arrow_forward, size: 16, color: tenue),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.gap),
+          Text(
+            item.titulo.isNotEmpty ? item.titulo : item.materia,
+            style: AppType.h3.copyWith(color: frente),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: AppSpacing.gapSm),
+          Row(
+            children: [
+              Icon(Icons.access_time_rounded, size: 15, color: tenue),
+              const SizedBox(width: AppSpacing.gapXs + 2),
+              Text(
+                '${horaCampus(item.inicio, offset)} – ${horaCampus(item.fin, offset)}',
+                style: AppType.bodyStrong.copyWith(
+                  color: frente,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
+          if (item.aula.isNotEmpty || item.grupo.isNotEmpty || item.docente.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.gapXs),
             Row(
               children: [
-                Icon(
-                  enCurso ? Icons.radio_button_checked : Icons.schedule_outlined,
-                  size: 16,
-                  color: tono.fg,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  enCurso ? 'CLASE EN CURSO' : 'PRÓXIMA CLASE',
-                  style: AppType.captionStrong.copyWith(
-                    color: tono.fg,
-                    letterSpacing: 0.8,
-                    fontWeight: FontWeight.w700,
+                Icon(Icons.place_outlined, size: 15, color: tenue),
+                const SizedBox(width: AppSpacing.gapXs + 2),
+                Expanded(
+                  child: Text(
+                    [
+                      if (item.aula.isNotEmpty) 'Aula ${item.aula}',
+                      if (item.grupo.isNotEmpty) 'Grupo ${item.grupo}',
+                      if (item.docente.isNotEmpty) item.docente,
+                    ].join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppType.caption.copyWith(color: tenue),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 6),
-            Text(
-              item.titulo.isNotEmpty ? item.titulo : item.materia,
-              style: AppType.h3,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+          ],
+          const SizedBox(height: AppSpacing.gap),
+          // El contador va en una píldora translúcida y no en un color
+          // semántico: sobre el degradado, un fondo verde o rojo del tema se
+          // convierte en una mancha de color sobre otra mancha de color.
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: frente.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusPill),
+              border: Border.all(color: frente.withValues(alpha: 0.22)),
             ),
-            const SizedBox(height: 2),
-            Text(
-              '${horaCampus(item.inicio, offset)} - ${horaCampus(item.fin, offset)}',
-              style: AppType.body,
+            child: Text(
+              detalle,
+              style: AppType.captionStrong.copyWith(color: frente),
             ),
-            if (item.aula.isNotEmpty || item.grupo.isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(
-                [
-                  if (item.aula.isNotEmpty) 'Aula ${item.aula}',
-                  if (item.grupo.isNotEmpty) 'Grupo ${item.grupo}',
-                  if (item.docente.isNotEmpty) item.docente,
-                ].join(' · '),
-                style: AppType.caption.copyWith(color: muted),
-              ),
-            ],
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: tono.bg,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(
-                detalle,
-                style: AppType.captionStrong.copyWith(color: tono.fg),
-              ),
-            ),
+          ),
         ],
       ),
     );

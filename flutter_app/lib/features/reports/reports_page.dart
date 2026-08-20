@@ -178,7 +178,9 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
       isScrollControlled: true,
       showDragHandle: true,
       builder: (sheetContext) => SizedBox(
-        height: MediaQuery.of(sheetContext).size.height * 0.85,
+        // `sizeOf` y no `of`: leer solo el alto no debe suscribir al
+        // `MediaQueryData` entero, que el teclado anima fotograma a fotograma.
+        height: MediaQuery.sizeOf(sheetContext).height * 0.85,
         child: _AttendancePreviewSheet(
           future: future,
           onDownload: (format) {

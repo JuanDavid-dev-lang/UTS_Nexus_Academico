@@ -4,8 +4,8 @@
  * Single source of truth for colour, spacing, radius, elevation and motion.
  * Values mirror DESIGN.md so desktop, mobile and web stay visually identical.
  *
- * Institutional palette. Light mode: deep green #0B5D3B for action over neutral
- * greys, gold #F4C430 as accent. Dark mode keeps the olive/lime scale.
+ * Institutional palette. Light mode: deep green #0b5d3b for action over neutral
+ * greys, lime #cad225 as accent. Dark mode keeps the olive/lime scale.
  * One colour means exactly one thing; never re-use a semantic colour for
  * decoration.
  */
@@ -16,51 +16,78 @@
   /*
    * Modo claro institucional.
    *
-   * El tema claro anterior teñía de verde TODO —fondo #f4f7f1, superficies
-   * #eaf0e6, texto #12271e— y usaba el lima #cad225 como acento. Un tinte de
-   * marca aplicado a superficies grandes no comunica identidad, satura: el ojo
-   * no tiene ningún neutro donde descansar y cada card compite con la
-   * siguiente. El lima encima es el color más luminoso de la paleta y en claro
-   * no puede llevar texto ni rellenar nada grande.
+   * El tema claro original teñía de verde TODO —fondo #f4f7f1, superficies
+   * #eaf0e6, texto #12271e— y usaba el lima #cad225 como color suelto. Un tinte
+   * de marca aplicado a superficies grandes no comunica identidad, satura: el
+   * ojo no tiene ningún neutro donde descansar y cada card compite con la
+   * siguiente. Esa lección se mantiene: las superficies siguen siendo neutras.
    *
-   * Ahora los neutros son neutros y el verde aparece solo donde hay una acción.
-   * El oro sustituye al lima como acento: mismo papel de "mírame", sin el
-   * chillido, y con texto oscuro encima llega a 9.4:1.
+   * Lo que cambia es el acento. Era oro #f4c430, un color que no aparece en
+   * ninguna otra parte de la marca ni en el modo oscuro: la aplicación tenía
+   * dos identidades según el tema. Ahora los dos modos comparten la lima
+   * #cad225, que es la que DESIGN.md §4 declara como acento de marca. En claro
+   * la lima no puede llevar texto (1.7:1 sobre blanco) ni rellenar superficies
+   * grandes, exactamente igual que en oscuro: es relleno de badge y de botón
+   * con letra oscura encima (8.9:1), y cuando el acento tiene que SER texto se
+   * usa --accent-strong, la misma rampa bajada hasta 5.8:1.
    */
 
   /* Brand */
   --brand-green: #0b5d3b;
   --brand-green-strong: #08472e;
-  --brand-gold: #f4c430;
+  --brand-lime: #cad225;
 
-  /* Semantic surfaces - neutros de verdad, sin tinte de marca */
-  --bg: #f7f8fa;
-  --bg-subtle: #f1f3f5;
+  /* Semantic surfaces - neutros de verdad, sin tinte de marca.
+     --bg baja un escalón respecto al blanco puro de las cards: es lo que hace
+     que una card se lea como una capa y no como un rectángulo con borde. */
+  --bg: #f4f6f8;
+  --bg-subtle: #edf0f4;
   --surface: #ffffff;
-  --surface-alt: #f1f3f5;
-  --surface-hover: #eceff3;
-  --border: #e4e7ec;
-  --border-strong: #d0d5dd;
+  --surface-alt: #f3f5f8;
+  --surface-hover: #e9edf2;
+  /* Hundida: cabeceras de tabla, pozos de formulario, zonas de «esto es
+     contenedor, no contenido». Antes se resolvía con --surface-alt y una
+     cabecera de tabla acababa del mismo tono que un chip encima de ella. */
+  --surface-sunken: #eaeef3;
+  --border: #e3e8ee;
+  --border-strong: #ccd3dd;
 
   /* Text */
-  --text: #1f2937;
+  --text: #16202b;
   /*
    * El escalón más claro de la guía (#98a2b3) se queda en 2.8:1 sobre blanco.
    * Este token no es decorativo: lo llevan subtítulos, ayudas de campo y
-   * leyendas, que son texto real y tienen que pasar AA. Se usa el escalón
-   * inmediatamente superior, 5.3:1.
+   * leyendas, que son texto real y tienen que pasar AA. 5.5:1 sobre blanco,
+   * 5.0:1 sobre --surface-alt, que es donde también acaba.
    */
-  --text-muted: #667085;
+  --text-muted: #5d6b7a;
+  /* Decorativo, NUNCA texto: separadores de migas de pan, iconos apagados,
+     marcas de agua. 3.2:1 — no pasa AA, y por eso no lleva contenido. */
+  --text-subtle: #8794a3;
   --text-inverted: #ffffff;
 
   /* Interactive */
   --primary: #0b5d3b;
-  --primary-hover: #0e7549;
+  --primary-hover: #0d6e46;
   --primary-active: #08472e;
+  /*
+   * Las dos tintas del verde. Existen porque el estado seleccionado se pintaba
+   * con `bg-primary/10` a mano en cada sitio: una capa translúcida sobre
+   * --surface da un tono y sobre --surface-alt da otro, así que la misma
+   * selección cambiaba de color según dónde cayera. Estas son opacas.
+   */
+  --primary-soft: #e8f2ec;
+  --primary-tint: #d2e5db;
   --on-primary: #ffffff;
-  --accent: #f4c430;
-  --accent-secondary: #c79e00;
-  --accent-soft: #fff8d9;
+
+  /* Acento — lima, compartido con el modo oscuro.
+     --accent es RELLENO (texto --on-accent encima, 8.9:1).
+     --accent-strong es el mismo tono bajado hasta poder ser TEXTO (5.8:1).
+     --accent-secondary es intermedio: iconos y bordes, nunca texto (3.3:1). */
+  --accent: #cad225;
+  --accent-strong: #626d0f;
+  --accent-secondary: #8a9615;
+  --accent-soft: #f4f7d9;
   --on-accent: #1f2937;
 
   /*
@@ -70,28 +97,66 @@
    * RELLENO: sobre blanco caen a 2.2-3.1:1 y como texto son ilegibles. Se toma
    * el escalón 700 de esa misma rampa, que conserva el tono y pasa AA. El rojo
    * sí se queda en el valor de la guía porque ya llega a 4.8:1.
+   *
+   * El borde de cada estado es nuevo: un chip suave sobre --surface-alt casi no
+   * se distingue del fondo, y sin borde el color deja de comunicar en la única
+   * pantalla donde importa —la de riesgo— porque los chips se funden entre sí.
    */
   --success: #067647;
   --success-soft: #ecfdf3;
+  --success-border: #abefc6;
   --warning: #b54708;
   --warning-soft: #fffaeb;
+  --warning-border: #fedf89;
   --danger: #d92d20;
   --danger-soft: #fef3f2;
+  --danger-border: #fecdca;
   --info: #175cd3;
   --info-soft: #eff8ff;
+  --info-border: #b2ddff;
 
   /* Focus ring - must stay visible on every surface */
   --ring: #0b5d3b;
 
-  /* Elevation - sombras neutras y suaves, no verdosas */
-  --shadow-sm: 0 1px 2px rgb(16 24 40 / 0.05);
-  --shadow-md: 0 4px 12px rgb(16 24 40 / 0.08);
-  --shadow-lg: 0 12px 32px rgb(16 24 40 / 0.12);
-  --shadow-pop: 0 16px 48px rgb(16 24 40 / 0.18);
+  /*
+   * Elevation - dos capas por sombra, no una.
+   *
+   * Una sombra sola tiene que elegir entre marcar el contacto (corta y densa) o
+   * marcar la altura (larga y difusa), y acaba haciendo mal las dos cosas: o la
+   * card parece pegada al fondo con un halo gris, o flota sin apoyarse en nada.
+   * Cada nivel lleva una sombra de contacto y una ambiental, que es como se
+   * comporta una sombra real y es la diferencia entre «tiene box-shadow» y
+   * «está elevado».
+   */
+  --shadow-sm: 0 1px 2px rgb(16 24 40 / 0.04), 0 1px 3px rgb(16 24 40 / 0.06);
+  --shadow-md: 0 2px 4px rgb(16 24 40 / 0.04), 0 8px 16px -4px rgb(16 24 40 / 0.08);
+  --shadow-lg: 0 4px 8px rgb(16 24 40 / 0.04), 0 20px 32px -8px rgb(16 24 40 / 0.12);
+  --shadow-pop: 0 8px 16px rgb(16 24 40 / 0.06), 0 32px 64px -12px rgb(16 24 40 / 0.2);
+  /* Realce de marca: el elemento activo de una lista, un CTA en reposo. */
+  --shadow-primary: 0 1px 2px rgb(11 93 59 / 0.1), 0 8px 20px -6px rgb(11 93 59 / 0.28);
 
   /* Glass surfaces */
-  --glass-bg: rgb(255 255 255 / 0.72);
-  --glass-border: rgb(228 231 236 / 0.8);
+  --glass-bg: rgb(255 255 255 / 0.76);
+  --glass-border: rgb(227 232 238 / 0.9);
+
+  /*
+   * Degradados de marca.
+   *
+   * Solo para superficies que representan a la aplicación —cabecera de sesión,
+   * panel de bienvenida, tarjeta de la clase en curso—, nunca como fondo de
+   * contenido. Un degradado debajo de una tabla obliga a cada fila a competir
+   * con un fondo que cambia de tono a lo largo de la fila.
+   */
+  --gradient-brand: linear-gradient(135deg, #0d6e46 0%, #0b5d3b 55%, #08472e 100%);
+  --gradient-accent: linear-gradient(135deg, #d8e04a 0%, #cad225 100%);
+  --gradient-surface: linear-gradient(180deg, #ffffff 0%, #fafbfd 100%);
+  /* Velo sobre el degradado de marca: da profundidad sin tocar el contraste del
+     texto blanco que va encima, porque solo aclara la esquina superior. */
+  --gradient-veil: radial-gradient(
+    120% 120% at 85% 0%,
+    rgb(202 210 37 / 0.22) 0%,
+    rgb(202 210 37 / 0) 55%
+  );
 
   /* Radius scale. --radius-card is the one DESIGN.md S7 fixes at 18px; the rest
      is the surrounding ramp for smaller and larger corners. */
@@ -100,11 +165,15 @@
   --radius-lg: 16px;
   --radius-card: 18px;
   --radius-xl: 20px;
+  --radius-2xl: 26px;
   --radius-pill: 999px;
 
   /* Motion - short and consistent. Anything above 300ms feels sluggish. */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  /* Rebote contenido para lo que aparece: un panel, un chip al seleccionarse.
+     No se usa en nada que se mueva más de una vez por interacción. */
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
   --duration-fast: 120ms;
   --duration-base: 200ms;
   --duration-slow: 320ms;
@@ -153,6 +222,9 @@
   --surface: #33332a;
   --surface-alt: #37382c;
   --surface-hover: #3f4033;
+  /* La contrapartida oscura de la superficie hundida va HACIA ABAJO, no hacia
+     arriba: en oscuro elevarse es aclararse, así que un pozo se oscurece. */
+  --surface-sunken: #1e231d;
   /* DESIGN.md allows the border tone at 25-35% for subtle dividers; this is
      #696b3e resolved at 30% over the card surface, kept opaque so it also works
      on top of the glass surfaces. */
@@ -161,6 +233,8 @@
 
   --text: #edefdd;
   --text-muted: #a6aa8a;
+  /* Decorativo, nunca texto — contrapartida de #8794a3 en la rampa oliva. */
+  --text-subtle: #75785f;
   --text-inverted: #232922;
 
   /* In dark mode lime becomes the primary interactive colour: it is the only
@@ -168,11 +242,16 @@
   --primary: #cad225;
   --primary-hover: #d8e04a;
   --primary-active: #b8c018;
+  --primary-soft: #33371f;
+  --primary-tint: #3f4526;
   --on-primary: #232922;
   --accent: #cad225;
+  /* En oscuro el acento ya es legible como texto sobre las superficies oliva
+     (9.9:1), así que --accent-strong no baja: bajarlo lo haría ilegible. */
+  --accent-strong: #cad225;
   --accent-secondary: #999e3c;
   --accent-soft: #3a3d1c;
-  --on-accent: #edefdd;
+  --on-accent: #232922;
 
   /* Status tones are lightened from the canonical hex of DESIGN.md S4. The
      canonical values are calibrated for text on white: over #33332a they land
@@ -180,20 +259,37 @@
      fills below are the dark counterparts of the light chips. */
   --success: #4ade80;
   --success-soft: #1c3b23;
+  --success-border: #2f5c3a;
   --warning: #fbbf24;
   --warning-soft: #40320f;
+  --warning-border: #6b5518;
   --danger: #f87171;
   --danger-soft: #43201d;
+  --danger-border: #6e332f;
   --info: #38bdf8;
   --info-soft: #123a44;
+  --info-border: #1d5c6b;
 
   --ring: #cad225;
 
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.25);
-  --shadow-md: 0 4px 16px rgb(0 0 0 / 0.32);
-  --shadow-lg: 0 12px 32px rgb(0 0 0 / 0.4);
-  --shadow-pop: 0 16px 48px rgb(0 0 0 / 0.5);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3), 0 1px 3px rgb(0 0 0 / 0.2);
+  --shadow-md: 0 2px 4px rgb(0 0 0 / 0.24), 0 8px 16px -4px rgb(0 0 0 / 0.34);
+  --shadow-lg: 0 4px 8px rgb(0 0 0 / 0.28), 0 20px 32px -8px rgb(0 0 0 / 0.44);
+  --shadow-pop: 0 8px 16px rgb(0 0 0 / 0.3), 0 32px 64px -12px rgb(0 0 0 / 0.55);
+  --shadow-primary: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 20px -6px rgb(202 210 37 / 0.22);
 
-  --glass-bg: rgb(51 51 42 / 0.72);
-  --glass-border: rgb(105 107 62 / 0.45);
+  --glass-bg: rgb(51 51 42 / 0.76);
+  --glass-border: rgb(105 107 62 / 0.5);
+
+  /* El degradado de marca en oscuro NO es lima: DESIGN.md §4 regla 2 prohíbe la
+     lima como fondo de superficie grande. Es la rampa oliva subiendo un paso,
+     con el velo lima al 12% para que siga leyéndose como la misma marca. */
+  --gradient-brand: linear-gradient(135deg, #3f4534 0%, #33332a 55%, #262b21 100%);
+  --gradient-accent: linear-gradient(135deg, #d8e04a 0%, #cad225 100%);
+  --gradient-surface: linear-gradient(180deg, #363629 0%, #31312a 100%);
+  --gradient-veil: radial-gradient(
+    120% 120% at 85% 0%,
+    rgb(202 210 37 / 0.12) 0%,
+    rgb(202 210 37 / 0) 55%
+  );
 }

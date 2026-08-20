@@ -102,6 +102,12 @@ Cada pantalla debe responder tres preguntas:
 > **acento / lettering**. Ambos modos (claro y oscuro) están disponibles y se
 > pueden alternar desde Configuración.
 
+> **Esta tabla es la identidad, no los tokens de pantalla.** Los hex de arriba
+> son los de la marca y están calibrados como color de relleno o de logotipo;
+> puestos como color de texto o de fondo en una interfaz, la mitad no llega a
+> AA. Lo que implementan los clientes son las dos escalas de abajo —claro y
+> oscuro—, cada una derivada de estos colores y verificada contra §15.
+
 ### Modo oscuro — paleta oliva/lima
 
 El modo oscuro anterior (fondo verde `#0F3D2B` + texto lima `#E9F2D3`) generaba
@@ -161,28 +167,78 @@ puntual** — nunca como color de texto extenso ni de fondo.
 4. **Texto siempre en `--dark-text` o `--dark-text-muted`**, nunca en lima puro, para no competir visualmente con los CTAs.
 5. Verificar contraste **AA** (mínimo 4.5:1 para texto body) en cada combinación antes de shippear; `--dark-text` sobre `--dark-bg` y `--dark-surface` ya cumple holgadamente.
 
-### Neutros
+### Modo claro — neutros de verdad, marca en la acción
+
+El modo claro original teñía de verde **todo**: fondo `#F4F7F1`, superficies
+`#EAF0E6`, texto `#12271E`. Un tinte de marca aplicado a superficies grandes no
+comunica identidad, satura: el ojo no tiene ningún neutro donde descansar y cada
+card compite con la siguiente. Las superficies son neutras y la marca aparece
+**solo donde hay una acción**.
+
+El verde de acción es `#0B5D3B` y no el `#144D37` de la paleta principal: el
+institucional a plena saturación sobre blanco tira a negro-verdoso y un botón
+primario dejaba de leerse como verde. `#144D37` sigue siendo la semilla de la
+identidad —y del esquema de Material en oscuro—, no el color de un botón.
 
 | Rol | Hex | Uso |
 |-----|-----|-----|
-| **Fondo** | `#F8FAFC` | Fondo general de la app |
-| **Cards** | `#FFFFFF` | Superficie de tarjetas y paneles |
-| **Texto principal** | `#111827` | Títulos y contenido |
-| **Texto secundario** | `#6B7280` | Descripciones, captions, metadatos |
+| **Fondo base** | `#F4F6F8` | Fondo general — un escalón por debajo del blanco para que una card se lea como capa |
+| **Superficie / Cards** | `#FFFFFF` | Tarjetas, paneles, modales |
+| **Superficie alterna** | `#F3F5F8` | Chips, filas alternas, estados hover |
+| **Superficie hundida** | `#EAEEF3` | Cabeceras de tabla, barras de filtro, carriles de control segmentado |
+| **Bordes** | `#E3E8EE` | Bordes de card e input; `#CCD3DD` para el borde fuerte |
+| **Acción / Primario** | `#0B5D3B` | Botón primario, enlace activo, anillo de foco |
+| **Tinta primaria** | `#E8F2EC` / `#D2E5DB` | Fondo de la fila o pestaña seleccionada — opacas, no una capa translúcida |
+| **Texto principal** | `#16202B` | Títulos y contenido (15.2:1 sobre el fondo) |
+| **Texto secundario** | `#5D6B7A` | Descripciones, captions, metadatos (5.5:1 sobre blanco) |
+| **Texto decorativo** | `#8794A3` | Separadores, iconos apagados, placeholders — **3.2:1, nunca lleva contenido** |
+
+**El acento en claro también es la lima.** Antes era oro `#F4C430`, un color que
+no aparecía en ninguna otra parte de la marca ni en el modo oscuro: la
+aplicación tenía dos identidades según el tema. La lima se comporta igual en los
+dos modos —es relleno, nunca texto— y en claro necesita una tercera parada para
+cuando el acento *tiene* que ser texto:
+
+| Token | Hex | Contraste | Uso |
+|-------|-----|-----------|-----|
+| `--accent` | `#CAD225` | 8.9:1 con `--on-accent` | **Relleno**: botón de acento, badge, indicador |
+| `--accent-secondary` | `#8A9615` | 3.3:1 sobre blanco | Iconos y bordes — **no es texto** |
+| `--accent-strong` | `#626D0F` | 5.8:1 sobre blanco | La lima cuando tiene que **ser texto** |
+| `--accent-soft` | `#F4F7D9` | — | Fondo de badge de acento (con `--accent-strong` encima: 5.3:1) |
 
 ### Tokens (referencia para implementación)
 
 ```
---color-primary:      #144D37   /* verde institucional (dominante) */
---color-accent:       #CAD225   /* lima (acento / lettering) */
---color-success:      #16A34A
---color-warning:      #D97706
---color-danger:       #DC2626
---color-info:         #0E7490
---color-bg:           #F4F7F1
---color-surface:      #FFFFFF
---color-text:         #12271E
---color-text-muted:   #5B6B61
+/* Modo claro */
+--primary:            #0B5D3B   /* verde de acción */
+--primary-hover:      #0D6E46
+--primary-active:     #08472E
+--primary-soft:       #E8F2EC   /* seleccionado */
+--primary-tint:       #D2E5DB
+--accent:             #CAD225   /* lima — relleno */
+--accent-strong:      #626D0F   /* lima — texto */
+--accent-secondary:   #8A9615   /* lima — iconos y bordes */
+--accent-soft:        #F4F7D9
+--bg:                 #F4F6F8
+--surface:            #FFFFFF
+--surface-alt:        #F3F5F8
+--surface-sunken:     #EAEEF3
+--border:             #E3E8EE
+--border-strong:      #CCD3DD
+--text:               #16202B
+--text-muted:         #5D6B7A
+--text-subtle:        #8794A3   /* decorativo, nunca contenido */
+
+/* Semánticos en claro. Los hex de la paleta principal (#16A34A, #D97706,
+   #0E7490) están elegidos como color de RELLENO: sobre blanco caen a 2.2-3.1:1
+   y como texto son ilegibles. Se toma el escalón 700 de esa misma rampa, que
+   conserva el tono y pasa AA. Cada uno lleva además su borde: un chip suave
+   sobre --surface-alt se distingue del fondo por unos pocos puntos de
+   luminancia, y sin contorno el bloque de color deja de leerse como insignia. */
+--success: #067647   --success-soft: #ECFDF3   --success-border: #ABEFC6
+--warning: #B54708   --warning-soft: #FFFAEB   --warning-border: #FEDF89
+--danger:  #D92D20   --danger-soft:  #FEF3F2   --danger-border:  #FECDCA
+--info:    #175CD3   --info-soft:    #EFF8FF   --info-border:    #B2DDFF
 
 /* Modo oscuro — ver la escala oliva completa más arriba */
 --dark-bg:            #232922
@@ -190,6 +246,26 @@ puntual** — nunca como color de texto extenso ni de fondo.
 --dark-text:          #EDEFDD
 --dark-primary:       #CAD225   /* lima como acento principal */
 ```
+
+### Elevación, degradados y superficies
+
+**Cada sombra son dos capas, no una.** Una sombra sola tiene que elegir entre
+marcar el contacto (corta y densa) o la altura (larga y difusa), y acaba
+haciendo mal las dos: o la card parece pegada al fondo con un halo gris, o flota
+sin apoyarse en nada. Cada nivel lleva una sombra de contacto y una ambiental.
+
+| Superficie | Qué es | Dónde |
+|------------|--------|-------|
+| `surface-card` | Blanco con degradado imperceptible y sombra de contacto | Todo el contenido |
+| `surface-card-interactive` | La anterior, que se eleva 2px al pasar el puntero | **Solo** si pulsarla navega |
+| `surface-well` / `--surface-sunken` | Se hunde respecto a la card | Filtros, cabecera de tabla, carril de un control segmentado |
+| `surface-brand` | Degradado institucional con velo lima | **Solo** lo que representa a la aplicación: cabecera del panel, clase en curso, acceso |
+| `surface-glass` | Desenfoque sobre el contenido que pasa por debajo | Barra superior, resúmenes fijos |
+
+**El degradado de marca nunca va detrás de contenido tabular**: cambia de tono a
+lo largo del bloque y cada fila acabaría sobre un fondo distinto. En oscuro **no
+es lima** —la regla 2 de arriba lo prohíbe como fondo de superficie grande—: es
+la rampa oliva subiendo un paso, con el velo lima al 12%.
 
 > **Regla de semántica:** un color = un significado. El verde siempre es
 > éxito/bajo riesgo, el rojo siempre es peligro/alto riesgo. Nunca reutilizar un

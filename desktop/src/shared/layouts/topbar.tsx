@@ -31,11 +31,16 @@ import { modKeyLabel } from '@/shared/hooks/use-hotkeys';
  * mano por si acaso.
  */
 const SYNC_PRESENTATION = {
-  connected: { label: 'Sincronizado', tone: 'text-success', Icon: Wifi },
-  connecting: { label: 'Conectando…', tone: 'text-warning', Icon: RefreshCw },
-  reconnecting: { label: 'Reconectando…', tone: 'text-warning', Icon: RefreshCw },
-  disconnected: { label: 'Sin conexión', tone: 'text-muted', Icon: WifiOff },
-  error: { label: 'Sin conexión con el servidor', tone: 'text-danger', Icon: WifiOff },
+  connected: { label: 'Sincronizado', tone: 'text-success', dot: 'bg-success', Icon: Wifi },
+  connecting: { label: 'Conectando…', tone: 'text-warning', dot: 'bg-warning', Icon: RefreshCw },
+  reconnecting: { label: 'Reconectando…', tone: 'text-warning', dot: 'bg-warning', Icon: RefreshCw },
+  disconnected: { label: 'Sin conexión', tone: 'text-muted', dot: 'bg-border-strong', Icon: WifiOff },
+  error: {
+    label: 'Sin conexión con el servidor',
+    tone: 'text-danger',
+    dot: 'bg-danger',
+    Icon: WifiOff,
+  },
 } as const;
 
 const THEME_OPTIONS: { value: ThemePreference; label: string; Icon: typeof Sun }[] = [
@@ -45,7 +50,7 @@ const THEME_OPTIONS: { value: ThemePreference; label: string; Icon: typeof Sun }
 ];
 
 const menuContentClass = cn(
-  'z-50 min-w-52 rounded-xl border border-border bg-surface p-1.5 shadow-pop',
+  'z-50 min-w-56 rounded-xl border border-border bg-surface p-1.5 shadow-pop',
 );
 
 const menuItemClass = cn(
@@ -83,7 +88,15 @@ export function TopBar({
   }
 
   return (
-    <header className="drag-region flex h-16 shrink-0 items-center gap-3 border-b border-border bg-surface px-4 xl:px-6">
+    <header
+      className={cn(
+        // Vidrio y no color sólido: la barra queda sobre el contenido que se
+        // desplaza por debajo, y el desenfoque es lo que deja claro que hay
+        // algo pasando ahí abajo sin dejar que compita con el título.
+        'surface-glass drag-region relative z-20 flex h-16 shrink-0 items-center gap-3 px-4 xl:px-6',
+        'border-x-0 border-t-0',
+      )}
+    >
       {onOpenNav ? (
         <Button
           variant="ghost"
@@ -113,12 +126,13 @@ export function TopBar({
         className={cn(
           // El buscador cede ancho antes que el título: a 900px, 288px fijos
           // empujaban el nombre de la pantalla fuera de la barra.
-          'no-drag flex h-9 w-9 items-center gap-2 rounded-lg border border-border bg-bg px-2',
-          'md:w-44 md:px-3 xl:w-72',
-          'text-body text-muted transition-colors hover:border-border-strong hover:text-text',
+          'no-drag group flex h-9 w-9 items-center gap-2 rounded-lg border border-border bg-surface px-2',
+          'md:w-48 md:px-3 xl:w-72',
+          'text-body text-muted shadow-sm transition-all duration-200 ease-out',
+          'hover:border-primary/40 hover:text-text hover:shadow-md',
         )}
       >
-        <Search className="size-4 shrink-0" aria-hidden />
+        <Search className="size-4 shrink-0 transition-colors group-hover:text-primary" aria-hidden />
         <span className="hidden flex-1 text-left md:block">Buscar…</span>
         <span className="hidden xl:block">
           <Kbd>{modKeyLabel} K</Kbd>
@@ -127,24 +141,37 @@ export function TopBar({
 
       <Tooltip content={syncDetail ? `${sync.label} · ${syncDetail}` : sync.label}>
         <span
-          className={cn('no-drag flex items-center gap-1.5 px-1 text-caption font-medium', sync.tone)}
+          className={cn(
+            'no-drag flex items-center gap-1.5 rounded-full border border-border bg-surface px-2 py-1',
+            'text-caption font-medium',
+            sync.tone,
+          )}
           role="status"
           aria-label={sync.label}
         >
-          <sync.Icon
-            className={cn(
-              'size-4',
-              (syncStatus === 'connecting' || syncStatus === 'reconnecting') && 'animate-spin',
-            )}
-            aria-hidden
-          />
+          {syncStatus === 'connected' ? (
+            // Conectado no necesita icono: un punto verde es la señal más
+            // pequeña que aún se entiende, y deja la barra tranquila en el
+            // estado que es el 99% del tiempo.
+            <span className={cn('size-2 rounded-full', sync.dot)} aria-hidden />
+          ) : (
+            <sync.Icon
+              className={cn(
+                'size-3.5',
+                (syncStatus === 'connecting' || syncStatus === 'reconnecting') && 'animate-spin',
+              )}
+              aria-hidden
+            />
+          )}
           {/* La etiqueta solo aparece cuando algo va mal: en el caso normal el
-              icono verde basta y el texto sería ruido permanente. */}
+              punto verde basta y el texto sería ruido permanente. */}
           {syncStatus !== 'connected' ? (
             <span className="hidden xl:inline">{sync.label}</span>
           ) : null}
         </span>
       </Tooltip>
+
+      <span className="h-6 w-px shrink-0 bg-border" aria-hidden />
 
       <DropdownMenu.Root>
         <DropdownMenu.Trigger asChild>
@@ -193,9 +220,12 @@ export function TopBar({
         </DropdownMenu.Trigger>
         <DropdownMenu.Portal>
           <DropdownMenu.Content className={menuContentClass} sideOffset={8} align="end">
-            <div className="px-2.5 py-2">
-              <p className="truncate text-body font-semibold text-text">{user?.fullName}</p>
-              <p className="truncate text-caption text-muted">{user?.email}</p>
+            <div className="flex items-center gap-2.5 px-2 py-2">
+              <Avatar name={user?.fullName ?? 'Docente'} src={user?.photoUrl} size="md" />
+              <div className="min-w-0">
+                <p className="truncate text-body font-semibold text-text">{user?.fullName}</p>
+                <p className="truncate text-caption text-muted">{user?.email}</p>
+              </div>
             </div>
             <DropdownMenu.Separator className="my-1 h-px bg-border" />
             <DropdownMenu.Item className={menuItemClass} onSelect={() => navigate('/configuracion')}>
@@ -203,7 +233,7 @@ export function TopBar({
               Mi cuenta
             </DropdownMenu.Item>
             <DropdownMenu.Item
-              className={cn(menuItemClass, 'text-danger')}
+              className={cn(menuItemClass, 'text-danger data-[highlighted]:bg-danger-soft')}
               onSelect={() => void handleLogout()}
             >
               <LogOut className="size-4" aria-hidden />

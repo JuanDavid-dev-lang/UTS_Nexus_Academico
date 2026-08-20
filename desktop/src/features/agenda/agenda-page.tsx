@@ -152,30 +152,45 @@ export default function AgendaPage() {
 
       <NextClassCard />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/*
+        Barra de navegación del calendario, en un pozo y con los controles
+        agrupados por lo que hacen: mover el tiempo a la izquierda, elegir qué
+        se mira a la derecha. Antes eran seis controles en una fila con la misma
+        separación entre todos, así que «Hoy» pesaba lo mismo que el selector de
+        materia y el título del periodo quedaba en medio, empujado por los
+        botones que tenía al lado.
+      */}
+      <div className="surface-well flex flex-wrap items-center justify-between gap-3 p-2 pl-3">
         <div className="flex items-center gap-2">
-          <Button
-            variant="secondary"
-            size="icon"
-            onClick={() => mover(-1)}
-            aria-label="Anterior"
-            disabled={vista === 'proximas'}
-          >
-            <ChevronLeft aria-hidden />
-          </Button>
-          <Button
-            variant="secondary"
-            size="icon"
-            onClick={() => mover(1)}
-            aria-label="Siguiente"
-            disabled={vista === 'proximas'}
-          >
-            <ChevronRight aria-hidden />
-          </Button>
-          <Button variant={enHoy ? 'ghost' : 'secondary'} onClick={irAHoy} disabled={enHoy}>
+          {/* Anterior y siguiente van pegados: son un solo control de dos
+              direcciones, no dos acciones distintas. */}
+          <div className="flex items-center rounded-lg border border-border bg-surface shadow-sm">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => mover(-1)}
+              aria-label="Anterior"
+              disabled={vista === 'proximas'}
+            >
+              <ChevronLeft aria-hidden />
+            </Button>
+            <span className="h-4 w-px bg-border" aria-hidden />
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => mover(1)}
+              aria-label="Siguiente"
+              disabled={vista === 'proximas'}
+            >
+              <ChevronRight aria-hidden />
+            </Button>
+          </div>
+
+          <Button variant={enHoy ? 'ghost' : 'secondary'} size="sm" onClick={irAHoy} disabled={enHoy}>
             <RotateCcw aria-hidden />
             Hoy
           </Button>
+
           <h2 className="ml-1 text-h3 font-semibold capitalize text-text">{titulo}</h2>
         </div>
 
@@ -184,7 +199,7 @@ export default function AgendaPage() {
             value={subjectId}
             onChange={(evento) => setSubjectId(evento.target.value)}
             aria-label="Filtrar por materia"
-            className="w-56"
+            className="h-9 w-56"
           >
             <option value="">Todas las materias</option>
             {(subjects.data ?? []).map((materia) => (
@@ -195,7 +210,7 @@ export default function AgendaPage() {
           </NativeSelect>
 
           <Tabs value={vista} onValueChange={(valor) => setVista(valor as VistaAgenda)}>
-            <TabsList>
+            <TabsList className="bg-surface-hover">
               {VISTAS.map((opcion) => (
                 <TabsTrigger key={opcion.valor} value={opcion.valor}>
                   {opcion.etiqueta}
@@ -232,9 +247,11 @@ export default function AgendaPage() {
         <UpcomingView items={items} offset={offset} ahora={ahora} onSelect={setSeleccionado} />
       )}
 
-      <p className="text-caption text-muted">
-        Atajos: <Kbd>←</Kbd> <Kbd>→</Kbd> navegar · <Kbd>T</Kbd> hoy · <Kbd>D</Kbd>/<Kbd>S</Kbd>/<Kbd>M</Kbd>/
-        <Kbd>P</Kbd> cambiar de vista · <Kbd>N</Kbd> nuevo evento.
+      {/* La línea de atajos es ayuda, no contenido: en `--text-subtle` está
+          disponible para quien la busca y no compite con la agenda. */}
+      <p className="flex flex-wrap items-center gap-1.5 text-caption text-subtle">
+        Atajos: <Kbd>←</Kbd> <Kbd>→</Kbd> navegar · <Kbd>T</Kbd> hoy · <Kbd>D</Kbd> <Kbd>S</Kbd>{' '}
+        <Kbd>M</Kbd> <Kbd>P</Kbd> cambiar de vista · <Kbd>N</Kbd> nuevo evento.
       </p>
 
       <ItemDialog

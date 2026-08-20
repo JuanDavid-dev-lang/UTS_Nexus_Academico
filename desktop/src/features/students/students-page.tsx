@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { History, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { BookOpen, History, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import {
+  Badge,
   Button,
   ConfirmDialog,
   DataTable,
@@ -100,14 +101,23 @@ export default function StudentsPage() {
         header: 'Cédula',
         width: '1fr',
         sortValue: (row) => row.code,
-        cell: (row) => <span className="font-mono text-caption">{row.code}</span>,
+        // `tabular`: sin cifras de ancho fijo, una columna de cédulas se
+        // desalinea en cada fila que lleve un 1 y deja de leerse como columna.
+        cell: (row) => <span className="font-mono tabular text-caption">{row.code}</span>,
       },
       {
         key: 'program',
         header: 'Programa',
         width: '1.5fr',
         sortValue: (row) => row.program,
-        cell: (row) => <span className="text-muted">{row.program || '—'}</span>,
+        cell: (row) =>
+          row.program ? (
+            <Badge size="sm" className="max-w-full">
+              <span className="truncate">{row.program}</span>
+            </Badge>
+          ) : (
+            <span className="text-subtle">—</span>
+          ),
       },
     ];
 
@@ -218,15 +228,30 @@ export default function StudentsPage() {
     );
   }
 
+  const materiaActiva = subjects.data?.find((subject) => subject._id === subjectFilter);
+  const hayFiltros = Boolean(subjectFilter || query);
+
   return (
     <PageContainer>
       <PageHeader
+        // El contexto sube al antetítulo. Metido en el subtítulo competía con
+        // la explicación de la pantalla, y la materia por la que se está
+        // filtrando es exactamente el dato que hay que ver antes de leer nada
+        // más: sin él, una lista de doce estudiantes parece la lista completa.
+        {...(materiaActiva
+          ? {
+              eyebrow: (
+                <>
+                  <BookOpen className="size-3.5" aria-hidden />
+                  {materiaActiva.name}
+                </>
+              ),
+            }
+          : {})}
         title="Estudiantes"
         subtitle={
           subjectFilter
-            ? `${students.data?.length ?? 0} matriculados en ${
-                subjects.data?.find((subject) => subject._id === subjectFilter)?.name ?? 'la materia'
-              }`
+            ? `${students.data?.length ?? 0} matriculados en esta materia`
             : `${students.data?.length ?? 0} estudiantes en tu alcance académico`
         }
         actions={
@@ -245,10 +270,16 @@ export default function StudentsPage() {
         }
       />
 
-      <div className="flex flex-wrap items-center gap-3">
+      {/*
+        Los filtros van en un pozo y no sueltos sobre el fondo. Sueltos, el
+        campo de búsqueda y el desplegable eran dos controles flotando entre el
+        título y la tabla, sin nada que dijera que van juntos ni que lo que
+        hacen es acotar lo de abajo.
+      */}
+      <div className="surface-well flex flex-wrap items-center gap-3 p-3">
         <div className="relative min-w-0 flex-1 sm:max-w-md">
           <Search
-            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted"
+            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-subtle"
             aria-hidden
           />
           <Input
@@ -273,6 +304,23 @@ export default function StudentsPage() {
             </option>
           ))}
         </NativeSelect>
+
+        {/* Solo cuando hay algo que limpiar: un botón permanentemente inactivo
+            ocupa el mismo sitio y no comunica nada. */}
+        {hayFiltros ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setQuery('');
+              setSubjectFilter('');
+              setSearchParams({}, { replace: true });
+            }}
+          >
+            <X aria-hidden />
+            Limpiar
+          </Button>
+        ) : null}
       </div>
 
       {students.isPending ? (

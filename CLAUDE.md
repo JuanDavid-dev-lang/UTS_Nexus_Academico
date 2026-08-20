@@ -360,7 +360,9 @@ En los dos casos el índice existe para no romper los sitios que ya importaban d
 - **Declara el significado, no el color.** `StatusPill`, `StatTile` y `RiskBadge` (móvil) reciben un `SemanticKind` y resuelven el par (texto, fondo) contra el tema activo. Pasarles colores sueltos rompe el modo oscuro.
 - **La escala tipográfica tiene cinco pasos** (36/30/24/16/13). Un tamaño fuera de ese ramp es un error, no una variante.
 - **En modo oscuro los semánticos van aclarados** (`#4ADE80`, `#FBBF24`, `#F87171`, `#38BDF8`), no con los hex canónicos de §4: esos están calibrados para texto sobre blanco y sobre `#33332A` caen a 2.4–4.0:1, por debajo del AA que exigen §4 regla 5 y §15.
-- **El lima `#CAD225` nunca es color de texto ni fondo de superficie grande** — solo botones, badges, selección y foco (§4 reglas 2 y 4).
+- **El lima `#CAD225` es el acento en los dos modos** y nunca es color de texto ni fondo de superficie grande — solo botones, badges, selección y foco (§4 reglas 2 y 4). En claro, cuando el acento tiene que *ser* texto se usa `--accent-strong` / `AppColors.accentStrong` (`#626D0F`), que es la misma rampa bajada hasta AA.
+- **En el móvil, los colores del tema se leen con `context.palette`** (`AppPalette` en `app_theme.dart`), no con `isDark ? XDark : X` repetido en cada pantalla: cada copia de ese ternario es un sitio donde se puede olvidar el caso oscuro, y olvidarlo no da error, da texto gris sobre fondo oliva.
+- **La superficie de marca (`surface-brand` / `BrandSurface`) es solo para lo que representa a la aplicación** — cabecera del panel, clase en curso, acceso. Nunca detrás de una tabla o una lista: el degradado cambia de tono a lo largo del bloque y cada fila acabaría sobre un fondo distinto.
 - Inter va empaquetada en los dos clientes (`@fontsource/inter` en escritorio, `.ttf` en `flutter_app/assets/fonts/`). No la sustituyas por una carga remota: el CSP de Tauri no tiene `font-src` y la app móvil se usa sin red fiable.
 - Los gráficos de escritorio leen los tokens en vivo y se repintan al cambiar de tema; no les pases colores fijos.
 

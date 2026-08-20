@@ -3,11 +3,27 @@ import '../theme/app_theme.dart';
 
 /// Componentes reutilizables del sistema de diseño (DESIGN.md §8, §12, §18).
 
-/// Superficie blanca con borde sutil y esquinas de 18px.
+/// Superficie de contenido.
+///
+/// Lleva sombra además del borde. Un rectángulo blanco con borde de 1 px sobre
+/// un fondo casi blanco no se lee como una capa, se lee como una línea
+/// dibujada: la tarjeta está ahí pero no está *encima* de nada. La sombra de
+/// dos capas —contacto corto y ambiente largo— es lo que le da un sitio en el
+/// eje Z, y es la diferencia entre una lista de recuadros y una de tarjetas.
 class AppCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+
+  /// Sube un nivel de elevación. Para lo que está por encima del resto de la
+  /// pantalla: la clase en curso, una alerta que exige decisión.
+  final bool elevated;
+
+  /// Realce de marca: borde y tinte del color primario. Para la tarjeta
+  /// seleccionada de una lista, no para «esta es importante».
+  final bool selected;
+
   const AppCard({
     super.key,
     required this.child,
@@ -16,27 +32,117 @@ class AppCard extends StatelessWidget {
     // aire. La tarjeta ya está separada de los bordes por la página.
     this.padding = const EdgeInsets.all(AppSpacing.gap),
     this.onTap,
+    this.onLongPress,
+    this.elevated = false,
+    this.selected = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final radio = BorderRadius.circular(AppSpacing.radiusCard);
+
+    final content = AnimatedContainer(
+      duration: AppMotion.fast,
+      curve: AppMotion.curve,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: selected ? palette.primarySoft : palette.surface,
+        borderRadius: radio,
+        border: Border.all(
+          color: selected ? palette.primary : palette.border,
+          width: selected ? 1.5 : 1,
+        ),
+        boxShadow: elevated ? AppShadows.md(palette.isDark) : AppShadows.sm(palette.isDark),
+      ),
+      child: child,
+    );
+
+    if (onTap == null && onLongPress == null) return content;
+
+    // El `Material` transparente por debajo es lo que hace que la onda del
+    // `InkWell` se dibuje: sin él, el `InkWell` pinta sobre el `Material` del
+    // Scaffold, que está detrás de la tarjeta, y el toque no deja rastro.
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: radio,
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: content,
+      ),
+    );
+  }
+}
+
+/// Superficie de marca: degradado institucional con velo lima.
+///
+/// Reservada a lo que representa a la aplicación —la cabecera del panel, la
+/// clase que está ocurriendo ahora—. Si cada pantalla abriera con un bloque
+/// verde, el verde dejaría de significar «esto es UTS Nexus» y pasaría a
+/// significar «esto es una cabecera».
+class BrandSurface extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final VoidCallback? onTap;
+  final BorderRadius? borderRadius;
+
+  const BrandSurface({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(AppSpacing.gap + 4),
+    this.onTap,
+    this.borderRadius,
   });
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surface = isDark ? AppColors.surfaceDark : AppColors.surface;
-    final border = isDark ? AppColors.borderDark : AppColors.border;
-    final content = Container(
-      padding: padding,
+    final radio = borderRadius ?? BorderRadius.circular(AppSpacing.radiusLarge);
+
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: surface,
-        borderRadius: BorderRadius.circular(AppSpacing.radiusCard),
-        border: Border.all(color: border),
+        gradient: AppGradients.brand(isDark),
+        borderRadius: radio,
+        boxShadow: AppShadows.md(isDark),
       ),
-      child: child,
-    );
-    if (onTap == null) return content;
-    return InkWell(
-      borderRadius: BorderRadius.circular(AppSpacing.radiusCard),
-      onTap: onTap,
-      child: content,
+      child: ClipRRect(
+        borderRadius: radio,
+        child: Stack(
+          children: [
+            // El velo va detrás del contenido y no encima: encima bajaría el
+            // contraste del texto justo donde más claro está el degradado.
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(gradient: AppGradients.veil(isDark)),
+              ),
+            ),
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onTap,
+                child: Padding(
+                  padding: padding,
+                  // En claro el texto va en blanco; en oscuro el degradado es
+                  // oliva y el blanco puro vibra encima, así que hereda el
+                  // color de texto del tema.
+                  child: DefaultTextStyle.merge(
+                    style: TextStyle(
+                      color: isDark ? AppColors.textDark : Colors.white,
+                    ),
+                    child: IconTheme.merge(
+                      data: IconThemeData(
+                        color: isDark ? AppColors.textDark : Colors.white,
+                      ),
+                      child: child,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -50,8 +156,7 @@ class SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final palette = context.palette;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -59,11 +164,10 @@ class SectionHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title,
-                  style: AppType.h2),
+              Text(title, style: AppType.h2),
               if (subtitle != null) ...[
                 const SizedBox(height: 2),
-                Text(subtitle!, style: AppType.caption.copyWith(color: muted)),
+                Text(subtitle!, style: AppType.caption.copyWith(color: palette.muted)),
               ],
             ],
           ),
@@ -74,7 +178,10 @@ class SectionHeader extends StatelessWidget {
   }
 }
 
-/// Insignia de riesgo con color + MOTIVO (DESIGN.md §12).
+/// Insignia de riesgo con color + ICONO + MOTIVO (DESIGN.md §12).
+///
+/// El icono no es decoración: es lo que permite distinguir el nivel sin ver el
+/// color. Ver la nota de [RiskStyle.icon].
 class RiskBadge extends StatelessWidget {
   final String nivel;
   final String? motivo;
@@ -84,18 +191,29 @@ class RiskBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = RiskStyle.from(context, nivel);
-    final text = motivo == null || motivo!.isEmpty || compact
-        ? '${s.emoji}  ${s.label}'
-        : '${s.emoji}  ${s.label} — ${motivo!}';
+    final mostrarMotivo = motivo != null && motivo!.isNotEmpty && !compact;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: s.background,
         borderRadius: BorderRadius.circular(AppSpacing.radiusPill),
+        border: Border.all(color: s.border),
       ),
-      child: Text(
-        text,
-        style: AppType.captionStrong.copyWith(color: s.color),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(s.icon, size: 14, color: s.color),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              mostrarMotivo ? '${s.label} — ${motivo!}' : s.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppType.captionStrong.copyWith(color: s.color),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -109,26 +227,39 @@ class RiskBadge extends StatelessWidget {
 class StatusPill extends StatelessWidget {
   final String text;
   final SemanticKind kind;
-  const StatusPill(this.text, {super.key, this.kind = SemanticKind.info});
+  final IconData? icon;
+  const StatusPill(this.text, {super.key, this.kind = SemanticKind.info, this.icon});
 
-  factory StatusPill.success(String t) =>
-      StatusPill(t, kind: SemanticKind.success);
-  factory StatusPill.danger(String t) =>
-      StatusPill(t, kind: SemanticKind.danger);
-  factory StatusPill.warning(String t) =>
-      StatusPill(t, kind: SemanticKind.warning);
+  factory StatusPill.success(String t, {IconData? icon}) =>
+      StatusPill(t, kind: SemanticKind.success, icon: icon);
+  factory StatusPill.danger(String t, {IconData? icon}) =>
+      StatusPill(t, kind: SemanticKind.danger, icon: icon);
+  factory StatusPill.warning(String t, {IconData? icon}) =>
+      StatusPill(t, kind: SemanticKind.warning, icon: icon);
 
   @override
   Widget build(BuildContext context) {
     final tone = SemanticTone.of(context, kind);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: EdgeInsets.symmetric(horizontal: icon == null ? 10 : 8, vertical: 4),
       decoration: BoxDecoration(
         color: tone.bg,
         borderRadius: BorderRadius.circular(AppSpacing.radiusPill),
+        // El borde es lo que separa el chip de la superficie sobre la que cae.
+        // Sin él, un chip suave sobre `surfaceAlt` se distingue del fondo por
+        // unos pocos puntos de luminancia y deja de leerse como una insignia.
+        border: Border.all(color: tone.border),
       ),
-      child: Text(text,
-          style: AppType.captionStrong.copyWith(color: tone.fg)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 13, color: tone.fg),
+            const SizedBox(width: 4),
+          ],
+          Text(text, style: AppType.captionStrong.copyWith(color: tone.fg)),
+        ],
+      ),
     );
   }
 }
@@ -144,6 +275,7 @@ class StatTile extends StatelessWidget {
   final String? hint;
   final SemanticKind? tone;
   final IconData? icon;
+  final VoidCallback? onTap;
   const StatTile({
     super.key,
     required this.label,
@@ -151,41 +283,82 @@ class StatTile extends StatelessWidget {
     this.hint,
     this.tone,
     this.icon,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final palette = context.palette;
+    final semantico = tone == null ? null : SemanticTone.of(context, tone!);
     // DESIGN.md §4 regla 4: en oscuro el texto nunca va en lima, para no
     // competir con los CTAs. La cifra neutra usa el color de texto del tema.
-    final valueColor = tone == null
-        ? (isDark ? AppColors.textDark : AppColors.primary)
-        : SemanticTone.of(context, tone!).fg;
+    final valueColor = semantico?.fg ?? (palette.isDark ? palette.text : palette.primary);
+    final railColor = semantico?.fg ?? palette.primary;
+
     return AppCard(
+      onTap: onTap,
+      padding: EdgeInsets.zero,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              if (icon != null) ...[
-                Icon(icon, size: 18, color: valueColor),
-                const SizedBox(width: 6),
-              ],
-              Expanded(
-                child: Text(label.toUpperCase(),
-                    style: AppType.captionStrong
-                        .copyWith(letterSpacing: 0.8, color: muted)),
+          // Franja de tono arriba. Es lo que permite reconocer la tarjeta sin
+          // leerla: con el color solo en la cifra, cuatro tarjetas en
+          // cuadrícula son cuatro rectángulos idénticos y hay que leerlas todas
+          // para encontrar la que está en rojo.
+          Container(
+            height: 3,
+            decoration: BoxDecoration(
+              color: railColor,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(AppSpacing.radiusCard),
               ),
-            ],
+            ),
           ),
-          const SizedBox(height: 6),
-          Text(value,
-              style: AppType.h2.copyWith(color: valueColor)),
-          if (hint != null) ...[
-            const SizedBox(height: 2),
-            Text(hint!, style: AppType.caption.copyWith(color: muted)),
-          ],
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.gap),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    if (icon != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(5),
+                        decoration: BoxDecoration(
+                          color: semantico?.bg ?? palette.primarySoft,
+                          borderRadius: BorderRadius.circular(AppSpacing.radiusInput - 4),
+                        ),
+                        child: Icon(icon, size: 14, color: valueColor),
+                      ),
+                      const SizedBox(width: AppSpacing.gapSm),
+                    ],
+                    Expanded(
+                      child: Text(
+                        label.toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppType.captionStrong
+                            .copyWith(letterSpacing: 0.8, color: palette.muted),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.gapSm),
+                Text(value, style: AppType.metric.copyWith(color: valueColor)),
+                if (hint != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    hint!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppType.caption.copyWith(color: palette.muted),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -201,35 +374,59 @@ class AppToast {
   static void _show(
     BuildContext context, {
     required IconData icon,
-    required Color color,
+    required SemanticKind kind,
     required String title,
     String? detail,
     required Duration duration,
   }) {
     final messenger = ScaffoldMessenger.of(context);
+    final tone = SemanticTone.of(context, kind);
+    final palette = AppPalette.of(context);
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(
       SnackBar(
         duration: duration,
         behavior: SnackBarBehavior.floating,
+        // El aviso va sobre la superficie del tema, no sobre el gris oscuro por
+        // defecto de Material: con el tema claro activo, un rectángulo casi
+        // negro flotando era el único elemento de la aplicación con ese color.
+        backgroundColor: palette.surface,
+        elevation: 0,
+        margin: const EdgeInsets.all(AppSpacing.gap),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppSpacing.radiusInput),
+          side: BorderSide(color: tone.border),
         ),
         content: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(width: 10),
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: tone.bg,
+                borderRadius: BorderRadius.circular(AppSpacing.radiusInput - 4),
+              ),
+              child: Icon(icon, color: tone.fg, size: 18),
+            ),
+            const SizedBox(width: AppSpacing.gapSm + 2),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(title,
-                      style: AppType.bodyStrong.copyWith(fontWeight: FontWeight.w700)),
+                  Text(
+                    title,
+                    style: AppType.bodyStrong.copyWith(
+                      color: palette.text,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   if (detail != null) ...[
                     const SizedBox(height: 2),
-                    Text(detail, style: AppType.caption),
+                    Text(
+                      detail,
+                      style: AppType.caption.copyWith(color: palette.muted),
+                    ),
                   ],
                 ],
               ),
@@ -243,7 +440,7 @@ class AppToast {
   static void success(BuildContext context, String title, [String? detail]) => _show(
         context,
         icon: Icons.check_circle_outline,
-        color: AppColors.success,
+        kind: SemanticKind.success,
         title: title,
         detail: detail,
         duration: const Duration(seconds: 3),
@@ -252,7 +449,7 @@ class AppToast {
   static void info(BuildContext context, String title, [String? detail]) => _show(
         context,
         icon: Icons.info_outline,
-        color: AppColors.info,
+        kind: SemanticKind.info,
         title: title,
         detail: detail,
         duration: const Duration(seconds: 4),
@@ -261,7 +458,7 @@ class AppToast {
   static void error(BuildContext context, String title, [String? detail]) => _show(
         context,
         icon: Icons.error_outline,
-        color: AppColors.danger,
+        kind: SemanticKind.danger,
         title: title,
         detail: detail,
         duration: const Duration(seconds: 6),
@@ -304,9 +501,9 @@ class _SkeletonBoxState extends State<SkeletonBox>
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final base = isDark ? AppColors.surfaceAltDark : AppColors.surfaceAlt;
-    final highlight = isDark ? AppColors.borderDark : AppColors.border;
+    final palette = context.palette;
+    final base = palette.surfaceAlt;
+    final highlight = palette.isDark ? palette.border : palette.surfaceSunken;
 
     return AnimatedBuilder(
       animation: _controller,
@@ -336,13 +533,19 @@ class SkeletonStatGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.count(
-      crossAxisCount: 2,
+    return GridView(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 1.5,
+      // El mismo alto en dp que las tarjetas reales de [CompactStat]. Con una
+      // proporción, el esqueleto medía otra cosa que lo que venía después y la
+      // pantalla daba un salto justo al llegar los datos, que es exactamente lo
+      // que un esqueleto existe para evitar.
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: AppSpacing.gapSm,
+        mainAxisSpacing: AppSpacing.gapSm,
+        mainAxisExtent: 120,
+      ),
       children: List.generate(
         count,
         (_) => const AppCard(
@@ -391,24 +594,47 @@ class StateView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final palette = context.palette;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 44, color: muted),
-            const SizedBox(height: 12),
-            Text(title,
-                style:
-                    AppType.h3),
-            const SizedBox(height: 6),
-            Text(message,
-                textAlign: TextAlign.center,
-                style: AppType.body.copyWith(color: muted)),
-            if (action != null) ...[const SizedBox(height: 16), action!],
+            // Dos círculos concéntricos y no un icono suelto: un icono gris
+            // flotando en el centro de una pantalla vacía se lee como algo que
+            // no cargó. El halo le da un sitio donde estar y convierte el
+            // bloque en algo intencionado, que es lo que un estado vacío tiene
+            // que comunicar: aquí no falta nada, todavía no hay nada.
+            Container(
+              width: 76,
+              height: 76,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: palette.surfaceAlt,
+                shape: BoxShape.circle,
+              ),
+              child: Container(
+                width: 54,
+                height: 54,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: palette.surface,
+                  shape: BoxShape.circle,
+                  boxShadow: AppShadows.sm(palette.isDark),
+                ),
+                child: Icon(icon, size: 26, color: palette.muted),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.gap + 4),
+            Text(title, style: AppType.bodyStrong.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: AppSpacing.gapXs),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: AppType.caption.copyWith(color: palette.muted),
+            ),
+            if (action != null) ...[const SizedBox(height: AppSpacing.gap + 4), action!],
           ],
         ),
       ),

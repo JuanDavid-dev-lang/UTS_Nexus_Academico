@@ -25,7 +25,15 @@ export type Column<T> = {
 
 type SortState = { key: string; direction: 'asc' | 'desc' } | null;
 
-const ROW_HEIGHT = 48;
+/**
+ * 52 en vez de 48.
+ *
+ * Las celdas llevan chips de estado de 22 px de alto y con 48 el chip quedaba a
+ * 13 px del borde superior y a 13 del inferior: técnicamente centrado, pero sin
+ * aire para que la fila se leyera como una unidad. Cuatro píxeles por fila son
+ * ocho filas menos en una pantalla de mil, que es un precio que se paga.
+ */
+const ROW_HEIGHT = 52;
 
 export function DataTable<T>({
   rows,
@@ -105,7 +113,7 @@ export function DataTable<T>({
       {/* Header lives outside the scroll container so it stays put. */}
       <div
         role="row"
-        className="grid items-center gap-3 border-b border-border bg-surface-alt px-4 py-2.5"
+        className="grid items-center gap-3 border-b border-border bg-surface-sunken px-4 py-3"
         style={{ gridTemplateColumns: gridTemplate }}
       >
         {columns.map((column) => {
@@ -162,8 +170,13 @@ export function DataTable<T>({
                 key={getRowId(row)}
                 role="row"
                 className={cn(
-                  'absolute left-0 top-0 grid w-full items-center gap-3 border-b border-border px-4',
-                  'transition-colors duration-200 ease-out hover:bg-surface-alt',
+                  'group absolute left-0 top-0 grid w-full items-center gap-3 px-4',
+                  // El separador es un borde interior y no `border-b`: con
+                  // `border-b` la última fila visible del viewport virtual
+                  // dibujaba una línea suelta bajo el final de la lista.
+                  'shadow-[inset_0_-1px_0_0_var(--border)]',
+                  'transition-colors duration-200 ease-out hover:bg-primary-soft/60',
+                  'focus-visible:outline-none focus-visible:bg-primary-soft',
                   onRowClick && 'cursor-pointer',
                 )}
                 style={{
@@ -200,8 +213,16 @@ export function DataTable<T>({
         </div>
       </div>
 
-      <div className="border-t border-border px-4 py-2 text-caption text-muted">
-        {sortedRows.length} {sortedRows.length === 1 ? 'registro' : 'registros'}
+      <div className="flex items-center justify-between border-t border-border bg-surface-alt/60 px-4 py-2 text-caption text-muted">
+        <span className="tabular">
+          {sortedRows.length} {sortedRows.length === 1 ? 'registro' : 'registros'}
+        </span>
+        {sort ? (
+          <span>
+            Ordenado por {columns.find((column) => column.key === sort.key)?.header ?? sort.key}{' '}
+            {sort.direction === 'asc' ? '↑' : '↓'}
+          </span>
+        ) : null}
       </div>
     </div>
   );

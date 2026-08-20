@@ -27,30 +27,39 @@
   --color-surface: var(--surface);
   --color-surface-alt: var(--surface-alt);
   --color-surface-hover: var(--surface-hover);
+  --color-surface-sunken: var(--surface-sunken);
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
 
   --color-text: var(--text);
   --color-muted: var(--text-muted);
+  --color-subtle: var(--text-subtle);
   --color-inverted: var(--text-inverted);
 
   --color-primary: var(--primary);
   --color-primary-hover: var(--primary-hover);
   --color-primary-active: var(--primary-active);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-tint: var(--primary-tint);
   --color-on-primary: var(--on-primary);
   --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
   --color-accent-secondary: var(--accent-secondary);
   --color-accent-soft: var(--accent-soft);
   --color-on-accent: var(--on-accent);
 
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
+  --color-success-border: var(--success-border);
   --color-warning: var(--warning);
   --color-warning-soft: var(--warning-soft);
+  --color-warning-border: var(--warning-border);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
+  --color-danger-border: var(--danger-border);
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
+  --color-info-border: var(--info-border);
 
   --color-ring: var(--ring);
 
@@ -59,6 +68,7 @@
   --radius-lg: var(--radius-lg);
   --radius-card: var(--radius-card);
   --radius-xl: var(--radius-xl);
+  --radius-2xl: var(--radius-2xl);
 
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
@@ -75,6 +85,7 @@
   --shadow-md: var(--shadow-md);
   --shadow-lg: var(--shadow-lg);
   --shadow-pop: var(--shadow-pop);
+  --shadow-primary: var(--shadow-primary);
 }
 
 @layer base {
@@ -97,6 +108,31 @@
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     overflow: hidden;
+    /*
+     * Alternativas estilísticas de Inter. `cv05` y `cv11` cambian la ele
+     * minúscula y el uno por formas con remate, que es lo que evita que «Il1»
+     * se lea igual en tres sitios distintos. En una aplicación llena de códigos
+     * de materia y cédulas eso no es un capricho tipográfico.
+     * `ss03` da la eñe con la virgulilla más marcada, que en español aparece en
+     * cada segunda palabra.
+     */
+    font-feature-settings:
+      'cv05' 1,
+      'cv11' 1,
+      'ss03' 1;
+  }
+
+  /*
+   * Los títulos de la escala apretan el interletrado.
+   *
+   * Inter está dibujada para texto corrido; a 30 y 36 px el espacio entre
+   * letras que le sienta bien a 16 px se ve como si el título estuviera
+   * desmontado. Se corrige aquí y no en cada pantalla.
+   */
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.02em;
   }
 
   /* The whole surface is an app, not a document: text selection is opt-in. */
@@ -132,11 +168,88 @@
 }
 
 @layer components {
+  /*
+   * La superficie base de la aplicación.
+   *
+   * El fondo es un degradado casi imperceptible (blanco a #fafbfd) en vez de un
+   * color plano. No es decoración: una card de color plano sobre un fondo de
+   * color plano se distingue solo por el borde, y con doscientas cards en la
+   * aplicación el borde acaba siendo el único elemento gráfico que hay. El
+   * degradado le da a la card una dirección de luz, que es lo que hace que se
+   * lea como una capa por encima del fondo y no como un recorte.
+   */
   .surface-card {
+    background-image: var(--gradient-surface);
     background-color: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-card);
     box-shadow: var(--shadow-sm);
+  }
+
+  /*
+   * Card que responde al puntero.
+   *
+   * Solo para las que llevan a algún sitio. Una card que se eleva al pasar por
+   * encima y no hace nada al pulsarla es una promesa incumplida, y enseña a
+   * desconfiar de la que sí lo hace.
+   */
+  .surface-card-interactive {
+    transition:
+      box-shadow var(--duration-base) var(--ease-out),
+      transform var(--duration-base) var(--ease-out),
+      border-color var(--duration-base) var(--ease-out);
+  }
+
+  .surface-card-interactive:hover {
+    box-shadow: var(--shadow-md);
+    border-color: var(--border-strong);
+    transform: translateY(-2px);
+  }
+
+  .surface-card-interactive:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /*
+   * Superficie de marca: degradado institucional con velo lima.
+   *
+   * Reservada a lo que representa a la aplicación —la cabecera del panel, la
+   * clase en curso, la pantalla de acceso—. Nunca detrás de contenido tabular:
+   * el degradado cambia de tono a lo largo de la fila y cada celda acabaría
+   * sobre un fondo distinto.
+   */
+  .surface-brand {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    background-image: var(--gradient-brand);
+    border-radius: var(--radius-2xl);
+    color: #ffffff;
+  }
+
+  .surface-brand::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-image: var(--gradient-veil);
+    pointer-events: none;
+  }
+
+  /* En oscuro el degradado de marca es oliva, no verde: el texto blanco puro
+     sobre oliva vibra, así que hereda el color de texto del tema. */
+  [data-theme='dark'] .surface-brand {
+    color: var(--text);
+  }
+
+  /*
+   * Pozo: cabecera de tabla, panel de filtros, zona que contiene en vez de
+   * presentar. Se hunde respecto a la card en vez de elevarse sobre ella.
+   */
+  .surface-well {
+    background-color: var(--surface-sunken);
+    border-radius: var(--radius-lg);
   }
 
   .surface-glass {
@@ -187,6 +300,34 @@
     }
     to {
       background-position: -200% 0;
+    }
+  }
+
+  /*
+   * Cifras de ancho fijo.
+   *
+   * Sin esto, una columna de notas se desalinea cada vez que aparece un 1,
+   * porque en Inter el uno proporcional es más estrecho que el resto. En una
+   * tabla de treinta filas el ojo lo lee como si los números bailaran.
+   */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Entrada de un bloque. Corta y solo hacia arriba: una animación de entrada
+     que además desplaza en horizontal se lee como un error de maquetación. */
+  .animate-rise {
+    animation: rise var(--duration-base) var(--ease-out) both;
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
     }
   }
 

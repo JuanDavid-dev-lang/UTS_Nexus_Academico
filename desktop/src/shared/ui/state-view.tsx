@@ -27,11 +27,20 @@ function StateView({ icon, title, message, action, className }: StateViewProps) 
         className,
       )}
     >
-      <div className="flex size-12 items-center justify-center rounded-full bg-surface-alt text-muted">
-        {icon}
+      {/*
+        Dos círculos concéntricos en vez de uno.
+        Un disco plano de 48 px en un estado vacío se lee como un icono que no
+        cargó. El halo exterior le da al icono un sitio donde estar y convierte
+        el bloque en algo intencionado, que es justo lo que un estado vacío
+        tiene que comunicar: aquí no falta nada, todavía no hay nada.
+      */}
+      <div className="flex size-16 items-center justify-center rounded-full bg-surface-alt/70">
+        <div className="flex size-11 items-center justify-center rounded-full bg-surface text-muted shadow-sm">
+          {icon}
+        </div>
       </div>
       <h3 className="text-body font-semibold text-text">{title}</h3>
-      <p className="max-w-sm text-body text-muted">{message}</p>
+      <p className="max-w-sm text-caption leading-relaxed text-muted">{message}</p>
       {action ? (
         <Button variant="primary" size="sm" onClick={action.onClick} className="mt-2">
           {action.label}

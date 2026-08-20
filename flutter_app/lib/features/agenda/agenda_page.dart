@@ -135,14 +135,16 @@ class _AgendaPageState extends ConsumerState<AgendaPage> {
           children: [
             NextClassCard(onVerAgenda: () => setState(() => _pestana = 0)),
             const SizedBox(height: AppSpacing.gap),
-            SegmentedButton<int>(
-              segments: const [
-                ButtonSegment(value: 0, label: Text('Hoy'), icon: Icon(Icons.today_outlined)),
-                ButtonSegment(value: 1, label: Text('Semana'), icon: Icon(Icons.view_week_outlined)),
-                ButtonSegment(value: 2, label: Text('Próximas'), icon: Icon(Icons.upcoming_outlined)),
-              ],
-              selected: {_pestana},
-              onSelectionChanged: (valores) => setState(() => _pestana = valores.first),
+            // `SegmentedTabs` del sistema y no el `SegmentedButton` de
+            // Material. El de Material reserva sitio para la marca de
+            // verificación de la opción elegida además del icono y la etiqueta:
+            // en 360 dp, «Próximas» se quedaba en «Próxim…» y las tres
+            // opciones medían distinto según cuál estuviera activa, así que la
+            // barra se movía sola al cambiar de pestaña.
+            SegmentedTabs(
+              opciones: const ['Hoy', 'Semana', 'Próximas'],
+              indice: _pestana,
+              onCambio: (valor) => setState(() => _pestana = valor),
             ),
             const SizedBox(height: AppSpacing.gap),
             if (_pestana == 1) _cabeceraSemana(ancla),
@@ -264,18 +266,37 @@ class _AgendaPageState extends ConsumerState<AgendaPage> {
     final referencia = DateTime.tryParse('${fecha}T12:00:00Z')?.toUtc();
     final texto = referencia == null ? fecha : fechaLargaCampus(referencia, 0);
     final esHoy = referencia != null && fecha == fechaCampus(_ahora, offset);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final palette = context.palette;
 
     return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 8),
-      child: Text(
-        esHoy ? 'HOY · ${texto.toUpperCase()}' : texto.toUpperCase(),
-        style: AppType.captionStrong.copyWith(
-          letterSpacing: 0.8,
-          color: esHoy
-              ? Theme.of(context).colorScheme.primary
-              : (isDark ? AppColors.textMutedDark : AppColors.textMuted),
-        ),
+      padding: const EdgeInsets.only(top: AppSpacing.gap, bottom: AppSpacing.gapSm),
+      child: Row(
+        children: [
+          if (esHoy) ...[
+            // El día de hoy lleva un punto además del color. Solo con el color,
+            // en la lista de la semana había que comparar dos títulos para
+            // saber cuál era el de hoy, que es justo el que se busca al abrir.
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: palette.primary,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.gapSm - 2),
+          ],
+          Text(
+            esHoy ? 'HOY · ${texto.toUpperCase()}' : texto.toUpperCase(),
+            style: AppType.captionStrong.copyWith(
+              letterSpacing: 0.8,
+              fontWeight: FontWeight.w700,
+              color: esHoy ? palette.primary : palette.muted,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.gapSm),
+          Expanded(child: Divider(height: 1, color: palette.border)),
+        ],
       ),
     );
   }
@@ -311,74 +332,113 @@ class _FilaAgenda extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final palette = context.palette;
     final aspecto = _aspecto(item.tipo);
     final tono = SemanticTone.of(context, aspecto.tono);
     final terminada = item.estado == EstadoAgenda.terminada;
+    final enCurso = item.estado == EstadoAgenda.enCurso;
 
     return Opacity(
-      opacity: terminada ? 0.65 : 1,
+      opacity: terminada ? 0.6 : 1,
       child: AppCard(
         onTap: onTap,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: tono.bg,
-                borderRadius: BorderRadius.circular(12),
+        elevated: enCurso,
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              /*
+               * La hora, a la izquierda y en columna propia.
+               *
+               * Antes ocupaba ese sitio un cuadro de 40 dp con el icono del
+               * tipo, y la hora iba dentro del cuerpo como una línea más de
+               * texto. Una agenda se recorre buscando huecos —«¿qué tengo a las
+               * once?»—, y con las horas metidas en el párrafo había que leer
+               * cada tarjeta entera para encontrarlas. Alineadas en una columna
+               * de ancho fijo se leen de un barrido vertical, que es como se
+               * mira un horario.
+               */
+              SizedBox(
+                width: 46,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.todoElDia ? 'Todo' : horaCampus(item.inicio, offset),
+                      style: AppType.bodyStrong.copyWith(
+                        fontWeight: FontWeight.w700,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                    Text(
+                      item.todoElDia
+                          ? 'el día'
+                          : item.duracionMinutos > 0
+                              ? horaCampus(item.fin, offset)
+                              : '',
+                      style: AppType.caption.copyWith(
+                        color: palette.muted,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              child: Icon(aspecto.icono, size: 20, color: tono.fg),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
+              const SizedBox(width: AppSpacing.gapSm + 2),
+              // La franja sustituye al cuadro del icono como portadora del
+              // tipo: ocupa 3 dp en vez de 40 y comunica lo mismo de un
+              // vistazo, porque el color ya era lo único que se leía del cuadro
+              // a la velocidad a la que se recorre una lista.
+              Container(
+                width: 3,
+                decoration: BoxDecoration(
+                  color: tono.fg,
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusPill),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.gap),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(aspecto.icono, size: 14, color: tono.fg),
+                        const SizedBox(width: AppSpacing.gapXs + 2),
+                        Expanded(
+                          child: Text(
+                            item.titulo.isNotEmpty ? item.titulo : item.materia,
+                            style: AppType.bodyStrong,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (enCurso) StatusPill.danger('En curso'),
+                      ],
+                    ),
+                    if (item.aula.isNotEmpty ||
+                        item.grupo.isNotEmpty ||
+                        item.materia.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
                         child: Text(
-                          item.titulo.isNotEmpty ? item.titulo : item.materia,
-                          style: AppType.bodyStrong,
-                          maxLines: 1,
+                          [
+                            if (item.materia.isNotEmpty && item.materia != item.titulo)
+                              item.materia,
+                            if (item.grupo.isNotEmpty) 'Grupo ${item.grupo}',
+                            if (item.aula.isNotEmpty) 'Aula ${item.aula}',
+                          ].join(' · '),
+                          style: AppType.caption.copyWith(color: palette.muted),
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (item.estado == EstadoAgenda.enCurso)
-                        StatusPill.danger('En curso'),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    item.todoElDia
-                        ? 'Todo el día'
-                        : item.duracionMinutos > 0
-                            ? '${horaCampus(item.inicio, offset)} - ${horaCampus(item.fin, offset)}'
-                            : horaCampus(item.inicio, offset),
-                    style: AppType.body,
-                  ),
-                  if (item.aula.isNotEmpty || item.grupo.isNotEmpty || item.materia.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        [
-                          if (item.materia.isNotEmpty && item.materia != item.titulo) item.materia,
-                          if (item.grupo.isNotEmpty) 'Grupo ${item.grupo}',
-                          if (item.aula.isNotEmpty) 'Aula ${item.aula}',
-                        ].join(' · '),
-                        style: AppType.caption.copyWith(color: muted),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -525,7 +525,11 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
             ),
             const SizedBox(width: AppSpacing.gapSm),
             Expanded(
-              child: OutlinedButton.icon(
+              // «Todos presentes» es la acción que de verdad se usa —casi todos
+              // vinieron y lo que se hace es señalar las excepciones—, así que
+              // va rellena y no en trazo: en trazo pesaba lo mismo que el
+              // selector de fecha, que se toca una vez por clase.
+              child: FilledButton.icon(
                 onPressed: periodoAbierto ? _marcarTodosPresentes : null,
                 icon: const Icon(Icons.done_all_outlined, size: 18),
                 label: const Text('Todos presentes'),
@@ -533,6 +537,8 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
             ),
           ],
         ),
+        const SizedBox(height: AppSpacing.gapSm),
+        Divider(height: 1, color: context.palette.border),
         const SizedBox(height: AppSpacing.gapSm),
       ],
     );
@@ -616,7 +622,14 @@ class _FilaAsistenciaState extends State<_FilaAsistencia> {
         widget.codigo,
         if (_marca == Marca.tarde) '$_minutos min tarde' else widget.programa,
       ],
-      avatar: InitialsAvatar(widget.nombre, size: 30),
+      // Sin avatar en esta pantalla, a diferencia del resto de listados.
+      //
+      // No es por estética: los tres botones necesitan 44 dp cada uno para
+      // cumplir el objetivo táctil mínimo, y con las iniciales delante en un
+      // teléfono de 360 dp al nombre le quedaban unos 110 y se cortaba a la
+      // mitad en la mayoría de los estudiantes. Aquí el nombre es lo que se
+      // busca —se pasa lista leyendo, no reconociendo un círculo de colores—
+      // así que las iniciales son lo que sobra.
       acento: switch (_marca) {
         Marca.presente => null,
         Marca.tarde => SemanticKind.warning,
@@ -652,37 +665,46 @@ class _SelectorDeMarca extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _Boton(
-          icono: Icons.check,
-          etiqueta: 'Presente',
-          activo: marca == Marca.presente,
-          tono: SemanticKind.success,
-          habilitado: habilitado,
-          onTap: () => onElegir(Marca.presente),
-        ),
-        const SizedBox(width: AppSpacing.gapXs),
-        _Boton(
-          icono: Icons.schedule,
-          etiqueta: 'Tarde',
-          activo: marca == Marca.tarde,
-          tono: SemanticKind.warning,
-          habilitado: habilitado,
-          onTap: () => onElegir(Marca.tarde),
-          onLongPress: onAjustarTarde,
-        ),
-        const SizedBox(width: AppSpacing.gapXs),
-        _Boton(
-          icono: Icons.close,
-          etiqueta: 'Ausente',
-          activo: marca == Marca.ausente,
-          tono: SemanticKind.danger,
-          habilitado: habilitado,
-          onTap: () => onElegir(Marca.ausente),
-        ),
-      ],
+    // Los tres van dentro de un carril hundido. Sueltos y separados por 4 dp,
+    // se leían como tres acciones independientes y no era raro tocarlos en
+    // secuencia esperando que hicieran cosas distintas; el carril dice que
+    // elegir uno apaga los otros dos, que es lo que realmente pasa.
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: context.palette.surfaceSunken,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusInput + 2),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _Boton(
+            icono: Icons.check,
+            etiqueta: 'Presente',
+            activo: marca == Marca.presente,
+            tono: SemanticKind.success,
+            habilitado: habilitado,
+            onTap: () => onElegir(Marca.presente),
+          ),
+          _Boton(
+            icono: Icons.schedule,
+            etiqueta: 'Tarde',
+            activo: marca == Marca.tarde,
+            tono: SemanticKind.warning,
+            habilitado: habilitado,
+            onTap: () => onElegir(Marca.tarde),
+            onLongPress: onAjustarTarde,
+          ),
+          _Boton(
+            icono: Icons.close,
+            etiqueta: 'Ausente',
+            activo: marca == Marca.ausente,
+            tono: SemanticKind.danger,
+            habilitado: habilitado,
+            onTap: () => onElegir(Marca.ausente),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -709,32 +731,55 @@ class _Boton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final resuelto = SemanticTone.of(context, tono);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final palette = context.palette;
 
     return Semantics(
       button: true,
       selected: activo,
       label: etiqueta,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppSpacing.radiusInput),
-        onTap: habilitado ? onTap : null,
-        onLongPress: habilitado ? onLongPress : null,
-        child: Container(
-          // 40 visibles dentro del área de 44 que garantiza el `InkWell` con
-          // el `visualDensity` del tema: la densidad no se gana encogiendo lo
-          // que hay que tocar.
-          width: 40,
-          height: 40,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: activo ? resuelto.bg : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppSpacing.radiusInput),
-          ),
-          child: Icon(
-            icono,
-            size: 18,
-            color: activo ? resuelto.fg : muted.withValues(alpha: habilitado ? 1 : 0.4),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppSpacing.radiusInput),
+          onTap: habilitado ? onTap : null,
+          onLongPress: habilitado ? onLongPress : null,
+          child: SizedBox(
+            /*
+             * 44 de zona pulsable, 40 de recuadro visible.
+             *
+             * Antes el `InkWell` medía 40 y el comentario daba por hecho que el
+             * `visualDensity` del tema añadía los 4 que faltaban:
+             * `materialTapTargetSize` solo actúa sobre los botones de Material,
+             * no sobre un `InkWell` suelto, así que el objetivo real eran 40 —
+             * por debajo del mínimo absoluto que fija DESIGN.md §7.2. Aquí el
+             * recuadro se pinta dentro de una zona pulsable más grande, que es
+             * la única forma de tener las dos cosas.
+             */
+            width: AppSpacing.tapTargetMin,
+            height: AppSpacing.tapTargetMin,
+            child: Center(
+              child: AnimatedContainer(
+                duration: AppMotion.fast,
+                curve: AppMotion.curve,
+                width: 40,
+                height: 40,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: activo ? resuelto.bg : Colors.transparent,
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusInput),
+                  border: Border.all(
+                    color: activo ? resuelto.border : Colors.transparent,
+                  ),
+                ),
+                child: Icon(
+                  icono,
+                  size: 19,
+                  color: activo
+                      ? resuelto.fg
+                      : palette.muted.withValues(alpha: habilitado ? 1 : 0.4),
+                ),
+              ),
+            ),
           ),
         ),
       ),

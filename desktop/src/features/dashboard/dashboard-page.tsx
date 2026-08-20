@@ -1,7 +1,8 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
+  ArrowRight,
   CalendarX,
   CheckCircle2,
   GraduationCap,
@@ -10,17 +11,16 @@ import {
   XCircle,
 } from 'lucide-react';
 import {
+  Avatar,
   Button,
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+  CardHeaderRow,
   Chart,
   EmptyState,
   ErrorState,
   PageContainer,
-  PageHeader,
+  PageHero,
   RiskBadge,
   SkeletonStatGrid,
   StatCard,
@@ -37,6 +37,26 @@ import { useCurrentUser } from '@/state/session.store';
  * needs help right now, and what is the attendance situation. Everything else
  * belongs on its own page.
  */
+
+const saludoFormatter = new Intl.DateTimeFormat('es-CO', {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+});
+
+/**
+ * El panel abre diciendo qué hora del día es para quien lo mira.
+ *
+ * No es cortesía: es la pieza que confirma que la aplicación está viva y
+ * mirando lo mismo que el docente. Un panel que dice «Hola, Juan» a las once de
+ * la noche igual que a las siete de la mañana es un panel que no sabe nada.
+ */
+function saludoSegunHora(hora: number): string {
+  if (hora < 12) return 'Buenos días';
+  if (hora < 19) return 'Buenas tardes';
+  return 'Buenas noches';
+}
+
 export default function DashboardPage() {
   const navigate = useNavigate();
   const user = useCurrentUser();
@@ -54,6 +74,7 @@ export default function DashboardPage() {
         data: ['Aprobados', 'Reprobados', 'En riesgo'],
         axisLine: { lineStyle: { color: tokens.border } },
         axisTick: { show: false },
+        axisLabel: { color: tokens.muted },
       },
       yAxis: {
         type: 'value',
@@ -90,7 +111,7 @@ export default function DashboardPage() {
               show: true,
               position: 'center',
               formatter: `${rate.toFixed(0)}%`,
-              fontSize: 26,
+              fontSize: 30,
               fontWeight: 700,
               color: tokens.text,
             },
@@ -114,25 +135,78 @@ export default function DashboardPage() {
   const firstName = user?.fullName?.split(' ')[0] ?? 'Docente';
   const topRisks = risks.data?.slice(0, 6) ?? [];
 
+  const hoy = useMemo(() => {
+    const ahora = new Date();
+    return { saludo: saludoSegunHora(ahora.getHours()), fecha: saludoFormatter.format(ahora) };
+  }, []);
+
+  const enRiesgo = summary?.riskStudents ?? 0;
+  const cargando = dashboard.isFetching || risks.isFetching;
+
   return (
     <PageContainer>
-      <PageHeader
-        title={`Hola, ${firstName}`}
-        subtitle="Este es el estado actual de tus grupos"
+      <PageHero
+        eyebrow={hoy.fecha}
+        title={`${hoy.saludo}, ${firstName}`}
+        subtitle="Este es el estado actual de tus grupos."
         actions={
           <Button
             variant="secondary"
+            className="border-white/25 bg-white/10 text-white hover:bg-white/20 dark:border-border dark:bg-surface-alt dark:text-text"
             onClick={() => {
               void dashboard.refetch();
               void risks.refetch();
             }}
-            loading={dashboard.isFetching || risks.isFetching}
+            loading={cargando}
           >
             <RefreshCw aria-hidden />
             Actualizar
           </Button>
         }
-      />
+      >
+        {/*
+          Lo primero que ve el docente no es un número: es si hay algo que
+          hacer. Un panel que solo informa obliga a interpretar seis cifras
+          para llegar a la única conclusión que importa, y esa conclusión —hay
+          gente que necesita intervención— cabe en una línea con un botón.
+        */}
+        {dashboard.isPending ? null : enRiesgo > 0 ? (
+          <button
+            type="button"
+            onClick={() => navigate('/riesgo')}
+            className="group flex w-full items-center gap-3 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-left transition-colors hover:bg-white/20 dark:border-warning/30 dark:bg-warning-soft/60 dark:hover:bg-warning-soft"
+          >
+            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-warning/20 text-warning dark:bg-warning/20">
+              <AlertTriangle className="size-4" aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-body font-semibold">
+                {formatCount(enRiesgo)}{' '}
+                {enRiesgo === 1 ? 'estudiante necesita' : 'estudiantes necesitan'} seguimiento
+              </span>
+              <span className="block text-caption text-white/70 dark:text-muted">
+                Revisa el detalle y decide la intervención
+              </span>
+            </span>
+            <ArrowRight
+              className="size-4 shrink-0 transition-transform group-hover:translate-x-0.5"
+              aria-hidden
+            />
+          </button>
+        ) : (
+          <div className="flex items-center gap-3 rounded-xl border border-white/20 bg-white/10 px-4 py-3 dark:border-success/30 dark:bg-success-soft/60">
+            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-success/25 text-success">
+              <CheckCircle2 className="size-4" aria-hidden />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-body font-semibold">Sin estudiantes en riesgo</span>
+              <span className="block text-caption text-white/70 dark:text-muted">
+                Todo tu alumnado está dentro de los parámetros esperados
+              </span>
+            </span>
+          </div>
+        )}
+      </PageHero>
 
       {dashboard.isPending ? (
         <SkeletonStatGrid />
@@ -149,6 +223,11 @@ export default function DashboardPage() {
             hint="Sobre cortes calificados"
             tone="primary"
             icon={GraduationCap}
+            // La escala es 0–5, así que el promedio como porcentaje de 5 es la
+            // proporción real; sin ella un 3.2 y un 4.7 se ven igual de largos.
+            {...(typeof summary?.averageGrade === 'number'
+              ? { progress: (summary.averageGrade / 5) * 100 }
+              : {})}
           />
           <StatCard
             index={1}
@@ -182,6 +261,9 @@ export default function DashboardPage() {
             hint="Ponderada por minutos"
             tone="info"
             icon={CalendarX}
+            {...(typeof summary?.averageAttendance === 'number'
+              ? { progress: summary.averageAttendance }
+              : {})}
           />
           <StatCard
             index={5}
@@ -196,14 +278,11 @@ export default function DashboardPage() {
       )}
 
       <div className="grid gap-4 @5xl:grid-cols-3">
-        <Card className="xl:col-span-2">
-          <CardHeader>
-            <CardTitle>Distribución de desempeño</CardTitle>
-            <CardDescription>
-              {formatCount(summary?.criticalSubjects)} materias con promedio bajo ·{' '}
-              {formatCount(summary?.missedClasses)} inasistencias acumuladas
-            </CardDescription>
-          </CardHeader>
+        <Card className="@5xl:col-span-2">
+          <CardHeaderRow
+            title="Distribución de desempeño"
+            description={`${formatCount(summary?.criticalSubjects)} materias con promedio bajo · ${formatCount(summary?.missedClasses)} inasistencias acumuladas`}
+          />
           <CardContent>
             {dashboard.isPending ? (
               <div className="skeleton h-[280px] rounded-lg" />
@@ -217,10 +296,10 @@ export default function DashboardPage() {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Asistencia global</CardTitle>
-            <CardDescription>Promedio ponderado por minutos de clase</CardDescription>
-          </CardHeader>
+          <CardHeaderRow
+            title="Asistencia global"
+            description="Promedio ponderado por minutos de clase"
+          />
           <CardContent>
             {dashboard.isPending ? (
               <div className="skeleton h-[280px] rounded-lg" />
@@ -235,20 +314,21 @@ export default function DashboardPage() {
       </div>
 
       <Card>
-        <CardHeader className="flex-row items-center justify-between">
-          <div className="flex flex-col gap-1">
-            <CardTitle>Estudiantes que necesitan atención</CardTitle>
-            <CardDescription>Ordenados por nivel de riesgo</CardDescription>
-          </div>
-          <Button variant="ghost" size="sm" onClick={() => navigate('/riesgo')}>
-            Ver todos
-          </Button>
-        </CardHeader>
+        <CardHeaderRow
+          title="Estudiantes que necesitan atención"
+          description="Ordenados por nivel de riesgo"
+          actions={
+            <Button variant="ghost" size="sm" onClick={() => navigate('/riesgo')}>
+              Ver todos
+              <ArrowRight aria-hidden />
+            </Button>
+          }
+        />
         <CardContent>
           {risks.isPending ? (
             <div className="flex flex-col gap-2">
               {Array.from({ length: 4 }, (_, index) => (
-                <div key={index} className="skeleton h-12 rounded-lg" />
+                <div key={index} className="skeleton h-14 rounded-lg" />
               ))}
             </div>
           ) : risks.isError ? (
@@ -261,22 +341,34 @@ export default function DashboardPage() {
           ) : (
             <ul className="flex flex-col gap-2">
               {topRisks.map((risk) => (
-                <li
-                  key={`${risk.studentId}-${risk.subjectId}`}
-                  className="flex items-center gap-3 rounded-lg border border-border px-3 py-2.5"
-                >
-                  <div className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-body font-medium text-text">{risk.fullName}</span>
-                    <span className="truncate text-caption text-muted">
-                      Cédula {risk.code} · Nota {formatGrade(risk.notaFinal)} · Asistencia{' '}
-                      {formatPercent(risk.attendanceRate)}
-                    </span>
-                  </div>
-                  <RiskBadge
-                    level={risk.level}
-                    {...(risk.motivos[0] ? { reason: risk.motivos[0] } : {})}
-                    className="max-w-md"
-                  />
+                <li key={`${risk.studentId}-${risk.subjectId}`}>
+                  {/*
+                    La fila entera lleva a riesgo, no solo un enlace al final.
+                    Es un botón y no un `div` con `onClick` para que el teclado
+                    llegue a ella y el lector de pantalla la anuncie como lo que
+                    es: la forma de abrir el expediente de ese estudiante.
+                  */}
+                  <button
+                    type="button"
+                    onClick={() => navigate('/riesgo')}
+                    className="flex w-full items-center gap-3 rounded-lg border border-border px-3 py-2.5 text-left transition-colors duration-200 hover:border-border-strong hover:bg-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                  >
+                    <Avatar name={risk.fullName} size="sm" />
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate text-body font-medium text-text">
+                        {risk.fullName}
+                      </span>
+                      <span className="truncate text-caption tabular text-muted">
+                        Cédula {risk.code} · Nota {formatGrade(risk.notaFinal)} · Asistencia{' '}
+                        {formatPercent(risk.attendanceRate)}
+                      </span>
+                    </div>
+                    <RiskBadge
+                      level={risk.level}
+                      {...(risk.motivos[0] ? { reason: risk.motivos[0] } : {})}
+                      className="max-w-md"
+                    />
+                  </button>
                 </li>
               ))}
             </ul>
