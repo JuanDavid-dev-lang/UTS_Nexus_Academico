@@ -184,6 +184,37 @@ export function calcularPromedioParcial(notas: NotaComponente[]): {
  * asumiendo que los otros cortes ya están fijos. Devuelve null si ya no es
  * alcanzable o si ya aprobó con lo acumulado.
  */
+/**
+ * Los cortes se capturan en orden: el 2 se habilita cuando el 1 está completo
+ * —sus tres componentes con al menos una nota— y el 3 cuando lo está el 2.
+ *
+ * La regla vive aquí y no en las rutas ni en los clientes: es una decisión
+ * académica (una nota del corte 2 antes de cerrar el 1 casi siempre es un
+ * corte mal elegido en el formulario), y en el dominio queda fijada por
+ * pruebas. Aplica a la captura una a una; la importación masiva queda exenta
+ * a propósito — una planilla revisada puede traer el semestre entero.
+ */
+export function corteDisponible(
+  notas: NotaComponente[],
+  corte: CorteNumero
+): { disponible: boolean; motivo: string | null } {
+  if (corte === 1) return { disponible: true, motivo: null };
+
+  const anterior = (corte - 1) as CorteNumero;
+  const resumen = calcularCorte(anterior, notas);
+  if (resumen.completo) return { disponible: true, motivo: null };
+
+  const faltan = resumen.componentes
+    .filter(c => c.registros === 0)
+    .map(c => c.tipo.toLowerCase());
+  return {
+    disponible: false,
+    motivo:
+      `El corte ${corte} se habilita al completar el corte ${anterior}: ` +
+      `falta${faltan.length === 1 ? '' : 'n'} ${faltan.join(', ')}.`,
+  };
+}
+
 /** Lo que le falta a un estudiante mirando solo sus cortes agregados. */
 export type NecesidadRestante = {
   /** Cortes aún sin calificar. */

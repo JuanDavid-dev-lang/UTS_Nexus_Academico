@@ -13,6 +13,7 @@ import { getProfessorScope } from '../../shared/professor-scope.js';
 import { filtroDeListado } from '../../domains/scope/professor-scope.js';
 import {
   calcularNotaFinal,
+  corteDisponible,
   type NotaComponente,
   type CorteNumero,
   type ComponenteTipo,
@@ -262,6 +263,24 @@ gradeRouter.post('/', requireRole('ADMIN', 'PROFESSOR'), async (req, res, next) 
       label: body.label,
     };
     const before = await GradeModel.findOne({ ...key, deletedAt: null }).lean();
+
+    // Los cortes se capturan en orden: el 2 exige el 1 completo y el 3 el 2.
+    // Solo para notas NUEVAS: corregir una que ya existe no abre ningún corte,
+    // y bloquearla dejaría un error inarreglable si el corte anterior perdió
+    // una nota después. La importación masiva va por /bulk y queda exenta.
+    if (!before && body.corte > 1) {
+      const previas = await GradeModel.find({
+        studentId: body.studentId,
+        subjectId: body.subjectId,
+        period: body.period,
+        deletedAt: null,
+      }).lean();
+      const gate = corteDisponible(aNotasComponente(previas), body.corte as CorteNumero);
+      if (!gate.disponible) {
+        return res.status(409).json({ ok: false, message: gate.motivo });
+      }
+    }
+
     const item = await GradeModel.findOneAndUpdate(
       key,
       { $set: body },

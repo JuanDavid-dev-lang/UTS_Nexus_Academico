@@ -4,6 +4,7 @@ import {
   calcularCorte,
   calcularNotaFinal,
   calcularPromedioParcial,
+  corteDisponible,
   notaNecesariaEnRestantes,
   notaNecesariaParaAprobar,
   type CorteNumero,
@@ -210,6 +211,34 @@ describe('calcularPromedioParcial', () => {
 
   it('sin notas devuelve cero cortes, que es lo que distingue "va mal" de "aún no empieza"', () => {
     expect(calcularPromedioParcial([])).toEqual({ promedio: 0, cortesConNota: 0 });
+  });
+});
+
+describe('corteDisponible', () => {
+  const nota = (corte: 1 | 2 | 3, tipo: 'TRABAJOS' | 'PARCIALES' | 'AUTOEVALUACION') =>
+    ({ corte, tipo, score: 4 }) as const;
+
+  it('el corte 1 siempre está disponible', () => {
+    expect(corteDisponible([], 1).disponible).toBe(true);
+  });
+
+  it('el corte 2 se bloquea mientras el 1 no tenga sus tres componentes', () => {
+    const parcial = [nota(1, 'TRABAJOS'), nota(1, 'PARCIALES')];
+    const r = corteDisponible(parcial, 2);
+    expect(r.disponible).toBe(false);
+    expect(r.motivo).toContain('autoevaluacion');
+  });
+
+  it('el corte 2 se habilita con el 1 completo', () => {
+    const completo = [nota(1, 'TRABAJOS'), nota(1, 'PARCIALES'), nota(1, 'AUTOEVALUACION')];
+    expect(corteDisponible(completo, 2)).toEqual({ disponible: true, motivo: null });
+  });
+
+  it('el corte 3 mira al 2, no al 1', () => {
+    const soloC1 = [nota(1, 'TRABAJOS'), nota(1, 'PARCIALES'), nota(1, 'AUTOEVALUACION')];
+    expect(corteDisponible(soloC1, 3).disponible).toBe(false);
+    const conC2 = [...soloC1, nota(2, 'TRABAJOS'), nota(2, 'PARCIALES'), nota(2, 'AUTOEVALUACION')];
+    expect(corteDisponible(conC2, 3).disponible).toBe(true);
   });
 });
 

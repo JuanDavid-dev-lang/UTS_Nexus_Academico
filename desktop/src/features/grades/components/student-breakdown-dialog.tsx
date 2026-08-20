@@ -121,7 +121,17 @@ export function StudentBreakdownDialog({
           ) : null}
 
           <div className="flex flex-col gap-5">
-            {cortes.map((corte) => (
+            {cortes.map((corte, indice) => {
+              /*
+                Los cortes se capturan en orden: el renglón de añadir del corte
+                N se habilita cuando el N-1 está completo. El «completo» lo
+                declara el backend en el resumen — aquí solo se lee; y el
+                backend además lo exige en el POST, así que esto es cortesía,
+                no la barrera.
+              */
+              const anterior = indice > 0 ? cortes[indice - 1] : null;
+              const corteAbierto = indice === 0 || Boolean(anterior?.completo ?? false);
+              return (
               <section key={corte.corte} className="flex flex-col gap-2">
                 <header className="flex items-baseline justify-between gap-2">
                   <h3 className="text-body font-semibold text-text">
@@ -191,7 +201,7 @@ export function StudentBreakdownDialog({
                       </ul>
                     ) : null}
 
-                    {puedeRegistrar ? (
+                    {puedeRegistrar && corteAbierto ? (
                       <InlineAddNote
                         studentId={student.studentId}
                         corte={corte.corte as CutNumber}
@@ -201,8 +211,15 @@ export function StudentBreakdownDialog({
                     ) : null}
                   </div>
                 ))}
+
+                {puedeRegistrar && !corteAbierto ? (
+                  <p className="text-caption text-muted">
+                    Se habilita al completar los tres componentes del corte {corte.corte - 1}.
+                  </p>
+                ) : null}
               </section>
-            ))}
+              );
+            })}
           </div>
         </DialogContent>
       </Dialog>

@@ -198,6 +198,14 @@ class _GradeBreakdownSheetState extends ConsumerState<_GradeBreakdownSheet> {
     final tieneNotas = row.cuts
         .any((cut) => cut.components.any((component) => component.count > 0));
 
+    // Cortes en orden: el renglón de añadir del corte N se habilita cuando el
+    // N-1 está completo. El «completo» lo declara el backend en el resumen —
+    // aquí solo se lee — y el POST además lo exige, así que esto es cortesía,
+    // no la barrera.
+    final porNumero = {for (final c in row.cuts) c.cut: c};
+    bool corteAbierto(int corte) =>
+        corte == 1 || (porNumero[corte - 1]?.complete ?? false);
+
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
@@ -240,10 +248,19 @@ class _GradeBreakdownSheetState extends ConsumerState<_GradeBreakdownSheet> {
                     danger: danger,
                     borrando: _borrando,
                     onDelete: _eliminar,
-                    onAgregar: widget.captura == null
+                    onAgregar: widget.captura == null || !corteAbierto(cut.cut)
                         ? null
                         : (label, score) =>
                             _agregar(cut.cut, component.type, label, score),
+                  ),
+                if (widget.captura != null && !corteAbierto(cut.cut))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      'Se habilita al completar los tres componentes del '
+                      'corte ${cut.cut - 1}.',
+                      style: AppType.caption.copyWith(color: muted),
+                    ),
                   ),
                 const SizedBox(height: 18),
               ],
