@@ -178,7 +178,7 @@ coincidir:
 |---|---|
 | `desktop/src/core/version.ts` | `export const ETAPA` |
 | `flutter_app/lib/core/version.dart` | `const String etapa` |
-| `.github/workflows/release.yml` | `releaseName:` del trabajo de escritorio |
+| `.github/workflows/release.yml` | `releaseName:` del trabajo de escritorio **y** `name:` del paso «Publicar el espejo aquí» |
 
 En `estable` la etiqueta queda vacía y el nombre vuelve a ser solo el número, sin
 tocar ningún otro sitio.

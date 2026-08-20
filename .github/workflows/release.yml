@@ -182,7 +182,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: UTS Nexus Académico Alfa ${{ github.ref_name }}
+          name: UTS Nexus Académico Beta ${{ github.ref_name }}
           body: ${{ steps.etiqueta.outputs.cuerpo }}
           files: |
             latest.json
