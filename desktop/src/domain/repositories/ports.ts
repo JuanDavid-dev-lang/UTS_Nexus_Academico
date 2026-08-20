@@ -43,6 +43,8 @@ import type {
 import type {
   AgendaItem,
   AgendaResumen,
+  HorarioConfirmado,
+  HorarioScan,
   AgendaTipo,
   CalendarEvent,
   CalendarEventInput,
@@ -196,6 +198,21 @@ export interface AgendaRepository {
     tipos?: AgendaTipo[];
   }): Promise<{ items: AgendaItem[]; campusOffsetMinutes: number }>;
   summary(): Promise<AgendaResumen>;
+  /** Lee el reporte de horario (PDF) y PROPONE las sesiones; no escribe. */
+  scanHorario(period: string, file: File): Promise<HorarioScan>;
+  /** Escribe lo revisado: materias que falten, sus grupos y las franjas. */
+  confirmarHorario(input: {
+    period: string;
+    sesiones: {
+      codigo: string;
+      nombre: string;
+      grupo: string;
+      dia: number;
+      horaInicio: string;
+      horaFin: string;
+      aula: string;
+    }[];
+  }): Promise<HorarioConfirmado>;
   listEvents(desde: Date, hasta: Date): Promise<CalendarEvent[]>;
   createEvent(input: CalendarEventInput): Promise<CalendarEvent>;
   updateEvent(id: string, input: Partial<CalendarEventInput>): Promise<CalendarEvent>;

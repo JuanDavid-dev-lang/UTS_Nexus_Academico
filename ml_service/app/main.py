@@ -285,6 +285,56 @@ async def leer_listado_estudiantes(file: UploadFile = File(...)) -> dict:
     }
 
 
+@app.post("/vision/schedule")
+async def leer_horario(file: UploadFile = File(...)) -> dict:
+    """
+    Interpreta el reporte de horario de Academusoft («Horario Estudiante»).
+
+    Devuelve una PROPUESTA de sesiones semanales —materia, grupo, día, horas y
+    aula— para que el docente las revise antes de que el backend escriba nada.
+    Solo PDF con capa de texto: el día de cada franja es posicional (columnas
+    Lunes…Domingo) y sin coordenadas fiables una foto lo mezclaría todo.
+    """
+    contenido = await file.read()
+    if not contenido:
+        raise HTTPException(status_code=400, detail="El archivo llegó vacío.")
+    if len(contenido) > 12 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="El archivo supera los 12 MB.")
+
+    try:
+        from .vision.schedule import leer_pdf_horario
+
+        horario = leer_pdf_horario(contenido)
+    except ImportError as error:
+        logger.warning("Dependencias de lectura no instaladas: %s", error)
+        raise HTTPException(
+            status_code=503,
+            detail="El servidor no tiene instalado el lector de PDF.",
+        ) from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+    return {
+        "ok": True,
+        "origen": horario.origen,
+        "avisos": horario.avisos,
+        "sesiones": [
+            {
+                "codigo": sesion.codigo,
+                "nombre": sesion.nombre,
+                "grupo": sesion.grupo,
+                "dia": sesion.dia,
+                "horaInicio": sesion.hora_inicio,
+                "horaFin": sesion.hora_fin,
+                "aula": sesion.aula,
+                "confianza": round(sesion.confianza, 3),
+                "avisos": sesion.avisos,
+            }
+            for sesion in horario.sesiones
+        ],
+    }
+
+
 @app.post("/vision/grades")
 async def leer_planilla_de_notas(file: UploadFile = File(...)) -> dict:
     """

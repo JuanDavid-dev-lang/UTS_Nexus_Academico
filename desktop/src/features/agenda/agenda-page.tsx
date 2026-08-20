@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CalendarPlus, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
+import { CalendarPlus, ChevronLeft, ChevronRight, RotateCcw, FileUp } from 'lucide-react';
 import {
   Button,
   Card,
@@ -17,6 +17,7 @@ import { Kbd } from '@/shared/ui/primitives';
 import { useHotkeys } from '@/shared/hooks/use-hotkeys';
 import { useSubjects } from '@/features/subjects/hooks/use-subjects';
 import { NextClassCard } from '@/features/agenda/components/next-class-card';
+import { ScheduleImportDialog } from '@/features/agenda/components/schedule-import-dialog';
 import { WeekView } from '@/features/agenda/components/week-view';
 import { DayView } from '@/features/agenda/components/day-view';
 import { MonthView } from '@/features/agenda/components/month-view';
@@ -51,6 +52,7 @@ const VISTAS: { valor: VistaAgenda; etiqueta: string }[] = [
  */
 export default function AgendaPage() {
   const [vista, setVista] = useState<VistaAgenda>('semana');
+  const [importarHorario, setImportarHorario] = useState(false);
   const [ancla, setAncla] = useState(() => new Date());
   const [subjectId, setSubjectId] = useState('');
   const [seleccionado, setSeleccionado] = useState<AgendaItem | null>(null);
@@ -142,15 +144,23 @@ export default function AgendaPage() {
         title="Agenda"
         subtitle="Tus clases, evaluaciones, entregas y eventos en un solo sitio"
         actions={
-          <Button variant="primary" onClick={abrirNuevo}>
-            <CalendarPlus aria-hidden />
-            Nuevo evento
-            <Kbd className="ml-1">N</Kbd>
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setImportarHorario(true)}>
+              <FileUp aria-hidden />
+              Importar horario
+            </Button>
+            <Button variant="primary" onClick={abrirNuevo}>
+              <CalendarPlus aria-hidden />
+              Nuevo evento
+              <Kbd className="ml-1">N</Kbd>
+            </Button>
+          </div>
         }
       />
 
       <NextClassCard />
+
+      <ScheduleImportDialog open={importarHorario} onOpenChange={setImportarHorario} />
 
       {/*
         Barra de navegación del calendario, en un pozo y con los controles

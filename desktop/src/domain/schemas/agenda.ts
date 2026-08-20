@@ -7,7 +7,7 @@
  * horaria, y el docente no tendría forma de saber cuál de los dos miente.
  */
 import { z } from 'zod';
-import { objectId } from './common';
+import { numberish, objectId } from './common';
 
 export const agendaTipo = z.enum([
   'CLASS',
@@ -154,3 +154,39 @@ export const notificationPreferencesResponse = z.object({
   /** `false` = este servidor no tiene FCM configurado. La UI debe decirlo. */
   pushConfigurado: z.boolean().optional().default(false),
 });
+
+// ── Importación del horario (reporte PDF de Academusoft) ────────────────────
+
+export const sesionHorarioSchema = z.object({
+  codigo: z.string(),
+  nombre: z.string(),
+  grupo: z.string().optional().default(''),
+  /** 1=Lunes … 7=Domingo. */
+  dia: numberish,
+  horaInicio: z.string(),
+  horaFin: z.string(),
+  aula: z.string().optional().default(''),
+  confianza: numberish.optional().default(1),
+  avisos: z.array(z.string()).optional().default([]),
+  /** La materia ya existe en el periodo del docente (si no, se creará). */
+  materiaExiste: z.boolean(),
+  /** Ya hay una franja a esa hora ese día: confirmar la actualiza, no duplica. */
+  franjaExiste: z.boolean(),
+});
+export type SesionHorario = z.infer<typeof sesionHorarioSchema>;
+
+export const horarioScanResponseSchema = z.object({
+  ok: z.literal(true),
+  origen: z.string(),
+  avisos: z.array(z.string()).optional().default([]),
+  sesiones: z.array(sesionHorarioSchema),
+});
+export type HorarioScan = z.infer<typeof horarioScanResponseSchema>;
+
+export const horarioConfirmResponseSchema = z.object({
+  ok: z.literal(true),
+  materiasCreadas: numberish,
+  franjasCreadas: numberish,
+  franjasActualizadas: numberish,
+});
+export type HorarioConfirmado = z.infer<typeof horarioConfirmResponseSchema>;

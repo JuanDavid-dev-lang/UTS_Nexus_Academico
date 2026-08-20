@@ -6,7 +6,7 @@
  * calendario medio vacío sin explicación.
  */
 import { z } from 'zod';
-import { http } from '@/core/api/http-client';
+import { http, request } from '@/core/api/http-client';
 import { itemResponse, itemsResponse, okResponse } from '@/domain/schemas/common';
 import {
   agendaResponseSchema,
@@ -18,6 +18,8 @@ import {
   type CalendarEvent,
   type CalendarEventInput,
   type NotificationPreferences,
+  horarioConfirmResponseSchema,
+  horarioScanResponseSchema,
 } from '@/domain/schemas/agenda';
 import type { AgendaRepository, NotificationPreferencesRepository } from '@/domain/repositories/ports';
 
@@ -41,6 +43,25 @@ export const agendaRepository: AgendaRepository = {
 
   async summary(): Promise<AgendaResumen> {
     return http.get('/agenda/resumen', { schema: agendaResumenSchema });
+  },
+
+  async scanHorario(period, file) {
+    const body = new FormData();
+    body.append('file', file);
+    return request(`/schedules/import/scan?period=${encodeURIComponent(period)}`, {
+      method: 'POST',
+      body,
+      schema: horarioScanResponseSchema,
+      // Leer el PDF pasa por el servicio de visión: tarda más que una petición
+      // normal y cortarla a medio camino desperdiciaría una lectura que iba bien.
+      timeoutMs: 90_000,
+    });
+  },
+
+  async confirmarHorario(input) {
+    return http.post('/schedules/import/confirm', input, {
+      schema: horarioConfirmResponseSchema,
+    });
   },
 
   async listEvents(desde: Date, hasta: Date): Promise<CalendarEvent[]> {
