@@ -20,7 +20,7 @@ import { toast } from '@/state/toast.store';
 import { useStudents, useStudentSearch } from '@/features/students/hooks/use-students';
 import { useDebounce } from '@/shared/hooks/use-debounce';
 import { useEnrollStudent, useImportRoster } from '../hooks/use-enrollment';
-import { useGroups } from '../hooks/use-subjects';
+import { useCreateGroup, useGroups, useSubjects } from '../hooks/use-subjects';
 
 type Props = {
   open: boolean;
@@ -42,6 +42,7 @@ export function RosterImportDialog({ open, onOpenChange, subjectId, subjectName 
   const [term, setTerm] = useState('');
   const [chosenGroup, setChosenGroup] = useState('');
   const [leyendo, setLeyendo] = useState(false);
+  const [nombreGrupo, setNombreGrupo] = useState('Grupo A');
   const fileInput = useRef<HTMLInputElement>(null);
 
   const debouncedTerm = useDebounce(term, 300);
@@ -52,6 +53,11 @@ export function RosterImportDialog({ open, onOpenChange, subjectId, subjectName 
   // La matrícula cuelga del grupo, no de la materia: una materia con dos grupos
   // tiene dos listas distintas y hay que decir a cuál se importa.
   const groupsQuery = useGroups();
+  const createGroup = useCreateGroup();
+  // El periodo del grupo nuevo es el de la materia: es el único dato que el
+  // diálogo no recibe y sin él el backend rechaza la creación.
+  const subjectsQuery = useSubjects();
+  const subjectPeriod = subjectsQuery.data?.find((subject) => subject._id === subjectId)?.period;
   const groups = useMemo(
     () => (groupsQuery.data ?? []).filter((group) => group.subjectId === subjectId),
     [groupsQuery.data, subjectId],
@@ -148,11 +154,40 @@ export function RosterImportDialog({ open, onOpenChange, subjectId, subjectName 
         description="Importa una lista completa o busca a alguien que ya esté registrado."
         className="max-w-2xl"
       >
+        {/*
+          Antes esto era un callejón sin salida: el aviso decía «crea un grupo
+          antes» y no existía ningún sitio en la aplicación donde crearlo. El
+          grupo se crea aquí mismo, que es donde se descubre que falta.
+        */}
         {!groupsQuery.isLoading && groups.length === 0 && (
-          <p className="rounded-lg border border-border bg-surface-alt p-3 text-body text-muted">
-            Esta materia todavía no tiene grupos. Crea uno antes de matricular: la lista de
-            estudiantes pertenece al grupo, no a la materia.
-          </p>
+          <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface-alt p-3">
+            <p className="text-body text-muted">
+              Esta materia todavía no tiene grupos, y la lista de estudiantes pertenece al grupo,
+              no a la materia. Crea el primero:
+            </p>
+            <div className="flex items-center gap-2">
+              <Input
+                value={nombreGrupo}
+                onChange={(event) => setNombreGrupo(event.target.value)}
+                aria-label="Nombre del grupo nuevo"
+                className="h-9 flex-1"
+              />
+              <Button
+                variant="primary"
+                size="sm"
+                loading={createGroup.isPending}
+                disabled={!nombreGrupo.trim() || !subjectPeriod || createGroup.isPending}
+                onClick={() =>
+                  createGroup.mutate(
+                    { name: nombreGrupo.trim(), subjectId, period: subjectPeriod ?? '' },
+                    { onSuccess: (group) => setChosenGroup(group._id) },
+                  )
+                }
+              >
+                Crear grupo
+              </Button>
+            </div>
+          </div>
         )}
 
         {groups.length > 1 && (

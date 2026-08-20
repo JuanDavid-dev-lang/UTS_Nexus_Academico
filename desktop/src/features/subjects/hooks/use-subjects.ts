@@ -19,6 +19,26 @@ export function useGroups() {
   });
 }
 
+/**
+ * Crea un grupo. `avisar: false` para cuando es un paso automático (el Grupo A
+ * que nace con la materia): dos brindis seguidos por un solo clic son ruido.
+ */
+export function useCreateGroup({ avisar = true }: { avisar?: boolean } = {}) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: { name: string; subjectId: string; period: string }) =>
+      groupRepository.create(input),
+    onSuccess(group) {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.groups.all });
+      if (avisar) toast.success('Grupo creado', group.name);
+    },
+    onError(error) {
+      toast.fromError(error, 'No se pudo crear el grupo');
+    },
+  });
+}
+
 export function useCreateSubject() {
   const queryClient = useQueryClient();
 

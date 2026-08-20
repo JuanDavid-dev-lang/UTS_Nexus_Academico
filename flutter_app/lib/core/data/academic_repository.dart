@@ -58,6 +58,41 @@ class AcademicRepository {
     return _leerConCache('subjects', () => _api.get('/subjects'), Subject.fromJson);
   }
 
+  /// Crea una materia. El backend exige el docente dueño en el cuerpo.
+  Future<Subject> createSubject({
+    required String name,
+    required String code,
+    required String period,
+    required String professorId,
+    int credits = 0,
+  }) async {
+    final response = await _api.post('/subjects', data: {
+      'name': name,
+      'code': code,
+      'period': period,
+      'professorId': professorId,
+      'credits': credits,
+    });
+    return Subject.fromJson(
+      Map<String, dynamic>.from((response.data as Map)['item'] as Map),
+    );
+  }
+
+  /// Crea un grupo de una materia. Sin grupo, la materia no puede matricular
+  /// a nadie; el docente lo hereda el backend (quien llama, o el dueño de la
+  /// materia).
+  Future<void> createGroup({
+    required String name,
+    required String subjectId,
+    required String period,
+  }) async {
+    await _api.post('/groups', data: {
+      'name': name,
+      'subjectId': subjectId,
+      'period': period,
+    });
+  }
+
   /// Estudiantes visibles.
   ///
   /// Con [subjectId] devuelve solo los matriculados en esa asignatura. El

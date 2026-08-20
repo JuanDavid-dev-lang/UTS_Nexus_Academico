@@ -21,6 +21,7 @@ import {
   Tooltip,
 } from '@/shared/ui';
 import {
+  useCreateGroup,
   useCreateSubject,
   useDeleteSubject,
   useSubjects,
@@ -54,6 +55,10 @@ export default function SubjectsPage() {
 
   const subjects = useSubjects();
   const createSubject = useCreateSubject();
+  // El Grupo A nace con la materia: sin ningún grupo no se puede matricular a
+  // nadie, y hasta ahora no había ningún sitio donde crear uno — la
+  // importación de listas moría en «esta materia no tiene grupos».
+  const createGroup = useCreateGroup({ avisar: false });
   const updateSubject = useUpdateSubject();
   const deleteSubject = useDeleteSubject();
 
@@ -122,7 +127,12 @@ export default function SubjectsPage() {
     if (!user) return;
     createSubject.mutate(
       { ...parsed.data, professorId: user.id },
-      { onSuccess: () => setFormOpen(false) },
+      {
+        onSuccess(subject) {
+          setFormOpen(false);
+          createGroup.mutate({ name: 'Grupo A', subjectId: subject._id, period: subject.period });
+        },
+      },
     );
   }
 

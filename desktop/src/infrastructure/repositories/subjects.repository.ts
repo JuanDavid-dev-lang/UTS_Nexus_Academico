@@ -2,6 +2,7 @@ import {
   GroupRepository,
   SubjectInput,
   SubjectRepository,
+  groupResponse,
   groupsResponse,
   http,
   okResponse,
@@ -30,5 +31,11 @@ export const subjectRepository: SubjectRepository = {
 export const groupRepository: GroupRepository = {
   async list() {
     return (await http.get('/groups', { schema: groupsResponse })).items;
+  },
+
+  async create(input) {
+    // Sin professorId: el backend se lo pone — el del docente que llama o el
+    // dueño de la materia.
+    return (await http.post('/groups', input, { schema: groupResponse })).item;
   },
 };

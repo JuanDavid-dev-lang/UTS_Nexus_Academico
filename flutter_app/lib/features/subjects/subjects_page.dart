@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/data/models.dart';
+import '../../core/auth/auth_controller.dart';
 import '../../core/data/providers.dart';
 import '../../core/network/api_error.dart';
 import '../../core/theme/app_theme.dart';
@@ -41,10 +42,27 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
     super.dispose();
   }
 
+  Future<void> _crearMateria(BuildContext context, String period) async {
+    final creada = await showCompactSheet<bool>(
+      context: context,
+      titulo: 'Nueva materia',
+      subtitulo: 'Se crea en el periodo $period con su Grupo A',
+      constructor: (_) => _FormularioMateria(period: period),
+    );
+    if (creada == true && mounted) {
+      AppToast.success(this.context, 'Materia creada',
+          'Con su Grupo A, lista para matricular estudiantes.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final subjects = ref.watch(periodSubjectsProvider);
     final period = ref.watch(selectedPeriodProvider);
+    // El backend solo deja crear materias a ADMIN y PROFESSOR; ofrecer el
+    // botón a otro rol sería regalar un 403.
+    final rol = ref.watch(authControllerProvider).user?.role;
+    final puedeCrear = rol == 'ADMIN' || rol == 'PROFESSOR';
 
     return Scaffold(
       appBar: CompactHeader(
@@ -52,6 +70,13 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
         contexto: period,
         acciones: const [PeriodSelector(), SessionMenuButton()],
       ),
+      floatingActionButton: puedeCrear
+          ? FloatingActionButton(
+              tooltip: 'Nueva materia',
+              onPressed: () => _crearMateria(context, period),
+              child: const Icon(Icons.add),
+            )
+          : null,
       body: Column(
         children: [
           // El buscador va fijo bajo la cabecera: si se desplazara con la
@@ -110,8 +135,9 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
                         CompactEmpty(
                           icono: Icons.menu_book_outlined,
                           mensaje: q.isEmpty
-                              ? 'No tienes materias en el periodo $period. Cambia '
-                                  'de periodo o pide que te asignen una.'
+                              ? 'No tienes materias en el periodo $period. Crea '
+                                  'una con el botón +, cambia de periodo o pide '
+                                  'que te asignen una.'
                               : 'Ninguna materia coincide con «$_query».',
                         ),
                       ],
@@ -186,6 +212,149 @@ class _FilaMateria extends ConsumerWidget {
         acento: data.atRisk > 0 ? SemanticKind.warning : null,
         onTap: () => context.go('/subjects/${subject.id}'),
       ),
+    );
+  }
+}
+
+/// Formulario de materia nueva, dentro de la hoja.
+///
+/// Crea la materia y, acto seguido, su Grupo A: la matrícula cuelga del
+/// grupo, y una materia sin ninguno es un callejón sin salida — no se puede
+/// matricular a nadie ni importar una lista.
+class _FormularioMateria extends ConsumerStatefulWidget {
+  final String period;
+  const _FormularioMateria({required this.period});
+
+  @override
+  ConsumerState<_FormularioMateria> createState() => _FormularioMateriaState();
+}
+
+class _FormularioMateriaState extends ConsumerState<_FormularioMateria> {
+  final _nombre = TextEditingController();
+  final _codigo = TextEditingController();
+  final _creditos = TextEditingController(text: '0');
+  bool _enviando = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _nombre.dispose();
+    _codigo.dispose();
+    _creditos.dispose();
+    super.dispose();
+  }
+
+  Future<void> _guardar() async {
+    final nombre = _nombre.text.trim();
+    final codigo = _codigo.text.trim();
+    final creditos = int.tryParse(_creditos.text.trim()) ?? 0;
+    if (nombre.length < 3 || codigo.length < 2) {
+      setState(() => _error =
+          'El nombre necesita al menos 3 caracteres y el código 2.');
+      return;
+    }
+    final professorId = ref.read(authControllerProvider).user?.id;
+    if (professorId == null) return;
+
+    setState(() {
+      _enviando = true;
+      _error = null;
+    });
+
+    final repo = ref.read(academicRepositoryProvider);
+    final Subject materia;
+    try {
+      materia = await repo.createSubject(
+        name: nombre,
+        code: codigo,
+        period: widget.period,
+        professorId: professorId,
+        credits: creditos.clamp(0, 20),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _enviando = false;
+        _error = ApiError.from(e).message;
+      });
+      return;
+    }
+
+    // El grupo va aparte: si falla, la materia ya existe y reintentar aquí la
+    // duplicaría. El grupo se puede crear después desde la importación de
+    // listas del escritorio.
+    try {
+      await repo.createGroup(
+        name: 'Grupo A',
+        subjectId: materia.id,
+        period: widget.period,
+      );
+    } catch (_) {}
+
+    ref.invalidate(subjectsProvider);
+    if (mounted) Navigator.of(context).pop(true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          controller: _nombre,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(
+            labelText: 'Nombre',
+            hintText: 'Cálculo I',
+          ),
+        ),
+        const SizedBox(height: AppSpacing.gap),
+        Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: TextField(
+                controller: _codigo,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(
+                  labelText: 'Código',
+                  hintText: 'CAL-101',
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.gapSm),
+            Expanded(
+              child: TextField(
+                controller: _creditos,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Créditos'),
+              ),
+            ),
+          ],
+        ),
+        if (_error != null) ...[
+          const SizedBox(height: AppSpacing.gapSm),
+          Text(
+            _error!,
+            style: AppType.caption.copyWith(
+              color: SemanticTone.of(context, SemanticKind.danger).fg,
+            ),
+          ),
+        ],
+        const SizedBox(height: AppSpacing.gap),
+        FilledButton.icon(
+          onPressed: _enviando ? null : _guardar,
+          icon: _enviando
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.add),
+          label: const Text('Crear materia'),
+        ),
+      ],
     );
   }
 }

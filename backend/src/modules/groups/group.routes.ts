@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import * as campo from '../../shared/validation.js';
 import { GroupModel } from '../../models/group.model.js';
+import { SubjectModel } from '../../models/subject.model.js';
 import { identificar, requireRole } from '../../middlewares/auth.js';
 import { emitToUser } from '../../shared/socket.js';
 
@@ -42,12 +43,28 @@ groupRouter.post('/', requireRole('ADMIN', 'PROFESSOR'), async (req, res, next) 
     const body = z.object({
       name: campo.linea.min(1),
       subjectId: z.string().min(1),
-      professorId: z.string().min(1),
+      // Opcional: un docente siempre crea para sí mismo, y sin él el grupo
+      // hereda al dueño de la materia. Exigirlo obligaba al cliente a mandar
+      // un dato que el servidor iba a pisar de todas formas.
+      professorId: z.string().min(1).optional(),
       period: campo.codigo.min(4),
     }).parse(req.body);
 
-    const datos = req.user?.role === 'PROFESSOR' ? { ...body, professorId: req.user.id } : body;
-    const item = await GroupModel.create(datos);
+    let professorId = body.professorId;
+    if (req.user?.role === 'PROFESSOR') {
+      professorId = req.user.id;
+    } else if (!professorId) {
+      const subject = await SubjectModel.findById(body.subjectId).lean();
+      if (!subject) {
+        return res.status(404).json({ ok: false, message: 'La materia no existe.' });
+      }
+      professorId = subject.professorId ? String(subject.professorId) : req.user?.id;
+    }
+    if (!professorId) {
+      return res.status(400).json({ ok: false, message: 'Falta el docente del grupo.' });
+    }
+
+    const item = await GroupModel.create({ ...body, professorId });
     emitToUser(String(item.professorId), 'sync:update', { entity: 'group', action: 'create', id: item.id });
     res.status(201).json({ ok: true, item });
   } catch (err) {

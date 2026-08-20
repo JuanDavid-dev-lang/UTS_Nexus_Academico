@@ -84,6 +84,8 @@ export interface SubjectRepository {
 
 export interface GroupRepository {
   list(): Promise<Group[]>;
+  /** Crea un grupo de una materia. Sin él, la materia no puede matricular. */
+  create(input: { name: string; subjectId: string; period: string }): Promise<Group>;
 }
 
 export interface EnrollmentRepository {

@@ -64,6 +64,7 @@ export const studentResponse = itemResponse(studentSchema);
 export const subjectsResponse = itemsResponse(subjectSchema);
 export const subjectResponse = itemResponse(subjectSchema);
 export const groupsResponse = itemsResponse(groupSchema);
+export const groupResponse = itemResponse(groupSchema);
 export const gradesResponse = itemsResponse(gradeSchema);
 export const gradeResponse = itemResponse(gradeSchema);
 export const attendanceResponse = itemsResponse(attendanceSchema);
