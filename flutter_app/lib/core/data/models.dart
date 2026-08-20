@@ -22,6 +22,15 @@ int _toInt(Object? value) {
 String _toStr(Object? value, [String fallback = '']) =>
     value?.toString() ?? fallback;
 
+/// Id de un campo que puede venir poblado: `populate()` de Mongoose entrega
+/// el documento entero en lugar del id. Convertir eso con `toString()` no da
+/// error — da un id basura que nunca casa con nada, y lo que cuelga de él se
+/// queda vacío en silencio.
+String _toId(Object? value) {
+  if (value is Map) return _toStr(value['_id'] ?? value['id']);
+  return _toStr(value);
+}
+
 class Subject {
   final String id;
   final String name;
@@ -87,9 +96,11 @@ class Enrollment {
 
   factory Enrollment.fromJson(Map<String, dynamic> json) => Enrollment(
         id: _toStr(json['_id'] ?? json['id']),
-        studentId: _toStr(json['studentId']),
-        subjectId: _toStr(json['subjectId']),
-        groupId: json['groupId']?.toString(),
+        // `GET /enrollments` puebla `studentId` con la identidad del
+        // estudiante: llega un objeto, no un id.
+        studentId: _toId(json['studentId']),
+        subjectId: _toId(json['subjectId']),
+        groupId: json['groupId'] == null ? null : _toId(json['groupId']),
         period: _toStr(json['period']),
       );
 }
