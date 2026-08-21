@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/data/models.dart';
@@ -228,11 +230,36 @@ class _AiPageState extends ConsumerState<AiPage> {
 }
 
 /// Banner que informa si la IA local (Ollama) está activa.
-class _StatusBanner extends ConsumerWidget {
+class _StatusBanner extends ConsumerStatefulWidget {
   const _StatusBanner();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_StatusBanner> createState() => _StatusBannerState();
+}
+
+class _StatusBannerState extends ConsumerState<_StatusBanner> {
+  bool _visible = true;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Oculta el banner automáticamente después de 4 segundos.
+    _timer = Timer(const Duration(seconds: 4), () {
+      if (mounted) {
+        setState(() => _visible = false);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final status = ref.watch(aiStatusProvider);
     return status.when(
       loading: () => const SizedBox.shrink(),
@@ -252,21 +279,28 @@ class _StatusBanner extends ConsumerWidget {
                 : s.rubriAvailable
                     ? 'Rubri disponible · clasificador NLP interno activo'
                     : 'Rubri sin conexión — respuestas básicas por reglas';
-        return Container(
-          width: double.infinity,
-          color: bg,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              Icon(ok ? Icons.bolt_outlined : Icons.info_outline,
-                  size: 16, color: color),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(text,
-                    style: AppType.captionStrong.copyWith(color: color)),
-              ),
-            ],
-          ),
+
+        return AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          child: !_visible
+              ? const SizedBox(width: double.infinity)
+              : Container(
+                  width: double.infinity,
+                  color: bg,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      Icon(ok ? Icons.bolt_outlined : Icons.info_outline,
+                          size: 16, color: color),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(text,
+                            style: AppType.captionStrong.copyWith(color: color)),
+                      ),
+                    ],
+                  ),
+                ),
         );
       },
     );
