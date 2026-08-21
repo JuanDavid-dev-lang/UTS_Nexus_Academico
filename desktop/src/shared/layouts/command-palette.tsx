@@ -219,7 +219,7 @@ export function CommandPalette({
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="anim-overlay fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
         <DialogPrimitive.Content
-          className="anim-popup fixed left-1/2 top-[18%] z-50 w-full max-w-xl -translate-x-1/2 overflow-hidden rounded-xl border border-border bg-surface shadow-pop"
+          className="anim-popup fixed left-1/2 top-[18%] z-50 w-full max-w-xl -translate-x-1/2 [translate:-50%_0] overflow-hidden rounded-xl border border-border bg-surface shadow-pop"
           onKeyDown={handleKeyDown}
         >
           <DialogPrimitive.Title className="sr-only">Búsqueda global</DialogPrimitive.Title>

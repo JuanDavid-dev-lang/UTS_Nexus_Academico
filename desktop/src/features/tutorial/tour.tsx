@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, X } from 'lucide-react';
@@ -33,6 +33,8 @@ type Recuadro = { top: number; left: number; width: number; height: number };
 export function Tour({ onFinish }: { onFinish: () => void }) {
   const [indice, setIndice] = useState(0);
   const [recuadro, setRecuadro] = useState<Recuadro | null>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [altoCardReal, setAltoCardReal] = useState<number>(280);
   const navigate = useNavigate();
 
   const paso: PasoTour | undefined = PASOS[indice];
@@ -65,6 +67,16 @@ export function Tour({ onFinish }: { onFinish: () => void }) {
     };
   }, [paso]);
 
+  // Medir la altura real de la tarjeta para asegurar que la barra de progreso nunca se corte abajo.
+  useLayoutEffect(() => {
+    if (cardRef.current) {
+      const h = cardRef.current.offsetHeight;
+      if (h > 0 && h !== altoCardReal) {
+        setAltoCardReal(h);
+      }
+    }
+  }, [indice, paso, altoCardReal]);
+
   useEffect(() => {
     function tecla(e: KeyboardEvent) {
       if (e.key === 'Escape') onFinish();
@@ -77,41 +89,112 @@ export function Tour({ onFinish }: { onFinish: () => void }) {
 
   if (!paso) return null;
 
-  // La nota se coloca debajo del elemento, salvo que no quepa: entonces encima.
-  const margen = 14;
+  // Cálculo dinámico de la posición de la tarjeta para no tapar el elemento ni las pestañas del menú.
+  const margen = 20;
   const anchoNota = 340;
-  const estiloNota: React.CSSProperties = recuadro
-    ? {
-        top:
-          recuadro.top + recuadro.height + margen + 200 > window.innerHeight
-            ? Math.max(margen, recuadro.top - 200 - margen)
-            : recuadro.top + recuadro.height + margen,
+  const altoNota = Math.max(280, altoCardReal);
+
+  let estiloNota: React.CSSProperties;
+
+  if (!recuadro) {
+    estiloNota = { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
+  } else {
+    // Si el elemento está en la barra lateral (menú de navegación a la izquierda)
+    const esBarraLateral = recuadro.left < 280;
+    const cabeALaDerecha = recuadro.left + recuadro.width + margen + anchoNota <= window.innerWidth - margen;
+
+    if (esBarraLateral && cabeALaDerecha) {
+      // Posicionar a la derecha del ítem del menú asegurando margen holgado con el borde inferior
+      const maxTop = window.innerHeight - altoNota - margen;
+      estiloNota = {
+        top: Math.max(margen, Math.min(recuadro.top, maxTop)),
+        left: recuadro.left + recuadro.width + margen,
+      };
+    } else if (recuadro.top + recuadro.height + margen + altoNota <= window.innerHeight - margen) {
+      // Posicionar debajo del elemento si cabe holgadamente
+      estiloNota = {
+        top: recuadro.top + recuadro.height + margen,
         left: Math.min(
           Math.max(margen, recuadro.left),
           Math.max(margen, window.innerWidth - anchoNota - margen),
         ),
-      }
-    : { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
+      };
+    } else if (recuadro.top - altoNota - margen >= margen) {
+      // Posicionar encima del elemento sin solapar la pestaña
+      estiloNota = {
+        top: recuadro.top - altoNota - margen,
+        left: Math.min(
+          Math.max(margen, recuadro.left),
+          Math.max(margen, window.innerWidth - anchoNota - margen),
+        ),
+      };
+    } else if (cabeALaDerecha) {
+      // Posicionar a la derecha si no cabe verticalmente
+      estiloNota = {
+        top: Math.max(margen, Math.min(recuadro.top, window.innerHeight - altoNota - margen)),
+        left: recuadro.left + recuadro.width + margen,
+      };
+    } else {
+      // Ajuste de respaldo
+      estiloNota = {
+        top: Math.max(margen, Math.min(recuadro.top - altoNota, window.innerHeight - altoNota - margen)),
+        left: Math.max(margen, window.innerWidth - anchoNota - margen),
+      };
+    }
+  }
 
   return createPortal(
     <div className="fixed inset-0 z-[100]" role="dialog" aria-modal="true" aria-label="Tutorial">
-      {/* Velo con un hueco: el elemento señalado se ve a través del recorte. */}
-      <div className="absolute inset-0 bg-black/60" onClick={onFinish} />
+      {/* Definición de máscara SVG para recortar la opción señalada */}
+      <svg className="pointer-events-none absolute inset-0 size-full">
+        <defs>
+          <mask id="uts-tour-spotlight-mask" x="0" y="0" width="100%" height="100%">
+            <rect x="0" y="0" width="100%" height="100%" fill="white" />
+            {recuadro && (
+              <rect
+                x={recuadro.left - 6}
+                y={recuadro.top - 6}
+                width={recuadro.width + 12}
+                height={recuadro.height + 12}
+                rx="10"
+                ry="10"
+                fill="black"
+                className="transition-all duration-300"
+              />
+            )}
+          </mask>
+        </defs>
+      </svg>
 
+      {/* Velo desenfocado (backdrop blur) y oscurecido con hueco transparente para la opción destacada */}
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-all duration-300"
+        style={
+          recuadro
+            ? {
+                mask: 'url(#uts-tour-spotlight-mask)',
+                WebkitMask: 'url(#uts-tour-spotlight-mask)',
+              }
+            : undefined
+        }
+        onClick={onFinish}
+      />
+
+      {/* Anillo de resalte alrededor de la opción destacada (original) */}
       {recuadro && (
         <div
-          className="pointer-events-none absolute rounded-lg ring-4 ring-primary transition-all duration-300"
+          className="pointer-events-none absolute rounded-xl ring-2 ring-primary ring-offset-2 ring-offset-transparent shadow-xl transition-all duration-300"
           style={{
-            top: recuadro.top - 4,
-            left: recuadro.left - 4,
-            width: recuadro.width + 8,
-            height: recuadro.height + 8,
-            boxShadow: '0 0 0 9999px rgba(0,0,0,0.6)',
+            top: recuadro.top - 6,
+            left: recuadro.left - 6,
+            width: recuadro.width + 12,
+            height: recuadro.height + 12,
           }}
         />
       )}
 
       <div
+        ref={cardRef}
         className="absolute w-[340px] rounded-xl bg-surface p-4 shadow-pop"
         style={estiloNota}
         onClick={e => e.stopPropagation()}
