@@ -61,6 +61,15 @@ class OfflineStatus {
     _controller.add(estado);
   }
 
+  /// Registra que se ha recibido una actualización en tiempo real desde el servidor.
+  void notificarActualizacionEnTiempoReal() {
+    final ahora = DateTime.now();
+    _desde = null;
+    _ultimaSincronizacion = ahora;
+    unawaited(_persistir(ahora));
+    _controller.add(estado);
+  }
+
   Future<void> _persistir(DateTime momento) async {
     try {
       final prefs = await SharedPreferences.getInstance();

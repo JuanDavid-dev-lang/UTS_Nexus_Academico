@@ -6,6 +6,7 @@ import '../../core/network/api_error.dart';
 import '../../core/network/api_client.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/storage/offline_status.dart';
 import '../../core/widgets/compact.dart';
 import '../../core/widgets/debounced_search_field.dart';
 import '../../core/widgets/session_menu.dart';
@@ -298,6 +299,8 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
     final filtrados = _filtrados;
     final periodoAbierto = ref.watch(periodoActivoAbiertoProvider);
     final periodo = ref.watch(selectedPeriodProvider);
+    final offlineStatus = ref.watch(offlineStatusProvider).valueOrNull;
+    final sinConexion = offlineStatus != null && offlineStatus.desdeCache != null;
 
     return Scaffold(
       appBar: CompactHeader(
@@ -307,12 +310,14 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
           IconButton(
             icon: const Icon(Icons.document_scanner_outlined),
             tooltip: 'Importar desde una foto',
-            onPressed: () async {
-              final importado = await context.push<bool>('/attendance/scan');
-              // Solo se recarga si de verdad se guardó algo: volver sin
-              // importar no debería costar una consulta.
-              if (importado == true && mounted) await _load();
-            },
+            onPressed: sinConexion
+                ? null
+                : () async {
+                    final importado = await context.push<bool>('/attendance/scan');
+                    // Solo se recarga si de verdad se guardó algo: volver sin
+                    // importar no debería costar una consulta.
+                    if (importado == true && mounted) await _load();
+                  },
           ),
           const SessionMenuButton(),
         ],
@@ -334,7 +339,10 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                       AppSpacing.gapSm,
                     ),
                     sliver: SliverToBoxAdapter(
-                      child: _cabecera(periodoAbierto: periodoAbierto),
+                      child: _cabecera(
+                        periodoAbierto: periodoAbierto,
+                        sinConexion: sinConexion,
+                      ),
                     ),
                   ),
 
@@ -358,7 +366,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                           programa: estudiante['program']?.toString() ?? '',
                           marca: _marcas[id] ?? Marca.presente,
                           minutosTarde: _minutosTarde[id] ?? _minutosTardeDefecto,
-                          habilitada: periodoAbierto,
+                          habilitada: periodoAbierto && !sinConexion,
                           onCambio: (marca, minutos) {
                             _marcas[id] = marca;
                             if (minutos != null) _minutosTarde[id] = minutos;
@@ -431,14 +439,16 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                 ],
                 etiquetaAccion: 'Guardar ${_students.length}',
                 cargando: _guardando,
-                onAccion: periodoAbierto && _subjectId != null ? _guardar : null,
+                onAccion: periodoAbierto && _subjectId != null && !sinConexion
+                    ? _guardar
+                    : null,
               ),
             ),
     );
   }
 
   /// Filtros y acciones de la clase.
-  Widget _cabecera({required bool periodoAbierto}) {
+  Widget _cabecera({required bool periodoAbierto, required bool sinConexion}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -450,6 +460,16 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
               mensaje:
                   'El periodo $_period no admite cambios de asistencia. Para '
                   'modificarlo hay que reabrirlo desde la administración.',
+            ),
+          )
+        else if (sinConexion)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.gapSm),
+            child: CompactEmpty(
+              icono: Icons.cloud_off_outlined,
+              mensaje:
+                  'No hay conexión con el servidor. La toma de asistencia no '
+                  'está disponible en este momento y el guardado está bloqueado.',
             ),
           ),
 
