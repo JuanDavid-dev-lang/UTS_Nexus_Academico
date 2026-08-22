@@ -31,7 +31,7 @@ export function DialogContent({
       />
       <DialogPrimitive.Content
         className={cn(
-          'anim-popup fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2',
+          'anim-popup fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 [translate:-50%_-50%]',
           /*
            * El diálogo estaba centrado sin techo de altura ni desbordamiento.
            * Un formulario más alto que la ventana —el de avisos con sus 32

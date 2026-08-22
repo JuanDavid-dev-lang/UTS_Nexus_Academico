@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import './core/data/providers.dart';
 import './core/auth/auth_controller.dart';
 import './core/network/realtime_service.dart';
+import './core/storage/offline_status.dart';
 import './core/theme/app_theme.dart';
 import './core/theme/theme_controller.dart';
 import './core/widgets/app_scaffold.dart';
@@ -254,6 +255,9 @@ class _UtsAppState extends ConsumerState<UtsApp> {
       next.whenData((event) {
         final entity = event['entity'] as String?;
         if (entity == null) return;
+
+        // Notificar que se ha recibido una actualización en tiempo real.
+        OfflineStatus.instance.notificarActualizacionEnTiempoReal();
 
         // Cada entidad invalida solo lo que realmente depende de ella; recargar
         // todo en cada evento desperdicia red y hace parpadear pantallas

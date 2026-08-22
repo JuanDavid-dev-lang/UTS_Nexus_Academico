@@ -24,22 +24,20 @@ class StudentsPage extends ConsumerStatefulWidget {
 }
 
 class _StudentsPageState extends ConsumerState<StudentsPage> {
-  String _query = '';
-
   @override
   Widget build(BuildContext context) {
-    final students = ref.watch(filteredStudentsProvider);
+    final students = ref.watch(filteredAndSearchedStudentsProvider);
+    final allStudents = ref.watch(filteredStudentsProvider).valueOrNull ?? const <Student>[];
     final subjects = ref.watch(subjectsProvider).valueOrNull ?? const <Subject>[];
     final subjectFilter = ref.watch(studentSubjectFilterProvider);
+    final searchQuery = ref.watch(studentSearchQueryProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
 
     return Scaffold(
       appBar: CompactHeader(
         titulo: 'Directorio',
-        contexto: students.valueOrNull == null
-            ? null
-            : '${students.valueOrNull!.length}',
+        contexto: allStudents.isEmpty ? null : '${allStudents.length}',
         acciones: [
           IconButton(
             icon: const Icon(Icons.upload_file_outlined),
@@ -57,21 +55,14 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
         error: (error, _) => StateView.error(
           ApiError.from(error).message,
           action: FilledButton(
-            onPressed: () => ref.invalidate(filteredStudentsProvider),
+            onPressed: () {
+              ref.invalidate(filteredStudentsProvider);
+              ref.invalidate(filteredAndSearchedStudentsProvider);
+            },
             child: const Text('Reintentar'),
           ),
         ),
         data: (items) {
-          final term = _query.trim().toLowerCase();
-          final filtered = term.isEmpty
-              ? items
-              : items
-                  .where((s) =>
-                      s.fullName.toLowerCase().contains(term) ||
-                      s.code.toLowerCase().contains(term) ||
-                      s.program.toLowerCase().contains(term))
-                  .toList();
-
           return Column(
             children: [
               /*
@@ -100,7 +91,8 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
                   children: [
                     DebouncedSearchField(
                       hintText: 'Buscar por nombre, cédula o programa…',
-                      onChanged: (value) => setState(() => _query = value),
+                      onChanged: (value) =>
+                          ref.read(studentSearchQueryProvider.notifier).state = value,
                     ),
                     if (subjects.isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.gapSm),
@@ -133,7 +125,7 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        '${filtered.length} de ${items.length} estudiantes',
+                        '${items.length} de ${allStudents.length} estudiantes',
                         style: AppType.caption.copyWith(color: muted),
                       ),
                     ),
@@ -142,19 +134,19 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
               ),
               const SizedBox(height: AppSpacing.gapSm),
               Expanded(
-                child: filtered.isEmpty
+                child: items.isEmpty
                     ? StateView.empty(
-                        term.isEmpty
+                        searchQuery.trim().isEmpty
                             ? 'Todavía no hay estudiantes registrados.'
-                            : 'Sin coincidencias para "$_query".',
+                            : 'Sin coincidencias para "$searchQuery".',
                       )
                     : ListView.separated(
                         padding: AppSpacing.listPadding,
-                        itemCount: filtered.length,
+                        itemCount: items.length,
                         separatorBuilder: (_, __) =>
                             const SizedBox(height: AppSpacing.gapSm),
                         itemBuilder: (_, index) =>
-                            _StudentTile(student: filtered[index]),
+                            _StudentTile(student: items[index]),
                       ),
               ),
             ],

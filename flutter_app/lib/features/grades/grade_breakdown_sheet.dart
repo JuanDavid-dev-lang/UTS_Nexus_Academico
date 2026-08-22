@@ -6,6 +6,8 @@ import '../../core/data/providers.dart';
 import '../../core/network/api_error.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/ui_kit.dart';
+import '../../core/widgets/compact.dart';
+import '../../core/storage/offline_status.dart';
 
 /// Desglose de un estudiante — y el sitio donde se registran sus notas.
 ///
@@ -181,6 +183,8 @@ class _GradeBreakdownSheetState extends ConsumerState<_GradeBreakdownSheet> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
     final danger = isDark ? AppColors.dangerDark : AppColors.danger;
+    final offlineStatus = ref.watch(offlineStatusProvider).valueOrNull;
+    final sinConexion = offlineStatus != null && offlineStatus.desdeCache != null;
 
     // La fila VIVA: la que llegó al abrir es una foto, y aquí también se
     // registran notas — con la foto, lo añadido no se vería hasta cerrar y
@@ -220,6 +224,17 @@ class _GradeBreakdownSheetState extends ConsumerState<_GradeBreakdownSheet> {
             ),
             const SizedBox(height: 16),
 
+            if (sinConexion)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: CompactEmpty(
+                  icono: Icons.cloud_off_outlined,
+                  mensaje:
+                      'Sin conexión con el servidor. Las escrituras y eliminaciones '
+                      'de calificaciones están temporalmente bloqueadas.',
+                ),
+              ),
+
             if (!tieneNotas && widget.captura == null)
               StateView.empty(
                 'Todavía sin notas.\n'
@@ -248,7 +263,8 @@ class _GradeBreakdownSheetState extends ConsumerState<_GradeBreakdownSheet> {
                     danger: danger,
                     borrando: _borrando,
                     onDelete: _eliminar,
-                    onAgregar: widget.captura == null || !corteAbierto(cut.cut)
+                    sinConexion: sinConexion,
+                    onAgregar: widget.captura == null || !corteAbierto(cut.cut) || sinConexion
                         ? null
                         : (label, score) =>
                             _agregar(cut.cut, component.type, label, score),
@@ -277,6 +293,7 @@ class _ComponentBlock extends StatelessWidget {
   final Color danger;
   final String? borrando;
   final Future<void> Function(GradeDetail) onDelete;
+  final bool sinConexion;
 
   /// Presente = aquí se puede registrar: pinta el renglón de añadir.
   final Future<void> Function(String label, double score)? onAgregar;
@@ -287,6 +304,7 @@ class _ComponentBlock extends StatelessWidget {
     required this.danger,
     required this.borrando,
     required this.onDelete,
+    required this.sinConexion,
     this.onAgregar,
   });
 
@@ -357,7 +375,7 @@ class _ComponentBlock extends StatelessWidget {
                       visualDensity: VisualDensity.compact,
                       tooltip: 'Eliminar ${nota.label}',
                       icon: Icon(Icons.delete_outline, size: 18, color: danger),
-                      onPressed: borrando == null ? () => onDelete(nota) : null,
+                      onPressed: borrando == null && !sinConexion ? () => onDelete(nota) : null,
                     ),
                 ],
               ),

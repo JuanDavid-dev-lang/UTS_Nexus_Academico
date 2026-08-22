@@ -41,6 +41,7 @@ class _OfflineBannerState extends ConsumerState<OfflineBanner> {
   Timer? _cierreVerde;
   bool _verdeVisible = true;
   SemanticKind? _ultimoKind;
+  DateTime? _ultimaSyncProcesada;
 
   @override
   void initState() {
@@ -75,6 +76,10 @@ class _OfflineBannerState extends ConsumerState<OfflineBanner> {
     // mientras todavía se está pidiendo sería mentir en el arranque.
     if (datos == null && realtime == null) return const SizedBox.shrink();
 
+    final ahora = DateTime.now();
+    final sincReciente = datos?.ultimaSincronizacion != null &&
+        ahora.difference(datos!.ultimaSincronizacion!).inSeconds < 5;
+
     final (kind, icono, texto) = switch (true) {
       _ when error => (
           SemanticKind.warning,
@@ -91,9 +96,29 @@ class _OfflineBannerState extends ConsumerState<OfflineBanner> {
       _ => (
           SemanticKind.success,
           Icons.cloud_done_outlined,
-          'Sincronizado · ${haceCuanto(datos?.ultimaSincronizacion)}',
+          sincReciente
+              ? 'Datos actualizados en tiempo real'
+              : 'Sincronizado · ${haceCuanto(datos?.ultimaSincronizacion)}',
         ),
     };
+
+    // Si la sincronización cambia (se recibe una nueva fecha), forzamos
+    // mostrar el banner de éxito verde y reiniciamos el temporizador de cierre.
+    if (datos?.ultimaSincronizacion != null &&
+        datos?.ultimaSincronizacion != _ultimaSyncProcesada) {
+      final eraPrimeraCarga = _ultimaSyncProcesada == null;
+      _ultimaSyncProcesada = datos?.ultimaSincronizacion;
+
+      // Solo mostramos el banner en la primera carga si es extremadamente reciente.
+      // En las siguientes cargas dinámicas, siempre se despliega para dar feedback.
+      if (kind == SemanticKind.success && (!eraPrimeraCarga || sincReciente)) {
+        _verdeVisible = true;
+        _cierreVerde?.cancel();
+        _cierreVerde = Timer(const Duration(seconds: 4), () {
+          if (mounted) setState(() => _verdeVisible = false);
+        });
+      }
+    }
 
     // El verde se programa para cerrarse; cualquier otro estado lo reabre.
     // Se decide aquí y no con setState: si el estado acaba de cambiar, este
