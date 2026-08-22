@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -12,7 +14,10 @@ import '../../core/theme/app_theme.dart';
 /// primero se pide el código, y solo entonces aparecen el código y la nueva
 /// contraseña. Nadie tiene que adivinar el orden.
 class RecoveryPage extends StatefulWidget {
-  const RecoveryPage({super.key});
+  const RecoveryPage({super.key, this.requestCode, this.resetPassword});
+
+  final Future<Map<String, dynamic>> Function(String email)? requestCode;
+  final Future<void> Function(String email, String code, String password)? resetPassword;
 
   @override
   State<RecoveryPage> createState() => _RecoveryPageState();
@@ -24,16 +29,22 @@ class _RecoveryPageState extends State<RecoveryPage> {
   final _email = TextEditingController();
   final _code = TextEditingController();
   final _password = TextEditingController();
+  final _confirmation = TextEditingController();
 
   _Step _step = _Step.requestCode;
   bool _busy = false;
   String? _error;
+  String? _devCode;
+  int _resendSeconds = 0;
+  Timer? _resendTimer;
 
   @override
   void dispose() {
     _email.dispose();
     _code.dispose();
     _password.dispose();
+    _confirmation.dispose();
+    _resendTimer?.cancel();
     super.dispose();
   }
 
@@ -90,6 +101,22 @@ class _RecoveryPageState extends State<RecoveryPage> {
                           ),
                           const SizedBox(height: 14),
                           TextField(
+                            controller: _confirmation,
+                            obscureText: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Confirmar contraseña',
+                              prefixIcon: Icon(Icons.lock_outline),
+                            ),
+                          ),
+                          if (_devCode != null) ...[
+                            const SizedBox(height: 12),
+                            Text(
+                              'Código local de desarrollo: $_devCode',
+                              style: AppType.caption.copyWith(color: muted),
+                            ),
+                          ],
+                          const SizedBox(height: 14),
+                          TextField(
                             controller: _password,
                             obscureText: true,
                             decoration: const InputDecoration(
@@ -131,6 +158,14 @@ class _RecoveryPageState extends State<RecoveryPage> {
                                   : 'Restablecer contraseña'),
                         ),
                         if (_step == _Step.resetPassword) ...[
+                          TextButton(
+                            onPressed: _busy || _resendSeconds > 0
+                                ? null
+                                : _requestCode,
+                            child: Text(_resendSeconds > 0
+                                ? 'Reenviar disponible en $_resendSeconds s'
+                                : 'Reenviar código'),
+                          ),
                           const SizedBox(height: 8),
                           TextButton(
                             onPressed: _busy
@@ -159,14 +194,7 @@ class _RecoveryPageState extends State<RecoveryPage> {
 
     try {
       if (_step == _Step.requestCode) {
-        final email = _email.text.trim();
-        if (email.isEmpty || !email.contains('@')) {
-          setState(() => _error = 'Ingresa un correo válido.');
-          return;
-        }
-        await ApiClient.instance
-            .post('/auth/recovery/request', data: {'email': email});
-        if (mounted) setState(() => _step = _Step.resetPassword);
+        await _requestCode();
       } else {
         if (_code.text.trim().isEmpty) {
           setState(() => _error = 'Ingresa el código que recibiste.');
@@ -177,13 +205,63 @@ class _RecoveryPageState extends State<RecoveryPage> {
               () => _error = 'La contraseña debe tener al menos 8 caracteres.');
           return;
         }
-        await ApiClient.instance.post('/auth/recovery/reset', data: {
-          'email': _email.text.trim(),
-          'code': _code.text.trim(),
-          'newPassword': _password.text,
-        });
+        if (_password.text.length > 128) {
+          setState(() => _error = 'La contraseña no puede superar 128 caracteres.');
+          return;
+        }
+        if (_password.text != _confirmation.text) {
+          setState(() => _error = 'Las contraseñas no coinciden.');
+          return;
+        }
+        if (widget.resetPassword != null) {
+          await widget.resetPassword!(_email.text.trim(), _code.text.trim(), _password.text);
+        } else {
+          await ApiClient.instance.post('/auth/recovery/reset', data: {
+            'email': _email.text.trim(),
+            'code': _code.text.trim(),
+            'newPassword': _password.text,
+          });
+        }
         if (mounted) setState(() => _step = _Step.done);
       }
+    } on ApiError catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _requestCode() async {
+    final email = _email.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() => _error = 'Ingresa un correo válido.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final data = widget.requestCode != null
+          ? await widget.requestCode!(email)
+          : (await ApiClient.instance
+                  .post('/auth/recovery/request', data: {'email': email}))
+              .data;
+      if (!mounted) return;
+      setState(() {
+        _step = _Step.resetPassword;
+        _devCode = data is Map ? data['devCode'] as String? : null;
+        _resendSeconds = 60;
+      });
+      _resendTimer?.cancel();
+      _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted || _resendSeconds <= 1) {
+          timer.cancel();
+          if (mounted) setState(() => _resendSeconds = 0);
+        } else {
+          setState(() => _resendSeconds--);
+        }
+      });
     } on ApiError catch (error) {
       if (mounted) setState(() => _error = error.message);
     } finally {

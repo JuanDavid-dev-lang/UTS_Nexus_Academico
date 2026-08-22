@@ -149,6 +149,9 @@ export function validarProduccion(): void {
       'CLIENT_ORIGIN no puede ser "*" en producción: indica los orígenes permitidos separados por coma.',
     );
   }
+  if (!env.SMTP_HOST) {
+    fallos.push('SMTP_HOST es obligatorio en producción para recuperar contraseñas.');
+  }
 
   if (fallos.length > 0) {
     console.error('\n[config] El servidor NO va a arrancar. Corrige esto en el entorno:\n');

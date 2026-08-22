@@ -31,3 +31,16 @@ export const loginInputSchema = z.object({
 });
 
 export type LoginInput = z.infer<typeof loginInputSchema>;
+
+export const recoveryRequestSchema = z.object({
+  ok: z.literal(true),
+  message: z.string(),
+  devCode: z.string().optional(),
+});
+
+export const recoveryResetSchema = z.object({ ok: z.literal(true), message: z.string() });
+
+export const recoveryEmailSchema = z.string().trim().toLowerCase().email('Correo inválido');
+export const recoveryPasswordSchema = z.string()
+  .min(8, 'La contraseña debe tener al menos 8 caracteres')
+  .max(128, 'La contraseña no puede superar 128 caracteres');

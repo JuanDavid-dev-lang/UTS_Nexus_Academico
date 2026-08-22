@@ -62,6 +62,8 @@ export interface AuthRepository {
   login(input: LoginInput): Promise<{ user: User; accessToken: string; refreshToken: string }>;
   me(): Promise<User>;
   logout(): Promise<void>;
+  requestPasswordReset(email: string): Promise<{ message: string; devCode?: string }>;
+  resetPassword(input: { email: string; code: string; newPassword: string }): Promise<void>;
 }
 
 export interface StudentRepository {
