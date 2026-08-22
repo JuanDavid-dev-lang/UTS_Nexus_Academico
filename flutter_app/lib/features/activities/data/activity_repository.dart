@@ -161,4 +161,14 @@ class ActivityRepository {
     });
     return _items(response.data).map(TimelineEvent.fromJson).toList();
   }
+
+  Future<StudentFollowUpFile> seguimiento(String studentId, {String? subjectId, String? period}) async {
+    final response = await _api.get('/students/$studentId/seguimiento', query: {
+      if (subjectId != null) 'subjectId': subjectId,
+      if (period != null) 'period': period,
+      'limit': 100,
+    });
+    final root = Map<String, dynamic>.from(response.data as Map);
+    return StudentFollowUpFile.fromJson(Map<String, dynamic>.from(root['item'] as Map));
+  }
 }

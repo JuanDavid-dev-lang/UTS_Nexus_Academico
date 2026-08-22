@@ -41,7 +41,7 @@ class _HistorialState extends ConsumerState<_Historial> {
 
   @override
   Widget build(BuildContext context) {
-    final historial = ref.watch(historialProvider(widget.studentId));
+    final historial = ref.watch(seguimientoEstudianteProvider(widget.studentId));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -79,11 +79,12 @@ class _HistorialState extends ConsumerState<_Historial> {
           error: (error, _) => StateView.error(
             ApiError.from(error).message,
             action: FilledButton(
-              onPressed: () => ref.invalidate(historialProvider(widget.studentId)),
+              onPressed: () => ref.invalidate(seguimientoEstudianteProvider(widget.studentId)),
               child: const Text('Reintentar'),
             ),
           ),
-          data: (eventos) {
+          data: (expediente) {
+            final eventos = expediente.timeline;
             // El filtrado por tipo es presentación pura sobre una lista que ya
             // viene ordenada del servidor: no altera el orden.
             final visibles = _tipo == null
@@ -109,6 +110,28 @@ class _HistorialState extends ConsumerState<_Historial> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (expediente.academic.isNotEmpty) ...[
+                  CompactSectionHeader('Situación actual'),
+                  for (final registro in expediente.academic)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.gapSm),
+                      child: AcademicRow(
+                        titulo: registro.subjectName,
+                        metadatos: [
+                          '${registro.period} · Promedio ${registro.currentGrade.toStringAsFixed(2)}',
+                          'Asistencia ${registro.attendancePercentage.toStringAsFixed(0)}%',
+                          ...registro.reasons,
+                        ],
+                        acento: registro.riskLevel == 'ALTO' ? SemanticKind.danger : registro.riskLevel == 'MEDIO' ? SemanticKind.warning : SemanticKind.success,
+                        estado: StatusPill(registro.riskLevel, kind: registro.riskLevel == 'ALTO' ? SemanticKind.danger : registro.riskLevel == 'MEDIO' ? SemanticKind.warning : SemanticKind.success),
+                      ),
+                    ),
+                  if (expediente.hasOpenFollowUp)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: AppSpacing.gap),
+                      child: StatusPill('Seguimiento en curso', kind: SemanticKind.warning),
+                    ),
+                ],
                 for (final entrada in porDia.entries) ...[
                   CompactSectionHeader(entrada.key),
                   for (final evento in entrada.value)

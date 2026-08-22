@@ -86,3 +86,8 @@ final historialProvider =
     FutureProvider.family<List<TimelineEvent>, String>((ref, studentId) {
   return ref.watch(activityRepositoryProvider).historial(studentId);
 });
+
+final seguimientoEstudianteProvider =
+    FutureProvider.family<StudentFollowUpFile, String>((ref, studentId) {
+  return ref.watch(activityRepositoryProvider).seguimiento(studentId);
+});

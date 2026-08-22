@@ -217,6 +217,42 @@ class TimelineEvent {
       );
 }
 
+class FollowUpAcademicRecord {
+  final String subjectName;
+  final String period;
+  final double currentGrade;
+  final double attendancePercentage;
+  final String riskLevel;
+  final List<String> reasons;
+  const FollowUpAcademicRecord({required this.subjectName, required this.period, required this.currentGrade, required this.attendancePercentage, required this.riskLevel, required this.reasons});
+  factory FollowUpAcademicRecord.fromJson(Map<String, dynamic> json) {
+    final risk = Map<String, dynamic>.from(json['risk'] as Map? ?? const {});
+    return FollowUpAcademicRecord(
+      subjectName: _toStr(json['subjectName'], 'Materia'), period: _toStr(json['period']),
+      currentGrade: _toDouble(json['currentGrade']), attendancePercentage: _toDouble(json['attendancePercentage']),
+      riskLevel: _toStr(risk['level'], 'BAJO'), reasons: (risk['reasons'] as List? ?? const []).map(_toStr).toList(),
+    );
+  }
+}
+
+class StudentFollowUpFile {
+  final List<FollowUpAcademicRecord> academic;
+  final List<TimelineEvent> timeline;
+  final bool hasOpenFollowUp;
+  final int totalEvents;
+  const StudentFollowUpFile({required this.academic, required this.timeline, required this.hasOpenFollowUp, required this.totalEvents});
+  factory StudentFollowUpFile.fromJson(Map<String, dynamic> json) {
+    final academic = json['academic'] as List? ?? const [];
+    final followUp = Map<String, dynamic>.from(json['followUp'] as Map? ?? const {});
+    final timeline = Map<String, dynamic>.from(json['timeline'] as Map? ?? const {});
+    return StudentFollowUpFile(
+      academic: academic.whereType<Map>().map((e) => FollowUpAcademicRecord.fromJson(Map<String, dynamic>.from(e))).toList(),
+      timeline: (timeline['items'] as List? ?? const []).whereType<Map>().map((e) => TimelineEvent.fromJson(Map<String, dynamic>.from(e))).toList(),
+      hasOpenFollowUp: followUp['open'] != null, totalEvents: _toInt(timeline['total']),
+    );
+  }
+}
+
 /// Etiqueta legible de cada tipo de hecho. Presentación pura.
 const etiquetaDeEvento = <String, String>{
   'MATRICULA': 'Matrícula',

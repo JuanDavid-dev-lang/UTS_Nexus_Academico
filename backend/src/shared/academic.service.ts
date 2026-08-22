@@ -25,6 +25,8 @@ export type AcademicFilter = {
   studentIds?: string[];
   /** Limita a un solo estudiante (self-service). */
   studentId?: string;
+  /** Limita a una materia sin delegar el filtro al cliente. */
+  subjectId?: string;
   period?: string;
 };
 
@@ -72,6 +74,7 @@ function baseMatch(filter: AcademicFilter): Record<string, unknown> {
   if (filter.period) query.period = filter.period;
   if (filter.studentId) query.studentId = aId(filter.studentId);
   else if (filter.studentIds) query.studentId = { $in: filter.studentIds.map(aId) };
+  if (filter.subjectId) query.subjectId = aId(filter.subjectId);
   return query;
 }
 
