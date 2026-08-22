@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import * as campo from '../../shared/validation.js';
-import { StudentModel } from '../../models/student.model.js';
 import { identificar, requireRole } from '../../middlewares/auth.js';
 import { emitSync } from '../../shared/socket.js';
 import {
@@ -10,6 +9,15 @@ import {
   professorOwnsStudent,
 } from '../../shared/professor-scope.js';
 import { intersectar } from '../../domains/scope/professor-scope.js';
+import {
+  createStudent,
+  findStudent,
+  listStudents,
+  searchStudents,
+  softDeleteStudent,
+  updateStudent,
+  upsertStudents,
+} from './student.service.js';
 
 export const studentRouter = Router();
 
@@ -70,10 +78,7 @@ studentRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (
     // El conteo va en paralelo con la página: son dos consultas independientes
     // y encadenarlas duplicaba la espera sin ninguna razón.
     const { skip, limit } = campo.saltoYTope(query);
-    const [items, total] = await Promise.all([
-      StudentModel.find(filter).sort({ code: 1, fullName: 1 }).skip(skip).limit(limit).lean(),
-      StudentModel.countDocuments(filter),
-    ]);
+    const { items, total } = await listStudents(filter, skip, limit);
     res.json(campo.respuestaPaginada(items, total, query));
   } catch (err) {
     next(err);
@@ -98,14 +103,7 @@ studentRouter.get('/search', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), a
       .parse(req.query);
 
     const term = new RegExp(escapeRegex(query.q), 'i');
-    const items = await StudentModel.find({
-      deletedAt: null,
-      $or: [{ fullName: term }, { code: term }],
-    })
-      .select('code fullName program photoUrl')
-      .sort({ code: 1 })
-      .limit(query.limit)
-      .lean();
+    const items = await searchStudents(term, query.limit);
 
     res.json({ ok: true, items });
   } catch (err) {
@@ -118,7 +116,7 @@ studentRouter.get('/:id', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), asyn
     if (req.user?.role === 'PROFESSOR' && !(await professorOwnsStudent(req.user.id, String(req.params.id)))) {
       return res.status(403).json({ ok: false, message: 'Estudiante fuera de tus asignaturas' });
     }
-    const item = await StudentModel.findOne({ _id: req.params.id, deletedAt: null }).lean();
+    const item = await findStudent(String(req.params.id));
     if (!item) return res.status(404).json({ ok: false, message: 'Not found' });
     res.json({ ok: true, item });
   } catch (err) {
@@ -133,7 +131,7 @@ studentRouter.get('/:id', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), asyn
 const fichaEstudiante = z.object({
   code: campo.codigo.min(3),
   fullName: campo.nombre.min(3),
-  email: campo.correo,
+  email: campo.correo.optional(),
   program: campo.linea.min(2),
   photoUrl: campo.url.nullable().optional(),
 });
@@ -142,7 +140,7 @@ studentRouter.post('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async 
   try {
     const body = fichaEstudiante.parse(req.body);
 
-    const item = await StudentModel.create(body);
+    const item = await createStudent(body);
     emitSync('sync:update', { entity: 'student', action: 'create', id: item.id });
     res.status(201).json({ ok: true, item });
   } catch (err) {
@@ -160,28 +158,7 @@ studentRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), as
     // Una escritura para todo el lote y una lectura para devolverlo, en vez de
     // un `findOneAndUpdate` por fila. Importar un listado de 300 estudiantes
     // eran 300 viajes encadenados a la base; ahora son dos.
-    const codigos = [...new Set(body.map(row => row.code))];
-
-    await StudentModel.bulkWrite(
-      body.map(row => ({
-        updateOne: {
-          filter: { code: row.code, deletedAt: null },
-          update: {
-            $set: row,
-            // `academicHistory` no va aquí: es un array del esquema y Mongoose
-            // lo entrega como `[]` al leerlo aunque el documento no lo traiga.
-            // Declararlo rompía el tipado de `bulkWrite` sin aportar nada.
-            $setOnInsert: { attendanceRate: 0, academicPerformance: 0 },
-          },
-          upsert: true,
-        },
-      })),
-      { ordered: false },
-    );
-
-    const items = await StudentModel.find({ code: { $in: codigos }, deletedAt: null })
-      .sort({ code: 1 })
-      .lean();
+    const items = await upsertStudents(body);
 
     emitSync('sync:update', { entity: 'student', action: 'bulk', id: String(items.length) });
     res.status(201).json({ ok: true, items, count: items.length });
@@ -205,11 +182,7 @@ studentRouter.patch('/:id', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), as
       academicPerformance: z.number().min(0).max(5).optional(),
     }).parse(req.body);
 
-    const item = await StudentModel.findOneAndUpdate(
-      { _id: req.params.id, deletedAt: null },
-      { $set: body },
-      { new: true }
-    );
+    const item = await updateStudent(String(req.params.id), body);
     if (!item) return res.status(404).json({ ok: false, message: 'Not found' });
     emitSync('sync:update', { entity: 'student', action: 'update', id: item.id });
     res.json({ ok: true, item });
@@ -220,11 +193,7 @@ studentRouter.patch('/:id', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), as
 
 studentRouter.delete('/:id', requireRole('ADMIN', 'COORDINATOR'), async (req, res, next) => {
   try {
-    const item = await StudentModel.findOneAndUpdate(
-      { _id: req.params.id, deletedAt: null },
-      { $set: { deletedAt: new Date(), status: 'DELETED' } },
-      { new: true }
-    );
+    const item = await softDeleteStudent(String(req.params.id));
     if (!item) return res.status(404).json({ ok: false, message: 'Not found' });
     emitSync('sync:update', { entity: 'student', action: 'delete', id: item.id });
     res.json({ ok: true });

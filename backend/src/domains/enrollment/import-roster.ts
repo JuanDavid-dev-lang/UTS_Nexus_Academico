@@ -61,9 +61,9 @@ export function interpretarMatrizListado(matriz: string[][]): ListadoInterpretad
       ? indices.nombre
       : celdas.findIndex((celda, indice) => indice !== indiceCedula && /\p{L}/u.test(celda) && !celda.includes('@'));
     const nombre = (celdas[indiceNombre] ?? '').replace(/\s+/g, ' ').trim();
-    const correo = indices.correo >= 0
+    const correo = (indices.correo >= 0
       ? celdas[indices.correo] ?? ''
-      : celdas.find(celda => celda.includes('@')) ?? '';
+      : celdas.find(celda => celda.includes('@')) ?? '').trim().toLowerCase();
     const programa = indices.programa >= 0 ? celdas[indices.programa] ?? '' : '';
     const problemas: string[] = [];
 

@@ -12,6 +12,7 @@ import { emitToUser } from '../../shared/socket.js';
 import { env } from '../../shared/env.js';
 import { interpretarMatrizListado } from '../../domains/enrollment/import-roster.js';
 import { exigirPeriodoAbierto } from '../../shared/period-guard.js';
+import { assertUniqueStudentEmails } from '../students/student.service.js';
 
 export const enrollmentRouter = Router();
 enrollmentRouter.use(identificar);
@@ -253,12 +254,16 @@ enrollmentRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'),
      */
     const codigos = [...new Set(body.students.map(row => row.code))];
 
+    await assertUniqueStudentEmails(body.students);
+
     await StudentModel.bulkWrite(
       body.students.map(row => ({
         updateOne: {
           filter: { code: row.code, deletedAt: null },
           update: {
-            $set: { fullName: row.fullName },
+            // Un correo informado y revisado actualiza la ficha; omitirlo
+            // conserva el valor actual en vez de borrarlo.
+            $set: { fullName: row.fullName, ...(row.email ? { email: row.email } : {}) },
             // Sin `academicHistory`: es un array del esquema, Mongoose lo
             // entrega como `[]` al leer aunque el documento no lo traiga, y
             // declararlo aquí rompe el tipado de `bulkWrite`.
@@ -271,7 +276,7 @@ enrollmentRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'),
             // de uno creado por `POST /students/bulk`.
             $setOnInsert: {
               code: row.code,
-              email: row.email ?? `${row.code}@estudiantes.uts.edu.co`,
+              email: row.email ?? null,
               program: row.program ?? 'UTS',
               attendanceRate: 0,
               academicPerformance: 0,
