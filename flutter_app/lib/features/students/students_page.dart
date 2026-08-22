@@ -24,20 +24,29 @@ class StudentsPage extends ConsumerStatefulWidget {
 }
 
 class _StudentsPageState extends ConsumerState<StudentsPage> {
+  /// Texto ya reposado por [DebouncedSearchField].
+  ///
+  /// Vive en el estado de la pantalla y no en un provider a propósito. Con un
+  /// `FutureProvider` que observase el término, cada búsqueda devolvía la
+  /// pantalla a `AsyncLoading` y `when` pintaba el esqueleto encima de todo el
+  /// `Column` —incluido el propio buscador—, que al desmontarse se llevaba su
+  /// `TextEditingController` y con él el texto escrito y el foco.
+  String _query = '';
+
   @override
   Widget build(BuildContext context) {
-    final students = ref.watch(filteredAndSearchedStudentsProvider);
-    final allStudents = ref.watch(filteredStudentsProvider).valueOrNull ?? const <Student>[];
+    final students = ref.watch(filteredStudentsProvider);
     final subjects = ref.watch(subjectsProvider).valueOrNull ?? const <Subject>[];
     final subjectFilter = ref.watch(studentSubjectFilterProvider);
-    final searchQuery = ref.watch(studentSearchQueryProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
 
     return Scaffold(
       appBar: CompactHeader(
         titulo: 'Directorio',
-        contexto: allStudents.isEmpty ? null : '${allStudents.length}',
+        contexto: students.valueOrNull == null
+            ? null
+            : '${students.valueOrNull!.length}',
         acciones: [
           IconButton(
             icon: const Icon(Icons.upload_file_outlined),
@@ -55,14 +64,21 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
         error: (error, _) => StateView.error(
           ApiError.from(error).message,
           action: FilledButton(
-            onPressed: () {
-              ref.invalidate(filteredStudentsProvider);
-              ref.invalidate(filteredAndSearchedStudentsProvider);
-            },
+            onPressed: () => ref.invalidate(filteredStudentsProvider),
             child: const Text('Reintentar'),
           ),
         ),
         data: (items) {
+          final term = _query.trim().toLowerCase();
+          final filtered = term.isEmpty
+              ? items
+              : items
+                  .where((s) =>
+                      s.fullName.toLowerCase().contains(term) ||
+                      s.code.toLowerCase().contains(term) ||
+                      s.program.toLowerCase().contains(term))
+                  .toList();
+
           return Column(
             children: [
               /*
@@ -91,8 +107,7 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
                   children: [
                     DebouncedSearchField(
                       hintText: 'Buscar por nombre, cédula o programa…',
-                      onChanged: (value) =>
-                          ref.read(studentSearchQueryProvider.notifier).state = value,
+                      onChanged: (value) => setState(() => _query = value),
                     ),
                     if (subjects.isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.gapSm),
@@ -125,7 +140,7 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        '${items.length} de ${allStudents.length} estudiantes',
+                        '${filtered.length} de ${items.length} estudiantes',
                         style: AppType.caption.copyWith(color: muted),
                       ),
                     ),
@@ -134,19 +149,19 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
               ),
               const SizedBox(height: AppSpacing.gapSm),
               Expanded(
-                child: items.isEmpty
+                child: filtered.isEmpty
                     ? StateView.empty(
-                        searchQuery.trim().isEmpty
+                        term.isEmpty
                             ? 'Todavía no hay estudiantes registrados.'
-                            : 'Sin coincidencias para "$searchQuery".',
+                            : 'Sin coincidencias para "$_query".',
                       )
                     : ListView.separated(
                         padding: AppSpacing.listPadding,
-                        itemCount: items.length,
+                        itemCount: filtered.length,
                         separatorBuilder: (_, __) =>
                             const SizedBox(height: AppSpacing.gapSm),
                         itemBuilder: (_, index) =>
-                            _StudentTile(student: items[index]),
+                            _StudentTile(student: filtered[index]),
                       ),
               ),
             ],

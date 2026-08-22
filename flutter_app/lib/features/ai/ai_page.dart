@@ -241,14 +241,20 @@ class _StatusBannerState extends ConsumerState<_StatusBanner> {
   bool _visible = true;
   Timer? _timer;
 
-  @override
-  void initState() {
-    super.initState();
-    // Oculta el banner automáticamente después de 4 segundos.
+  /// Arranca la cuenta atrás la primera vez que hay algo que enseñar.
+  ///
+  /// No en `initState`: `aiStatusProvider` es asíncrono y mientras carga este
+  /// widget no pinta nada. Contando desde el montaje, un estado que tardase más
+  /// de cuatro segundos en resolverse aparecía ya oculto —el docente nunca se
+  /// enteraba de que Rubri estaba caído— y uno que tardase tres se veía un
+  /// segundo.
+  ///
+  /// El `_timer != null` la hace idempotente, que es lo que permite llamarla
+  /// desde `build` sin que cada reconstrucción reinicie la cuenta.
+  void _programarCierre() {
+    if (_timer != null) return;
     _timer = Timer(const Duration(seconds: 4), () {
-      if (mounted) {
-        setState(() => _visible = false);
-      }
+      if (mounted) setState(() => _visible = false);
     });
   }
 
@@ -261,6 +267,11 @@ class _StatusBannerState extends ConsumerState<_StatusBanner> {
   @override
   Widget build(BuildContext context) {
     final status = ref.watch(aiStatusProvider);
+
+    // El `watch` ya reconstruye cuando el estado se resuelve, así que esta
+    // comprobación cubre tanto la primera carga como el valor ya cacheado.
+    if (status.hasValue) _programarCierre();
+
     return status.when(
       loading: () => const SizedBox.shrink(),
       error: (_, __) => const SizedBox.shrink(),
