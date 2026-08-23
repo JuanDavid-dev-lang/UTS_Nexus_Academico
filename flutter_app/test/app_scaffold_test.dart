@@ -3,6 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uts_academico/core/auth/auth_controller.dart';
+import 'package:uts_academico/core/auth/auth_repository.dart';
+import 'package:uts_academico/core/auth/auth_user.dart';
+import 'package:uts_academico/core/auth/session_storage.dart';
+import 'package:uts_academico/core/network/realtime_service.dart';
+import 'package:uts_academico/core/data/providers.dart';
 import 'package:uts_academico/core/widgets/app_scaffold.dart';
 
 class _FakeBranchNavigation implements BranchNavigation {
@@ -16,6 +22,21 @@ class _FakeBranchNavigation implements BranchNavigation {
   void goBranch(int index, {bool initialLocation = false}) {
     receivedIndex = index;
     receivedInitialLocation = initialLocation;
+  }
+}
+
+class _TestAuthController extends AuthController {
+  _TestAuthController()
+    : super(AuthRepository(), SessionStorage(), RealtimeService.instance) {
+    state = AuthState(
+      loading: false,
+      user: AuthUser(
+        id: 'usuario-menu',
+        email: 'docente@uts.edu.co',
+        role: 'PROFESSOR',
+        fullName: 'Docente de prueba',
+      ),
+    );
   }
 }
 
@@ -126,6 +147,78 @@ void main() {
     expect(branchNavigation.receivedIndex, 1);
     expect(branchNavigation.receivedInitialLocation, isFalse);
   });
+
+  testWidgets(
+    'personaliza, guarda y restaura el orden al reconstruir AppScaffold',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({'tutorial_visto': true});
+
+      GoRouter buildRouter() => GoRouter(
+        initialLocation: '/',
+        routes: [
+          StatefulShellRoute.indexedStack(
+            builder: (context, state, shell) => AppScaffold(
+              navigationShell: shell,
+              branchNavigation: _FakeBranchNavigation(),
+            ),
+            branches: [
+              for (final route in rutasDeRama)
+                StatefulShellBranch(
+                  routes: [
+                    GoRoute(path: route, builder: (_, __) => const SizedBox()),
+                  ],
+                ),
+            ],
+          ),
+          GoRoute(path: '/tutorial', builder: (_, __) => const SizedBox()),
+        ],
+      );
+
+      Widget app(GoRouter router) => ProviderScope(
+        overrides: [
+          authControllerProvider.overrideWith((ref) => _TestAuthController()),
+          esDirectorProvider.overrideWithValue(false),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      );
+
+      final firstRouter = buildRouter();
+      await tester.pumpWidget(app(firstRouter));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Más'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Personalizar menú'));
+      await tester.tap(find.text('Personalizar menú'));
+      await tester.pumpAndSettle();
+
+      // Agenda pasa del tercer al primer puesto mediante el editor real.
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const ValueKey('/agenda'))),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      await gesture.moveBy(const Offset(0, -140));
+      await gesture.up();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Guardar orden'));
+      await tester.pumpAndSettle();
+
+      await tester.pumpWidget(const SizedBox());
+      firstRouter.dispose();
+
+      final rebuiltRouter = buildRouter();
+      addTearDown(rebuiltRouter.dispose);
+      await tester.pumpWidget(app(rebuiltRouter));
+      await tester.pumpAndSettle();
+
+      final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
+      final labels = bar.destinations
+          .whereType<NavigationDestination>()
+          .map((destination) => destination.label)
+          .toList();
+      expect(labels, ['Agenda', 'Inicio', 'Materias', 'Asistente', 'Más']);
+    },
+  );
 
   test('cambiar de usuario sustituye el orden sin filtrar el anterior', () {
     final visible = menuRoutesWhileLoading(
