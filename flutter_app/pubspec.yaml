@@ -1,7 +1,7 @@
 name: uts_academico
 description: UTS Académico docente
 publish_to: "none"
-version: 2.11.0+31
+version: 2.12.0+32
 
 environment:
   sdk: ">=3.8.0 <4.0.0"
