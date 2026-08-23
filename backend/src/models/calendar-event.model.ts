@@ -35,7 +35,10 @@ const schema = new Schema(
       index: true,
     },
     /** Dueño del evento: quien lo creó y quien recibe sus recordatorios. */
-    teacherId: { type: Schema.Types.ObjectId, ref: 'Usuario', required: true, index: true },
+    teacherId: { type: Schema.Types.ObjectId, ref: 'Usuario', default: null, index: true },
+    visibility: { type: String, enum: ['PERSONAL', 'INSTITUTIONAL'], default: 'PERSONAL', index: true },
+    importBatchId: { type: String, default: null, index: true },
+    externalKey: { type: String, default: null },
     subjectId: { type: Schema.Types.ObjectId, ref: 'Materia', default: null, index: true },
     groupId: { type: Schema.Types.ObjectId, ref: 'Grupo', default: null, index: true },
     /** Instante absoluto (UTC). La hora de pared se resuelve con el desfase del campus. */
@@ -59,5 +62,9 @@ const schema = new Schema(
 
 // La consulta natural de la agenda: "lo mío entre estas dos fechas".
 schema.index({ teacherId: 1, startAt: 1, deletedAt: 1 });
+schema.index(
+  { externalKey: 1 },
+  { unique: true, partialFilterExpression: { externalKey: { $type: 'string' }, deletedAt: null } },
+);
 
 export const CalendarEventModel = model('EventoCalendario', schema, 'eventos_calendario');

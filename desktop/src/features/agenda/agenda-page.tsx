@@ -24,6 +24,8 @@ import { MonthView } from '@/features/agenda/components/month-view';
 import { UpcomingView } from '@/features/agenda/components/upcoming-view';
 import { ItemDialog } from '@/features/agenda/components/item-dialog';
 import { EventDialog, type EventoEditable } from '@/features/agenda/components/event-dialog';
+import { InstitutionalCalendarImportDialog } from '@/features/agenda/components/institutional-calendar-import-dialog';
+import { useSession } from '@/state/session.store';
 import { useAgendaRange, useAhora } from '@/features/agenda/hooks/use-agenda';
 import {
   agruparPorFecha,
@@ -53,6 +55,8 @@ const VISTAS: { valor: VistaAgenda; etiqueta: string }[] = [
 export default function AgendaPage() {
   const [vista, setVista] = useState<VistaAgenda>('semana');
   const [importarHorario, setImportarHorario] = useState(false);
+  const [importarInstitucional, setImportarInstitucional] = useState(false);
+  const esAdmin = useSession((state) => state.user?.role === 'ADMIN');
   const [ancla, setAncla] = useState(() => new Date());
   const [subjectId, setSubjectId] = useState('');
   const [seleccionado, setSeleccionado] = useState<AgendaItem | null>(null);
@@ -145,6 +149,7 @@ export default function AgendaPage() {
         subtitle="Tus clases, evaluaciones, entregas y eventos en un solo sitio"
         actions={
           <div className="flex gap-2">
+            {esAdmin && <Button variant="secondary" onClick={() => setImportarInstitucional(true)}><FileUp aria-hidden />Importar calendario</Button>}
             <Button variant="secondary" onClick={() => setImportarHorario(true)}>
               <FileUp aria-hidden />
               Importar horario
@@ -161,6 +166,7 @@ export default function AgendaPage() {
       <NextClassCard />
 
       <ScheduleImportDialog open={importarHorario} onOpenChange={setImportarHorario} />
+      <InstitutionalCalendarImportDialog open={importarInstitucional} onOpenChange={setImportarInstitucional} />
 
       {/*
         Barra de navegación del calendario, en un pozo y con los controles

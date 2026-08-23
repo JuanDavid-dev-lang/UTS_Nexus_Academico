@@ -49,6 +49,8 @@ import type {
   CalendarEvent,
   CalendarEventInput,
   NotificationPreferences,
+  InstitutionalPreview,
+  InstitutionalImportRow,
 } from '@/domain/schemas/agenda';
 
 export type Scope = {
@@ -215,6 +217,8 @@ export interface AgendaRepository {
       aula: string;
     }[];
   }): Promise<HorarioConfirmado>;
+  previewInstitutional(file: File): Promise<InstitutionalPreview>;
+  confirmInstitutional(rows: Array<Pick<InstitutionalImportRow, 'title' | 'description' | 'startDate' | 'endDate' | 'location' | 'period'>>): Promise<{ created: number; omitted: number; importBatchId: string }>;
   listEvents(desde: Date, hasta: Date): Promise<CalendarEvent[]>;
   createEvent(input: CalendarEventInput): Promise<CalendarEvent>;
   updateEvent(id: string, input: Partial<CalendarEventInput>): Promise<CalendarEvent>;

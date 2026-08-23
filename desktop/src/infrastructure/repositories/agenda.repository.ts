@@ -20,6 +20,8 @@ import {
   type NotificationPreferences,
   horarioConfirmResponseSchema,
   horarioScanResponseSchema,
+  institutionalPreviewSchema,
+  institutionalConfirmSchema,
 } from '@/domain/schemas/agenda';
 import type { AgendaRepository, NotificationPreferencesRepository } from '@/domain/repositories/ports';
 
@@ -62,6 +64,16 @@ export const agendaRepository: AgendaRepository = {
     return http.post('/schedules/import/confirm', input, {
       schema: horarioConfirmResponseSchema,
     });
+  },
+
+  async previewInstitutional(file) {
+    const body = new FormData(); body.append('file', file);
+    return request('/agenda/institutional-import/preview', { method: 'POST', body, schema: institutionalPreviewSchema, timeoutMs: 90_000 });
+  },
+
+  async confirmInstitutional(rows) {
+    const data = await http.post('/agenda/institutional-import/confirm', { rows }, { schema: institutionalConfirmSchema });
+    return { created: data.created, omitted: data.omitted, importBatchId: data.importBatchId };
   },
 
   async listEvents(desde: Date, hasta: Date): Promise<CalendarEvent[]> {
