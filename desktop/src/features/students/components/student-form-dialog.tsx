@@ -114,7 +114,7 @@ export function StudentFormDialog({
             )}
           </Field>
 
-          <Field label="Correo" error={errors.email} required>
+          <Field label="Correo" error={errors.email} hint="Opcional si aún no se conoce">
             {(props) => (
               <Input
                 {...props}

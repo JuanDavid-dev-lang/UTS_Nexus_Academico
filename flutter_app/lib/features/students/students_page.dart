@@ -10,6 +10,7 @@ import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
 import '../../core/widgets/debounced_search_field.dart';
 import './widgets/student_timeline_sheet.dart';
+import 'roster_import_sheet.dart';
 
 /// Directorio global de estudiantes.
 ///
@@ -27,8 +28,10 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
   @override
   Widget build(BuildContext context) {
     final students = ref.watch(filteredAndSearchedStudentsProvider);
-    final allStudents = ref.watch(filteredStudentsProvider).valueOrNull ?? const <Student>[];
-    final subjects = ref.watch(subjectsProvider).valueOrNull ?? const <Subject>[];
+    final allStudents =
+        ref.watch(filteredStudentsProvider).valueOrNull ?? const <Student>[];
+    final subjects =
+        ref.watch(subjectsProvider).valueOrNull ?? const <Subject>[];
     final subjectFilter = ref.watch(studentSubjectFilterProvider);
     final searchQuery = ref.watch(studentSearchQueryProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -78,7 +81,9 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
               Container(
                 decoration: BoxDecoration(
                   color: context.palette.bg,
-                  border: Border(bottom: BorderSide(color: context.palette.border)),
+                  border: Border(
+                    bottom: BorderSide(color: context.palette.border),
+                  ),
                 ),
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.page,
@@ -92,7 +97,8 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
                     DebouncedSearchField(
                       hintText: 'Buscar por nombre, cédula o programa…',
                       onChanged: (value) =>
-                          ref.read(studentSearchQueryProvider.notifier).state = value,
+                          ref.read(studentSearchQueryProvider.notifier).state =
+                              value,
                     ),
                     if (subjects.isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.gapSm),
@@ -111,14 +117,18 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
                           ...subjects.map(
                             (subject) => DropdownMenuItem<String?>(
                               value: subject.id,
-                              child: Text(subject.name,
-                                  overflow: TextOverflow.ellipsis),
+                              child: Text(
+                                subject.name,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                           ),
                         ],
-                        onChanged: (value) => ref
-                            .read(studentSubjectFilterProvider.notifier)
-                            .state = value,
+                        onChanged: (value) =>
+                            ref
+                                    .read(studentSubjectFilterProvider.notifier)
+                                    .state =
+                                value,
                       ),
                     ],
                     const SizedBox(height: AppSpacing.gapSm),
@@ -157,111 +167,24 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
   }
 
   Future<void> _openImportSheet() async {
-    final controller = TextEditingController();
-    var importing = false;
-
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (innerContext, setSheetState) => Padding(
-          padding: EdgeInsets.only(
-            left: AppSpacing.page + 4,
-            right: AppSpacing.page + 4,
-            // `viewInsetsOf` y no `of`: `MediaQuery.of` suscribe al
-            // `MediaQueryData` entero, y el teclado anima `viewInsets`
-            // fotograma a fotograma. En una hoja cuyo único control es un campo
-            // de texto de diez líneas, eso es reconstruir la hoja completa
-            // sesenta veces por segundo cada vez que el teclado sube.
-            bottom: MediaQuery.viewInsetsOf(innerContext).bottom + AppSpacing.page + 4,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Importar estudiantes',
-                  style: AppType.h3.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 6),
-              const Text(
-                'Pega una fila por estudiante, separando los campos con comas. '
-                'La primera línea es la cabecera y se ignora.',
-                style: AppType.caption,
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: controller,
-                minLines: 6,
-                maxLines: 10,
-                style: AppType.caption.copyWith(fontFamily: 'monospace'),
-                decoration: const InputDecoration(
-                  hintText: 'cedula,nombres,correo,programa\n'
-                      '1098765432,Ana Rodríguez,ana@uts.edu.co,Sistemas',
-                ),
-              ),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: importing
-                    ? null
-                    : () async {
-                        setSheetState(() => importing = true);
-                        final count = await _import(controller.text);
-                        if (innerContext.mounted) {
-                          Navigator.of(innerContext).pop();
-                        }
-                        if (!mounted) return;
-                        if (count > 0) {
-                          AppToast.success(
-                              context, '$count estudiantes importados');
-                          ref.invalidate(studentsProvider);
-                        } else {
-                          AppToast.error(context, 'No se importó nada',
-                              'Revisa el formato: se esperan 4 columnas por fila.');
-                        }
-                      },
-                child: importing
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2.4))
-                    : const Text('Importar'),
-              ),
-            ],
-          ),
-        ),
+      builder: (_) => RosterImportSheet(
+        importRows: _import,
+        onImported: (count) {
+          AppToast.success(context, '$count estudiantes importados');
+          ref.invalidate(studentsProvider);
+        },
       ),
     );
-    controller.dispose();
   }
 
-  /// Convierte el texto pegado en filas. Devuelve cuántas se importaron.
-  Future<int> _import(String raw) async {
-    final lines = raw
-        .split('\n')
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .toList();
-    if (lines.length <= 1) return 0;
-
-    final rows = <Map<String, dynamic>>[];
-    for (final line in lines.skip(1)) {
-      final columns = line.split(',').map((c) => c.trim()).toList();
-      // Una fila mal formada se salta; el recuento final dice cuántas entraron.
-      if (columns.length < 4) continue;
-      rows.add({
-        'code': columns[0],
-        'fullName': columns[1],
-        'email': columns[2],
-        'program': columns[3],
-      });
-    }
+  /// Envía la propuesta revisada. Los errores conservan la hoja abierta.
+  Future<int> _import(List<Map<String, dynamic>> rows) async {
     if (rows.isEmpty) return 0;
-
-    try {
-      return await ref.read(academicRepositoryProvider).importStudents(rows);
-    } on ApiError {
-      return 0;
-    }
+    return ref.read(academicRepositoryProvider).importStudents(rows);
   }
 }
 
@@ -287,6 +210,7 @@ class _StudentTile extends StatelessWidget {
       metadatos: [
         student.code,
         if (student.program.isNotEmpty) student.program,
+        student.email.isEmpty ? 'Sin correo registrado' : student.email,
       ],
       avatar: InitialsAvatar(student.fullName, size: 32),
       onTap: () => showStudentTimelineSheet(

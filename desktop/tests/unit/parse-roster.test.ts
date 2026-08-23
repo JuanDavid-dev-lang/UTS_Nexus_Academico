@@ -68,6 +68,25 @@ describe('parseRoster', () => {
     expect(rows[0]?.email).toBe('pepito@estudiantes.uts.edu.co');
   });
 
+  it('normaliza el correo y no lo fabrica cuando la columna está vacía', () => {
+    const result = parseRoster(
+      '1098765432;Pepito Pérez; PEPITO@UTS.EDU.CO\n1098765433;Ana Gómez;',
+    );
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.rows).toEqual([
+      { code: '1098765432', fullName: 'Pepito Pérez', email: 'pepito@uts.edu.co' },
+      { code: '1098765433', fullName: 'Ana Gómez' },
+    ]);
+  });
+
+  it('reporta el correo inválido de una fila en vez de omitirla', () => {
+    const result = parseRoster('1098765432;Pepito Pérez;pepito@');
+
+    expect(result.rows).toHaveLength(0);
+    expect(result.errors[0]).toMatchObject({ line: 1, reason: 'Correo inválido' });
+  });
+
   it('acepta tabulaciones, que es lo que sale al copiar y pegar desde una hoja', () => {
     const { rows, errors } = parseRoster('1098765432\tPepito Pérez');
 
