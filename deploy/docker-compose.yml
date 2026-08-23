@@ -45,6 +45,17 @@ services:
       # El asistente de IA necesita Ollama, que no cabe en una instancia pequeña.
       AI_ENABLED: "0"
       RISK_SCAN_INTERVAL_MIN: ${RISK_SCAN_INTERVAL_MIN:-60}
+      # Correo saliente. `environment` es una lista explícita: lo que no esté
+      # aquí no llega al contenedor por mucho que viva en `deploy/.env`.
+      # `validarProduccion()` aborta el arranque sin SMTP_HOST, así que se
+      # marca obligatorio: mejor que compose falle con un mensaje claro a que
+      # el contenedor entre en bucle de reinicio.
+      SMTP_HOST: ${SMTP_HOST:?falta SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
     volumes:
       - uploads:/app/uploads
       # Formatos oficiales de trabajo de grado. Sin volumen, reconstruir la
