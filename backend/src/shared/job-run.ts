@@ -19,7 +19,8 @@ export type NombreTarea =
   | 'activity-due'
   | 'attendance-patterns'
   | 'seguimiento-recordatorios'
-  | 'release-check';
+  | 'release-check'
+  | 'announcement-publish';
 
 /**
  * Ejecuta una tarea y deja constancia del resultado.

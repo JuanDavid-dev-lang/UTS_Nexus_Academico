@@ -11,6 +11,7 @@ import { generarRecordatorios } from '../modules/notifications/class-reminder.se
 import { generarAvisosDeVencimiento } from '../modules/activities/activity-due.service.js';
 import { escanearPatronesDeAsistencia } from '../modules/attendance/attendance-patterns.service.js';
 import { recordarSeguimientosPendientes } from '../modules/analytics/seguimiento-reminder.service.js';
+import { repartirAvisosPendientes } from '../modules/announcements/announcement-notify.service.js';
 import { ejecutarTarea } from './job-run.js';
 
 let timer: NodeJS.Timeout | null = null;
@@ -18,6 +19,7 @@ let releaseTimer: NodeJS.Timeout | null = null;
 let recordatoriosTimer: NodeJS.Timeout | null = null;
 let actividadesTimer: NodeJS.Timeout | null = null;
 let patronesTimer: NodeJS.Timeout | null = null;
+let avisosTimer: NodeJS.Timeout | null = null;
 
 /**
  * Comprobación periódica de versión nueva.
@@ -185,6 +187,50 @@ export function stopAttendancePatternScanner() {
   if (patronesTimer) {
     clearInterval(patronesTimer);
     patronesTimer = null;
+  }
+}
+
+/**
+ * Reparte los avisos institucionales cuya fecha de publicación ya llegó.
+ *
+ * Un aviso programado no se notifica al crearlo —adelantaría su contenido—, así
+ * que sin esta tarea la campana no sonaba nunca: el aviso aparecía en la lista
+ * el día indicado y solo lo veía quien entrara a mirar.
+ *
+ * El intervalo es de minutos y no de segundos a propósito: la precisión que
+ * importa en «se publica el viernes» es la del día, no la del minuto, y cada
+ * pasada es una consulta por un índice.
+ */
+export function startAnnouncementPublisher() {
+  if (avisosTimer) return;
+  const minutos = env.ANNOUNCEMENT_PUBLISH_INTERVAL_MIN;
+  if (!minutos || minutos <= 0) {
+    console.log('Reparto de avisos programados desactivado (ANNOUNCEMENT_PUBLISH_INTERVAL_MIN=0).');
+    return;
+  }
+
+  const run = async () => {
+    const resultado = await ejecutarTarea('announcement-publish', async () => {
+      const salida = await repartirAvisosPendientes();
+      return { ...salida };
+    });
+    if (resultado && Number(resultado.avisos) > 0) {
+      console.log(
+        `[avisos] ${resultado.avisos} aviso(s) programado(s) repartido(s) ` +
+          `a ${resultado.notificados} docente(s).`,
+      );
+    }
+  };
+
+  avisosTimer = setInterval(run, minutos * 60 * 1000);
+  console.log(`Reparto de avisos programados activo cada ${minutos} min.`);
+  setTimeout(run, 45 * 1000);
+}
+
+export function stopAnnouncementPublisher() {
+  if (avisosTimer) {
+    clearInterval(avisosTimer);
+    avisosTimer = null;
   }
 }
 

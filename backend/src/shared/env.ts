@@ -65,6 +65,9 @@ export const env = {
    * servidor, y con varias instancias, en una sola.
    */
   ATTENDANCE_PATTERN_INTERVAL_MIN: Number(process.env.ATTENDANCE_PATTERN_INTERVAL_MIN ?? 0),
+  // Un aviso programado se publica por fecha, no por minuto: revisar cada 5
+  // basta y cada pasada es una consulta por indice.
+  ANNOUNCEMENT_PUBLISH_INTERVAL_MIN: Number(process.env.ANNOUNCEMENT_PUBLISH_INTERVAL_MIN ?? 5),
   /**
    * Días que se conserva un error de cliente ya resuelto. 0 = para siempre.
    *

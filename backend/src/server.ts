@@ -8,6 +8,7 @@ import {
   startClassReminders,
   startActivityDueWatcher,
   startAttendancePatternScanner,
+  startAnnouncementPublisher,
 } from './shared/scheduler.js';
 import { env, esProduccion, validarProduccion } from './shared/env.js';
 
@@ -70,5 +71,6 @@ server.listen(env.PORT, env.HOST, () => {
   startClassReminders();
   startActivityDueWatcher();
   startAttendancePatternScanner();
+  startAnnouncementPublisher();
 });
 
