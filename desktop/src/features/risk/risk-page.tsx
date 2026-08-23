@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { RefreshCw, ScanSearch } from 'lucide-react';
+import { RefreshCw, ScanSearch, UserSearch } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -29,6 +29,7 @@ import {
   INTERVENTION_ORDER,
   INTERVENTION_TONE,
 } from '@/features/risk/components/intervention-dialog';
+import { BuscarEstudianteDialog } from '@/features/risk/components/buscar-estudiante-dialog';
 import { SeguimientoDialog } from '@/features/risk/components/seguimiento-dialog';
 import { useScanRisks } from '@/features/notifications/hooks/use-notifications';
 import { useDebounce } from '@/shared/hooks/use-debounce';
@@ -57,6 +58,7 @@ export default function RiskPage() {
 
   const risks = useRisks();
   const [seguimiento, setSeguimiento] = useState<RiskItem | null>(null);
+  const [buscando, setBuscando] = useState(false);
   const scanRisks = useScanRisks();
 
   const items = risks.data ?? [];
@@ -263,10 +265,22 @@ export default function RiskPage() {
         <Input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Buscar estudiante…"
-          aria-label="Buscar en la lista de riesgo"
+          placeholder="Filtrar esta lista…"
+          aria-label="Filtrar la lista de riesgo"
           className="max-w-xs"
         />
+
+        {/*
+          Dos búsquedas distintas y por eso dos controles. El campo de al lado
+          filtra ESTA lista; este botón busca en todo el alcance del docente.
+          Hace falta porque `/analytics/risks` descarta el nivel BAJO y corta en
+          50 casos: quien no salió ahí era inalcanzable, y son justo los casos
+          que un docente ve venir antes que el motor.
+        */}
+        <Button variant="secondary" className="ml-auto" onClick={() => setBuscando(true)}>
+          <UserSearch aria-hidden />
+          Buscar a otro estudiante
+        </Button>
       </div>
 
       {risks.isPending ? (
@@ -337,6 +351,14 @@ export default function RiskPage() {
       <SeguimientoDialog
         row={seguimiento}
         onOpenChange={(open) => !open && setSeguimiento(null)}
+      />
+
+      {/* Encadena con el diálogo de arriba: al elegir materia, ese es el que
+          se abre. El buscador solo resuelve a quién y sobre qué. */}
+      <BuscarEstudianteDialog
+        open={buscando}
+        onOpenChange={setBuscando}
+        onElegir={setSeguimiento}
       />
     </PageContainer>
   );

@@ -7,6 +7,8 @@ import {
   Dialog,
   DialogContent,
   NativeSelect,
+  Progress,
+  RiskBadge,
   Textarea,
 } from '@/shared/ui';
 import { queryKeys } from '@/core/api/query-keys';
@@ -141,15 +143,18 @@ export function SeguimientoDialog({
     <Dialog open={row !== null} onOpenChange={onOpenChange}>
       <DialogContent
         title={row ? `Seguimiento · ${row.fullName}` : 'Seguimiento'}
-        description={
-          row
-            ? `${row.code} · nota ${formatGrade(row.notaFinal)} · asistencia ${formatPercent(row.attendanceRate)}`
-            : undefined
-        }
+        // La nota y la asistencia salieron de aquí: ahora son el titular del
+        // veredicto. Repetirlas en el subtítulo restaba peso a ese bloque.
+        description={row ? row.code : undefined}
         className="max-w-2xl"
       >
         {row ? (
           <div className="flex flex-col gap-4">
+            {/* ── El veredicto ───────────────────────────────────────── */}
+            <Veredicto row={row} />
+
+            <SeparadorRotulado>Lo que sustenta el nivel</SeparadorRotulado>
+
             {/* ── Expediente: faltas y notas ─────────────────────────── */}
             <div className="grid gap-3 @lg:grid-cols-2">
               <section className="rounded-lg border border-border bg-surface-alt/50 p-3">
@@ -233,6 +238,104 @@ export function SeguimientoDialog({
         ) : null}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Nota, asistencia y el porqué del nivel, arriba de todo.
+ *
+ * Antes las dos cifras que deciden el caso —nota y asistencia— vivían en el
+ * subtítulo del diálogo, en gris apagado y del mismo tamaño que la cédula. El
+ * docente abría la ficha y no tenía dónde posar el ojo: cuatro cajas del mismo
+ * peso y ningún veredicto. Aquí las cifras son el titular, con su barra y su
+ * color, y debajo van los motivos que el motor de riesgo ya calcula y que la
+ * tabla solo mostraba de a uno.
+ */
+function Veredicto({ row }: { row: RiskItem }) {
+  return (
+    <section className="rounded-xl border border-border bg-surface-alt/40 p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <RiskBadge level={row.level} />
+        <span className="font-mono text-caption tabular-nums text-muted">
+          {row.riskScore}/100 de riesgo
+        </span>
+      </div>
+
+      <div className="grid gap-3 @sm:grid-cols-2">
+        <Cifra
+          etiqueta="Nota"
+          valor={formatGrade(row.notaFinal)}
+          porcentaje={Math.min(100, (row.notaFinal / 5) * 100)}
+          tono={row.notaFinal >= 3.5 ? 'success' : row.notaFinal >= 3 ? 'warning' : 'danger'}
+        />
+        <Cifra
+          etiqueta="Asistencia"
+          valor={formatPercent(row.attendanceRate)}
+          porcentaje={row.attendanceRate}
+          tono={
+            row.attendanceRate >= 80 ? 'success' : row.attendanceRate >= 70 ? 'warning' : 'danger'
+          }
+        />
+      </div>
+
+      {row.motivos.length > 0 ? (
+        <ul className="mt-3 flex flex-col gap-1 border-t border-border pt-3">
+          {row.motivos.map((motivo) => (
+            <li key={motivo} className="flex gap-2 text-caption text-muted">
+              <span className="select-none text-subtle" aria-hidden>
+                ·
+              </span>
+              {motivo}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+
+/** Una cifra grande con su barra. El número manda; la etiqueta acompaña. */
+function Cifra({
+  etiqueta,
+  valor,
+  porcentaje,
+  tono,
+}: {
+  etiqueta: string;
+  valor: string;
+  porcentaje: number;
+  tono: 'success' | 'warning' | 'danger';
+}) {
+  const color = { success: 'text-success', warning: 'text-warning', danger: 'text-danger' }[tono];
+
+  return (
+    <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-surface p-3">
+      <span className="text-caption font-semibold uppercase tracking-wide text-muted">
+        {etiqueta}
+      </span>
+      <span className={`font-mono text-h2 font-bold tabular-nums leading-none ${color}`}>
+        {valor}
+      </span>
+      <Progress value={porcentaje} tone={tono} />
+    </div>
+  );
+}
+
+/**
+ * Rótulo sobre una línea. Separa el veredicto de su evidencia.
+ *
+ * No se numeran las secciones: el docente no recorre un procedimiento paso a
+ * paso, mira el nivel y decide. Numerarlas sugeriría un orden obligatorio que
+ * no existe.
+ */
+function SeparadorRotulado({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="shrink-0 text-caption font-semibold uppercase tracking-wide text-muted">
+        {children}
+      </span>
+      <span className="h-px flex-1 bg-border" aria-hidden />
+    </div>
   );
 }
 
