@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../auth/auth_controller.dart';
 import '../data/providers.dart';
+import '../navigation/menu_preferences.dart';
 import '../telemetry/error_reporter.dart';
 import '../theme/app_theme.dart';
 import './offline_banner.dart';
@@ -37,7 +38,8 @@ class NavDestination {
     this.roles = const [],
   });
 
-  bool visiblePara(String? rol) => roles.isEmpty || (rol != null && roles.contains(rol));
+  bool visiblePara(String? rol) =>
+      roles.isEmpty || (rol != null && roles.contains(rol));
 }
 
 /// Rutas de las ramas del shell, **en el mismo orden que en `app.dart`**.
@@ -76,6 +78,23 @@ const rutasDeRama = <String>[
 /// Índice de la rama que atiende una ruta. -1 si ninguna.
 int indiceDeRama(String ruta) => rutasDeRama.indexOf(ruta);
 
+/// Orden visible al comenzar a cargar las preferencias de una sesión.
+///
+/// Al cambiar de cuenta no se puede conservar ni un fotograma del menú del
+/// usuario anterior. Para el mismo usuario sí se conserva el orden actual
+/// mientras se recarga (por ejemplo, tras cambiar el flag de director).
+List<String> menuRoutesWhileLoading({
+  required String? previousUserId,
+  required String userId,
+  required Iterable<String> currentRoutes,
+  required List<String> authorizedRoutes,
+}) => previousUserId == userId
+    ? reconcileMenuRoutes(
+        savedRoutes: currentRoutes,
+        authorizedRoutes: authorizedRoutes,
+      )
+    : List<String>.of(authorizedRoutes);
+
 /// Los cuatro que caben en la barra, más «Más» que se dibuja aparte.
 ///
 /// «Materias» ocupa el lugar que antes tenía «Estudiantes»: desde ahí se llega
@@ -83,10 +102,26 @@ int indiceDeRama(String ruta) => rutasDeRama.indexOf(ruta);
 /// agenda sube a la barra porque es la respuesta a «¿qué tengo ahora?», y la
 /// asistencia baja a «Más» porque se entra a ella desde la clase concreta.
 const primaryDestinations = <NavDestination>[
-  NavDestination(route: '/', label: 'Inicio', icon: Icons.space_dashboard_outlined),
-  NavDestination(route: '/subjects', label: 'Materias', icon: Icons.menu_book_outlined),
-  NavDestination(route: '/agenda', label: 'Agenda', icon: Icons.calendar_month_outlined),
-  NavDestination(route: '/ai', label: 'Asistente', icon: Icons.auto_awesome_outlined),
+  NavDestination(
+    route: '/',
+    label: 'Inicio',
+    icon: Icons.space_dashboard_outlined,
+  ),
+  NavDestination(
+    route: '/subjects',
+    label: 'Materias',
+    icon: Icons.menu_book_outlined,
+  ),
+  NavDestination(
+    route: '/agenda',
+    label: 'Agenda',
+    icon: Icons.calendar_month_outlined,
+  ),
+  NavDestination(
+    route: '/ai',
+    label: 'Asistente',
+    icon: Icons.auto_awesome_outlined,
+  ),
 ];
 
 /// El resto, accesible desde «Más», agrupado por lo que se hace con ello.
@@ -109,21 +144,37 @@ const secondaryDestinations = <NavDestination>[
     label: 'Actividades',
     icon: Icons.assignment_outlined,
   ),
-  NavDestination(route: '/schedule', label: 'Horario', icon: Icons.schedule_outlined),
+  NavDestination(
+    route: '/schedule',
+    label: 'Horario',
+    icon: Icons.schedule_outlined,
+  ),
   NavDestination(
     route: '/reports',
     label: 'Reportes',
     icon: Icons.description_outlined,
     roles: ['ADMIN', 'PROFESSOR', 'COORDINATOR'],
   ),
-  NavDestination(route: '/avisos', label: 'Avisos', icon: Icons.campaign_outlined),
-  NavDestination(route: '/sugerencias', label: 'Sugerencias', icon: Icons.feedback_outlined),
+  NavDestination(
+    route: '/avisos',
+    label: 'Avisos',
+    icon: Icons.campaign_outlined,
+  ),
+  NavDestination(
+    route: '/sugerencias',
+    label: 'Sugerencias',
+    icon: Icons.feedback_outlined,
+  ),
   NavDestination(
     route: '/notifications',
     label: 'Notificaciones',
     icon: Icons.notifications_outlined,
   ),
-  NavDestination(route: '/settings', label: 'Configuración', icon: Icons.settings_outlined),
+  NavDestination(
+    route: '/settings',
+    label: 'Configuración',
+    icon: Icons.settings_outlined,
+  ),
 ];
 
 /// Solo para docentes directores de trabajo de grado. No va en la lista const:
@@ -134,6 +185,31 @@ const thesisDestination = NavDestination(
   label: 'Trabajos de grado',
   icon: Icons.school_outlined,
 );
+
+/// Puerto mínimo que usa el menú para cambiar de rama.
+///
+/// La implementación de producción delega directamente en
+/// [StatefulNavigationShell.goBranch]. Mantener este puerto explícito permite
+/// comprobar el toque completo del menú sin fingir que resolver el índice y
+/// navegar son dos comportamientos independientes.
+abstract interface class BranchNavigation {
+  int get currentIndex;
+
+  void goBranch(int index, {bool initialLocation = false});
+}
+
+class StatefulShellBranchNavigation implements BranchNavigation {
+  final StatefulNavigationShell shell;
+
+  const StatefulShellBranchNavigation(this.shell);
+
+  @override
+  int get currentIndex => shell.currentIndex;
+
+  @override
+  void goBranch(int index, {bool initialLocation = false}) =>
+      shell.goBranch(index, initialLocation: initialLocation);
+}
 
 /// Envoltorio de las pantallas con sesión.
 ///
@@ -146,16 +222,59 @@ const thesisDestination = NavDestination(
 /// así que el índice del menú sale de él y no de comparar la ruta a mano.
 class AppScaffold extends ConsumerStatefulWidget {
   final StatefulNavigationShell navigationShell;
-  const AppScaffold({super.key, required this.navigationShell});
+  final BranchNavigation? branchNavigation;
+  final List<String>? initialMenuRoutes;
+
+  const AppScaffold({
+    super.key,
+    required this.navigationShell,
+    @visibleForTesting this.branchNavigation,
+    @visibleForTesting this.initialMenuRoutes,
+  });
 
   @override
   ConsumerState<AppScaffold> createState() => _AppScaffoldState();
 }
 
 class _AppScaffoldState extends ConsumerState<AppScaffold> {
+  final _menuRepository = MenuPreferencesRepository();
+  List<String> _orderedRoutes = const [];
+  String? _loadedMenuKey;
+  String? _loadedUserId;
+
+  BranchNavigation get _branchNavigation =>
+      widget.branchNavigation ??
+      StatefulShellBranchNavigation(widget.navigationShell);
+
+  void _ensureMenuLoaded({
+    required String userId,
+    required String? role,
+    required bool isDirector,
+    required List<NavDestination> authorized,
+  }) {
+    final key = '$userId|$role|$isDirector';
+    if (_loadedMenuKey == key) return;
+    _loadedMenuKey = key;
+    final routes = authorized.map((destination) => destination.route).toList();
+    _orderedRoutes = menuRoutesWhileLoading(
+      previousUserId: _loadedUserId,
+      userId: userId,
+      currentRoutes: _orderedRoutes,
+      authorizedRoutes: routes,
+    );
+    _loadedUserId = userId;
+    _menuRepository.load(userId: userId, authorizedRoutes: routes).then((
+      loaded,
+    ) {
+      if (!mounted || _loadedMenuKey != key) return;
+      setState(() => _orderedRoutes = loaded);
+    });
+  }
+
   @override
   void initState() {
     super.initState();
+    _orderedRoutes = widget.initialMenuRoutes ?? const [];
     // Se lanza tras el primer fotograma: navegar durante el build dejaría el
     // árbol a medio construir.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -173,9 +292,9 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
   void _irA(String ruta) {
     final rama = indiceDeRama(ruta);
     if (rama < 0) return;
-    widget.navigationShell.goBranch(
+    _branchNavigation.goBranch(
       rama,
-      initialLocation: rama == widget.navigationShell.currentIndex,
+      initialLocation: rama == _branchNavigation.currentIndex,
     );
   }
 
@@ -184,7 +303,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     // El índice lo sabe el shell: es la rama viva, no una ruta comparada a
     // mano. Estando en `/subjects/abc` la rama sigue siendo la de Materias, así
     // que la pestaña se queda encendida sin ninguna regla de prefijos.
-    final ramaActual = widget.navigationShell.currentIndex;
+    final ramaActual = _branchNavigation.currentIndex;
     final rutaActual = rutasDeRama[ramaActual];
 
     // Un error reportado sin decir en qué pantalla ocurrió obliga a adivinar.
@@ -199,18 +318,32 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     // por segundo, para leer un ancho que no había cambiado.
     final isWide = MediaQuery.sizeOf(context).width > 900;
 
-    final rol = ref.watch(authControllerProvider).user?.role;
-
-    // La sección de trabajos de grado solo existe para quien la puede usar.
-    // La rama existe igualmente; lo que se esconde es la entrada del menú.
+    final usuario = ref.watch(authControllerProvider).user;
+    final rol = usuario?.role;
     final esDirector = ref.watch(esDirectorProvider);
-    final secundarios = [
+    final autorizadosCanonicos = <NavDestination>[
+      ...primaryDestinations.where((d) => d.visiblePara(rol)),
       ...secondaryDestinations.where((d) => d.visiblePara(rol)),
       if (esDirector) thesisDestination,
     ];
+    if (usuario != null) {
+      _ensureMenuLoaded(
+        userId: usuario.id,
+        role: rol,
+        isDirector: esDirector,
+        authorized: autorizadosCanonicos,
+      );
+    }
+    final rutasOrdenadas = reconcileMenuRoutes(
+      savedRoutes: _orderedRoutes,
+      authorizedRoutes: autorizadosCanonicos.map((d) => d.route).toList(),
+    );
+    final porRuta = {for (final d in autorizadosCanonicos) d.route: d};
+    final todos = rutasOrdenadas.map((route) => porRuta[route]!).toList();
+    final principales = todos.take(menuPrimaryCount).toList();
+    final secundarios = todos.skip(menuPrimaryCount).toList();
 
     if (isWide) {
-      final todos = [...primaryDestinations, ...secundarios];
       final indice = todos.indexWhere((d) => d.route == rutaActual);
       return Scaffold(
         // El alto de la barra de estado se paga UNA vez, aquí. Antes lo pagaba
@@ -220,45 +353,42 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         body: SafeArea(
           bottom: false,
           child: Row(
-          children: [
-            NavigationRail(
-              // NavigationRail exige un índice válido; -1 lo haría fallar.
-              selectedIndex: indice < 0 ? 0 : indice,
-              onDestinationSelected: (i) => _irA(todos[i].route),
-              labelType: NavigationRailLabelType.all,
-              destinations: [
-                for (final destino in todos)
-                  NavigationRailDestination(
-                    icon: Icon(destino.icon),
-                    label: Text(destino.label),
-                  ),
-              ],
-            ),
-            const VerticalDivider(width: 1),
-            Expanded(
-              child: Column(
-                children: [
-                  const OfflineBanner(),
-                  Expanded(
-                    child: MediaQuery.removePadding(
-                      context: context,
-                      removeTop: true,
-                      child: widget.navigationShell,
+            children: [
+              NavigationRail(
+                // NavigationRail exige un índice válido; -1 lo haría fallar.
+                selectedIndex: indice < 0 ? 0 : indice,
+                onDestinationSelected: (i) => _irA(todos[i].route),
+                labelType: NavigationRailLabelType.all,
+                destinations: [
+                  for (final destino in todos)
+                    NavigationRailDestination(
+                      icon: Icon(destino.icon),
+                      label: Text(destino.label),
                     ),
-                  ),
                 ],
               ),
-            ),
-          ],
+              const VerticalDivider(width: 1),
+              Expanded(
+                child: Column(
+                  children: [
+                    const OfflineBanner(),
+                    Expanded(
+                      child: MediaQuery.removePadding(
+                        context: context,
+                        removeTop: true,
+                        child: widget.navigationShell,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       );
     }
 
     // En un teléfono: cuatro destinos + «Más».
-    final indicePrimario = primaryDestinations.indexWhere((d) => d.route == rutaActual);
-    final esSecundaria = indicePrimario < 0;
-
     return Scaffold(
       // La franja va por encima de la pantalla, no dentro: aplica a todas y
       // ninguna debería tener que acordarse de mostrarla.
@@ -283,26 +413,14 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
           ],
         ),
       ),
-      bottomNavigationBar: NavigationBar(
-        // 64 en vez de los 80 por defecto. La etiqueta sigue visible y el
-        // objetivo táctil sigue por encima de 48; lo que desaparece es el aire
-        // que Material reserva para una tablet.
-        height: 64,
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+      bottomNavigationBar: AppMobileNavigation(
         // En una pantalla secundaria se resalta «Más», que es desde donde llegó.
-        selectedIndex: esSecundaria ? primaryDestinations.length : indicePrimario,
-        onDestinationSelected: (indice) {
-          if (indice == primaryDestinations.length) {
-            _abrirHojaDeMas(context, rutaActual, secundarios);
-            return;
-          }
-          _irA(primaryDestinations[indice].route);
+        currentRoute: rutaActual,
+        primaryDestinations: principales,
+        onMore: () {
+          _abrirHojaDeMas(context, rutaActual, secundarios, todos, usuario?.id);
         },
-        destinations: [
-          for (final destino in primaryDestinations)
-            NavigationDestination(icon: Icon(destino.icon), label: destino.label),
-          const NavigationDestination(icon: Icon(Icons.more_horiz_outlined), label: 'Más'),
-        ],
+        onRouteSelected: _irA,
       ),
     );
   }
@@ -317,6 +435,8 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     BuildContext context,
     String rutaActual,
     List<NavDestination> secundarios,
+    List<NavDestination> todos,
+    String? userId,
   ) {
     showModalBottomSheet<void>(
       context: context,
@@ -359,7 +479,9 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                         ),
                       ),
                       const SizedBox(width: AppSpacing.gapSm),
-                      Expanded(child: Divider(height: 1, color: palette.border)),
+                      Expanded(
+                        child: Divider(height: 1, color: palette.border),
+                      ),
                     ],
                   ),
                 ),
@@ -389,6 +511,27 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                 const SizedBox(height: AppSpacing.gap),
                 Divider(height: 1, color: palette.border),
                 const SizedBox(height: AppSpacing.gapSm),
+                if (userId != null)
+                  ListTile(
+                    leading: _IconoDeMenu(
+                      icono: Icons.drag_indicator_outlined,
+                      color: palette.primary,
+                      fondo: palette.primarySoft,
+                    ),
+                    title: const Text('Personalizar menú'),
+                    subtitle: const Text(
+                      'Ordena los cuatro accesos principales',
+                    ),
+                    trailing: Icon(
+                      Icons.chevron_right,
+                      size: 18,
+                      color: palette.subtle,
+                    ),
+                    onTap: () {
+                      Navigator.of(contextoHoja).pop();
+                      _abrirEditorDeMenu(context, todos, userId);
+                    },
+                  ),
                 ListTile(
                   leading: _IconoDeMenu(
                     icono: Icons.person_outline,
@@ -396,7 +539,11 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                     fondo: palette.primarySoft,
                   ),
                   title: const Text('Mi perfil'),
-                  trailing: Icon(Icons.chevron_right, size: 18, color: palette.subtle),
+                  trailing: Icon(
+                    Icons.chevron_right,
+                    size: 18,
+                    color: palette.subtle,
+                  ),
                   selected: rutaActual == '/profile',
                   onTap: () {
                     Navigator.of(contextoHoja).pop();
@@ -407,11 +554,17 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                   leading: _IconoDeMenu(
                     icono: Icons.logout_outlined,
                     color: danger,
-                    fondo: SemanticTone.of(contextoHoja, SemanticKind.danger).bg,
+                    fondo: SemanticTone.of(
+                      contextoHoja,
+                      SemanticKind.danger,
+                    ).bg,
                   ),
                   title: Text(
                     'Cerrar sesión',
-                    style: TextStyle(color: danger, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      color: danger,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   onTap: () async {
                     Navigator.of(contextoHoja).pop();
@@ -423,6 +576,145 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
           ),
         );
       },
+    );
+  }
+
+  Future<void> _abrirEditorDeMenu(
+    BuildContext context,
+    List<NavDestination> destinos,
+    String userId,
+  ) async {
+    final editables = [...destinos];
+    final result = await showModalBottomSheet<List<String>>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.sizeOf(context).height * 0.78,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: AppSpacing.page),
+                  child: Text('Personalizar menú', style: AppType.h3),
+                ),
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    AppSpacing.page,
+                    AppSpacing.gapXs,
+                    AppSpacing.page,
+                    AppSpacing.gap,
+                  ),
+                  child: Text(
+                    'Arrastra las opciones. Las primeras cuatro aparecen en la barra; Más siempre queda fijo.',
+                  ),
+                ),
+                Expanded(
+                  child: ReorderableListView.builder(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.gap,
+                    ),
+                    itemCount: editables.length,
+                    onReorderItem: (oldIndex, newIndex) {
+                      setSheetState(() {
+                        final item = editables.removeAt(oldIndex);
+                        editables.insert(newIndex, item);
+                      });
+                    },
+                    itemBuilder: (context, index) {
+                      final destino = editables[index];
+                      return ListTile(
+                        key: ValueKey(destino.route),
+                        leading: Icon(destino.icon),
+                        title: Text(destino.label),
+                        subtitle: index < menuPrimaryCount
+                            ? const Text('Barra principal')
+                            : const Text('Dentro de Más'),
+                        trailing: const Icon(Icons.drag_handle),
+                      );
+                    },
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(AppSpacing.page),
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(sheetContext).pop(
+                      editables
+                          .map((destination) => destination.route)
+                          .toList(),
+                    ),
+                    child: const Text('Guardar orden'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    final authorized = destinos
+        .map((destination) => destination.route)
+        .toList();
+    final repaired = reconcileMenuRoutes(
+      savedRoutes: result,
+      authorizedRoutes: authorized,
+    );
+    setState(() => _orderedRoutes = repaired);
+    await _menuRepository.save(
+      userId: userId,
+      orderedRoutes: repaired,
+      authorizedRoutes: authorized,
+    );
+  }
+}
+
+/// Barra móvil aislada para fijar el contrato ruta → rama con pruebas widget.
+/// Recibe rutas, no índices: aunque el usuario las reordene, [AppScaffold]
+/// sigue resolviendo la rama canónica mediante [indiceDeRama].
+class AppMobileNavigation extends StatelessWidget {
+  final List<NavDestination> primaryDestinations;
+  final String currentRoute;
+  final ValueChanged<String> onRouteSelected;
+  final VoidCallback onMore;
+
+  const AppMobileNavigation({
+    super.key,
+    required this.primaryDestinations,
+    required this.currentRoute,
+    required this.onRouteSelected,
+    required this.onMore,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = primaryDestinations.indexWhere(
+      (destination) => destination.route == currentRoute,
+    );
+    return NavigationBar(
+      height: 64,
+      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+      selectedIndex: selected < 0 ? primaryDestinations.length : selected,
+      onDestinationSelected: (index) {
+        if (index == primaryDestinations.length) {
+          onMore();
+        } else {
+          onRouteSelected(primaryDestinations[index].route);
+        }
+      },
+      destinations: [
+        for (final destination in primaryDestinations)
+          NavigationDestination(
+            icon: Icon(destination.icon),
+            label: destination.label,
+          ),
+        const NavigationDestination(
+          icon: Icon(Icons.more_horiz_outlined),
+          label: 'Más',
+        ),
+      ],
     );
   }
 }
@@ -438,7 +730,11 @@ class _IconoDeMenu extends StatelessWidget {
   final Color color;
   final Color fondo;
 
-  const _IconoDeMenu({required this.icono, required this.color, required this.fondo});
+  const _IconoDeMenu({
+    required this.icono,
+    required this.color,
+    required this.fondo,
+  });
 
   @override
   Widget build(BuildContext context) {
