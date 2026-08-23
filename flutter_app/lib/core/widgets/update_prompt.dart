@@ -2,10 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../features/settings/data/update_service.dart';
+import '../notifications/local_notifications_service.dart';
 import '../theme/app_theme.dart';
 
 /// Versión que el usuario ya pospuso. Se recuerda entre arranques.
 const _clavePospuesta = 'uts.actualizacion.pospuesta';
+
+/// Versión de la que ya se dejó una notificación en el cajón.
+///
+/// Separada de [_clavePospuesta] a propósito: posponer el diálogo no debe
+/// borrar el aviso del cajón, y haber visto el aviso no debe contar como
+/// haber pospuesto nada. Son dos hechos distintos sobre la misma versión.
+const _claveNotificada = 'uts.actualizacion.notificada';
 
 /// Deja que la primera pantalla se dibuje antes de taparla con un diálogo.
 const _retrasoInicial = Duration(seconds: 4);
@@ -63,6 +71,20 @@ class _UpdateGateState extends State<UpdateGate> {
     if (disponible == null || !mounted) return;
 
     final preferencias = await SharedPreferences.getInstance();
+
+    // El aviso del sistema va ANTES de mirar si la versión está pospuesta y
+    // antes del diálogo, y es deliberado.
+    //
+    // El diálogo solo existe mientras la aplicación está abierta y en primer
+    // plano: quien la cierra durante los cuatro segundos de espera no ve nada,
+    // y quien pulsó «Más tarde» no vuelve a enterarse de esa versión aunque
+    // corrija el fallo que le está afectando. La notificación queda en el cajón
+    // hasta que se lea.
+    //
+    // No insiste: la clave lleva la versión, así que cada versión avisa una
+    // sola vez y Android reemplaza en vez de apilar.
+    await _notificarVersion(disponible.version, preferencias);
+
     if (preferencias.getString(_clavePospuesta) == disponible.version) return;
     if (!mounted) return;
 
@@ -80,6 +102,28 @@ class _UpdateGateState extends State<UpdateGate> {
     if (actualizar == false) {
       await preferencias.setString(_clavePospuesta, disponible.version);
     }
+  }
+
+  /// Deja la versión disponible en el cajón de notificaciones, una sola vez.
+  ///
+  /// Va al canal «Sistema», que es de importancia baja: aparece en el cajón sin
+  /// sonido ni interrupción. Una versión nueva no es urgente, y tratarla como
+  /// si lo fuera enseña a la gente a ignorar el canal que sí lo es.
+  Future<void> _notificarVersion(String version, SharedPreferences preferencias) async {
+    if (preferencias.getString(_claveNotificada) == version) return;
+
+    // Sin permiso no se muestra nada, y este no es momento de pedirlo: la
+    // petición pertenece a Ajustes, donde la persona sabe qué está aceptando.
+    if (!await LocalNotificationsService.instance.permisosConcedidos) return;
+
+    await LocalNotificationsService.instance.mostrarAhora(
+      clave: 'update:$version',
+      titulo: 'Actualización disponible',
+      mensaje: 'La versión $version está lista para instalarse desde Ajustes.',
+      canalId: 'uts_sistema',
+      ruta: '/settings',
+    );
+    await preferencias.setString(_claveNotificada, version);
   }
 
   @override
