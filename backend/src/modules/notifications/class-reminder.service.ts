@@ -13,6 +13,7 @@
  */
 import { ScheduleModel } from '../../models/schedule.model.js';
 import { CalendarEventModel } from '../../models/calendar-event.model.js';
+import { ProfessorModel } from '../../models/professor.model.js';
 import { SubjectModel } from '../../models/subject.model.js';
 import { GroupModel } from '../../models/group.model.js';
 import { env } from '../../shared/env.js';
@@ -28,6 +29,15 @@ const MS_MINUTO = 60_000;
 
 /** Antelación máxima soportada: un día. Marca cuánto hay que mirar hacia delante. */
 const MAX_ANTELACION_MIN = 1440;
+
+/**
+ * Antelación de un evento institucional que no declara la suya.
+ *
+ * El importador del calendario no fija recordatorios: nadie elige en nombre de
+ * toda la institución. Un día es el margen con el que una fecha planificada
+ * —cierre de notas, inicio de parciales— todavía sirve para reorganizarse.
+ */
+const ANTELACION_INSTITUCIONAL_MIN = 1440;
 
 export type ResultadoRecordatorios = {
   clasesRevisadas: number;
@@ -189,60 +199,102 @@ export async function generarRecordatorios(
   }
 
   // ── Eventos del calendario ───────────────────────────────────────────────
+  //
+  // Los institucionales entran aunque no traigan antelaciones. El importador
+  // los crea con `reminderMinutes: []` —nadie elige recordatorios en nombre de
+  // toda la institución— y con `teacherId: null`, porque no son de nadie. Con
+  // el filtro anterior quedaban fuera dos veces: la consulta no los traía y el
+  // bucle descartaba lo que no tuviera dueño. El calendario académico entero
+  // se importaba y no avisaba a una sola persona.
   const eventos = await CalendarEventModel.find({
     deletedAt: null,
     startAt: { $gte: ahora, $lt: hasta },
-    reminderMinutes: { $exists: true, $ne: [] },
+    $or: [
+      { reminderMinutes: { $exists: true, $ne: [] } },
+      { visibility: 'INSTITUTIONAL' },
+    ],
   })
-    .select('title type startAt teacherId subjectId reminderMinutes priority location')
+    .select('title type startAt teacherId subjectId reminderMinutes priority location visibility')
     .lean();
 
   resultado.eventosRevisados = eventos.length;
 
-  for (const evento of eventos) {
-    const teacherId = String(evento.teacherId ?? '');
-    if (!teacherId) continue;
+  // Los docentes se resuelven una sola vez por pasada y solo si hace falta:
+  // consultarlos por cada evento institucional serían decenas de viajes para
+  // la misma respuesta.
+  let institucionales: string[] | null = null;
+  const destinatariosInstitucionales = async () => {
+    institucionales ??= (
+      await ProfessorModel.find({
+        deletedAt: null,
+        estado: { $nin: ['PENDIENTE', 'RECHAZADO'] },
+      })
+        .select('userId')
+        .lean()
+    ).map(docente => String(docente.userId));
+    return institucionales;
+  };
 
-    const preferencias = await preferenciasDe(teacherId);
-    const categoriaActiva =
-      evento.type === 'REMINDER' ? preferencias.recordatorios
-        : evento.type === 'EXAM' || evento.type === 'EVALUATION' || evento.type === 'DELIVERY'
-          ? preferencias.evaluaciones
-          : preferencias.eventos;
-    if (!categoriaActiva) continue;
+  for (const evento of eventos) {
+    const esInstitucional = evento.visibility === 'INSTITUTIONAL';
+    const teacherId = String(evento.teacherId ?? '');
+    if (!esInstitucional && !teacherId) continue;
 
     const inicio = new Date(evento.startAt as unknown as string);
-    const antelaciones = Array.isArray(evento.reminderMinutes)
+    const declaradas = Array.isArray(evento.reminderMinutes)
       ? (evento.reminderMinutes as unknown[]).map(Number).filter(n => Number.isFinite(n) && n >= 0)
       : [];
+    // Un día antes: un cierre de notas o el inicio de parciales se avisan con
+    // margen para reorganizar la semana. Quince minutos antes no sirven de nada
+    // en una fecha que se planifica.
+    const antelaciones = declaradas.length
+      ? declaradas
+      : esInstitucional
+        ? [ANTELACION_INSTITUCIONAL_MIN]
+        : [];
+    if (antelaciones.length === 0) continue;
 
-    for (const antelacion of antelaciones) {
-      if (antelacion > MAX_ANTELACION_MIN) continue;
-      if (!avisoEnVentana(inicio, antelacion, ahora, ventanaMinutos)) continue;
+    const destinatarios = esInstitucional
+      ? await destinatariosInstitucionales()
+      : [teacherId];
 
-      const tipoEvento = String(evento.type ?? 'ACADEMIC');
-      const prioridad = String(evento.priority ?? 'MEDIUM');
+    for (const userId of destinatarios) {
+      const preferencias = await preferenciasDe(userId);
+      const categoriaActiva =
+        evento.type === 'REMINDER' ? preferencias.recordatorios
+          : evento.type === 'EXAM' || evento.type === 'EVALUATION' || evento.type === 'DELIVERY'
+            ? preferencias.evaluaciones
+            : preferencias.eventos;
+      if (!categoriaActiva) continue;
 
-      const salida = await crearNotificacion({
-        userId: teacherId,
-        type: tipoEvento === 'EXAM' || tipoEvento === 'EVALUATION' ? 'EXAM' : tipoEvento === 'DELIVERY' ? 'DEADLINE' : 'EVENT',
-        priority: prioridad === 'URGENT' ? 'URGENT' : prioridad === 'HIGH' ? 'IMPORTANT' : 'INFO',
-        title: ETIQUETA_EVENTO[tipoEvento] ?? 'Evento',
-        message: mensajeEvento(String(evento.title ?? ''), tipoEvento, antelacion),
-        dedupeKey: `event:${String(evento._id)}:${antelacion}`,
-        link: `/agenda?item=${encodeURIComponent(`event:${String(evento._id)}`)}`,
-        metadata: {
-          agendaItemId: `event:${String(evento._id)}`,
-          eventId: String(evento._id),
-          subjectId: evento.subjectId ? String(evento.subjectId) : '',
-          startAt: inicio.toISOString(),
-          leadMinutes: antelacion,
-          minutosPara: minutosHasta(inicio, ahora),
-        },
-      });
+      for (const antelacion of antelaciones) {
+        if (antelacion > MAX_ANTELACION_MIN) continue;
+        if (!avisoEnVentana(inicio, antelacion, ahora, ventanaMinutos)) continue;
 
-      if (salida.creada) resultado.avisos += 1;
-      else if (salida.omitida === 'duplicada') resultado.duplicados += 1;
+        const tipoEvento = String(evento.type ?? 'ACADEMIC');
+        const prioridad = String(evento.priority ?? 'MEDIUM');
+
+        const salida = await crearNotificacion({
+          userId,
+          type: tipoEvento === 'EXAM' || tipoEvento === 'EVALUATION' ? 'EXAM' : tipoEvento === 'DELIVERY' ? 'DEADLINE' : 'EVENT',
+          priority: prioridad === 'URGENT' ? 'URGENT' : prioridad === 'HIGH' ? 'IMPORTANT' : 'INFO',
+          title: ETIQUETA_EVENTO[tipoEvento] ?? 'Evento',
+          message: mensajeEvento(String(evento.title ?? ''), tipoEvento, antelacion),
+          dedupeKey: `event:${String(evento._id)}:${antelacion}`,
+          link: `/agenda?item=${encodeURIComponent(`event:${String(evento._id)}`)}`,
+          metadata: {
+            agendaItemId: `event:${String(evento._id)}`,
+            eventId: String(evento._id),
+            subjectId: evento.subjectId ? String(evento.subjectId) : '',
+            startAt: inicio.toISOString(),
+            leadMinutes: antelacion,
+            minutosPara: minutosHasta(inicio, ahora),
+          },
+        });
+
+        if (salida.creada) resultado.avisos += 1;
+        else if (salida.omitida === 'duplicada') resultado.duplicados += 1;
+      }
     }
   }
 
