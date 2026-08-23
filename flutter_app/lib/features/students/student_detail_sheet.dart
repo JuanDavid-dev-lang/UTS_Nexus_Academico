@@ -63,13 +63,24 @@ class _StudentDetailSheet extends StatelessWidget {
                       entry.student.fullName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppType.bodyStrong.copyWith(fontWeight: FontWeight.w800),
+                      style: AppType.bodyStrong.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                     Text(
                       [
                         'Cédula ${entry.student.code}',
-                        if (entry.student.program.isNotEmpty) entry.student.program,
+                        if (entry.student.program.isNotEmpty)
+                          entry.student.program,
                       ].join(' · '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.caption.copyWith(color: muted),
+                    ),
+                    Text(
+                      entry.student.email.isEmpty
+                          ? 'Sin correo registrado'
+                          : entry.student.email,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppType.caption.copyWith(color: muted),
@@ -122,8 +133,10 @@ class _StudentDetailSheet extends StatelessWidget {
                           children: [
                             const Text('•  '),
                             Expanded(
-                              child: Text(reason,
-                                  style: AppType.caption.copyWith(height: 1.4)),
+                              child: Text(
+                                reason,
+                                style: AppType.caption.copyWith(height: 1.4),
+                              ),
                             ),
                           ],
                         ),
@@ -185,15 +198,18 @@ class _StudentDetailSheet extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: AppCard(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                   child: Row(
                     children: [
                       SizedBox(
                         width: 74,
-                        child: Text('Corte ${cut.cut}',
-                            style:
-                                const TextStyle(fontWeight: FontWeight.w600)),
+                        child: Text(
+                          'Corte ${cut.cut}',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
                       ),
                       Expanded(
                         child: ClipRRect(
@@ -241,5 +257,4 @@ class _StudentDetailSheet extends StatelessWidget {
       ),
     );
   }
-
 }

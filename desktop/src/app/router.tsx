@@ -14,6 +14,7 @@ import { BootScreen } from '@/app/boot-screen';
 const LoginPage = lazy(() => import('@/features/auth/login-page'));
 const AnnouncementsPage = lazy(() => import('@/features/announcements/announcements-page'));
 const RegisterPage = lazy(() => import('@/features/auth/register-page'));
+const RecoveryPage = lazy(() => import('@/features/auth/recovery-page'));
 const DashboardPage = lazy(() => import('@/features/dashboard/dashboard-page'));
 const AgendaPage = lazy(() => import('@/features/agenda/agenda-page'));
 const StudentsPage = lazy(() => import('@/features/students/students-page'));
@@ -57,6 +58,7 @@ export const router = createBrowserRouter([
     children: [
       { path: '/login', element: <LoginPage /> },
       { path: '/registro', element: <RegisterPage /> },
+      { path: '/recuperar', element: <RecoveryPage /> },
     ],
   },
   {

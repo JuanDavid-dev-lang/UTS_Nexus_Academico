@@ -21,7 +21,8 @@ import { RiskFeedbackModel } from '../../models/risk-feedback.model.js';
 import { ActivityModel } from '../../models/activity.model.js';
 import { AcademicSnapshotModel } from '../../models/academic-snapshot.model.js';
 import { SubjectModel } from '../../models/subject.model.js';
-import { professorOwnsStudent } from '../../shared/professor-scope.js';
+import { StudentModel } from '../../models/student.model.js';
+import { computeAcademicRecords } from '../../shared/academic.service.js';
 import { TITULO_PATRON, type Patron } from '../../domains/attendance/patterns.js';
 import * as campo from '../../shared/validation.js';
 
@@ -56,12 +57,16 @@ export type EventoHistorial = {
 export type FiltroHistorial = {
   studentId: string;
   period?: string;
+  subjectId?: string;
   tipos?: TipoEvento[];
   desde?: Date;
   hasta?: Date;
 };
 
 export type Solicitante = { id: string; role: string; studentId?: string };
+
+type ParDeAlcance = { subjectId: string; period: string };
+type AlcanceEfectivo = ParDeAlcance[] | null;
 
 /** Error de negocio con código HTTP. */
 class ErrorDeHistorial extends Error {
@@ -81,7 +86,7 @@ class ErrorDeHistorial extends Error {
  * `professorOwnsStudent()` — el mismo comprobante que usa `GET /students/:id`,
  * porque filtrar solo el listado deja la ficha accesible a quien copie un id.
  */
-async function exigirAcceso(studentId: string, usuario: Solicitante): Promise<void> {
+export async function exigirAcceso(studentId: string, usuario: Solicitante, subjectId?: string): Promise<void> {
   if (usuario.role === 'ADMIN' || usuario.role === 'COORDINATOR') return;
 
   if (usuario.role === 'STUDENT') {
@@ -91,9 +96,45 @@ async function exigirAcceso(studentId: string, usuario: Solicitante): Promise<vo
     return;
   }
 
-  if (!(await professorOwnsStudent(usuario.id, studentId))) {
-    throw new ErrorDeHistorial('Forbidden', 403);
-  }
+  const pertenece = await EnrollmentModel.exists({
+    studentId, professorId: usuario.id, enrollmentStatus: 'ACTIVE', deletedAt: null,
+    ...(subjectId ? { subjectId } : {}),
+  });
+  if (!pertenece) throw new ErrorDeHistorial('Forbidden', 403);
+}
+
+async function resolverAlcanceEfectivo(
+  filtro: FiltroHistorial,
+  usuario: Solicitante,
+): Promise<AlcanceEfectivo> {
+  await exigirAcceso(filtro.studentId, usuario, filtro.subjectId);
+  if (usuario.role !== 'PROFESSOR') return null;
+
+  const matriculas = await EnrollmentModel.find({
+    studentId: filtro.studentId,
+    professorId: usuario.id,
+    enrollmentStatus: 'ACTIVE',
+    deletedAt: null,
+    ...(filtro.subjectId ? { subjectId: filtro.subjectId } : {}),
+    ...(filtro.period ? { period: filtro.period } : {}),
+  }).select('subjectId period').lean();
+
+  const pares = [...new Map(matriculas.map(m => {
+    const par = { subjectId: String(m.subjectId), period: String(m.period) };
+    return [`${par.subjectId}|${par.period}`, par] as const;
+  })).values()];
+  if (pares.length === 0) throw new ErrorDeHistorial('Forbidden', 403);
+  return pares;
+}
+
+/** Filtro Mongo que conserva la pareja materia-periodo; no crea un producto cruzado. */
+export function condicionDeAlcance(pares: ParDeAlcance[]): Record<string, unknown> {
+  return {
+    $or: pares.map(par => ({
+      subjectId: new Types.ObjectId(par.subjectId),
+      period: par.period,
+    })),
+  };
 }
 
 /** Nombres de materia en una sola consulta: el N+1 aquí serían decenas de viajes. */
@@ -134,16 +175,21 @@ export async function construirHistorial(
   filtro: FiltroHistorial,
   pagina: campo.Paginacion,
   usuario: Solicitante,
+  alcanceYaResuelto?: { valor: AlcanceEfectivo },
 ): Promise<{ items: EventoHistorial[]; total: number }> {
-  await exigirAcceso(filtro.studentId, usuario);
-
-  if (!Types.ObjectId.isValid(filtro.studentId)) {
+  if (!Types.ObjectId.isValid(filtro.studentId) ||
+      (filtro.subjectId && !Types.ObjectId.isValid(filtro.subjectId))) {
     throw new ErrorDeHistorial('Not found', 404);
   }
+  const alcance = alcanceYaResuelto?.valor ?? await resolverAlcanceEfectivo(filtro, usuario);
   const studentId = new Types.ObjectId(filtro.studentId);
 
   const base: Record<string, unknown> = { studentId, deletedAt: null };
-  if (filtro.period) base.period = filtro.period;
+  if (alcance) Object.assign(base, condicionDeAlcance(alcance));
+  else {
+    if (filtro.period) base.period = filtro.period;
+    if (filtro.subjectId) base.subjectId = new Types.ObjectId(filtro.subjectId);
+  }
 
   // Tope por fuente. Generoso, pero acotado: un semestre completo cabe de
   // sobra y una consulta sin techo no cabe en la memoria de nadie.
@@ -158,22 +204,23 @@ export async function construirHistorial(
     // Solo lo que cuenta una historia: las ausencias y las llegadas tarde. Una
     // asistencia normal repetida cuarenta veces no es historial, es ruido.
     AttendanceModel.find({
-      ...base,
-      ...rangoDeFechas(filtro, 'date'),
-      $or: [{ present: false }, { lateMinutes: { $gt: 0 } }],
+      $and: [
+        { ...base, ...rangoDeFechas(filtro, 'date') },
+        { $or: [{ present: false }, { lateMinutes: { $gt: 0 } }] },
+      ],
     })
       .sort({ date: -1 })
       .limit(TOPE)
       .lean(),
-    AttendanceCaseModel.find({ studentId, deletedAt: null, ...(filtro.period ? { period: filtro.period } : {}) })
+    AttendanceCaseModel.find(base)
       .sort({ detectedAt: -1 })
       .limit(TOPE)
       .lean(),
-    RiskFeedbackModel.find({ studentId, ...(filtro.period ? { period: filtro.period } : {}) })
+    RiskFeedbackModel.find(base)
       .sort({ createdAt: -1 })
       .limit(TOPE)
       .lean(),
-    AcademicSnapshotModel.find({ studentId, ...(filtro.period ? { period: filtro.period } : {}) })
+    AcademicSnapshotModel.find(base)
       .sort({ capturedAt: -1 })
       .limit(TOPE)
       .lean(),
@@ -184,9 +231,13 @@ export async function construirHistorial(
   const materiasMatriculadas = [...new Set(matriculas.map(m => String(m.subjectId)))];
   const actividades = materiasMatriculadas.length
     ? await ActivityModel.find({
-        subjectId: { $in: materiasMatriculadas },
         deletedAt: null,
-        ...(filtro.period ? { period: filtro.period } : {}),
+        ...(alcance
+          ? condicionDeAlcance(alcance)
+          : {
+              subjectId: { $in: materiasMatriculadas },
+              ...(filtro.period ? { period: filtro.period } : {}),
+            }),
         ...rangoDeFechas(filtro, 'dueAt'),
       })
         .sort({ dueAt: -1 })
@@ -358,6 +409,95 @@ export async function construirHistorial(
 
   const { skip, limit } = campo.saltoYTope(pagina);
   return { items: filtrados.slice(skip, skip + limit), total: filtrados.length };
+}
+
+export type ExpedienteSeguimiento = {
+  student: { id: string; code: string; fullName: string; email: string | null; program: string };
+  context: { subjectId: string | null; subjectName: string | null; period: string | null };
+  academic: Array<{
+    subjectId: string; subjectName: string | null; period: string; finalGrade: number;
+    currentGrade: number; cuts: number[]; complete: boolean; attendancePercentage: number;
+    absences: number; risk: { level: string; score: number; reasons: string[] };
+  }>;
+  followUp: { open: unknown | null; episodes: unknown[]; progress: string | null };
+  timeline: { items: EventoHistorial[]; total: number; page: number; limit: number; hasMore: boolean };
+  allowedActions: string[];
+};
+
+export function presentarEpisodiosSeguimiento(casos: any[], esEstudiante: boolean) {
+  return casos.flatMap(c => (c.seguimientos ?? []).map((e: any) => ({
+    id: String(e._id), action: e.accion, status: e.estado, createdAt: iso(e.creadoEn),
+    closedAt: e.cerradoEn ? iso(e.cerradoEn) : null,
+    initialRisk: e.nivelAlCrear, closingRisk: e.nivelAlCerrar ?? null,
+    ...(esEstudiante ? {} : { note: e.nota ?? '', closingNote: e.notaCierre ?? '' }),
+  }))).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/** Lectura integrada: compone fuentes existentes sin recalcular reglas académicas. */
+export async function construirExpedienteSeguimiento(
+  filtro: FiltroHistorial,
+  pagina: campo.Paginacion,
+  usuario: Solicitante,
+): Promise<ExpedienteSeguimiento> {
+  if (!Types.ObjectId.isValid(filtro.studentId) ||
+      (filtro.subjectId && !Types.ObjectId.isValid(filtro.subjectId))) {
+    throw new ErrorDeHistorial('Not found', 404);
+  }
+  const alcance = await resolverAlcanceEfectivo(filtro, usuario);
+
+  const estudiante = await StudentModel.findOne({ _id: filtro.studentId, deletedAt: null })
+    .select('code fullName email program').lean();
+  if (!estudiante) throw new ErrorDeHistorial('Not found', 404);
+
+  const consultasAcademicas = alcance
+    ? alcance.map(par => computeAcademicRecords({
+        studentId: filtro.studentId,
+        subjectId: par.subjectId,
+        period: par.period,
+      }))
+    : [computeAcademicRecords({
+        studentId: filtro.studentId,
+        subjectId: filtro.subjectId,
+        period: filtro.period,
+      })];
+  const [lotesAcademicos, historial, casos] = await Promise.all([
+    Promise.all(consultasAcademicas),
+    construirHistorial(filtro, pagina, usuario, { valor: alcance }),
+    RiskFeedbackModel.find({
+      studentId: filtro.studentId,
+      deletedAt: null,
+      ...(alcance
+        ? condicionDeAlcance(alcance)
+        : {
+            ...(filtro.subjectId ? { subjectId: filtro.subjectId } : {}),
+            ...(filtro.period ? { period: filtro.period } : {}),
+          }),
+    }).sort({ updatedAt: -1 }).lean(),
+  ]);
+  const registros = lotesAcademicos.flat();
+  const nombres = await nombresDeMateria([
+    filtro.subjectId ?? null,
+    ...registros.map(r => r.subjectId),
+  ]);
+  const episodios = presentarEpisodiosSeguimiento(casos, usuario.role === 'STUDENT');
+  const abierto = episodios.find(e => e.status === 'EN_CURSO') ?? null;
+  const progreso = abierto ? null : episodios[0]?.closingRisk && episodios[0]?.initialRisk
+    ? `${episodios[0].initialRisk}->${episodios[0].closingRisk}` : null;
+
+  return {
+    student: { id: String(estudiante._id), code: String(estudiante.code ?? ''), fullName: String(estudiante.fullName ?? ''), email: estudiante.email ? String(estudiante.email) : null, program: String(estudiante.program ?? '') },
+    context: { subjectId: filtro.subjectId ?? null, subjectName: filtro.subjectId ? nombres.get(filtro.subjectId) ?? null : null, period: filtro.period ?? null },
+    academic: registros.map(r => ({
+      subjectId: r.subjectId, subjectName: nombres.get(r.subjectId) ?? null, period: r.period,
+      finalGrade: r.notaFinal, currentGrade: r.riesgo.notaActual, cuts: r.cortes,
+      complete: r.notaCompleta, attendancePercentage: r.riesgo.porcentajeAsistencia,
+      absences: r.riesgo.clasesAusente,
+      risk: { level: r.riesgo.nivel, score: r.riesgo.puntaje, reasons: r.riesgo.motivos },
+    })),
+    followUp: { open: abierto, episodes: episodios, progress: progreso },
+    timeline: { ...historial, page: pagina.page, limit: pagina.limit, hasMore: pagina.page * pagina.limit < historial.total },
+    allowedActions: usuario.role === 'STUDENT' ? [] : ['OPEN_FOLLOW_UP', 'UPDATE_FOLLOW_UP'],
+  };
 }
 
 function iso(valor: unknown): string {

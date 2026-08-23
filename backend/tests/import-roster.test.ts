@@ -16,6 +16,16 @@ describe('interpretarMatrizListado', () => {
     });
   });
 
+  it('normaliza el correo y permite que esté ausente', () => {
+    const resultado = interpretarMatrizListado([
+      ['Código', 'Nombre', 'Correo'],
+      ['1001', 'Ana Pérez', '  ANA.PEREZ@UTS.EDU.CO '],
+      ['1002', 'Luis Pérez', ''],
+    ]);
+    expect(resultado.filas[0]?.correo).toBe('ana.perez@uts.edu.co');
+    expect(resultado.filas[1]).toMatchObject({ correo: '', confianza: 1 });
+  });
+
   it('infiere columnas sin cabecera y conserva advertencias', () => {
     const resultado = interpretarMatrizListado([
       ['Pepito Pérez', '1.098.765.432'],

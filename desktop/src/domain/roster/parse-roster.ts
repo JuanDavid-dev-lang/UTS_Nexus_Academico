@@ -161,7 +161,9 @@ export function parseRoster(text: string): RosterParseResult {
       return;
     }
 
-    const email = fields.find((field) => field.includes('@'));
+    // Una celda vacía significa "dato desconocido", no una orden de borrar
+    // el correo que el estudiante ya tenga en el backend.
+    const email = fields.find((field) => field.includes('@'))?.trim().toLowerCase();
     const parsed = rosterRowSchema.safeParse({
       code,
       fullName: name.replace(/\s+/g, ' ').trim(),

@@ -11,6 +11,7 @@
     "seed": "tsx src/scripts/seed.ts",
     "migrate:enrollments": "tsx src/scripts/migrate-enrollments.ts",
     "migrate:v3": "tsx src/scripts/migrate-v3.ts",
+    "migrate:student-emails": "tsx src/scripts/migrate-student-emails.ts",
     "smoke": "tsx src/scripts/smoke.ts",
     "test:e2e": "tsx src/scripts/e2e.ts",
     "check:env": "node check-env.mjs",

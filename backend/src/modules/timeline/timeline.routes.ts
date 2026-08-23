@@ -57,6 +57,7 @@ timelineRouter.get('/:id/historial', exigirSesion, async (req, res, next) => {
     const consulta = z
       .object({
         period: z.string().max(20).optional(),
+        subjectId: z.string().max(40).optional(),
         // Una lista separada por comas: `?tipos=NOTA,ASISTENCIA`. Repetir el
         // parámetro también funciona, pero un solo formato evita que cada
         // cliente elija el suyo.
@@ -76,6 +77,7 @@ timelineRouter.get('/:id/historial', exigirSesion, async (req, res, next) => {
       {
         studentId: String(req.params.id),
         period: consulta.period,
+        subjectId: consulta.subjectId,
         tipos,
         desde: consulta.desde,
         hasta: consulta.hasta,
@@ -87,4 +89,18 @@ timelineRouter.get('/:id/historial', exigirSesion, async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+timelineRouter.get('/:id/seguimiento', exigirSesion, async (req, res, next) => {
+  try {
+    const consulta = z.object({
+      period: z.string().max(20).optional(),
+      subjectId: z.string().max(40).optional(),
+    }).parse(req.query);
+    const pagina = campo.paginacionCon(20).parse(req.query);
+    const item = await servicio.construirExpedienteSeguimiento({
+      studentId: String(req.params.id), period: consulta.period, subjectId: consulta.subjectId,
+    }, pagina, req.user!);
+    res.json({ ok: true, item });
+  } catch (err) { next(err); }
 });

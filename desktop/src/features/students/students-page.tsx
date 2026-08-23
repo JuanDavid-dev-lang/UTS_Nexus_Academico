@@ -91,7 +91,9 @@ export default function StudentsPage() {
             <Avatar name={row.fullName} src={row.photoUrl} size="sm" />
             <div className="flex min-w-0 flex-col">
               <span className="truncate font-medium">{row.fullName}</span>
-              <span className="truncate text-caption text-muted">{row.email || 'Sin correo'}</span>
+              <span className="truncate text-caption text-muted">
+                {row.email || 'Sin correo registrado'}
+              </span>
             </div>
           </div>
         ),

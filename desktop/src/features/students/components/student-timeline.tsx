@@ -79,8 +79,8 @@ export function StudentTimeline({
   );
 
   const historial = useQuery({
-    queryKey: queryKeys.timeline.student(studentId, filtro),
-    queryFn: () => timelineRepository.historial(studentId, filtro),
+    queryKey: [...queryKeys.timeline.student(studentId, filtro), 'seguimiento'],
+    queryFn: () => timelineRepository.seguimiento(studentId, { period: filtro.period, limit: 100 }),
     enabled: Boolean(studentId),
   });
 
@@ -88,17 +88,43 @@ export function StudentTimeline({
   // ordenada del servidor: no reordena nada.
   const porDia = useMemo(() => {
     const grupos = new Map<string, EventoHistorial[]>();
-    for (const evento of historial.data?.items ?? []) {
+    for (const evento of historial.data?.timeline.items.filter(e => !tipo || e.type === tipo) ?? []) {
       const clave = dia(evento.occurredAt);
       const lista = grupos.get(clave);
       if (lista) lista.push(evento);
       else grupos.set(clave, [evento]);
     }
     return [...grupos.entries()];
-  }, [historial.data]);
+  }, [historial.data, tipo]);
 
   return (
     <div className="flex flex-col gap-3">
+      {historial.data ? (
+        <section aria-label="Situación académica" className="rounded-lg border border-border bg-surface p-4">
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="text-caption font-semibold uppercase tracking-wide text-muted">Expediente de seguimiento</p>
+              <h3 className="text-h3 font-semibold text-text">{historial.data.student.fullName}</h3>
+              <p className="text-caption text-muted">{historial.data.student.code} · {historial.data.student.program || 'Programa sin registrar'}</p>
+            </div>
+            {historial.data.followUp.open ? <Badge tone="warning">Seguimiento en curso</Badge> : <Badge tone="neutral">Sin seguimiento abierto</Badge>}
+          </div>
+          {historial.data.academic.length ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {historial.data.academic.map((registro) => (
+                <article key={`${registro.subjectId}-${registro.period}`} className="rounded-md border border-border p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <strong className="text-body text-text">{registro.subjectName ?? 'Materia'}</strong>
+                    <Badge tone={registro.risk.level === 'ALTO' ? 'danger' : registro.risk.level === 'MEDIO' ? 'warning' : 'success'}>{registro.risk.level}</Badge>
+                  </div>
+                  <p className="mt-1 text-caption text-muted">{registro.period} · Promedio actual {registro.currentGrade.toFixed(2)} · Asistencia {registro.attendancePercentage.toFixed(1)}%</p>
+                  {registro.risk.reasons.length ? <ul className="mt-2 list-disc pl-4 text-caption text-muted">{registro.risk.reasons.map(m => <li key={m}>{m}</li>)}</ul> : <p className="mt-2 text-caption text-muted">Sin señales académicas de riesgo.</p>}
+                </article>
+              ))}
+            </div>
+          ) : <p className="text-caption text-muted">Todavía no hay notas ni asistencia consolidadas para este filtro.</p>}
+        </section>
+      ) : null}
       <div className="flex flex-wrap items-end gap-3">
         <Field label="Periodo" className="min-w-[140px]">
           {(props) => (
@@ -177,10 +203,10 @@ export function StudentTimeline({
         </section>
       ))}
 
-      {historial.data?.hasMore ? (
+      {historial.data?.timeline.hasMore ? (
         <p className="text-caption text-muted">
-          Se muestran los {historial.data.items.length} hechos más recientes de{' '}
-          {historial.data.total}. Filtra por periodo o por tipo para ver los anteriores.
+          Se muestran los {historial.data.timeline.items.length} hechos más recientes de{' '}
+          {historial.data.timeline.total}. Filtra por periodo para ver los anteriores.
         </p>
       ) : null}
     </div>

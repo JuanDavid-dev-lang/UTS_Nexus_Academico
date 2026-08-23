@@ -7,11 +7,13 @@
  * un mismo dato con dos endpoints de escritura es un desfase esperando fecha.
  */
 import { Router } from 'express';
+import multer from 'multer';
 import { z } from 'zod';
 import { identificar, requireRole } from '../../middlewares/auth.js';
 import { CalendarEventModel } from '../../models/calendar-event.model.js';
 import { getProfessorScope } from '../../shared/professor-scope.js';
 import { emitToUser } from '../../shared/socket.js';
+import { emitSync } from '../../shared/socket.js';
 import { env } from '../../shared/env.js';
 import { normalizarAntelaciones } from '../../domains/agenda/agenda.service.js';
 import {
@@ -20,9 +22,13 @@ import {
   MAX_DIAS_RANGO,
   type TipoAgenda,
 } from './agenda.service.js';
+import { confirmInstitutionalCalendar, previewInstitutionalCalendar } from './institutional-import.service.js';
+import { normalizeCalendarRows } from '../../domains/agenda/institutional-import.js';
 
 export const agendaRouter = Router();
 agendaRouter.use(identificar);
+
+const institutionalUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024, files: 1 } });
 
 const MS_DIA = 86_400_000;
 
@@ -120,6 +126,29 @@ agendaRouter.get('/resumen', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR', 'S
   }
 });
 
+agendaRouter.post('/institutional-import/preview', requireRole('ADMIN'), institutionalUpload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ ok: false, message: 'Selecciona un archivo CSV o Excel.' });
+    const preview = await previewInstitutionalCalendar(req.file);
+    res.json({ ok: true, ...preview });
+  } catch (error) { next(error); }
+});
+
+const confirmRow = z.object({
+  title: z.string().min(1).max(160), description: z.string().max(2000).default(''),
+  startDate: z.string(), endDate: z.string(), location: z.string().max(120).default(''), period: z.string().max(16).default(''),
+});
+agendaRouter.post('/institutional-import/confirm', requireRole('ADMIN'), async (req, res, next) => {
+  try {
+    const selected = z.object({ rows: z.array(confirmRow).max(1000) }).parse(req.body).rows;
+    const normalized = normalizeCalendarRows(selected.map(row => ({ titulo: row.title, descripcion: row.description, fecha_inicio: row.startDate, fecha_fin: row.endDate, lugar: row.location, periodo: row.period })));
+    if (normalized.some(row => row.status !== 'VALID')) return res.status(400).json({ ok: false, message: 'La selección contiene filas inválidas. Vuelve a previsualizar el archivo.' });
+    const result = await confirmInstitutionalCalendar(req.user!.id, normalized);
+    emitSync('sync:update', { entity: 'calendar', action: 'import', id: result.importBatchId });
+    res.status(201).json({ ok: true, ...result });
+  } catch (error) { next(error); }
+});
+
 // ── Eventos ──────────────────────────────────────────────────────────────────
 
 const cuerpoEvento = z.object({
@@ -208,6 +237,7 @@ agendaRouter.patch('/events/:id', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR
     // Un docente solo edita los suyos. Filtrar solo el listado dejaría el
     // evento ajeno editable a quien copie un id.
     if (req.user?.role === 'PROFESSOR') filtro.teacherId = req.user.id;
+    if (req.user?.role !== 'ADMIN') filtro.visibility = { $ne: 'INSTITUTIONAL' };
 
     const cambios: Record<string, unknown> = { ...body, updatedBy: req.user!.id };
     if (body.reminderMinutes) cambios.reminderMinutes = normalizarAntelaciones(body.reminderMinutes);
@@ -230,6 +260,7 @@ agendaRouter.delete('/events/:id', requireRole('ADMIN', 'PROFESSOR', 'COORDINATO
   try {
     const filtro: Record<string, unknown> = { _id: req.params.id, deletedAt: null };
     if (req.user?.role === 'PROFESSOR') filtro.teacherId = req.user.id;
+    if (req.user?.role !== 'ADMIN') filtro.visibility = { $ne: 'INSTITUTIONAL' };
 
     // Baja lógica, como el resto del sistema: un parcial borrado por error se
     // recupera, y las notificaciones ya enviadas siguen apuntando a algo.

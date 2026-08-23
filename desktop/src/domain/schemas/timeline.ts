@@ -34,6 +34,27 @@ export const eventoHistorialSchema = z.object({
 });
 export type EventoHistorial = z.infer<typeof eventoHistorialSchema>;
 
+const episodioSeguimientoSchema = z.object({
+  id: z.string(), action: z.string(), status: z.string(), createdAt: z.string(),
+  closedAt: z.string().nullable(), initialRisk: z.string(), closingRisk: z.string().nullable(),
+  note: z.string().optional(), closingNote: z.string().optional(),
+});
+
+export const expedienteSeguimientoSchema = z.object({
+  student: z.object({ id: z.string(), code: z.string(), fullName: z.string(), email: z.string().nullable(), program: z.string() }),
+  context: z.object({ subjectId: z.string().nullable(), subjectName: z.string().nullable(), period: z.string().nullable() }),
+  academic: z.array(z.object({
+    subjectId: z.string(), subjectName: z.string().nullable(), period: z.string(),
+    finalGrade: z.number(), currentGrade: z.number(), cuts: z.array(z.number()), complete: z.boolean(),
+    attendancePercentage: z.number(), absences: z.number(),
+    risk: z.object({ level: z.string(), score: z.number(), reasons: z.array(z.string()) }),
+  })),
+  followUp: z.object({ open: episodioSeguimientoSchema.nullable(), episodes: z.array(episodioSeguimientoSchema), progress: z.string().nullable() }),
+  timeline: z.object({ items: z.array(eventoHistorialSchema), total: z.number(), page: z.number(), limit: z.number(), hasMore: z.boolean() }),
+  allowedActions: z.array(z.string()),
+});
+export type ExpedienteSeguimiento = z.infer<typeof expedienteSeguimientoSchema>;
+
 /** Etiqueta legible de cada tipo. Solo presentación. */
 export const ETIQUETA_EVENTO: Record<TipoEventoHistorial, string> = {
   MATRICULA: 'Matrícula',

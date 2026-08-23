@@ -7,10 +7,14 @@ import { ProfessorModel } from '../../models/professor.model.js';
 import { exigirSesion, identificar, requireRole } from '../../middlewares/auth.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../shared/jwt.js';
 import { daysFromNow, hashToken } from '../../shared/security.js';
-import { correoActivo, enviarCorreo } from '../../shared/mailer.js';
-import { esProduccion } from '../../shared/env.js';
 import type { Role } from '../../shared/types.js';
-import crypto from 'node:crypto';
+import rateLimit from 'express-rate-limit';
+import {
+  RECOVERY_INVALID_MESSAGE,
+  RECOVERY_PUBLIC_MESSAGE,
+  requestPasswordReset,
+  resetPassword,
+} from './recovery.service.js';
 
 /**
  * Tope de longitud de contraseña.
@@ -299,46 +303,32 @@ authRouter.post('/logout', async (req, res, next) => {
  * La respuesta es idéntica exista o no la cuenta: distinguirlas convierte esto
  * en un comprobador de qué correos están registrados.
  */
-authRouter.post('/recovery/request', async (req, res, next) => {
+const recoveryRequestLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, message: 'Demasiadas solicitudes. Intenta nuevamente más tarde.' },
+});
+const recoveryResetLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, message: 'Demasiados intentos. Intenta nuevamente más tarde.' },
+});
+
+authRouter.post('/recovery/request', recoveryRequestLimit, async (req, res, next) => {
   try {
     const body = z.object({ email: z.string().trim().toLowerCase().email().max(160) }).parse(req.body);
-    const respuestaNeutra = { ok: true, message: 'Si el correo existe, se enviará el código.' };
-
-    const user = await UserModel.findOne({ email: body.email, deletedAt: null });
-    if (!user) return res.json(respuestaNeutra);
-
-    const code = String(crypto.randomInt(100000, 999999));
-    user.passwordResetCodeHash = await bcrypt.hash(code, 10);
-    user.passwordResetExpiresAt = daysFromNow(1 / 24);
-    await user.save();
-
-    const enviado = await enviarCorreo({
-      para: [user.email],
-      asunto: 'Código de recuperación · UTS Nexus Académico',
-      texto:
-        `Tu código para restablecer la contraseña es ${code}.\n\n` +
-        'Caduca en una hora. Si no has pedido tú este cambio, ignora este mensaje: ' +
-        'mientras no se use el código, tu contraseña sigue siendo la misma.',
-    });
-
-    // Sin SMTP y fuera de producción el código vuelve aquí: si no, en una
-    // instalación local nadie podría recuperar una contraseña jamás. En
-    // producción `validarProduccion()` ya no deja arrancar sin secretos, y
-    // aquí tampoco se filtra aunque el correo esté apagado.
-    if (!enviado && !esProduccion && !correoActivo()) {
-      return res.json({ ...respuestaNeutra, devCode: code });
-    }
-
-    if (!enviado) {
-      console.error(`[auth] no se pudo enviar el código de recuperación a ${user.email}.`);
-    }
-    res.json(respuestaNeutra);
+    const result = await requestPasswordReset(body.email);
+    res.json({ ok: true, message: RECOVERY_PUBLIC_MESSAGE, ...result });
   } catch (err) {
     next(err);
   }
 });
 
-authRouter.post('/recovery/reset', async (req, res, next) => {
+authRouter.post('/recovery/reset', recoveryResetLimit, async (req, res, next) => {
   try {
     const body = z.object({
       email: z.string().trim().toLowerCase().email().max(160),
@@ -346,25 +336,9 @@ authRouter.post('/recovery/reset', async (req, res, next) => {
       newPassword: z.string().min(8).max(MAX_PASSWORD),
     }).parse(req.body);
 
-    const user = await UserModel.findOne({ email: body.email, deletedAt: null });
-    if (!user || !user.passwordResetCodeHash || !user.passwordResetExpiresAt) {
-      return res.status(400).json({ ok: false, message: 'Recovery not available' });
-    }
-
-    if (user.passwordResetExpiresAt.getTime() < Date.now()) {
-      return res.status(400).json({ ok: false, message: 'Code expired' });
-    }
-
-    const ok = await bcrypt.compare(body.code, user.passwordResetCodeHash);
-    if (!ok) return res.status(400).json({ ok: false, message: 'Invalid code' });
-
-    user.passwordHash = await bcrypt.hash(body.newPassword, 12);
-    user.passwordResetCodeHash = null;
-    user.passwordResetExpiresAt = null;
-    await user.save();
-    await SessionModel.updateMany({ userId: user.id }, { $set: { revokedAt: new Date() } });
-
-    res.json({ ok: true, message: 'Password updated' });
+    const changed = await resetPassword(body);
+    if (!changed) return res.status(400).json({ ok: false, message: RECOVERY_INVALID_MESSAGE });
+    res.json({ ok: true, message: 'Contraseña actualizada.' });
   } catch (err) {
     next(err);
   }

@@ -1,5 +1,11 @@
 import { http } from '@/core/api/http-client';
-import { loginResponseSchema, meResponseSchema, type LoginInput } from '@/domain/schemas/auth';
+import {
+  loginResponseSchema,
+  meResponseSchema,
+  recoveryRequestSchema,
+  recoveryResetSchema,
+  type LoginInput,
+} from '@/domain/schemas/auth';
 import { okResponse } from '@/domain/schemas/common';
 import { tokenService } from '@/core/auth/token.service';
 import type { AuthRepository } from '@/domain/repositories/ports';
@@ -35,5 +41,22 @@ export const authRepository: AuthRepository = {
       await http.post('/auth/logout', { refreshToken }, { schema: okResponse }).catch(() => undefined);
     }
     await tokenService.clear();
+  },
+
+  async requestPasswordReset(email) {
+    const data = await http.post(
+      '/auth/recovery/request',
+      { email: email.trim().toLowerCase() },
+      { schema: recoveryRequestSchema, anonymous: true },
+    );
+    return { message: data.message, ...(data.devCode ? { devCode: data.devCode } : {}) };
+  },
+
+  async resetPassword(input) {
+    await http.post(
+      '/auth/recovery/reset',
+      { ...input, email: input.email.trim().toLowerCase() },
+      { schema: recoveryResetSchema, anonymous: true },
+    );
   },
 };

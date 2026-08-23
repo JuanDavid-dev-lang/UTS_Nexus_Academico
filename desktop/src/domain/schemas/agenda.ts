@@ -190,3 +190,19 @@ export const horarioConfirmResponseSchema = z.object({
   franjasActualizadas: numberish,
 });
 export type HorarioConfirmado = z.infer<typeof horarioConfirmResponseSchema>;
+
+export const institutionalImportRowSchema = z.object({
+  row: numberish, status: z.enum(['VALID', 'CONFLICT', 'DUPLICATE', 'SKIPPED', 'ERROR']),
+  selected: z.boolean(), title: z.string(), description: z.string(), startDate: z.string(), endDate: z.string(),
+  allDay: z.boolean(), location: z.string(), period: z.string(), externalKey: z.string(), messages: z.array(z.string()),
+});
+export type InstitutionalImportRow = z.infer<typeof institutionalImportRowSchema>;
+export const institutionalPreviewSchema = z.object({
+  ok: z.literal(true), source: z.string(), rows: z.array(institutionalImportRowSchema),
+  summary: z.record(z.string(), z.number()),
+  capability: z.object({ csv: z.boolean(), excel: z.boolean(), pdf: z.boolean(), pdfMessage: z.string() }),
+});
+export type InstitutionalPreview = z.infer<typeof institutionalPreviewSchema>;
+export const institutionalConfirmSchema = z.object({
+  ok: z.literal(true), created: numberish, omitted: numberish, importBatchId: z.string(),
+});

@@ -140,8 +140,6 @@ export async function construirAgenda(
   const esEstudiante = alcance.role === 'STUDENT';
 
   const restriccion = esEstudiante ? await alcanceEstudiante(alcance.userId) : null;
-  if (esEstudiante && restriccion && restriccion.subjectIds.length === 0) return [];
-
   // ── Horario semanal ──────────────────────────────────────────────────────
   const filtroHorario: Record<string, unknown> = { deletedAt: null };
   if (esDocente) filtroHorario.teacherId = alcance.userId;
@@ -174,12 +172,14 @@ export async function construirAgenda(
     deletedAt: null,
     startAt: { $gte: filtro.desde, $lt: filtro.hasta },
   };
-  if (esDocente) filtroEvento.teacherId = alcance.userId;
+  if (esDocente) filtroEvento.$or = [{ teacherId: alcance.userId }, { visibility: 'INSTITUTIONAL' }];
   if (restriccion) {
     // Al estudiante le llegan los eventos de sus materias, nunca los
     // recordatorios personales de un docente.
-    filtroEvento.subjectId = { $in: restriccion.subjectIds };
-    filtroEvento.type = { $ne: 'REMINDER' };
+    filtroEvento.$and = [
+      { type: { $ne: 'REMINDER' } },
+      { $or: [{ visibility: 'INSTITUTIONAL' }, { subjectId: { $in: restriccion.subjectIds } }] },
+    ];
   }
   if (filtro.subjectId) filtroEvento.subjectId = filtro.subjectId;
   if (filtro.groupId) filtroEvento.groupId = filtro.groupId;
@@ -313,7 +313,9 @@ export async function construirAgenda(
       priority: (String(evento.priority ?? 'MEDIUM') as AgendaItem['priority']) ?? 'MEDIUM',
       reminderMinutes: Array.isArray(evento.reminderMinutes) ? evento.reminderMinutes.map(Number) : [],
       status: estadoDeClase({ startAt: inicio, endAt: fin }, ahora),
-      editable: !esEstudiante && (!esDocente || String(evento.teacherId) === alcance.userId),
+      editable: evento.visibility === 'INSTITUTIONAL'
+        ? alcance.role === 'ADMIN'
+        : !esEstudiante && (!esDocente || String(evento.teacherId) === alcance.userId),
     });
   }
 

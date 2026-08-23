@@ -15,7 +15,7 @@ import {
   type CasoAsistencia,
   type EstadoActividad,
 } from '@/domain/schemas/activities';
-import { eventoHistorialSchema, type EventoHistorial } from '@/domain/schemas/timeline';
+import { eventoHistorialSchema, expedienteSeguimientoSchema, type EventoHistorial, type ExpedienteSeguimiento } from '@/domain/schemas/timeline';
 
 function paginado<T extends z.ZodTypeAny>(item: T) {
   return z.object({
@@ -126,6 +126,11 @@ export const attendanceCasesRepository = {
 // ── Historial del estudiante ────────────────────────────────────────────────
 
 export const timelineRepository = {
+  async seguimiento(studentId: string, filtro: { period?: string; subjectId?: string; page?: number; limit?: number } = {}): Promise<ExpedienteSeguimiento> {
+    return (await http.get(`/students/${studentId}/seguimiento`, {
+      schema: itemResponse(expedienteSeguimientoSchema), query: filtro,
+    })).item;
+  },
   async historial(
     studentId: string,
     filtro: { period?: string; tipos?: string[]; page?: number; limit?: number } = {},

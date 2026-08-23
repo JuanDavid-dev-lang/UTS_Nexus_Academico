@@ -1,0 +1,61 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:uts_academico/core/network/api_error.dart';
+import 'package:uts_academico/features/auth/recovery_page.dart';
+
+Widget appWith({
+  required Future<Map<String, dynamic>> Function(String) request,
+  required Future<void> Function(String, String, String) reset,
+}) {
+  final router = GoRouter(routes: [
+    GoRoute(path: '/recovery', builder: (_, __) => RecoveryPage(requestCode: request, resetPassword: reset)),
+    GoRoute(path: '/login', builder: (_, __) => const Scaffold(body: Text('Acceso'))),
+  ], initialLocation: '/recovery');
+  return MaterialApp.router(routerConfig: router);
+}
+
+void main() {
+  testWidgets('completa solicitud, devCode, validación, cambio y navegación', (tester) async {
+    String? requestedEmail;
+    List<String>? resetPayload;
+    await tester.pumpWidget(appWith(
+      request: (email) async { requestedEmail = email; return {'devCode': '123456'}; },
+      reset: (email, code, password) async { resetPayload = [email, code, password]; },
+    ));
+
+    await tester.enterText(find.widgetWithText(TextField, 'Correo institucional'), 'persona@uts.edu.co');
+    await tester.tap(find.text('Enviar código'));
+    await tester.pump();
+    expect(requestedEmail, 'persona@uts.edu.co');
+    expect(find.text('Código local de desarrollo: 123456'), findsOneWidget);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Código recibido'), '123456');
+    await tester.enterText(find.widgetWithText(TextField, 'Nueva contraseña'), 'segura123');
+    await tester.enterText(find.widgetWithText(TextField, 'Confirmar contraseña'), 'distinta1');
+    await tester.tap(find.text('Restablecer contraseña'));
+    await tester.pump();
+    expect(find.text('Las contraseñas no coinciden.'), findsOneWidget);
+    expect(resetPayload, isNull);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Confirmar contraseña'), 'segura123');
+    await tester.tap(find.text('Restablecer contraseña'));
+    await tester.pump();
+    expect(resetPayload, ['persona@uts.edu.co', '123456', 'segura123']);
+    expect(find.text('Contraseña actualizada'), findsOneWidget);
+    await tester.tap(find.text('Ir al acceso'));
+    await tester.pumpAndSettle();
+    expect(find.text('Acceso'), findsOneWidget);
+  });
+
+  testWidgets('muestra error seguro al solicitar el código', (tester) async {
+    await tester.pumpWidget(appWith(
+      request: (_) async => throw const ApiError(ApiErrorKind.rateLimited, 'Espera antes de intentarlo otra vez.'),
+      reset: (_, __, ___) async {},
+    ));
+    await tester.enterText(find.widgetWithText(TextField, 'Correo institucional'), 'persona@uts.edu.co');
+    await tester.tap(find.text('Enviar código'));
+    await tester.pump();
+    expect(find.text('Espera antes de intentarlo otra vez.'), findsOneWidget);
+  });
+}
