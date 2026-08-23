@@ -23,6 +23,8 @@ import { AcademicSnapshotModel } from '../../models/academic-snapshot.model.js';
 import { SubjectModel } from '../../models/subject.model.js';
 import { StudentModel } from '../../models/student.model.js';
 import { computeAcademicRecords } from '../../shared/academic.service.js';
+import { getProfessorScope } from '../../shared/professor-scope.js';
+import { dentroDelAlcance } from '../../domains/scope/professor-scope.js';
 import { TITULO_PATRON, type Patron } from '../../domains/attendance/patterns.js';
 import * as campo from '../../shared/validation.js';
 
@@ -96,11 +98,21 @@ export async function exigirAcceso(studentId: string, usuario: Solicitante, subj
     return;
   }
 
-  const pertenece = await EnrollmentModel.exists({
-    studentId, professorId: usuario.id, enrollmentStatus: 'ACTIVE', deletedAt: null,
-    ...(subjectId ? { subjectId } : {}),
-  });
-  if (!pertenece) throw new ErrorDeHistorial('Forbidden', 403);
+  // El alcance sale de `getProfessorScope()`, que UNE la matrícula con las
+  // listas `studentIds[]` de materia y grupo. Comprobar solo la matrícula
+  // dejaba fuera a los docentes cuyo único vínculo con el estudiante es una de
+  // esas listas legadas: pasaban de ver la ficha a recibir un 403 sin que
+  // nadie hubiera tocado sus datos.
+  const alcance = await getProfessorScope(usuario.id);
+  if (!dentroDelAlcance(alcance, studentId)) {
+    throw new ErrorDeHistorial('Forbidden', 403);
+  }
+
+  // Pedir una materia concreta exige además que sea suya. Sin esto, un id
+  // copiado acotaría el historial a una asignatura que este docente no dicta.
+  if (subjectId && !alcance.subjectIds.includes(subjectId)) {
+    throw new ErrorDeHistorial('Forbidden', 403);
+  }
 }
 
 async function resolverAlcanceEfectivo(
@@ -123,7 +135,15 @@ async function resolverAlcanceEfectivo(
     const par = { subjectId: String(m.subjectId), period: String(m.period) };
     return [`${par.subjectId}|${par.period}`, par] as const;
   })).values()];
-  if (pares.length === 0) throw new ErrorDeHistorial('Forbidden', 403);
+  if (pares.length === 0) {
+    // `exigirAcceso` ya dio el visto bueno, así que llegar aquí sin matrículas
+    // significa que el vínculo es una lista `studentIds[]` legada. No hay
+    // parejas materia-periodo que imponer, y se devuelve el alcance sin acotar
+    // —como se comportaba antes de existir este filtro—. Lanzar 403 aquí
+    // volvería a excluir justo a esos docentes, que es lo que se corrigió en
+    // `exigirAcceso`.
+    return null;
+  }
   return pares;
 }
 

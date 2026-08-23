@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   subjectFind: vi.fn(),
   studentFindOne: vi.fn(),
   compute: vi.fn(),
+  professorScope: vi.fn(),
 }));
 
 function consulta(resultado: unknown) {
@@ -34,6 +35,7 @@ vi.mock('../src/models/academic-snapshot.model.js', () => ({ AcademicSnapshotMod
 vi.mock('../src/models/subject.model.js', () => ({ SubjectModel: { find: mocks.subjectFind } }));
 vi.mock('../src/models/student.model.js', () => ({ StudentModel: { findOne: mocks.studentFindOne } }));
 vi.mock('../src/shared/academic.service.js', () => ({ computeAcademicRecords: mocks.compute }));
+vi.mock('../src/shared/professor-scope.js', () => ({ getProfessorScope: mocks.professorScope }));
 
 import { construirExpedienteSeguimiento } from '../src/modules/timeline/timeline.service.js';
 
@@ -45,6 +47,11 @@ describe('alcance del expediente de seguimiento', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.enrollmentExists.mockResolvedValue(true);
+    mocks.professorScope.mockResolvedValue({
+      subjectIds: [materiaProfesor],
+      groupIds: [],
+      studentIds: [estudiante],
+    });
     mocks.enrollmentFind.mockImplementation((filtro: any) => consulta(filtro.professorId
       ? [{ subjectId: materiaProfesor, period: '2026-1' }]
       : []));
@@ -92,5 +99,37 @@ describe('alcance del expediente de seguimiento', () => {
       expect(filtroAcademico.$or).toEqual([{ subjectId: expect.anything(), period: '2026-1' }]);
       expect(String(filtroAcademico.$or[0].subjectId)).toBe(materiaProfesor);
     }
+  });
+
+  /*
+   * Regresión: el alcance del docente NO es solo la matrícula.
+   *
+   * `getProfessorScope()` une la matrícula con las listas `studentIds[]` de
+   * materia y grupo, que en los datos históricos son el único vínculo de
+   * algunos docentes con sus estudiantes. Comprobar el acceso mirando solo
+   * `EnrollmentModel` les devolvía un 403 sobre fichas que llevaban viendo
+   * desde siempre, sin que nadie hubiera tocado sus datos.
+   */
+  it('un docente vinculado solo por la lista legada conserva el acceso', async () => {
+    mocks.enrollmentFind.mockImplementation(() => consulta([]));
+    mocks.compute.mockResolvedValue([]);
+
+    const resultado = await construirExpedienteSeguimiento(
+      { studentId: estudiante },
+      { page: 1, limit: 20 },
+      { id: 'profesor-legado', role: 'PROFESSOR' },
+    );
+
+    expect(resultado.student.id).toBe(estudiante);
+  });
+
+  it('niega la materia que el docente no dicta aunque le pasen su id', async () => {
+    await expect(
+      construirExpedienteSeguimiento(
+        { studentId: estudiante, subjectId: materiaAjena },
+        { page: 1, limit: 20 },
+        { id: 'profesor-a', role: 'PROFESSOR' },
+      ),
+    ).rejects.toMatchObject({ statusCode: 403 });
   });
 });
