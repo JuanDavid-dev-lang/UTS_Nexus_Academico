@@ -38,6 +38,16 @@ const schema = new Schema(
     /** Cuándo deja de mostrarse. `null` = no caduca. */
     expiraEn: { type: Date, default: null, index: true },
 
+    /**
+     * Cuándo se repartió su notificación. `null` = todavía no.
+     *
+     * Un aviso con fecha futura no se notifica al crearlo —adelantaría su
+     * contenido—, así que hace falta algo que lo recoja cuando llegue esa
+     * fecha. Esta marca es lo que distingue «pendiente de repartir» de «ya
+     * repartido» sin volver a mirar a cada docente en cada pasada.
+     */
+    notificadoEn: { type: Date, default: null, index: true },
+
     /** Docentes que ya lo abrieron. Sirve para el contador de no leídos. */
     leidoPor: [{ type: Schema.Types.ObjectId, ref: 'Usuario' }],
 

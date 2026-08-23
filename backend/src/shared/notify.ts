@@ -36,7 +36,8 @@ export type NotificationType =
   | 'EVENT'
   | 'REMINDER'
   | 'SCHEDULE'
-  | 'SISTEMA';
+  | 'SISTEMA'
+  | 'AVISO';
 
 export type Prioridad = 'URGENT' | 'IMPORTANT' | 'INFO' | 'SYSTEM';
 
@@ -66,6 +67,13 @@ const CATEGORIA_POR_TIPO: Record<NotificationType, CategoriaPreferencia> = {
   EVENT: 'eventos',
   REMINDER: 'recordatorios',
   SISTEMA: 'sistema',
+  // Los avisos institucionales van por «sistema» y no por una categoría propia
+  // para no obligar a un interruptor nuevo en las dos aplicaciones. Tiene un
+  // coste que conviene conocer: quien apague «sistema» para silenciar los
+  // avisos de versión nueva deja de recibir también los de la administración.
+  // Lo que no se pierde nunca es un aviso URGENTE, porque la prioridad urgente
+  // se salta las preferencias.
+  AVISO: 'sistema',
 };
 
 export function categoriaDeTipo(tipo: NotificationType): CategoriaPreferencia {

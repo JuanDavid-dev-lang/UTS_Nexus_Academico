@@ -26,6 +26,10 @@ const schema = new Schema(
         'REMINDER',
         'SCHEDULE',
         'SISTEMA',
+        // Aviso institucional. No es SISTEMA —eso es la aplicación hablando de
+        // sí misma— ni un hecho académico: lo escribe una persona y va dirigido
+        // a un colectivo.
+        'AVISO',
       ],
       required: true,
     },

@@ -7,6 +7,7 @@ import { identificar, requireRole } from '../../middlewares/auth.js';
 import { auditChange } from '../../shared/audit.js';
 import { emitSync } from '../../shared/socket.js';
 import { FACULTADES, NIVELES, PROGRAMAS, SEDES } from '../../domains/catalog/uts.js';
+import { notificarAviso } from './announcement-notify.service.js';
 
 /**
  * Avisos institucionales.
@@ -179,6 +180,40 @@ announcementRouter.post('/', requireRole('ADMIN'), async (req, res, next) => {
     // cliente recibe un aviso con una forma distinta de la que ya conoce.
     await item.populate('autorId', 'fullName');
     res.status(201).json({ ok: true, item });
+
+    // El reparto va DESPUÉS de responder y a propósito.
+    //
+    // Un aviso a toda la institución son cientos de docentes, y cada uno lleva
+    // sus preferencias, su comprobación de duplicado y su envío al teléfono.
+    // Hacerlo dentro de la petición dejaría a quien publica mirando una rueda
+    // durante medio minuto para un trabajo que no cambia lo que ya se guardó.
+    // El aviso está publicado en cuanto se responde; la campana llega detrás.
+    //
+    // Los programados no se reparten aquí: se quedan con `notificadoEn` en
+    // null y los recoge `repartirAvisosPendientes` cuando llegue su fecha.
+    if (datos.publicadoEn <= new Date()) {
+      void AnnouncementModel.updateOne(
+        { _id: item.id, notificadoEn: null },
+        { $set: { notificadoEn: new Date() } },
+      )
+        .then(() =>
+          notificarAviso({
+            id: item.id,
+            titulo: datos.titulo,
+            cuerpo: datos.cuerpo,
+            tipo: datos.tipo,
+            autorId: req.user?.id ?? null,
+            sedes: datos.sedes,
+            facultades: datos.facultades,
+            programas: datos.programas,
+            publicadoEn: datos.publicadoEn,
+            expiraEn: datos.expiraEn,
+          }),
+        )
+        .catch(error => {
+          console.error(`[avisos] fallo al repartir la notificación de ${item.id}:`, error);
+        });
+    }
   } catch (err) {
     next(err);
   }
