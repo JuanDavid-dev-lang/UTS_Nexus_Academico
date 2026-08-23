@@ -115,6 +115,18 @@ class _RecoveryPageState extends State<RecoveryPage> {
                               style: AppType.caption.copyWith(color: muted),
                             ),
                           ],
+                          // El aviso es permanente y no un SnackBar: el correo
+                          // tarda, y para cuando alguien se pregunta dónde está
+                          // el código, un aviso pasajero ya desapareció. Los
+                          // códigos salen de una cuenta que no es la
+                          // institucional, así que el filtro los manda a no
+                          // deseado con frecuencia.
+                          const SizedBox(height: 12),
+                          Text(
+                            'El código puede tardar un momento. Si no lo ves en tu bandeja '
+                            'de entrada, revisa la carpeta de correo no deseado o spam.',
+                            style: AppType.caption.copyWith(color: muted),
+                          ),
                           const SizedBox(height: 14),
                           TextField(
                             controller: _password,

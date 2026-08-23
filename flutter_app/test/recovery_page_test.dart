@@ -33,12 +33,24 @@ void main() {
     await tester.enterText(find.widgetWithText(TextField, 'Código recibido'), '123456');
     await tester.enterText(find.widgetWithText(TextField, 'Nueva contraseña'), 'segura123');
     await tester.enterText(find.widgetWithText(TextField, 'Confirmar contraseña'), 'distinta1');
+    // El formulario completo no cabe en el viewport de 600 px del test y la
+    // pantalla es un SingleChildScrollView, así que el botón hay que traerlo a
+    // la vista antes de tocarlo. Sin esto, `tap` cae sobre el fondo, no valida
+    // nada y el fallo aparece como «no se encontró el mensaje de error».
+    await tester.ensureVisible(find.text('Restablecer contraseña'));
+    await tester.pump();
     await tester.tap(find.text('Restablecer contraseña'));
     await tester.pump();
     expect(find.text('Las contraseñas no coinciden.'), findsOneWidget);
     expect(resetPayload, isNull);
 
     await tester.enterText(find.widgetWithText(TextField, 'Confirmar contraseña'), 'segura123');
+    // El formulario completo no cabe en el viewport de 600 px del test y la
+    // pantalla es un SingleChildScrollView, así que el botón hay que traerlo a
+    // la vista antes de tocarlo. Sin esto, `tap` cae sobre el fondo, no valida
+    // nada y el fallo aparece como «no se encontró el mensaje de error».
+    await tester.ensureVisible(find.text('Restablecer contraseña'));
+    await tester.pump();
     await tester.tap(find.text('Restablecer contraseña'));
     await tester.pump();
     expect(resetPayload, ['persona@uts.edu.co', '123456', 'segura123']);

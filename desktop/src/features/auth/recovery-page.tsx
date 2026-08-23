@@ -64,6 +64,16 @@ export default function RecoveryPage() {
             </Field>
             {step === 'reset' ? <>
               {devCode ? <p className="rounded-lg bg-info-soft p-3 text-caption text-info">Código local de desarrollo: <strong>{devCode}</strong></p> : null}
+              {/*
+                El aviso va aquí y no en un toast: el correo tarda, y para
+                cuando la persona se pregunta «¿y esto?» un toast ya se fue.
+                Los códigos salen de una cuenta que no es la institucional, así
+                que el filtro de correo los manda a no deseado con frecuencia.
+              */}
+              <p className="text-caption text-muted">
+                El código puede tardar un momento. Si no lo ves en tu bandeja de entrada,
+                revisa la carpeta de <strong>correo no deseado</strong> o spam.
+              </p>
               <Field label="Código recibido" required>{(props) => <Input {...props} inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value)} />}</Field>
               <Field label="Nueva contraseña" hint="Entre 8 y 128 caracteres" required>{(props) => <Input {...props} type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />}</Field>
               <Field label="Confirmar contraseña" required>{(props) => <Input {...props} type="password" autoComplete="new-password" value={confirmation} onChange={(e) => setConfirmation(e.target.value)} />}</Field>
