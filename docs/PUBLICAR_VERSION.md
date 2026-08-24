@@ -163,7 +163,7 @@ La **etapa** dice en qué punto está el producto, y va dirigida a quien lo
 instala. No es lo mismo la 2.3.6 de algo terminado que la 2.3.6 de algo que
 todavía se está armando. Se muestran juntos —«Alfa 2.3.6»— y se guardan aparte.
 
-**Hoy estamos en `alfa`.**
+**Hoy estamos en `beta`.**
 
 | Etapa | Qué significa |
 |---|---|
