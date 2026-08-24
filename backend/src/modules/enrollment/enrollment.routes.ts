@@ -276,7 +276,13 @@ enrollmentRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'),
             // de uno creado por `POST /students/bulk`.
             $setOnInsert: {
               code: row.code,
-              email: row.email ?? null,
+              // El correo ya viaja en `$set` cuando la fila lo trae. Declararlo
+              // también aquí pone el mismo camino en dos operadores del mismo
+              // update, y Mongo rechaza el lote entero con el código 40
+              // (`ConflictingUpdateOperators`): la importación respondía 500 y no
+              // matriculaba a nadie. El `null` inicial solo se reserva cuando la
+              // fila NO trae correo, igual que en `upsertStudents()`.
+              ...(row.email ? {} : { email: null }),
               program: row.program ?? 'UTS',
               attendanceRate: 0,
               academicPerformance: 0,
