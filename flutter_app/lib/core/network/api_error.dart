@@ -49,6 +49,27 @@ class ApiError implements Exception {
   /// 5xx el texto del servidor es interno y no debe llegar a la pantalla.
   static const _userFacingStatuses = {400, 409, 422};
 
+  /// Estados de una solicitud de registro que el servidor devuelve con un 403.
+  ///
+  /// El 403 sigue fuera de la lista de arriba con razón: un `requireRole`
+  /// responde 403 con texto interno. Pero el login responde 403 TAMBIÉN cuando
+  /// la cuenta existe y su registro está en revisión o rechazado, y ese texto
+  /// está escrito para la persona —incluye el motivo que tecleó la
+  /// administración—. Descartarlo dejaba al docente pendiente leyendo «No
+  /// tienes permisos para esta acción», que parece una avería.
+  ///
+  /// El campo `estado` es la marca de que ese 403 lo escribimos nosotros.
+  static const _estadosDeRegistro = {'PENDIENTE', 'RECHAZADO'};
+
+  /// Tope del texto del servidor. El motivo del rechazo llega hasta 300.
+  static const _maxMensaje = 400;
+
+  static bool _esEstadoDeRegistro(int status, Object? body) =>
+      status == 403 &&
+      body is Map &&
+      body['estado'] is String &&
+      _estadosDeRegistro.contains(body['estado']);
+
   static ApiErrorKind _kindFromStatus(int status) {
     if (status == 401) return ApiErrorKind.unauthorized;
     if (status == 403) return ApiErrorKind.forbidden;
@@ -87,9 +108,20 @@ class ApiError implements Exception {
               serverMessage.length > 200 ||
               RegExp(r'[`_]|\w+\(\)|Error|Exception').hasMatch(serverMessage);
 
-          final message = _userFacingStatuses.contains(status) && !looksInternal
-              ? serverMessage
-              : _messages[kind]!;
+          // El estado del registro identifica un 403 nuestro, así que su texto
+          // no pasa por la heurística: el motivo del rechazo es texto libre y un
+          // guion bajo o la palabra «Error» dentro lo habría tumbado al
+          // mensaje genérico.
+          final String message;
+          if (serverMessage != null && _esEstadoDeRegistro(status, body)) {
+            message = serverMessage.length > _maxMensaje
+                ? serverMessage.substring(0, _maxMensaje)
+                : serverMessage;
+          } else if (_userFacingStatuses.contains(status) && !looksInternal) {
+            message = serverMessage;
+          } else {
+            message = _messages[kind]!;
+          }
 
           return ApiError(kind, message, statusCode: status, cause: error);
         default:

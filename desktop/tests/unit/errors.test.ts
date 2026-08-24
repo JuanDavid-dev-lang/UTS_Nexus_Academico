@@ -81,4 +81,60 @@ describe('appErrorFromResponse', () => {
   it('handles a body with no message at all', () => {
     expect(appErrorFromResponse(500, null).message).toContain('servidor');
   });
+
+  // ── El 403 del registro de docentes ──────────────────────────────────────
+  //
+  // El login responde 403 cuando la cuenta existe pero su registro está en
+  // revisión o rechazado, y ese texto sí está escrito para la persona. Antes se
+  // descartaba con el resto de los 403: el docente pendiente leía «No tienes
+  // permisos», que parece una avería, y el motivo del rechazo no salía nunca
+  // aunque el panel de administración prometa que lo verá al intentar entrar.
+
+  it('muestra el mensaje de un registro en revisión', () => {
+    const error = appErrorFromResponse(403, {
+      ok: false,
+      estado: 'PENDIENTE',
+      message: 'Tu registro está en revisión. Te avisaremos cuando lo aprueben.',
+    });
+    expect(error.message).toBe('Tu registro está en revisión. Te avisaremos cuando lo aprueben.');
+    expect(error.kind).toBe('forbidden');
+  });
+
+  it('muestra el motivo del rechazo aunque lleve texto que parece interno', () => {
+    // El motivo lo teclea la administración: un guion bajo o la palabra «Error»
+    // dentro habría bastado para tumbarlo al mensaje genérico.
+    const error = appErrorFromResponse(403, {
+      ok: false,
+      estado: 'RECHAZADO',
+      message: 'Tu registro fue rechazado: Error en el código_docente.',
+    });
+    expect(error.message).toContain('Error en el código_docente.');
+  });
+
+  it('acota el motivo largo en vez de descartarlo', () => {
+    const largo = 'x'.repeat(600);
+    const error = appErrorFromResponse(403, { estado: 'RECHAZADO', message: largo });
+    expect(error.message).toHaveLength(400);
+  });
+
+  it('un 403 sin estado sigue mostrando el mensaje genérico', () => {
+    // Es el 403 de `requireRole`, cuyo texto es interno.
+    const error = appErrorFromResponse(403, { ok: false, message: 'Forbidden' });
+    expect(error.message).toBe('No tienes permisos para realizar esta acción.');
+  });
+
+  it('un estado desconocido no abre la puerta', () => {
+    const error = appErrorFromResponse(403, { estado: 'CUALQUIERA', message: 'texto interno' });
+    expect(error.message).toBe('No tienes permisos para realizar esta acción.');
+  });
+
+  it('el estado solo vale en un 403, no en un 401', () => {
+    const error = appErrorFromResponse(401, { estado: 'PENDIENTE', message: 'texto interno' });
+    expect(error.message).toBe('Tu sesión expiró. Vuelve a iniciar sesión.');
+  });
+
+  it('un estado sin mensaje cae al genérico sin reventar', () => {
+    const error = appErrorFromResponse(403, { estado: 'PENDIENTE' });
+    expect(error.message).toBe('No tienes permisos para realizar esta acción.');
+  });
 });

@@ -68,5 +68,56 @@ void main() {
       expect(error.kind, ApiErrorKind.network);
       expect(error.isRetryable, isTrue);
     });
+
+    // ── El 403 del registro de docentes ─────────────────────────────────
+    //
+    // El login responde 403 cuando la cuenta existe pero su registro está en
+    // revisión o rechazado, y ese texto sí está escrito para la persona.
+    // Descartarlo con el resto de los 403 dejaba al docente pendiente leyendo
+    // «No tienes permisos», que parece una avería.
+
+    test('muestra el mensaje de un registro en revisión', () {
+      final error = fromStatus(403, body: {
+        'estado': 'PENDIENTE',
+        'message': 'Tu registro está en revisión. Te avisaremos cuando lo aprueben.',
+      });
+      expect(error.message, contains('en revisión'));
+      expect(error.kind, ApiErrorKind.forbidden);
+    });
+
+    test('muestra el motivo del rechazo aunque parezca texto interno', () {
+      // El motivo lo teclea la administración: un guion bajo dentro habría
+      // bastado para tumbarlo al mensaje genérico.
+      final error = fromStatus(403, body: {
+        'estado': 'RECHAZADO',
+        'message': 'Tu registro fue rechazado: Error en el código_docente.',
+      });
+      expect(error.message, contains('código_docente'));
+    });
+
+    test('acota el motivo largo en vez de descartarlo', () {
+      final error = fromStatus(403, body: {'estado': 'RECHAZADO', 'message': 'x' * 600});
+      expect(error.message.length, 400);
+    });
+
+    test('un 403 sin estado sigue con el mensaje genérico', () {
+      // Es el 403 de `requireRole`, cuyo texto es interno.
+      final error = fromStatus(403, body: {'message': 'Forbidden'});
+      expect(error.message, contains('permisos'));
+    });
+
+    test('un estado desconocido no abre la puerta', () {
+      final error = fromStatus(403, body: {'estado': 'CUALQUIERA', 'message': 'texto interno'});
+      expect(error.message, contains('permisos'));
+    });
+
+    test('el estado solo vale en un 403, no en un 401', () {
+      final error = fromStatus(401, body: {'estado': 'PENDIENTE', 'message': 'texto interno'});
+      expect(error.message, contains('sesión'));
+    });
+
+    test('un estado sin mensaje cae al genérico sin reventar', () {
+      expect(fromStatus(403, body: {'estado': 'PENDIENTE'}).message, contains('permisos'));
+    });
   });
 }
