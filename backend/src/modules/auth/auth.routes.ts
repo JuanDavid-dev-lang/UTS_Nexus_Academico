@@ -9,6 +9,7 @@ import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../sha
 import { daysFromNow, hashToken } from '../../shared/security.js';
 import type { Role } from '../../shared/types.js';
 import rateLimit from 'express-rate-limit';
+import { passwordEntrante, passwordNueva } from '../../shared/validation.js';
 import {
   RECOVERY_INVALID_MESSAGE,
   RECOVERY_PUBLIC_MESSAGE,
@@ -16,18 +17,10 @@ import {
   resetPassword,
 } from './recovery.service.js';
 
-/**
- * Tope de longitud de contraseña.
- *
- * bcrypt solo mira los primeros 72 bytes, así que todo lo que pase de ahí no
- * añade seguridad: solo trabajo. Sin tope, `bcrypt.compare` con una cadena de
- * megabytes ocupa la CPU del proceso entero —Node es de un solo hilo— y basta
- * un puñado de peticiones de login para dejar la API sin responder a nadie.
- */
-const MAX_PASSWORD = 128;
-
-/** Contraseña de entrada: se acota antes de que llegue a bcrypt. */
-const passwordEntrante = z.string().min(1).max(MAX_PASSWORD);
+// `MAX_PASSWORD`, `passwordEntrante` y `passwordNueva` viven en
+// `shared/validation.js`: la política de una contraseña nueva la fijan tres
+// puertas distintas y tenerla escrita en cada una dejaba a la recuperación con
+// la más floja de las tres.
 
 export const authRouter = Router();
 
@@ -51,7 +44,9 @@ authRouter.post('/register', identificar, requireRole('ADMIN'), async (req, res,
   try {
     const body = z.object({
       email: z.string().trim().toLowerCase().email().max(160),
-      password: z.string().min(8).max(MAX_PASSWORD),
+      // Misma política que el autorregistro: un alta hecha por la
+      // administración no tiene por qué admitir una contraseña más débil.
+      password: passwordNueva,
       fullName: z.string().trim().min(3).max(120),
       role: z.enum(['ADMIN', 'PROFESSOR', 'COORDINATOR']).default('PROFESSOR'),
       photoUrl: z.string().url().max(500).optional(),
@@ -333,7 +328,7 @@ authRouter.post('/recovery/reset', recoveryResetLimit, async (req, res, next) =>
     const body = z.object({
       email: z.string().trim().toLowerCase().email().max(160),
       code: z.string().trim().min(4).max(12),
-      newPassword: z.string().min(8).max(MAX_PASSWORD),
+      newPassword: passwordNueva,
     }).parse(req.body);
 
     const changed = await resetPassword(body);

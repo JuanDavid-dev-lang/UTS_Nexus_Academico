@@ -16,7 +16,6 @@ const schema = new Schema(
     passwordResetExpiresAt: { type: Date, default: null },
     passwordResetAttempts: { type: Number, default: 0 },
     passwordResetRequestedAt: { type: Date, default: null },
-    passwordResetLockedUntil: { type: Date, default: null },
   },
   { timestamps: true }
 );

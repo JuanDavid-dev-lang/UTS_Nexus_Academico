@@ -10,6 +10,26 @@ export const CODE_TTL_MS = 60 * 60 * 1000;
 export const REQUEST_COOLDOWN_MS = 60 * 1000;
 export const MAX_ATTEMPTS = 5;
 
+/*
+ * No hay un bloqueo por tiempo sobre la cuenta, y es a propósito.
+ *
+ * Existía el campo `passwordResetLockedUntil`, leído en las condiciones y
+ * puesto a `null` en tres sitios, pero **nadie le escribía nunca una fecha**:
+ * parecía una protección y no lo era. Quien lo lea aquí antes de añadirlo de
+ * verdad, que sepa lo que ya acota los intentos:
+ *
+ *  - `MAX_ATTEMPTS` quema el código a los cinco fallos;
+ *  - el cooldown de un minuto por cuenta limita cuántos códigos nuevos se
+ *    pueden pedir;
+ *  - `recoveryRequestLimit` (8 cada 15 min por IP) y `recoveryResetLimit`
+ *    (20) acotan el conjunto.
+ *
+ * Son unas decenas de intentos por cuarto de hora contra un millón de
+ * combinaciones. Un bloqueo por cuenta añadiría poco y abriría lo contrario:
+ * quien falle cinco veces a propósito con el correo de otra persona la deja a
+ * ella sin poder recuperar su contraseña.
+ */
+
 export const RECOVERY_PUBLIC_MESSAGE = 'Si el correo existe, se enviará el código.';
 export const RECOVERY_INVALID_MESSAGE = 'El código no es válido o ya venció.';
 
@@ -35,7 +55,6 @@ export async function requestPasswordReset(email: string): Promise<{ devCode?: s
         passwordResetExpiresAt: new Date(now.getTime() + CODE_TTL_MS),
         passwordResetRequestedAt: now,
         passwordResetAttempts: 0,
-        passwordResetLockedUntil: null,
       },
     },
     { new: true },
@@ -65,7 +84,6 @@ export async function requestPasswordReset(email: string): Promise<{ devCode?: s
           passwordResetExpiresAt: null,
           passwordResetRequestedAt: null,
           passwordResetAttempts: 0,
-          passwordResetLockedUntil: null,
         },
       },
     );
@@ -86,7 +104,6 @@ export async function resetPassword(input: {
     passwordResetCodeHash: { $ne: null },
     passwordResetExpiresAt: { $gt: now },
     passwordResetAttempts: { $lt: MAX_ATTEMPTS },
-    $or: [{ passwordResetLockedUntil: null }, { passwordResetLockedUntil: { $lte: now } }],
   }).select('_id passwordResetCodeHash');
 
   if (!user?.passwordResetCodeHash) return false;
@@ -123,7 +140,6 @@ export async function resetPassword(input: {
             passwordResetCodeHash: 1,
             passwordResetExpiresAt: 1,
             passwordResetAttempts: 1,
-            passwordResetLockedUntil: 1,
           },
         },
         { session },

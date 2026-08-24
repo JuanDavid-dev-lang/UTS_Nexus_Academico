@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/password_policy.dart';
 import '../../core/network/api_error.dart';
 import './data/registro_service.dart';
 import '../../core/theme/app_theme.dart';
@@ -306,17 +307,12 @@ class _RegisterPageState extends State<RegisterPage> {
             obscureText: true,
             decoration: const InputDecoration(
               labelText: 'Contraseña',
-              helperText: 'Mínimo 10, con mayúscula, minúscula y número',
+              helperText: ayudaPassword,
               isDense: true,
             ),
-            validator: (v) {
-              final s = v ?? '';
-              if (s.length < 10) return 'Mínimo 10 caracteres';
-              if (!RegExp(r'[a-z]').hasMatch(s)) return 'Incluye una minúscula';
-              if (!RegExp(r'[A-Z]').hasMatch(s)) return 'Incluye una mayúscula';
-              if (!RegExp(r'\d').hasMatch(s)) return 'Incluye un número';
-              return null;
-            },
+            // La política vive en `core/auth/password_policy.dart`, compartida
+            // con la recuperación de contraseña.
+            validator: (v) => revisarPassword(v ?? ''),
           ),
 
           const SizedBox(height: 24),

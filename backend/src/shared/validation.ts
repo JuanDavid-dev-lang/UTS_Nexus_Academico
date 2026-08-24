@@ -39,6 +39,37 @@ export const parrafo = z.string().trim().max(4000);
 export const url = z.string().trim().url().max(500);
 
 /**
+ * Tope de una contraseña **entrante**, la que se compara contra el hash.
+ *
+ * bcrypt solo mira los primeros 72 bytes, así que lo que pase de ahí no añade
+ * seguridad: solo trabajo. Sin tope, `bcrypt.compare` con una cadena de
+ * megabytes ocupa la CPU del proceso entero —Node es de un solo hilo— y basta
+ * un puñado de intentos de login para dejar la API sin responder a nadie.
+ */
+export const MAX_PASSWORD = 128;
+
+/** Contraseña que llega a comprobarse. Solo se acota; no se juzga. */
+export const passwordEntrante = z.string().min(1).max(MAX_PASSWORD);
+
+/**
+ * Contraseña **nueva**, con la política mínima de la institución.
+ *
+ * Vive aquí porque hay más de una puerta por la que se fija una contraseña
+ * —el autorregistro, el alta que hace la administración y la recuperación— y
+ * cada una tenía la suya. La recuperación pedía ocho caracteres sin más, así
+ * que quien se registraba con la política larga podía dejarla en `12345678` a
+ * los cinco minutos: la puerta más débil es la que manda, y tenerlas escritas
+ * en tres sitios garantiza que alguna se quede atrás.
+ */
+export const passwordNueva = z
+  .string()
+  .min(10, 'La contraseña necesita al menos 10 caracteres.')
+  .max(MAX_PASSWORD, 'La contraseña es demasiado larga.')
+  .regex(/[a-z]/, 'Incluye alguna letra minúscula.')
+  .regex(/[A-Z]/, 'Incluye alguna letra mayúscula.')
+  .regex(/[0-9]/, 'Incluye algún número.');
+
+/**
  * Tope de elementos en una escritura por lotes.
  *
  * Un `z.array(...).min(1)` sin techo deja que el tamaño del lote lo decida el

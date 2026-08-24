@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/password_policy.dart';
 import '../../core/network/api_error.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
@@ -134,7 +135,7 @@ class _RecoveryPageState extends State<RecoveryPage> {
                             decoration: const InputDecoration(
                               labelText: 'Nueva contraseña',
                               prefixIcon: Icon(Icons.lock_outline),
-                              helperText: 'Mínimo 8 caracteres',
+                              helperText: ayudaPassword,
                             ),
                           ),
                         ],
@@ -212,13 +213,13 @@ class _RecoveryPageState extends State<RecoveryPage> {
           setState(() => _error = 'Ingresa el código que recibiste.');
           return;
         }
-        if (_password.text.length < 8) {
-          setState(
-              () => _error = 'La contraseña debe tener al menos 8 caracteres.');
-          return;
-        }
-        if (_password.text.length > 128) {
-          setState(() => _error = 'La contraseña no puede superar 128 caracteres.');
+        // Misma política que el autorregistro y que `passwordNueva` en el
+        // backend. Aquí se pedían ocho caracteres sin más: quien se registraba
+        // con la política larga podía dejarla en «12345678» a los cinco minutos
+        // por esta puerta.
+        final fallo = revisarPassword(_password.text);
+        if (fallo != null) {
+          setState(() => _error = fallo);
           return;
         }
         if (_password.text != _confirmation.text) {

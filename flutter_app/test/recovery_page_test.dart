@@ -31,8 +31,11 @@ void main() {
     expect(find.text('Código local de desarrollo: 123456'), findsOneWidget);
 
     await tester.enterText(find.widgetWithText(TextField, 'Código recibido'), '123456');
-    await tester.enterText(find.widgetWithText(TextField, 'Nueva contraseña'), 'segura123');
-    await tester.enterText(find.widgetWithText(TextField, 'Confirmar contraseña'), 'distinta1');
+    // La contraseña cumple la política compartida con el autorregistro (diez
+    // caracteres, mayúscula, minúscula y número): una más floja se rechaza
+    // antes de llegar a comprobar si las dos coinciden.
+    await tester.enterText(find.widgetWithText(TextField, 'Nueva contraseña'), 'Segura12345');
+    await tester.enterText(find.widgetWithText(TextField, 'Confirmar contraseña'), 'Distinta12345');
     // El formulario completo no cabe en el viewport de 600 px del test y la
     // pantalla es un SingleChildScrollView, así que el botón hay que traerlo a
     // la vista antes de tocarlo. Sin esto, `tap` cae sobre el fondo, no valida
@@ -44,7 +47,7 @@ void main() {
     expect(find.text('Las contraseñas no coinciden.'), findsOneWidget);
     expect(resetPayload, isNull);
 
-    await tester.enterText(find.widgetWithText(TextField, 'Confirmar contraseña'), 'segura123');
+    await tester.enterText(find.widgetWithText(TextField, 'Confirmar contraseña'), 'Segura12345');
     // El formulario completo no cabe en el viewport de 600 px del test y la
     // pantalla es un SingleChildScrollView, así que el botón hay que traerlo a
     // la vista antes de tocarlo. Sin esto, `tap` cae sobre el fondo, no valida
@@ -53,7 +56,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('Restablecer contraseña'));
     await tester.pump();
-    expect(resetPayload, ['persona@uts.edu.co', '123456', 'segura123']);
+    expect(resetPayload, ['persona@uts.edu.co', '123456', 'Segura12345']);
     expect(find.text('Contraseña actualizada'), findsOneWidget);
     await tester.tap(find.text('Ir al acceso'));
     await tester.pumpAndSettle();

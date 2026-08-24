@@ -20,11 +20,13 @@ describe('flujo de recuperación', () => {
     await screen.findByText(/Código local de desarrollo:/);
     expect(repository.requestPasswordReset).toHaveBeenCalledWith('persona@uts.edu.co');
     fireEvent.change(screen.getByLabelText(/Código recibido/), { target: { value: '123456' } });
-    fireEvent.change(screen.getByLabelText(/^Nueva contraseña/), { target: { value: 'segura123' } });
-    fireEvent.change(screen.getByLabelText(/Confirmar contraseña/), { target: { value: 'segura123' } });
+    // La contraseña cumple la política compartida con el autorregistro: diez
+    // caracteres, mayúscula, minúscula y número.
+    fireEvent.change(screen.getByLabelText(/^Nueva contraseña/), { target: { value: 'Segura12345' } });
+    fireEvent.change(screen.getByLabelText(/Confirmar contraseña/), { target: { value: 'Segura12345' } });
     fireEvent.click(screen.getByRole('button', { name: 'Cambiar contraseña' }));
     await screen.findByText('Tu contraseña fue actualizada.');
-    expect(repository.resetPassword).toHaveBeenCalledWith({ email: 'persona@uts.edu.co', code: '123456', newPassword: 'segura123' });
+    expect(repository.resetPassword).toHaveBeenCalledWith({ email: 'persona@uts.edu.co', code: '123456', newPassword: 'Segura12345' });
     expect(screen.getByRole('link', { name: 'Ir al acceso' })).toHaveAttribute('href', '/login');
   });
 
@@ -34,10 +36,25 @@ describe('flujo de recuperación', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Enviar código' }));
     await screen.findByLabelText(/Código recibido/);
     fireEvent.change(screen.getByLabelText(/Código recibido/), { target: { value: '123456' } });
-    fireEvent.change(screen.getByLabelText(/^Nueva contraseña/), { target: { value: 'segura123' } });
-    fireEvent.change(screen.getByLabelText(/Confirmar contraseña/), { target: { value: 'otra1234' } });
+    fireEvent.change(screen.getByLabelText(/^Nueva contraseña/), { target: { value: 'Segura12345' } });
+    fireEvent.change(screen.getByLabelText(/Confirmar contraseña/), { target: { value: 'Otra12345678' } });
     fireEvent.click(screen.getByRole('button', { name: 'Cambiar contraseña' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Las contraseñas no coinciden');
+    expect(repository.resetPassword).not.toHaveBeenCalled();
+  });
+
+  it('no acepta una contraseña más floja que la del registro', async () => {
+    // Aquí se podía dejar en «segura123» lo que el autorregistro exige con diez
+    // caracteres y tres clases: la puerta más débil es la que manda.
+    renderPage();
+    fireEvent.change(screen.getByLabelText(/Correo institucional/), { target: { value: 'a@uts.edu.co' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar código' }));
+    await screen.findByLabelText(/Código recibido/);
+    fireEvent.change(screen.getByLabelText(/Código recibido/), { target: { value: '123456' } });
+    fireEvent.change(screen.getByLabelText(/^Nueva contraseña/), { target: { value: 'segura123' } });
+    fireEvent.change(screen.getByLabelText(/Confirmar contraseña/), { target: { value: 'segura123' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar contraseña' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('10 caracteres');
     expect(repository.resetPassword).not.toHaveBeenCalled();
   });
 
