@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
+import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { UserModel } from '../../models/user.model.js';
 import { ProfessorModel } from '../../models/professor.model.js';
@@ -7,7 +8,8 @@ import { ConfigModel } from '../../models/config.model.js';
 import { SessionModel } from '../../models/session.model.js';
 import { identificar, requireRole } from '../../middlewares/auth.js';
 import { auditChange } from '../../shared/audit.js';
-import { emitSync } from '../../shared/socket.js';
+import { avisarDecisionRegistro } from './registration-notify.service.js';
+import { emitToAdmins } from '../../shared/socket.js';
 import {
   FACULTADES,
   NIVELES,
@@ -18,6 +20,7 @@ import {
   SEDES,
   validarAdscripcion,
 } from '../../domains/catalog/uts.js';
+import { passwordNueva } from '../../shared/validation.js';
 
 /**
  * Autorregistro de docentes.
@@ -61,25 +64,64 @@ registrationRouter.get('/catalogo', async (_req, res, next) => {
   }
 });
 
+/**
+ * Tope de peticiones por IP.
+ *
+ * La ruta es pública mientras el interruptor esté abierto y hace un
+ * `bcrypt.hash(..., 12)` por solicitud: unos cientos de milisegundos del único
+ * hilo de Node cada una. Sin tope, un bucle sobre la dirección deja la API sin
+ * responder a nadie más y llena de basura la cola de la administración.
+ * `/recovery/request` ya lo llevaba por lo mismo.
+ */
+const limiteSolicitudes = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, message: 'Demasiadas solicitudes. Intenta nuevamente más tarde.' },
+});
+
+/**
+ * Los topes de longitud no son adorno: el cuerpo admite 2 MB y `nombres` y
+ * `apellidos` **se guardan** —y además se concatenan en el `fullName` de la
+ * cuenta—, así que sin `.max()` ese texto viaja después en cada listado que
+ * incluya al docente. Los valores son los de `shared/validation.ts`, que es
+ * donde vive la fuente única.
+ */
 const solicitud = z.object({
   cedula: z.string().trim().regex(/^\d{6,10}$/, 'La cédula debe tener entre 6 y 10 dígitos.'),
-  nombres: z.string().trim().min(2, 'Escribe tus nombres.'),
-  apellidos: z.string().trim().min(2, 'Escribe tus apellidos.'),
+  nombres: z.string().trim().min(2, 'Escribe tus nombres.').max(120, 'Nombres demasiado largos.'),
+  apellidos: z
+    .string()
+    .trim()
+    .min(2, 'Escribe tus apellidos.')
+    .max(120, 'Apellidos demasiado largos.'),
   sede: z.enum(SEDES),
   facultad: z.enum(FACULTADES),
-  niveles: z.array(z.enum(NIVELES)).min(1, 'Indica al menos un nivel.'),
-  programas: z.array(z.string()).min(1, 'Indica al menos un programa.'),
-  email: z.string().trim().toLowerCase().email('Correo inválido.'),
-  password: z
+  niveles: z
+    .array(z.enum(NIVELES))
+    .min(1, 'Indica al menos un nivel.')
+    .max(NIVELES.length, 'Hay niveles repetidos.'),
+  // El tope es el catálogo entero: nadie enseña en más programas de los que
+  // existen, y sin él una lista de cien mil entradas se recorre igual contra el
+  // catálogo antes de rechazarse.
+  programas: z
+    .array(z.string().trim().max(60))
+    .min(1, 'Indica al menos un programa.')
+    .max(PROGRAMAS.length, 'Hay programas repetidos.'),
+  email: z
     .string()
-    .min(10, 'La contraseña necesita al menos 10 caracteres.')
-    .regex(/[a-z]/, 'Incluye alguna letra minúscula.')
-    .regex(/[A-Z]/, 'Incluye alguna letra mayúscula.')
-    .regex(/\d/, 'Incluye algún número.'),
+    .trim()
+    .toLowerCase()
+    .email('Correo inválido.')
+    .max(254, 'Correo demasiado largo.'),
+  // La política vive en `shared/validation.js`, compartida con el alta que
+  // hace la administración y con la recuperación de contraseña.
+  password: passwordNueva,
 });
 
 // ── Solicitud de registro ───────────────────────────────────────────────────
-registrationRouter.post('/', async (req, res, next) => {
+registrationRouter.post('/', limiteSolicitudes, async (req, res, next) => {
   try {
     if (!(await registroAbierto())) {
       return res.status(403).json({
@@ -133,8 +175,10 @@ registrationRouter.post('/', async (req, res, next) => {
       after: { estado: 'PENDIENTE', cedula: datos.cedula, sede: datos.sede },
     });
 
-    // Se avisa a la administración para que no dependa de entrar a mirar.
-    emitSync('sync:update', { entity: 'registration', action: 'create', id: profesor.id });
+    // Se avisa a la administración para que no dependa de entrar a mirar. Solo
+    // a ella: `/registro/solicitudes` es ADMIN/COORDINATOR, así que un docente
+    // que reciba el evento invalida su caché y se lleva un 403.
+    emitToAdmins('sync:update', { entity: 'registration', action: 'create', id: profesor.id });
 
     res.status(201).json({
       ok: true,
@@ -185,7 +229,7 @@ registrationRouter.patch('/estado', requireRole('ADMIN'), async (req, res, next)
       after: { abierto },
     });
 
-    emitSync('sync:update', { entity: 'registration', action: 'update', id: CLAVE_REGISTRO });
+    emitToAdmins('sync:update', { entity: 'registration', action: 'update', id: CLAVE_REGISTRO });
     res.json({ ok: true, abierto });
   } catch (err) {
     next(err);
@@ -254,8 +298,14 @@ registrationRouter.patch('/solicitudes/:id', requireRole('ADMIN'), async (req, r
       after: item?.toObject(),
     });
 
-    emitSync('sync:update', { entity: 'registration', action: 'update', id: String(req.params.id) });
-    res.json({ ok: true, item });
+    // El aviso va después de la escritura y de la auditoría, y no puede
+    // tumbarlas: la decisión ya está tomada y guardada. `avisarDecisionRegistro`
+    // no lanza, pero la espera importa —sin ella el proceso podría terminar la
+    // petición y dejar el correo a medias.
+    const aviso = await avisarDecisionRegistro(String(antes.userId), decision, motivo);
+
+    emitToAdmins('sync:update', { entity: 'registration', action: 'update', id: String(req.params.id) });
+    res.json({ ok: true, item, aviso });
   } catch (err) {
     next(err);
   }

@@ -672,6 +672,130 @@ async function ejecutar(puerto: number) {
   ok('Con el periodo reabierto se vuelve a poder escribir',
     notaTrasReapertura.status === 200 || notaTrasReapertura.status === 201,
     `status ${notaTrasReapertura.status}`);
+
+  // ── 18. Autorregistro de docentes ───────────────────────────────────────
+  //
+  // Es la única puerta por la que entra una cuenta sin que exista antes, y no
+  // tenía ninguna comprobación de punta a punta: todo lo que la protege —el
+  // interruptor, el estado PENDIENTE, la revisión humana— se podía relajar sin
+  // que nada se rompiera. Lo que se recorre aquí es el camino completo:
+  // cerrado, abierto, solicitud, login negado, aprobación, login concedido.
+  seccion('18) Autorregistro de docentes');
+
+  const SOLICITUD = {
+    cedula: '1098765432',
+    nombres: 'Elena',
+    apellidos: 'Registro E2E',
+    sede: 'BUCARAMANGA',
+    facultad: 'NATURALES_INGENIERIAS',
+    niveles: ['TECNOLOGICO'],
+    programas: ['TEC_DESARROLLO_SISTEMAS'],
+    email: 'e2e-nueva@uts.edu.co',
+    password: CLAVE,
+  };
+
+  const catalogo = await get('/registro/catalogo');
+  ok('El catálogo se sirve sin sesión', catalogo.status === 200,
+    `status ${catalogo.status}`);
+  ok('El registro nace cerrado', catalogo.json?.abierto === false,
+    `abierto ${catalogo.json?.abierto}`);
+
+  const cerrado = await post('/registro', SOLICITUD);
+  ok('Con el registro cerrado la solicitud → 403', cerrado.status === 403,
+    `status ${cerrado.status}`);
+
+  const abrirSinSerAdmin = await patch('/registro/estado', { abierto: true }, docente);
+  ok('Un docente no puede abrir el registro → 403', abrirSinSerAdmin.status === 403,
+    `status ${abrirSinSerAdmin.status}`);
+
+  const abierto = await patch('/registro/estado', { abierto: true }, admin);
+  ok('ADMIN abre el registro', abierto.status === 200 && abierto.json?.abierto === true,
+    JSON.stringify(abierto.json).slice(0, 120));
+
+  const claveFloja = await post('/registro', { ...SOLICITUD, password: 'segura123' });
+  ok('Una contraseña por debajo de la política → 400', claveFloja.status === 400,
+    `status ${claveFloja.status}`);
+
+  // El programa es de la otra facultad: es la comprobación que impide que un
+  // docente acabe adscrito a una carrera que no dicta.
+  const adscripcionImposible = await post('/registro', {
+    ...SOLICITUD,
+    facultad: 'SOCIOECONOMICAS',
+  });
+  ok('Un programa de otra facultad → 400', adscripcionImposible.status === 400,
+    `status ${adscripcionImposible.status}`);
+
+  const enviada = await post('/registro', SOLICITUD);
+  ok('La solicitud se acepta', enviada.status === 201,
+    JSON.stringify(enviada.json).slice(0, 140));
+
+  const repetida = await post('/registro', SOLICITUD);
+  ok('El mismo correo dos veces → 409', repetida.status === 409,
+    `status ${repetida.status}`);
+
+  const loginPendiente = await post('/auth/login', {
+    email: SOLICITUD.email,
+    password: CLAVE,
+  });
+  ok('Una cuenta pendiente no puede entrar → 403', loginPendiente.status === 403,
+    `status ${loginPendiente.status}`);
+  // El estado es lo que permite al cliente mostrar el texto en vez del «no
+  // tienes permisos» genérico de cualquier otro 403.
+  ok('El 403 declara el estado de la solicitud', loginPendiente.json?.estado === 'PENDIENTE',
+    `estado ${loginPendiente.json?.estado}`);
+
+  const cola = await get('/registro/solicitudes', admin);
+  const pendiente = (cola.json?.items ?? []).find(
+    (item: any) => item?.userId?.email === SOLICITUD.email,
+  );
+  ok('La solicitud aparece en la cola de la administración', Boolean(pendiente),
+    `${(cola.json?.items ?? []).length} en cola`);
+
+  const colaAjena = await get('/registro/solicitudes', docente);
+  ok('Un docente no ve la cola → 403', colaAjena.status === 403,
+    `status ${colaAjena.status}`);
+
+  const aprobada = await patch(
+    `/registro/solicitudes/${pendiente?._id}`,
+    { decision: 'APROBADO' },
+    admin,
+  );
+  ok('ADMIN aprueba la solicitud',
+    aprobada.status === 200 && aprobada.json?.item?.estado === 'APROBADO',
+    JSON.stringify(aprobada.json).slice(0, 140));
+
+  const loginAprobado = await post('/auth/login', {
+    email: SOLICITUD.email,
+    password: CLAVE,
+  });
+  ok('Ya aprobada, la cuenta entra', loginAprobado.status === 200,
+    `status ${loginAprobado.status}`);
+
+  // Rechazar tiene que cortar lo que ya estaba abierto: si solo cambiara el
+  // estado, la sesión en curso seguiría sirviendo hasta caducar.
+  const rechazada = await patch(
+    `/registro/solicitudes/${pendiente?._id}`,
+    { decision: 'RECHAZADO', motivo: 'La cédula no coincide con la del acta.' },
+    admin,
+  );
+  ok('ADMIN rechaza la solicitud', rechazada.status === 200,
+    `status ${rechazada.status}`);
+
+  const loginRechazado = await post('/auth/login', {
+    email: SOLICITUD.email,
+    password: CLAVE,
+  });
+  ok('Rechazada, la cuenta deja de entrar → 403', loginRechazado.status === 403,
+    `status ${loginRechazado.status}`);
+  ok('El motivo del rechazo llega en el mensaje',
+    String(loginRechazado.json?.message ?? '').includes('no coincide'),
+    String(loginRechazado.json?.message ?? '').slice(0, 100));
+
+  const refrescoRechazado = await post('/auth/refresh', {
+    refreshToken: loginAprobado.json?.refreshToken ?? 'x',
+  });
+  ok('La sesión abierta antes del rechazo ya no se renueva → 401',
+    refrescoRechazado.status === 401, `status ${refrescoRechazado.status}`);
 }
 
 main().catch(async error => {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ShieldQuestion, UserPlus, X } from 'lucide-react';
 import {
@@ -13,6 +13,7 @@ import {
 } from '@/shared/ui';
 import { Switch } from '@/shared/ui/primitives';
 import { registroRepository } from '@/infrastructure/repositories/academic.repository';
+import { queryKeys } from '@/core/api/query-keys';
 import { useUserRole } from '@/state/session.store';
 import { toast } from '@/state/toast.store';
 
@@ -44,6 +45,29 @@ export function RegistrationCard() {
     queryKey: ['registro', 'solicitudes'],
     queryFn: () => registroRepository.solicitudes('PENDIENTE'),
   });
+
+  // El catálogo es el que traduce los identificadores guardados a los nombres
+  // que usa la institución. Sin él la ficha decía «BUCARAMANGA · 2 programa(s)
+  // · TECNOLOGICO», que es el dato en crudo y no lo que hay que leer para
+  // decidir si se aprueba a alguien.
+  const catalogo = useQuery({
+    queryKey: queryKeys.registro.catalogo(),
+    queryFn: () => registroRepository.catalogo(),
+    staleTime: Infinity,
+  });
+
+  const nombrePorId = useMemo(() => {
+    const mapa = new Map<string, string>();
+    for (const grupo of [catalogo.data?.sedes, catalogo.data?.niveles]) {
+      for (const opcion of grupo ?? []) mapa.set(opcion.id, opcion.nombre);
+    }
+    for (const programa of catalogo.data?.programas ?? []) mapa.set(programa.id, programa.nombre);
+    return mapa;
+  }, [catalogo.data]);
+
+  // Mientras el catálogo carga se muestra el identificador: es feo pero cierto,
+  // y es mejor que dejar la línea vacía en la ficha que hay que revisar.
+  const legible = (id: string | null | undefined) => (id ? (nombrePorId.get(id) ?? id) : '—');
 
   const alternar = useMutation({
     mutationFn: (abierto: boolean) => registroRepository.cambiarEstado(abierto),
@@ -125,7 +149,10 @@ export function RegistrationCard() {
                         C.C. {s.cedula} · {s.userId?.email}
                       </p>
                       <p className="text-caption text-muted">
-                        {s.sede} · {s.programas.length} programa(s) · {s.niveles.join(', ')}
+                        {legible(s.sede)} · {s.niveles.map(legible).join(', ')}
+                      </p>
+                      <p className="text-caption text-muted">
+                        {s.programas.map(legible).join(' · ')}
                       </p>
                     </div>
 

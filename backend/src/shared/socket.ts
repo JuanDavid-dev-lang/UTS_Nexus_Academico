@@ -62,6 +62,18 @@ export function emitSync(event: string, payload: unknown) {
     .emit(event, payload);
 }
 
+/**
+ * Emite solo a quien administra.
+ *
+ * Lo que únicamente ADMIN o COORDINATOR pueden leer no tiene por qué llegarle a
+ * todos los docentes conectados: el oyente invalida su caché, pide el listado y
+ * recibe un 403 —una petición inútil por cada docente conectado y por cada
+ * cambio—. La cola de solicitudes de registro es exactamente eso.
+ */
+export function emitToAdmins(event: string, payload: unknown) {
+  io?.to('role:ADMIN').to('role:COORDINATOR').emit(event, payload);
+}
+
 /** Emite un evento solo a un usuario concreto (y a admins/coordinadores). */
 export function emitToUser(userId: string, event: string, payload: unknown) {
   if (!io) return;
