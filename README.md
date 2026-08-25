@@ -553,12 +553,20 @@ al valor por defecto.
 
 ## Credenciales de demo
 
-> Disponibles tras ejecutar `npm run seed`
+> Disponibles tras ejecutar `npm run seed`. La contraseña sale de
+> `SEED_PASSWORD` (backend/.env); sin esa variable el seed genera una al azar y
+> la muestra una sola vez al terminar.
+>
+> Coordinación y secretaría se siembran con dos programas asignados
+> (Ingeniería de Sistemas y Tecnología en Desarrollo de Sistemas Informáticos):
+> ven solo los grupos, docentes y estudiantes de esas dos carreras. Secretaría,
+> además, no puede modificar nada — consulta y exporta.
 
 | Rol | Email | Contraseña |
 |-----|-------|------------|
 | Administrador | `admin@uts.edu.co` | `(la que genere el seed)` |
 | Coordinación | `coordinador@uts.edu.co` | `(la que genere el seed)` |
+| Secretaría | `secretaria@uts.edu.co` | `(la que genere el seed)` |
 | Docente | `docente@uts.edu.co` | `(la que genere el seed)` |
 | Estudiante | `estudiante@uts.edu.co` | `(la que genere el seed)` |
 

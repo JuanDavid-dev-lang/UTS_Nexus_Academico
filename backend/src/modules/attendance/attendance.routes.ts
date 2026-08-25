@@ -20,7 +20,7 @@ attendanceRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR', 'STUD
     // Misma función que el listado de notas: el ámbito del rol manda sobre lo
     // que pida la URL. Aquí el orden ya era el correcto, pero tenerlo copiado
     // en dos sitios es como se llegó a que en notas estuviera al revés.
-    const filter = filtroDeListado(query, _req.user);
+    const filter = filtroDeListado(query, _req.user, {}, _req.alcance);
     const pagina = campo.paginacionCon(1000).parse(query);
     const { skip, limit } = campo.saltoYTope(pagina);
     const [items, total] = await Promise.all([

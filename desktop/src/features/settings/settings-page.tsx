@@ -27,6 +27,8 @@ import { modKeyLabel } from '@/shared/hooks/use-hotkeys';
 import { cn } from '@/shared/lib/cn';
 import { UpdateCard } from './components/update-card';
 import { RegistrationCard } from './components/registration-card';
+import { AccountsCard } from './components/accounts-card';
+import { PasswordCard } from './components/password-card';
 import { DownloadsCard } from './components/downloads-card';
 import { NotificationsCard } from './components/notifications-card';
 
@@ -94,6 +96,10 @@ export default function SettingsPage() {
       {/* Sustituye a la tarjeta "Cuenta", que solo mostraba lo que ya venía en
           la sesión sin forma de cambiar nada. */}
       <ProfileCard />
+
+      {/* La contraseña propia va arriba, junto al perfil: es de todos los roles
+          y es lo que más se busca aquí. Lo de administración viene después. */}
+      <PasswordCard />
 
       <Card>
         <CardHeader>
@@ -208,6 +214,10 @@ export default function SettingsPage() {
       </Card>
 
       <NotificationsCard />
+
+      {/* Crear cuentas va antes que la cola de autorregistro: es la vía por la
+          que entran coordinación y secretaría, que no se autorregistran. */}
+      <AccountsCard />
 
       <RegistrationCard />
 

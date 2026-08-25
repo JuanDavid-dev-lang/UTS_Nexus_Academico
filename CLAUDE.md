@@ -95,10 +95,56 @@ El mismo patrón en reportes: `filtrosDeConsulta()` fuerza el `teacherId` del do
 - `GET /students/search` es el directorio global (identidad mínima: cédula, nombre, programa) y existe para poder matricular a alguien que aún no es tuyo. Exige 3 caracteres y tope de 50. **No devuelve notas, asistencia ni riesgo** — si algún día hace falta más campo, revisa primero si no estás filtrando el expediente de un estudiante ajeno.
 - Los endpoints por id (`GET /students/:id`, `PATCH /students/:id`) comprueban el alcance con `professorOwnsStudent()`. Filtrar solo el listado deja la ficha accesible a quien copie un id.
 
+### Roles y alcance
+
+Cinco roles: `ADMIN`, `COORDINATOR`, `SECRETARY`, `PROFESSOR`, `STUDENT`
+(`shared/types.ts`). Un docente se acota por **matrícula**; coordinación y
+secretaría por **programa académico**; ADMIN no se acota.
+
+- **El alcance por programa vive en `domains/scope/program-scope.ts`** (puro, con
+  pruebas) y se carga una vez por petición en `middlewares/scope.ts`, que deja
+  `req.alcance`. Es global sobre `apiRouter`: una ruta que se olvidara de pedirlo
+  consultaría sin acotar y devolvería datos de otra carrera con un 200.
+- **Sin programas asignados el alcance es la institución entera.** Es lo que
+  estas cuentas veían antes de que el alcance existiera; cerrarlo a «nada» habría
+  dejado a las ya creadas mirando pantallas vacías tras actualizar. Se restringe
+  asignando programas desde `PATCH /usuarios/:id`, que queda en la auditoría.
+- **El programa de una materia manda; el del docente es respaldo.**
+  `Materia.programa` es el dato declarado; si falta —datos previos al campo— se
+  deduce de `Profesor.programas`. La API marca lo deducido (`programaDeducido`) y
+  el escritorio lo pinta con un asterisco: un dato aproximado que se lee como
+  declarado acaba en un acta.
+- **Secretaría = coordinación sin escritura.** No se implementa repitiendo el rol
+  en las sesenta llamadas de `requireRole`: `domains/scope/role-access.ts` decide
+  las dos cosas —`rolesEfectivos()` la hace valer como coordinación **solo en
+  lectura**, y `bloquearSoloLectura` (global, en `routes/index.ts`) corta
+  cualquier `POST`/`PATCH`/`PUT`/`DELETE` que no esté en una lista corta de
+  excepciones (sesión, bandeja propia, telemetría, sugerencia propia). El corte
+  es por método, no por ruta: marcar cuáles escriben deja fuera la que se añada
+  mañana, y una ruta de escritura sin marcar no falla, concede.
+- Exportar es **leer**: los exportables son `GET` a propósito, para que secretaría
+  pueda descargarlos.
+
+`GET /coordinacion/*` (materias con su docente, docentes, grupos, resumen y
+`export.xlsx`) es una sola pipeline —`coordination.service.ts`— rebanada tres
+veces: calcular cada corte por separado garantizaba que el promedio de una
+materia acabara sin coincidir con el del docente que la dicta. Los números salen
+de `computeAcademicRecords()`; aquí no se calcula ninguna nota.
+
+`POST|GET|PATCH|DELETE /usuarios` es **solo ADMIN**: quien asigna programas decide
+alcances, y un rol no puede mover su propio techo. Nadie se quita a sí mismo el
+rol de administración —es lo que impide dejar la instalación sin nadie que pueda
+deshacerlo. El alta va por `POST /usuarios` y **no** por `/auth/register`:
+aquella ruta firma los tokens de la cuenta recién creada —nació para el primer
+administrador—, así que crear personal desde ahí dejaba las credenciales de otra
+persona en la sesión de quien la crea. El formulario vive en el escritorio, en
+Configuración → «Cuentas del personal»; la gestión continua, en Personal.
+
 ### Cuentas, sesión y recuperación
 - **`POST /auth/register` es solo para ADMIN.** Acepta `role: 'ADMIN'` y la ficha de docente nace `APROBADO`, así que abierto era un generador público de administradores que además saltaba entero el diseño de `/registro`. Quien se da de alta por su cuenta pasa por `/registro`: interruptor de la administración, estado `PENDIENTE` y revisión humana.
 - **`POST /auth/refresh` rota el token** (RTR): cada canje quema el anterior sobre la misma sesión. Reutilizar uno ya rotado revoca **toda** la familia de sesiones del usuario, que es la única señal disponible de que alguien copió un token.
 - **El código de recuperación se envía por correo, nunca en la respuesta.** Solo vuelve en `devCode` fuera de producción y sin `SMTP_HOST`, para que una instalación local pueda recuperar una contraseña. Devolverlo siempre convertía `/recovery/request` en una toma de cuenta de un solo paso.
+- **`POST /auth/password` cambia la contraseña propia y lo puede hacer cualquier rol** (incluida secretaría: escribe sobre su cuenta y sobre nada más, por eso está en la lista blanca de `role-access.ts`). Exige la actual —con solo el token, un equipo desbloqueado sería una toma de cuenta en dos clics—, **revoca todas las sesiones** y devuelve un par nuevo: sin eso, cambiarse la contraseña echaba al propio usuario al inicio de sesión y se leía como una avería. Está en Configuración de los dos clientes.
 - Las contraseñas van acotadas a 128 caracteres en todas las rutas: bcrypt solo mira 72 bytes, y sin tope `bcrypt.compare` con una cadena de megabytes ocupa el único hilo del proceso.
 
 ### Listados: paginación y campos acotados

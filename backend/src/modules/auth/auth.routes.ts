@@ -7,9 +7,11 @@ import { ProfessorModel } from '../../models/professor.model.js';
 import { exigirSesion, identificar, requireRole } from '../../middlewares/auth.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../shared/jwt.js';
 import { daysFromNow, hashToken } from '../../shared/security.js';
+import { auditChange } from '../../shared/audit.js';
 import type { Role } from '../../shared/types.js';
 import rateLimit from 'express-rate-limit';
 import { passwordEntrante, passwordNueva } from '../../shared/validation.js';
+import { buscarPrograma } from '../../domains/catalog/uts.js';
 import {
   RECOVERY_INVALID_MESSAGE,
   RECOVERY_PUBLIC_MESSAGE,
@@ -48,9 +50,21 @@ authRouter.post('/register', identificar, requireRole('ADMIN'), async (req, res,
       // administración no tiene por qué admitir una contraseña más débil.
       password: passwordNueva,
       fullName: z.string().trim().min(3).max(120),
-      role: z.enum(['ADMIN', 'PROFESSOR', 'COORDINATOR']).default('PROFESSOR'),
+      role: z.enum(['ADMIN', 'PROFESSOR', 'COORDINATOR', 'SECRETARY']).default('PROFESSOR'),
       photoUrl: z.string().url().max(500).optional(),
       employeeCode: z.string().trim().max(40).optional(),
+      /**
+       * Programas a cargo. Solo significan algo para coordinacion y secretaria:
+       * son su alcance. Se validan contra el catalogo porque un id inventado no
+       * falla en ninguna parte, simplemente deja la cuenta sin ver nada.
+       */
+      programas: z
+        .array(z.string().trim().max(40))
+        .max(40)
+        .optional()
+        .refine(ids => !ids || ids.every(id => Boolean(buscarPrograma(id))), {
+          message: 'Hay un programa que no esta en el catalogo academico.',
+        }),
     }).parse(req.body);
 
     const exists = await UserModel.findOne({ email: body.email });
@@ -63,6 +77,7 @@ authRouter.post('/register', identificar, requireRole('ADMIN'), async (req, res,
       role: body.role,
       fullName: body.fullName,
       photoUrl: body.photoUrl ?? null,
+      programas: body.programas ?? [],
     });
 
     if (body.role === 'PROFESSOR') {
@@ -267,6 +282,99 @@ authRouter.post('/refresh', async (req, res, next) => {
     }
 
     res.json({ ok: true, ...pair });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Cambio de contraseña **de la propia cuenta**. Para todos los roles.
+ *
+ * Tres decisiones que no son de estilo:
+ *
+ * 1. **Se exige la contraseña actual.** Con el token basta para saber quién
+ *    eres, pero un equipo desbloqueado —o una sesión olvidada en la sala de
+ *    docentes— convertiría este formulario en «apropiarse de la cuenta en dos
+ *    clics» sin saber nada de su dueño.
+ * 2. **Se cierran TODAS las sesiones.** Es la razón por la que la gente cambia
+ *    su contraseña: si alguien la tenía, tiene que quedarse fuera. Dejar vivas
+ *    las demás sesiones convierte el gesto en decorativo.
+ * 3. **Se devuelve un par nuevo**, porque el punto anterior también cierra la
+ *    sesión de quien lo pide. Sin esto, cambiarse la contraseña te echaba al
+ *    inicio de sesión — que se lee como un fallo, no como una medida.
+ *
+ * La política es `passwordNueva`, la misma del autorregistro, del alta
+ * administrativa y de la recuperación: la puerta más floja es la que manda.
+ */
+const passwordChangeLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, message: 'Demasiados intentos. Intenta nuevamente más tarde.' },
+});
+
+authRouter.post('/password', identificar, exigirSesion, passwordChangeLimit, async (req, res, next) => {
+  try {
+    const body = z
+      .object({ currentPassword: passwordEntrante, newPassword: passwordNueva })
+      .parse(req.body);
+
+    const user = await UserModel.findOne({ _id: req.user!.id, deletedAt: null });
+    if (!user) return res.status(404).json({ ok: false, message: 'Not found' });
+
+    const correcta = await bcrypt.compare(body.currentPassword, user.passwordHash);
+    if (!correcta) {
+      return res.status(401).json({ ok: false, message: 'La contraseña actual no coincide.' });
+    }
+
+    // Repetir la misma no es un error del sistema, pero deja a la persona
+    // creyendo que cerró las sesiones ajenas con una contraseña que el otro
+    // sigue sabiendo.
+    if (await bcrypt.compare(body.newPassword, user.passwordHash)) {
+      return res.status(400).json({
+        ok: false,
+        message: 'La contraseña nueva es igual a la actual. Elige una distinta.',
+      });
+    }
+
+    user.passwordHash = await bcrypt.hash(body.newPassword, 12);
+    await user.save();
+
+    await SessionModel.updateMany(
+      { userId: user.id, revokedAt: null },
+      { $set: { revokedAt: new Date() } },
+    );
+
+    const { accessToken, refreshToken } = signPair({
+      id: user.id,
+      role: user.role,
+      tenantId: user.tenantId?.toString(),
+      studentId: user.studentId?.toString(),
+    });
+    await SessionModel.create({
+      userId: user.id,
+      refreshTokenHash: hashToken(refreshToken),
+      expiresAt: daysFromNow(30),
+      device: 'cambio-de-contraseña',
+    });
+
+    // Queda el hecho, nunca el dato: `auditChange` sanea al escribir, pero una
+    // contraseña no tiene por qué llegar hasta el saneador.
+    await auditChange({
+      actorId: user.id,
+      action: 'UPDATE',
+      entity: 'Usuario',
+      entityId: user.id,
+      after: { passwordChangedAt: new Date().toISOString() },
+    });
+
+    res.json({
+      ok: true,
+      accessToken,
+      refreshToken,
+      message: 'Contraseña actualizada. Se cerraron las demás sesiones.',
+    });
   } catch (err) {
     next(err);
   }

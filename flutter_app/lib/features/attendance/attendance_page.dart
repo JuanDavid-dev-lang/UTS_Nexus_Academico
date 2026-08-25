@@ -11,6 +11,7 @@ import '../../core/widgets/compact.dart';
 import '../../core/widgets/debounced_search_field.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
+import '../../core/auth/permisos.dart';
 
 /// Toma de asistencia de una clase.
 ///
@@ -298,6 +299,10 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
   Widget build(BuildContext context) {
     final filtrados = _filtrados;
     final periodoAbierto = ref.watch(periodoActivoAbiertoProvider);
+    // Un perfil de consulta ve la lista y no la guarda: el boton desactivado
+    // dice eso antes de intentarlo, en vez de dejar que el servidor lo diga
+    // despues de que alguien haya marcado a treinta estudiantes.
+    final soloLectura = esSoloLectura(ref.watch(authControllerProvider).user?.role);
     final periodo = ref.watch(selectedPeriodProvider);
     final offlineStatus = ref.watch(offlineStatusProvider).valueOrNull;
     final sinConexion = offlineStatus != null && offlineStatus.desdeCache != null;
@@ -439,9 +444,10 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                 ],
                 etiquetaAccion: 'Guardar ${_students.length}',
                 cargando: _guardando,
-                onAccion: periodoAbierto && _subjectId != null && !sinConexion
-                    ? _guardar
-                    : null,
+                onAccion:
+                    periodoAbierto && _subjectId != null && !sinConexion && !soloLectura
+                        ? _guardar
+                        : null,
               ),
             ),
     );

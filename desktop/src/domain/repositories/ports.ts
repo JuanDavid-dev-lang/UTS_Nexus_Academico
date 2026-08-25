@@ -66,6 +66,14 @@ export interface AuthRepository {
   logout(): Promise<void>;
   requestPasswordReset(email: string): Promise<{ message: string; devCode?: string }>;
   resetPassword(input: { email: string; code: string; newPassword: string }): Promise<void>;
+  /**
+   * Cambia la contraseña de la propia cuenta.
+   *
+   * Devuelve el mensaje del servidor porque lo que hay que contar no es «hecho»
+   * sino que **se cerraron las demás sesiones**: es la mitad del efecto y quien
+   * no lo sepa creerá que el teléfono de casa sigue dentro.
+   */
+  changePassword(input: { currentPassword: string; newPassword: string }): Promise<{ message: string }>;
 }
 
 export interface StudentRepository {

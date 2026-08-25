@@ -4,6 +4,7 @@ import {
   meResponseSchema,
   recoveryRequestSchema,
   recoveryResetSchema,
+  changePasswordSchema,
   type LoginInput,
 } from '@/domain/schemas/auth';
 import { okResponse } from '@/domain/schemas/common';
@@ -41,6 +42,18 @@ export const authRepository: AuthRepository = {
       await http.post('/auth/logout', { refreshToken }, { schema: okResponse }).catch(() => undefined);
     }
     await tokenService.clear();
+  },
+
+  /**
+   * El servidor cierra TODAS las sesiones al cambiar la contraseña —incluida
+   * esta— y devuelve un par nuevo. Guardarlo aquí es lo que evita que cambiarse
+   * la contraseña te eche al inicio de sesión, que se lee como una avería en
+   * lugar de como la medida que es.
+   */
+  async changePassword(input) {
+    const data = await http.post('/auth/password', input, { schema: changePasswordSchema });
+    await tokenService.set({ accessToken: data.accessToken, refreshToken: data.refreshToken });
+    return { message: data.message };
   },
 
   async requestPasswordReset(email) {

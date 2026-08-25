@@ -4,6 +4,7 @@ import * as campo from '../../shared/validation.js';
 import { GroupModel } from '../../models/group.model.js';
 import { SubjectModel } from '../../models/subject.model.js';
 import { identificar, requireRole } from '../../middlewares/auth.js';
+import { acotarPorAlcance } from '../../domains/scope/program-scope.js';
 import { emitToUser } from '../../shared/socket.js';
 
 export const groupRouter = Router();
@@ -13,8 +14,12 @@ groupRouter.use(identificar);
 groupRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (_req, res, next) => {
   try {
     const pagina = campo.paginacionCon(100).parse(_req.query);
-    const filter: Record<string, unknown> = { deletedAt: null };
+    let filter: Record<string, unknown> = { deletedAt: null };
     if (_req.user?.role === 'PROFESSOR') filter.professorId = _req.user.id;
+    // Todos los grupos de sus carreras: es la pregunta que hace coordinación.
+    if (_req.alcance && !_req.alcance.total) {
+      filter = acotarPorAlcance(filter, '_id', _req.alcance.groupIds);
+    }
     const { skip, limit } = campo.saltoYTope(pagina);
     const [items, total] = await Promise.all([
       GroupModel.find(filter).sort({ period: -1, name: 1 }).skip(skip).limit(limit).lean(),
@@ -28,8 +33,11 @@ groupRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (_r
 
 groupRouter.get('/:id', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
-    const filter: Record<string, unknown> = { _id: req.params.id, deletedAt: null };
+    let filter: Record<string, unknown> = { _id: String(req.params.id), deletedAt: null };
     if (req.user?.role === 'PROFESSOR') filter.professorId = req.user.id;
+    if (req.alcance && !req.alcance.total) {
+      filter = acotarPorAlcance(filter, '_id', req.alcance.groupIds);
+    }
     const item = await GroupModel.findOne(filter).lean();
     if (!item) return res.status(404).json({ ok: false, message: 'Not found' });
     res.json({ ok: true, item });

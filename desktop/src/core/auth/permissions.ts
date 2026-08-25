@@ -34,7 +34,15 @@ export type Capability =
   | 'audit.read'
   | 'system.health'
   | 'telemetry.read'
-  | 'telemetry.manage';
+  | 'telemetry.manage'
+  // Panorama de las carreras a cargo: materias con su docente, docentes y
+  // grupos. Es lo que separa a coordinación y secretaría de un docente.
+  | 'coordination.read'
+  | 'coordination.export'
+  // Alta y edición del personal: quién es qué rol y de qué programas responde.
+  // Solo ADMIN: quien asigna programas decide alcances, y un rol no puede mover
+  // su propio techo.
+  | 'staff.manage';
 
 const MATRIX: Record<Role, Capability[]> = {
   ADMIN: [
@@ -47,6 +55,7 @@ const MATRIX: Record<Role, Capability[]> = {
     'activities.read', 'activities.write', 'activities.reopen',
     'periods.read', 'periods.close', 'periods.reopen',
     'audit.read', 'system.health', 'telemetry.read', 'telemetry.manage',
+    'coordination.read', 'coordination.export', 'staff.manage',
   ],
   COORDINATOR: [
     'students.read', 'students.write', 'students.delete',
@@ -62,6 +71,31 @@ const MATRIX: Record<Role, Capability[]> = {
     // La auditoría no: contiene los cambios de todo el mundo, y abrirla a
     // coordinación la convertiría en una forma cómoda de vigilar al personal.
     'system.health', 'telemetry.read',
+    'coordination.read', 'coordination.export',
+  ],
+  /**
+   * Secretaría: **lo mismo que coordinación, sin una sola escritura.**
+   *
+   * Esta lista no se deriva de la de coordinación quitando verbos porque una
+   * derivación automática daría por sentado que toda capacidad nueva es de
+   * lectura hasta que alguien demuestre lo contrario, y ese es justo el error
+   * que hay que evitar: el que se equivoca concediendo. Escrita a mano, una
+   * capacidad nueva no llega aquí sola.
+   *
+   * El servidor corta igual (`domains/scope/role-access.ts`): esto solo evita
+   * ofrecer botones que iban a responder 403.
+   */
+  SECRETARY: [
+    'students.read',
+    'subjects.read',
+    'grades.read',
+    'attendance.read',
+    // Exportar es leer, y es la mitad del trabajo de una secretaría académica.
+    'reports.export',
+    'analytics.risks',
+    'activities.read',
+    'periods.read',
+    'coordination.read', 'coordination.export',
   ],
   PROFESSOR: [
     'students.read', 'students.write',

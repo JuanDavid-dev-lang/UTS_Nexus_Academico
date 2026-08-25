@@ -130,14 +130,14 @@ const secondaryDestinations = <NavDestination>[
     route: '/students',
     label: 'Estudiantes',
     icon: Icons.people_outline,
-    roles: ['ADMIN', 'PROFESSOR', 'COORDINATOR'],
+    roles: ['ADMIN', 'PROFESSOR', 'COORDINATOR', 'SECRETARY'],
   ),
   NavDestination(route: '/grades', label: 'Notas', icon: Icons.school_outlined),
   NavDestination(
     route: '/attendance',
     label: 'Asistencia',
     icon: Icons.fact_check_outlined,
-    roles: ['ADMIN', 'PROFESSOR', 'COORDINATOR'],
+    roles: ['ADMIN', 'PROFESSOR', 'COORDINATOR', 'SECRETARY'],
   ),
   NavDestination(
     route: '/actividades',
@@ -153,7 +153,7 @@ const secondaryDestinations = <NavDestination>[
     route: '/reports',
     label: 'Reportes',
     icon: Icons.description_outlined,
-    roles: ['ADMIN', 'PROFESSOR', 'COORDINATOR'],
+    roles: ['ADMIN', 'PROFESSOR', 'COORDINATOR', 'SECRETARY'],
   ),
   NavDestination(
     route: '/avisos',

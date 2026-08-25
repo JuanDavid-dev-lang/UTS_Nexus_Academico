@@ -7,6 +7,7 @@ import { EnrollmentModel } from '../../models/enrollment.model.js';
 import { GroupModel } from '../../models/group.model.js';
 import { StudentModel } from '../../models/student.model.js';
 import { identificar, requireRole } from '../../middlewares/auth.js';
+import { acotarPorAlcance } from '../../domains/scope/program-scope.js';
 import { auditChange } from '../../shared/audit.js';
 import { emitToUser } from '../../shared/socket.js';
 import { env } from '../../shared/env.js';
@@ -36,7 +37,7 @@ async function assertGroupOwnership(req: any, groupId: string) {
 // Matrículas de un grupo (o todas las del profesor).
 enrollmentRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
-    const filter: Record<string, unknown> = { deletedAt: null };
+    let filter: Record<string, unknown> = { deletedAt: null };
     if (req.user?.role === 'PROFESSOR') filter.professorId = req.user.id;
     // subjectId faltaba y los dos clientes lo mandan: sin él, la «lista de la
     // materia» eran las matrículas de TODAS las materias del docente, y sobre
@@ -44,6 +45,11 @@ enrollmentRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), asyn
     if (req.query.subjectId) filter.subjectId = String(req.query.subjectId);
     if (req.query.groupId) filter.groupId = String(req.query.groupId);
     if (req.query.period) filter.period = String(req.query.period);
+    // El alcance por programa va DESPUES de los filtros de la URL: pedir una
+    // materia de otra carrera devuelve vacio, no sus matriculas.
+    if (req.alcance && !req.alcance.total) {
+      filter = acotarPorAlcance(filter, 'subjectId', req.alcance.subjectIds);
+    }
     const pagina = campo.paginacionCon(2000).parse(req.query);
     const { skip, limit } = campo.saltoYTope(pagina);
     const [items, total] = await Promise.all([

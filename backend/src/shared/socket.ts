@@ -53,10 +53,21 @@ export function createSocketServer(server: HttpServer) {
   });
 }
 
+/**
+ * Salas que escuchan todo lo institucional.
+ *
+ * Secretaría entra aquí igual que coordinación: ve las mismas pantallas, así
+ * que su caché caduca por las mismas razones. Dejarla fuera no le habría
+ * cerrado nada —el 403 lo pone la API, no el socket— pero sí le habría dejado
+ * listados desactualizados hasta que recargara a mano.
+ */
+const SALAS_ADMINISTRATIVAS = ['role:ADMIN', 'role:COORDINATOR', 'role:SECRETARY'];
+
 /** Sincronización institucional para todas las salas autenticadas, nunca sockets anónimos. */
 export function emitSync(event: string, payload: unknown) {
   io?.to('role:ADMIN')
     .to('role:COORDINATOR')
+    .to('role:SECRETARY')
     .to('role:PROFESSOR')
     .to('role:STUDENT')
     .emit(event, payload);
@@ -71,18 +82,18 @@ export function emitSync(event: string, payload: unknown) {
  * cambio—. La cola de solicitudes de registro es exactamente eso.
  */
 export function emitToAdmins(event: string, payload: unknown) {
-  io?.to('role:ADMIN').to('role:COORDINATOR').emit(event, payload);
+  io?.to('role:ADMIN').to('role:COORDINATOR').to('role:SECRETARY').emit(event, payload);
 }
 
 /** Emite un evento solo a un usuario concreto (y a admins/coordinadores). */
 export function emitToUser(userId: string, event: string, payload: unknown) {
   if (!io) return;
-  io.to(`user:${userId}`).to('role:ADMIN').to('role:COORDINATOR').emit(event, payload);
+  io.to(`user:${userId}`).to(SALAS_ADMINISTRATIVAS).emit(event, payload);
 }
 
 /** Emite a varios usuarios (ej. un profesor y el estudiante afectado). */
 export function emitToUsers(userIds: string[], event: string, payload: unknown) {
   if (!io) return;
   const rooms = [...new Set(userIds)].map(id => `user:${id}`);
-  io.to(rooms).to('role:ADMIN').to('role:COORDINATOR').emit(event, payload);
+  io.to(rooms).to(SALAS_ADMINISTRATIVAS).emit(event, payload);
 }

@@ -11,6 +11,7 @@ import { auditChange } from '../../shared/audit.js';
 import { emitToUser } from '../../shared/socket.js';
 import { getProfessorScope } from '../../shared/professor-scope.js';
 import { filtroDeListado } from '../../domains/scope/professor-scope.js';
+import { acotarPorAlcance } from '../../domains/scope/program-scope.js';
 import {
   calcularNotaFinal,
   corteDisponible,
@@ -54,7 +55,7 @@ gradeRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR', 'STUDENT')
     // ámbito del rol se aplica DESPUÉS de lo que pide la URL. Escrito al revés
     // —como estaba aquí— un estudiante recuperaba las notas de otro pasando
     // `?studentId=` y la respuesta era un 200 con una lista impecable.
-    const filter = filtroDeListado(req.query, req.user);
+    const filter = filtroDeListado(req.query, req.user, {}, req.alcance);
     const pagina = campo.paginacionCon(1000).parse(req.query);
     const { skip, limit } = campo.saltoYTope(pagina);
     const [items, total] = await Promise.all([
@@ -80,12 +81,16 @@ gradeRouter.get('/consolidado', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR',
       studentId: z.string().optional(),
     }).parse(req.query);
 
-    const filter: Record<string, unknown> = { deletedAt: null, period: query.period };
-    if (query.subjectId) filter.subjectId = query.subjectId;
-    if (query.groupId) filter.groupId = query.groupId;
-    if (req.user?.role === 'PROFESSOR') filter.teacherId = req.user.id;
-    if (req.user?.role === 'STUDENT') filter.studentId = req.user.studentId;
-    else if (query.studentId) filter.studentId = query.studentId;
+    // El consolidado no arma su filtro a mano: usa el mismo acotado que el
+    // listado. Cuando lo armaba aparte, el alcance por programa habría tenido
+    // que replicarse aquí — y la copia que se olvida es la que devuelve el
+    // consolidado de otra carrera con un 200.
+    const filter = filtroDeListado(
+      { subjectId: query.subjectId, groupId: query.groupId, studentId: query.studentId },
+      req.user,
+      { period: query.period },
+      req.alcance,
+    );
 
     const grades = await GradeModel.find(filter).lean();
 
@@ -142,13 +147,19 @@ gradeRouter.get('/pendientes', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'),
       subjectId: z.string().optional(),
     }).parse(req.query);
 
-    const matriculaFiltro: Record<string, unknown> = {
+    let matriculaFiltro: Record<string, unknown> = {
       deletedAt: null,
       period: query.period,
       enrollmentStatus: 'ACTIVE',
     };
     if (query.subjectId) matriculaFiltro.subjectId = query.subjectId;
     if (req.user?.role === 'PROFESSOR') matriculaFiltro.professorId = req.user.id;
+    // Lo que falta por calificar, acotado a las carreras a cargo: sin esto,
+    // coordinacion veia el pendiente de la institucion entera y ninguna de esas
+    // materias era suya.
+    if (req.alcance && !req.alcance.total) {
+      matriculaFiltro = acotarPorAlcance(matriculaFiltro, 'subjectId', req.alcance.subjectIds);
+    }
 
     const matriculas = await EnrollmentModel.find(matriculaFiltro)
       .select('studentId subjectId')

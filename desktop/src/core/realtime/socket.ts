@@ -34,7 +34,8 @@ export type SyncEntity =
   | 'thesisFormat'
   | 'period'
   | 'attendanceCase'
-  | 'clientError';
+  | 'clientError'
+  | 'user';
 
 /**
  * Estado de la sincronización.
@@ -65,20 +66,33 @@ type NotificacionEntrante = {
 
 /** Which cached queries a change to each entity makes stale. */
 export const INVALIDATION_MAP: Record<SyncEntity, readonly (readonly unknown[])[]> = {
-  student: [queryKeys.students.all, queryKeys.analytics.all],
-  subject: [queryKeys.subjects.all, queryKeys.analytics.all],
-  group: [queryKeys.groups.all],
-  grade: [queryKeys.grades.all, queryKeys.analytics.all],
+  // `coordination` cuelga de casi todo lo académico a propósito: sus tablas son
+  // otro corte de las mismas notas y las mismas matrículas, así que dejarla
+  // fuera mostraría a coordinación un promedio que ya nadie más ve.
+  student: [queryKeys.students.all, queryKeys.analytics.all, queryKeys.coordination.all],
+  subject: [queryKeys.subjects.all, queryKeys.analytics.all, queryKeys.coordination.all],
+  group: [queryKeys.groups.all, queryKeys.coordination.all],
+  grade: [queryKeys.grades.all, queryKeys.analytics.all, queryKeys.coordination.all],
   // La vista previa del reporte muestra asistencia: si cambia una marca, la
   // previa abierta tiene que refrescarse con ella.
-  attendance: [queryKeys.attendance.all, queryKeys.analytics.all, queryKeys.reports.all],
+  attendance: [
+    queryKeys.attendance.all,
+    queryKeys.analytics.all,
+    queryKeys.reports.all,
+    queryKeys.coordination.all,
+  ],
   notification: [queryKeys.notifications.all],
   // Sin esta entrada el aviso se guardaba y se emitía el evento, pero ninguna
   // pantalla abierta se enteraba: al docente no le aparecía hasta que recargara.
   announcement: [queryKeys.announcements.all],
   // Matricular cambia también quién sale en la lista de una materia, así que la
   // caché de estudiantes tiene que caer con ella.
-  enrollment: [queryKeys.enrollments.all, queryKeys.students.all, queryKeys.analytics.all],
+  enrollment: [
+    queryKeys.enrollments.all,
+    queryKeys.students.all,
+    queryKeys.analytics.all,
+    queryKeys.coordination.all,
+  ],
   // El backend ya emitía estas dos, pero no estaban en el mapa: el handler
   // salía por `if (!keys) return` y la pantalla se quedaba con el catálogo o el
   // perfil viejos hasta que el docente recargara a mano.
@@ -121,6 +135,17 @@ export const INVALIDATION_MAP: Record<SyncEntity, readonly (readonly unknown[])[
   // estudiante, que es donde el docente lo va a mirar.
   attendanceCase: [queryKeys.attendanceCases.all, queryKeys.analytics.all, queryKeys.timeline.all],
   clientError: [queryKeys.telemetry.all, queryKeys.system.all],
+  /**
+   * Cambiarle el rol o los programas a alguien cambia lo que esa cuenta ve.
+   * Cae la pantalla de personal, la sesión propia (el menú se dibuja con el rol)
+   * y el panorama de coordinación, que es justo lo que el alcance acota.
+   */
+  user: [
+    queryKeys.users.all,
+    queryKeys.auth.all,
+    queryKeys.profile.all,
+    queryKeys.coordination.all,
+  ],
 };
 
 let socket: Socket | null = null;

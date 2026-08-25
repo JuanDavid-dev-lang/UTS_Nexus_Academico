@@ -193,6 +193,9 @@ const KNOWN = new Set([
   'FCM_PROJECT_ID', 'FCM_CLIENT_EMAIL', 'FCM_PRIVATE_KEY',
   'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM', 'SMTP_SECURE',
   'RELEASES_REPO', 'RELEASE_CHECK_INTERVAL_H',
+  // No la lee `shared/env.ts` sino el script de siembra, que la toma de
+  // `process.env`. Sin esta entrada, declararla salta como si fuera una errata.
+  'SEED_PASSWORD',
 ]);
 const unknown = Object.keys(env).filter((key) => !KNOWN.has(key));
 if (unknown.length > 0) {

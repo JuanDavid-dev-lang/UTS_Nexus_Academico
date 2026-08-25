@@ -27,6 +27,11 @@ export type AcademicFilter = {
   studentId?: string;
   /** Limita a una materia sin delegar el filtro al cliente. */
   subjectId?: string;
+  /**
+   * Limita a un conjunto de materias. Es lo que usa el alcance por programa:
+   * coordinacion pregunta por sus carreras, que son N materias, no una.
+   */
+  subjectIds?: string[];
   period?: string;
 };
 
@@ -75,6 +80,7 @@ function baseMatch(filter: AcademicFilter): Record<string, unknown> {
   if (filter.studentId) query.studentId = aId(filter.studentId);
   else if (filter.studentIds) query.studentId = { $in: filter.studentIds.map(aId) };
   if (filter.subjectId) query.subjectId = aId(filter.subjectId);
+  else if (filter.subjectIds) query.subjectId = { $in: filter.subjectIds.map(aId) };
   return query;
 }
 

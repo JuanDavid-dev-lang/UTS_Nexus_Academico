@@ -1,5 +1,6 @@
 import type { RequestHandler } from 'express';
 import { verifyAccessToken } from '../shared/jwt.js';
+import { autorizadoPorRol, puedeEscribir } from '../domains/scope/role-access.js';
 import type { Role } from '../shared/types.js';
 
 declare global {
@@ -54,10 +55,40 @@ export const exigirSesion: RequestHandler = (req, res, next) => {
   next();
 };
 
+/**
+ * Corta por rol.
+ *
+ * No compara el rol directamente: pregunta a `autorizadoPorRol`, que sabe que
+ * **secretaría vale como coordinación en lectura**. Escribir aquí
+ * `roles.includes(req.user.role)` obligaría a añadir `'SECRETARY'` a las
+ * sesenta llamadas que ya nombran a `'COORDINATOR'`, y la que se olvidara no
+ * daría un error: dejaría a secretaría con una pantalla vacía y sin explicación.
+ */
 export const requireRole =
   (...roles: Role[]): RequestHandler =>
   (req, res, next) => {
     if (!req.user) return res.status(401).json({ ok: false, message: 'Unauthorized' });
-    if (!roles.includes(req.user.role)) return res.status(403).json({ ok: false, message: 'Forbidden' });
+    if (!autorizadoPorRol(req.user.role, req.method, roles)) {
+      return res.status(403).json({ ok: false, message: 'Forbidden' });
+    }
     next();
   };
+
+/**
+ * Cierra la escritura a los roles de solo lectura. **Va antes que los módulos.**
+ *
+ * El corte es por método HTTP con una lista corta de excepciones, no ruta por
+ * ruta. Marcar cuáles son de escritura habría dejado fuera la ruta que alguien
+ * añada el mes que viene, y una ruta de escritura sin marcar no falla: concede.
+ *
+ * El mensaje dice qué pasó y a quién pedírselo. Un 403 seco sobre un formulario
+ * que se rellenó entero se lee como un fallo de la aplicación, y acaba
+ * reportado como tal.
+ */
+export const bloquearSoloLectura: RequestHandler = (req, res, next) => {
+  if (puedeEscribir(req.user?.role, req.method, req.path)) return next();
+  return res.status(403).json({
+    ok: false,
+    message: 'Tu perfil es de consulta: puedes ver y exportar, pero no modificar. Pídele el cambio a coordinación.',
+  });
+};

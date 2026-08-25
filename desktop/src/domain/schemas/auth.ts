@@ -40,6 +40,20 @@ export const recoveryRequestSchema = z.object({
 
 export const recoveryResetSchema = z.object({ ok: z.literal(true), message: z.string() });
 
+/**
+ * Respuesta del cambio de contraseña propio.
+ *
+ * Trae un par de tokens porque el servidor acaba de revocar todas las sesiones,
+ * esta incluida. El `message` no es decorativo: dice que las demás se cerraron,
+ * que es la mitad del efecto del gesto.
+ */
+export const changePasswordSchema = z.object({
+  ok: z.literal(true),
+  accessToken: z.string().min(1),
+  refreshToken: z.string().min(1),
+  message: z.string(),
+});
+
 export const recoveryEmailSchema = z.string().trim().toLowerCase().email('Correo inválido');
 /**
  * Misma política que el autorregistro (`schemas/registration.ts`) y que

@@ -33,6 +33,8 @@ const ActivitiesPage = lazy(() => import('@/features/activities/activities-page'
 const PeriodsPage = lazy(() => import('@/features/periods/periods-page'));
 const AuditPage = lazy(() => import('@/features/audit/audit-page'));
 const HealthPage = lazy(() => import('@/features/system/health-page'));
+const CoordinationPage = lazy(() => import('@/features/coordination/coordination-page'));
+const StaffPage = lazy(() => import('@/features/staff/staff-page'));
 
 /** Blocks the app routes until the session is known to be valid. */
 function RequireAuth() {
@@ -78,6 +80,8 @@ export const router = createBrowserRouter([
           { path: '/reportes', element: <ReportsPage /> },
           { path: '/avisos', element: <AnnouncementsPage /> },
           { path: '/sugerencias', element: <FeedbackPage /> },
+          { path: '/coordinacion', element: <CoordinationPage /> },
+          { path: '/personal', element: <StaffPage /> },
           { path: '/docentes', element: <ProfessorsPage /> },
           { path: '/trabajos-grado', element: <ThesisFormatsPage /> },
           { path: '/actividades', element: <ActivitiesPage /> },

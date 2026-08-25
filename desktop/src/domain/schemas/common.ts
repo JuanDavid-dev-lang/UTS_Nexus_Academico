@@ -67,5 +67,14 @@ export type RiskLevel = z.infer<typeof riskLevel>;
 
 export const riskLevelEs = z.enum(['BAJO', 'MEDIO', 'ALTO']);
 
-export const role = z.enum(['ADMIN', 'PROFESSOR', 'COORDINATOR', 'STUDENT']);
+/**
+ * Roles, en orden de autoridad decreciente.
+ *
+ * `SECRETARY` ve exactamente lo mismo que `COORDINATOR` en sus programas y no
+ * escribe nada. Esa diferencia se modela en `core/auth/permissions.ts`, no aquí:
+ * este esquema solo tiene que aceptar el valor que manda el servidor. Un rol
+ * que falte en la lista no da un error entendible — tumba el parse de la sesión
+ * entera y la aplicación se queda en la pantalla de acceso.
+ */
+export const role = z.enum(['ADMIN', 'COORDINATOR', 'SECRETARY', 'PROFESSOR', 'STUDENT']);
 export type Role = z.infer<typeof role>;

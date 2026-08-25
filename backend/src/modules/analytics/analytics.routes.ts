@@ -12,10 +12,18 @@ export const analyticsRouter = Router();
 
 analyticsRouter.use(identificar);
 
-/** Construye el filtro académico según el rol (profesor / estudiante / admin). */
+/**
+ * Filtro académico según el rol.
+ *
+ * Punto único a propósito: el panel y el listado de riesgo son las dos
+ * pantallas donde un acotado que falte no se ve como un error, se ve como una
+ * cifra más alta. Coordinación y secretaría se acotan por sus materias; un
+ * docente por las suyas; un estudiante por su expediente.
+ */
 async function scopedFilter(req: any): Promise<AcademicFilter> {
   if (req.user?.role === 'PROFESSOR') return { teacherId: req.user.id };
   if (req.user?.role === 'STUDENT') return { studentId: req.user.studentId };
+  if (req.alcance && !req.alcance.total) return { subjectIds: req.alcance.subjectIds };
   return {};
 }
 
@@ -34,6 +42,13 @@ analyticsRouter.get('/dashboard', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR
     } else if (req.user?.role === 'STUDENT') {
       totalStudents = 1;
       totalSubjects = new Set(records.map(r => r.subjectId)).size;
+    } else if (req.alcance && !req.alcance.total) {
+      // Coordinación y secretaría cuentan lo suyo. Con el conteo global, el
+      // panel de una carrera mostraba los estudiantes de la institución entera
+      // junto a los promedios de esa sola carrera: dos cifras que no hablan de
+      // lo mismo, una al lado de la otra.
+      totalStudents = req.alcance.studentIds.length;
+      totalSubjects = req.alcance.subjectIds.length;
     } else {
       [totalStudents, totalSubjects] = await Promise.all([
         StudentModel.countDocuments({ deletedAt: null }),

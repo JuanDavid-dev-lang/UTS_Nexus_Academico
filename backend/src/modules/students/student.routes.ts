@@ -9,6 +9,7 @@ import {
   professorOwnsStudent,
 } from '../../shared/professor-scope.js';
 import { intersectar } from '../../domains/scope/professor-scope.js';
+import { dentroDelAlcanceDePrograma } from '../../domains/scope/program-scope.js';
 import {
   createStudent,
   findStudent,
@@ -54,6 +55,14 @@ studentRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (
     if (isProfessor) {
       const scope = await getProfessorScope(req.user!.id);
       allowedIds = scope.studentIds;
+    }
+    // Coordinación y secretaría: los estudiantes matriculados en materias de
+    // sus programas. Se intersecta como el de docente —nunca reemplaza— para
+    // que un `?subjectId=` ajeno devuelva vacío en lugar de la lista de otro.
+    if (req.alcance && !req.alcance.total) {
+      allowedIds = allowedIds
+        ? intersectar(allowedIds, req.alcance.studentIds)
+        : req.alcance.studentIds;
     }
 
     if (query.subjectId || query.groupId || query.period) {
@@ -116,6 +125,9 @@ studentRouter.get('/:id', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), asyn
     if (req.user?.role === 'PROFESSOR' && !(await professorOwnsStudent(req.user.id, String(req.params.id)))) {
       return res.status(403).json({ ok: false, message: 'Estudiante fuera de tus asignaturas' });
     }
+    if (!dentroDelAlcanceDePrograma(req.alcance!, 'studentIds', req.params.id)) {
+      return res.status(403).json({ ok: false, message: 'Estudiante fuera de tus programas' });
+    }
     const item = await findStudent(String(req.params.id));
     if (!item) return res.status(404).json({ ok: false, message: 'Not found' });
     res.json({ ok: true, item });
@@ -172,6 +184,9 @@ studentRouter.patch('/:id', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), as
     if (req.user?.role === 'PROFESSOR' && !(await professorOwnsStudent(req.user.id, String(req.params.id)))) {
       return res.status(403).json({ ok: false, message: 'Estudiante fuera de tus asignaturas' });
     }
+    if (!dentroDelAlcanceDePrograma(req.alcance!, 'studentIds', req.params.id)) {
+      return res.status(403).json({ ok: false, message: 'Estudiante fuera de tus programas' });
+    }
 
     const body = z.object({
       fullName: campo.nombre.min(3).optional(),
@@ -193,6 +208,11 @@ studentRouter.patch('/:id', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), as
 
 studentRouter.delete('/:id', requireRole('ADMIN', 'COORDINATOR'), async (req, res, next) => {
   try {
+    // Borrar un estudiante arrastra sus notas y su asistencia en todas las
+    // materias, incluidas las de carreras que no son de esta coordinación.
+    if (!dentroDelAlcanceDePrograma(req.alcance!, 'studentIds', req.params.id)) {
+      return res.status(403).json({ ok: false, message: 'Estudiante fuera de tus programas' });
+    }
     const item = await softDeleteStudent(String(req.params.id));
     if (!item) return res.status(404).json({ ok: false, message: 'Not found' });
     emitSync('sync:update', { entity: 'student', action: 'delete', id: item.id });

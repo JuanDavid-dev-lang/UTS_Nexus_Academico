@@ -339,6 +339,12 @@ class _UtsAppState extends ConsumerState<UtsApp> {
             ref.invalidate(miPerfilProvider);
           case 'thesisFormat':
             ref.invalidate(thesisFormatsProvider);
+          // Cambiarle el rol o los programas a alguien cambia lo que ve. El
+          // perfil se recarga sin cerrar sesion, igual que con el flag de
+          // director: el alcance se lee de la ficha, no del token.
+          case 'user':
+            ref.invalidate(miPerfilProvider);
+            ref.invalidate(dashboardProvider);
           case 'notification':
             ref.invalidate(notificationsProvider);
           case 'enrollment':

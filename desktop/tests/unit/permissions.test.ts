@@ -68,6 +68,40 @@ describe('capacidades administrativas nuevas', () => {
   });
 });
 
+describe('secretaría: coordinación sin escritura', () => {
+  it('ve lo mismo que coordinación', () => {
+    expect(can('SECRETARY', 'students.read')).toBe(true);
+    expect(can('SECRETARY', 'grades.read')).toBe(true);
+    expect(can('SECRETARY', 'attendance.read')).toBe(true);
+    expect(can('SECRETARY', 'coordination.read')).toBe(true);
+  });
+
+  it('exporta, porque exportar es leer', () => {
+    // Es la mitad del trabajo de una secretaría académica: quitarle la
+    // exportación la deja mirando tablas que no puede llevarse a una reunión.
+    expect(can('SECRETARY', 'reports.export')).toBe(true);
+    expect(can('SECRETARY', 'coordination.export')).toBe(true);
+  });
+
+  it('no escribe nada', () => {
+    expect(can('SECRETARY', 'grades.write')).toBe(false);
+    expect(can('SECRETARY', 'attendance.write')).toBe(false);
+    expect(can('SECRETARY', 'students.write')).toBe(false);
+    expect(can('SECRETARY', 'students.delete')).toBe(false);
+    expect(can('SECRETARY', 'activities.write')).toBe(false);
+    expect(can('SECRETARY', 'periods.close')).toBe(false);
+    expect(can('SECRETARY', 'professors.manage')).toBe(false);
+  });
+
+  it('no toca el personal ni la auditoría', () => {
+    // Asignar programas define alcances: un rol no mueve su propio techo.
+    expect(can('SECRETARY', 'staff.manage')).toBe(false);
+    expect(can('COORDINATOR', 'staff.manage')).toBe(false);
+    expect(can('ADMIN', 'staff.manage')).toBe(true);
+    expect(can('SECRETARY', 'audit.read')).toBe(false);
+  });
+});
+
 describe('canAny', () => {
   it('passes when at least one capability is granted', () => {
     expect(canAny('STUDENT', ['grades.write', 'grades.read'])).toBe(true);

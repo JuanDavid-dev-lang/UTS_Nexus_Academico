@@ -30,8 +30,28 @@ import { auditRouter } from '../modules/audit/audit.routes.js';
 import { healthRouter } from '../modules/health/health.routes.js';
 import { timelineRouter } from '../modules/timeline/timeline.routes.js';
 import { telemetryRouter } from '../modules/telemetry/telemetry.routes.js';
+import { coordinationRouter } from '../modules/coordination/coordination.routes.js';
+import { userRouter } from '../modules/users/user.routes.js';
+import { identificar, bloquearSoloLectura } from '../middlewares/auth.js';
+import { cargarAlcance } from '../middlewares/scope.js';
 
 export const apiRouter = Router();
+
+/**
+ * Tres pasos antes de cualquier módulo, en este orden y no en otro:
+ *
+ * 1. `identificar` — dice quién llama. No corta nada; los módulos lo repiten
+ *    porque también se montan sueltos en las pruebas.
+ * 2. `bloquearSoloLectura` — cierra la escritura a los perfiles de consulta
+ *    (secretaría). Va aquí, y no en cada módulo, porque marcar ruta por ruta
+ *    cuál escribe deja abierta la que se añada mañana.
+ * 3. `cargarAlcance` — deja en `req.alcance` los programas de coordinación o
+ *    secretaría. Global por la misma razón: una ruta que se olvidara de pedirlo
+ *    consultaría sin acotar y devolvería datos de otra carrera con un 200.
+ */
+apiRouter.use(identificar);
+apiRouter.use(bloquearSoloLectura);
+apiRouter.use(cargarAlcance);
 
 apiRouter.use('/auth', authRouter);
 // El historial va antes que el router de estudiantes: `/:id/historial` es más
@@ -82,3 +102,8 @@ apiRouter.use('/audit', auditRouter);
 apiRouter.use('/system/health', healthRouter);
 // Telemetría: el alta la hace cualquier sesión, la lectura solo administración.
 apiRouter.use('/telemetry', telemetryRouter);
+// Vista de coordinación: materias, docentes y grupos de los programas a cargo,
+// con sus exportables. Secretaría entra a lo mismo, en solo lectura.
+apiRouter.use('/coordinacion', coordinationRouter);
+// Alta y gestión del personal: quién es qué rol y de qué programas responde.
+apiRouter.use('/usuarios', userRouter);

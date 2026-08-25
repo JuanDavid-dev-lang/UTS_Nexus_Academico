@@ -10,6 +10,24 @@ class AuthRepository {
     return Map<String, dynamic>.from(response.data as Map);
   }
 
+  /// Cambia la contraseña de la propia cuenta.
+  ///
+  /// El servidor cierra TODAS las sesiones al hacerlo —esta incluida— y por eso
+  /// devuelve un par de tokens nuevo. Quien llame tiene que guardarlo: si no, el
+  /// primer refresco falla y cambiarse la contraseña acaba echando al usuario al
+  /// inicio de sesión, que se lee como una avería en vez de como la medida que
+  /// es.
+  Future<Map<String, dynamic>> cambiarPassword({
+    required String actual,
+    required String nueva,
+  }) async {
+    final response = await _api.post('/auth/password', data: {
+      'currentPassword': actual,
+      'newPassword': nueva,
+    });
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
   Future<Map<String, dynamic>> me() async {
     final response = await _api.get('/auth/me');
     return Map<String, dynamic>.from(response.data as Map);

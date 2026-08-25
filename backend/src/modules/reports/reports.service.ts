@@ -5,6 +5,7 @@ import { SubjectModel } from '../../models/subject.model.js';
 import { GroupModel } from '../../models/group.model.js';
 import { computeAcademicRecords, type AcademicRecord } from '../../shared/academic.service.js';
 import type { MapBundle } from './report-columns.js';
+import { acotarPorAlcance, type AlcanceDePrograma } from '../../domains/scope/program-scope.js';
 
 /**
  * Acceso a datos de los reportes.
@@ -24,6 +25,12 @@ export type ReportFilters = {
   teacherId?: string;
   dateFrom?: Date | null;
   dateTo?: Date | null;
+  /**
+   * Materias del alcance por programa (coordinación, secretaría). Ausente
+   * significa «sin acotar», que es lo correcto para ADMIN y para un docente,
+   * ya acotado por `teacherId`.
+   */
+  subjectIds?: string[];
 };
 
 export type Solicitante = { id: string; role: string } | undefined;
@@ -36,7 +43,11 @@ export type Solicitante = { id: string; role: string } | undefined;
  * visible — simplemente deja que cualquiera descargue el acta de otro pasando
  * su id en la URL.
  */
-export function filtrosDeConsulta(query: any, user?: Solicitante): ReportFilters {
+export function filtrosDeConsulta(
+  query: any,
+  user?: Solicitante,
+  alcance?: AlcanceDePrograma,
+): ReportFilters {
   const filters: ReportFilters = {};
   if (query.period) filters.period = String(query.period);
   if (query.subjectId) filters.subjectId = String(query.subjectId);
@@ -46,6 +57,10 @@ export function filtrosDeConsulta(query: any, user?: Solicitante): ReportFilters
   if (query.dateFrom) filters.dateFrom = new Date(String(query.dateFrom));
   if (query.dateTo) filters.dateTo = new Date(String(query.dateTo));
   if (user?.role === 'PROFESSOR') filters.teacherId = user.id;
+  // Coordinación y secretaría se acotan por carrera. Va al final, como el
+  // `teacherId` del docente: descargar el acta de otro programa tiene que dar
+  // un documento vacío, no el documento de otro.
+  if (alcance && !alcance.total) filters.subjectIds = alcance.subjectIds;
   return filters;
 }
 
@@ -57,6 +72,9 @@ export function filtroDeNotas(filters: ReportFilters): Record<string, unknown> {
   if (filters.studentId) query.studentId = filters.studentId;
   if (filters.groupId) query.groupId = filters.groupId;
   if (filters.teacherId) query.teacherId = filters.teacherId;
+  // Misma función que usan los listados: pedir una materia fuera del alcance
+  // cierra el filtro a nada en vez de ampliarlo.
+  if (filters.subjectIds) return acotarPorAlcance(query, 'subjectId', filters.subjectIds);
   return query;
 }
 

@@ -116,7 +116,7 @@ reportsRouter.put('/template', requireRole('ADMIN'), async (req, res, next) => {
  */
 reportsRouter.get('/preview/attendance', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
-    const filters = filtrosDeConsulta(req.query, req.user);
+    const filters = filtrosDeConsulta(req.query, req.user, req.alcance);
     const [attendance, plantilla] = await Promise.all([
       buscarAsistencia(filters, { date: -1 }),
       getPlantilla(),
@@ -187,7 +187,7 @@ reportsRouter.get('/excel/consolidado', requireRole('ADMIN', 'PROFESSOR', 'COORD
 
 reportsRouter.get('/pdf/grades', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
-    const filters = filtrosDeConsulta(req.query, req.user);
+    const filters = filtrosDeConsulta(req.query, req.user, req.alcance);
     const [grades, plantilla] = await Promise.all([
       buscarNotas(filters, { studentId: 1 }),
       getPlantilla(),
@@ -214,7 +214,7 @@ reportsRouter.get('/pdf/grades', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'
 
 reportsRouter.get('/pdf/attendance', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
-    const filters = filtrosDeConsulta(req.query, req.user);
+    const filters = filtrosDeConsulta(req.query, req.user, req.alcance);
     const [attendance, plantilla] = await Promise.all([
       buscarAsistencia(filters, { date: -1 }),
       getPlantilla(),
@@ -242,7 +242,7 @@ reportsRouter.get('/pdf/attendance', requireRole('ADMIN', 'PROFESSOR', 'COORDINA
 
 reportsRouter.get('/pdf/combined', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
-    const filters = filtrosDeConsulta(req.query, req.user);
+    const filters = filtrosDeConsulta(req.query, req.user, req.alcance);
     const [grades, attendance, plantilla] = await Promise.all([
       buscarNotas(filters, { studentId: 1, subjectId: 1 }),
       buscarAsistencia(filters, { date: -1 }),
@@ -275,7 +275,7 @@ reportsRouter.get('/pdf/combined', requireRole('ADMIN', 'PROFESSOR', 'COORDINATO
 
 reportsRouter.get('/excel/grades', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
-    const filters = filtrosDeConsulta(req.query, req.user);
+    const filters = filtrosDeConsulta(req.query, req.user, req.alcance);
     const [grades, plantilla] = await Promise.all([
       buscarNotas(filters, { studentId: 1 }),
       getPlantilla(),
@@ -298,7 +298,7 @@ reportsRouter.get('/excel/grades', requireRole('ADMIN', 'PROFESSOR', 'COORDINATO
 
 reportsRouter.get('/excel/attendance', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
-    const filters = filtrosDeConsulta(req.query, req.user);
+    const filters = filtrosDeConsulta(req.query, req.user, req.alcance);
     const [attendance, plantilla] = await Promise.all([
       buscarAsistencia(filters, { date: 1 }),
       getPlantilla(),
@@ -321,7 +321,7 @@ reportsRouter.get('/excel/attendance', requireRole('ADMIN', 'PROFESSOR', 'COORDI
 
 reportsRouter.get('/excel/combined', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
-    const filters = filtrosDeConsulta(req.query, req.user);
+    const filters = filtrosDeConsulta(req.query, req.user, req.alcance);
     const [grades, attendance, plantilla] = await Promise.all([
       buscarNotas(filters, { studentId: 1, subjectId: 1 }),
       buscarAsistencia(filters, { date: 1 }),

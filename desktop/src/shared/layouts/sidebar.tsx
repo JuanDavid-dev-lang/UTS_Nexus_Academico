@@ -5,6 +5,7 @@ import {
   Activity,
   BarChart3,
   Bell,
+  Building2,
   BookMarked,
   CalendarRange,
   ClipboardList,
@@ -22,6 +23,7 @@ import {
   Settings,
   UserCog,
   Users,
+  UsersRound,
 } from 'lucide-react';
 import { cn } from '@/shared/lib/cn';
 import { Logo } from '@/shared/ui/logo';
@@ -105,6 +107,10 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: 'Administración',
     items: [
+      // Coordinación abre el grupo: para quien tiene ese rol es la pantalla de
+      // entrada, no una herramienta ocasional.
+      { to: '/coordinacion', label: 'Coordinación', icon: Building2, capability: 'coordination.read' },
+      { to: '/personal', label: 'Personal', icon: UsersRound, capability: 'staff.manage' },
       { to: '/docentes', label: 'Docentes', icon: UserCog, capability: 'professors.manage' },
       { to: '/periodos', label: 'Periodos', icon: CalendarRange, capability: 'periods.close' },
       { to: '/auditoria', label: 'Auditoría', icon: ScrollText, capability: 'audit.read' },

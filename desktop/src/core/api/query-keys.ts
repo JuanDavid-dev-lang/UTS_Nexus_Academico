@@ -27,6 +27,27 @@ export const queryKeys = {
     list: () => ['subjects', 'list'] as const,
   },
 
+  /**
+   * Vista de coordinación. Las cuatro consultas cuelgan de la misma raíz
+   * porque miran el mismo conjunto de datos: si una nota cambia, el promedio de
+   * la materia, el del docente y el del grupo cambian a la vez, y tenerlas en
+   * ramas distintas dejaría dos de las tres desactualizadas en pantalla.
+   */
+  coordination: {
+    all: ['coordination'] as const,
+    programas: () => ['coordination', 'programas'] as const,
+    resumen: (filtro: unknown) => ['coordination', 'resumen', filtro] as const,
+    materias: (filtro: unknown) => ['coordination', 'materias', filtro] as const,
+    docentes: (filtro: unknown) => ['coordination', 'docentes', filtro] as const,
+    grupos: (filtro: unknown) => ['coordination', 'grupos', filtro] as const,
+  },
+
+  users: {
+    all: ['users'] as const,
+    roles: () => ['users', 'roles'] as const,
+    list: (filtro: unknown) => ['users', 'list', filtro] as const,
+  },
+
   groups: {
     all: ['groups'] as const,
     list: () => ['groups', 'list'] as const,

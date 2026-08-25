@@ -15,6 +15,7 @@ class ProfilePage extends ConsumerWidget {
   static String roleLabel(String? role) => switch (role) {
         'ADMIN' => 'Administrador',
         'COORDINATOR' => 'Coordinación',
+        'SECRETARY' => 'Secretaría',
         'STUDENT' => 'Estudiante',
         _ => 'Docente',
       };

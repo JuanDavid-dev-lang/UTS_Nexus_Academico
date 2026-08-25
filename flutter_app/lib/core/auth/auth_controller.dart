@@ -93,6 +93,27 @@ class AuthController extends StateNotifier<AuthState> {
     state = AuthState(loading: false, user: AuthUser.fromJson(Map<String, dynamic>.from(data['user'] as Map)));
   }
 
+  /// Cambia la contraseña y se queda dentro.
+  ///
+  /// El servidor revoca todas las sesiones, incluida esta, y devuelve un par
+  /// nuevo: guardarlo y volver a apuntar el socket es lo que evita que la app
+  /// se caiga a la pantalla de acceso justo después de un cambio correcto.
+  ///
+  /// Devuelve el mensaje del servidor porque lo que hay que contar no es
+  /// «hecho», sino que las demás sesiones se cerraron.
+  Future<String> cambiarPassword({
+    required String actual,
+    required String nueva,
+  }) async {
+    final data = await _repo.cambiarPassword(actual: actual, nueva: nueva);
+    final access = data['accessToken'].toString();
+    final refresh = data['refreshToken'].toString();
+    await _storage.save(accessToken: access, refreshToken: refresh);
+    ApiClient.instance.setTokens(accessToken: access, refreshToken: refresh);
+    _realtime.updateToken(access);
+    return (data['message'] ?? 'Contraseña actualizada.').toString();
+  }
+
   /// Recarga los datos del usuario desde el servidor.
   ///
   /// Lo necesita la edición de perfil: el nombre y la foto que ve el resto de

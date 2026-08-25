@@ -103,6 +103,21 @@ professorRouter.get('/', requireRole('ADMIN', 'COORDINATOR'), async (req, res, n
   try {
     const filtro: Record<string, unknown> = { deletedAt: null };
     if (req.query.programa) filtro.programas = String(req.query.programa);
+    // Coordinacion y secretaria ven a los docentes de sus programas: los
+    // adscritos a la carrera y los que dictan alguna de sus materias sin
+    // estarlo (suplencias). Se aplica DESPUES del filtro `programa` de la URL,
+    // que asi solo puede estrechar la lista, nunca ampliarla a otra carrera.
+    if (req.alcance && !req.alcance.total) {
+      const pedido = typeof filtro.programas === 'string' ? filtro.programas : null;
+      const programas = pedido
+        ? (req.alcance.programas.includes(pedido) ? [pedido] : [])
+        : req.alcance.programas;
+      delete filtro.programas;
+      filtro.$and = [
+        ...(Array.isArray(filtro.$and) ? filtro.$and : []),
+        { $or: [{ programas: { $in: programas } }, { userId: { $in: req.alcance.professorIds } }] },
+      ];
+    }
     if (req.query.director === 'true') filtro.esDirectorTrabajoGrado = true;
     if (req.query.q) {
       // Regex escapado: la búsqueda es texto del usuario, no un patrón.
@@ -151,6 +166,18 @@ professorRouter.patch('/:id', requireRole('ADMIN', 'COORDINATOR'), async (req, r
 
     const antes = await ProfessorModel.findOne({ _id: req.params.id, deletedAt: null }).lean();
     if (!antes) return res.status(404).json({ ok: false, message: 'Not found' });
+
+    // Una coordinacion no edita la ficha de un docente de otra carrera. El
+    // listado ya no se los muestra, pero filtrar solo el listado deja la ficha
+    // escribible a quien copie un id.
+    if (req.alcance && !req.alcance.total) {
+      const suyo =
+        (antes.programas ?? []).some(programa => req.alcance!.programas.includes(programa)) ||
+        req.alcance.professorIds.includes(String(antes.userId));
+      if (!suyo) {
+        return res.status(403).json({ ok: false, message: 'Docente fuera de tus programas' });
+      }
+    }
 
     const item = await ProfessorModel.findOneAndUpdate({ _id: req.params.id, deletedAt: null }, { $set: body }, { new: true });
     if (!item) return res.status(404).json({ ok: false, message: 'Not found' });

@@ -8,6 +8,7 @@ import '../../core/theme/theme_controller.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
 import './widgets/notifications_section.dart';
+import './widgets/password_section.dart';
 import './widgets/update_section.dart';
 
 /// Ajustes.
@@ -226,6 +227,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           const UpdateSection(),
           const SizedBox(height: 22),
           _SectionLabel('Cuenta', muted: muted),
+          const PasswordSection(),
+          const SizedBox(height: 10),
           AppCard(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
             child: ListTile(

@@ -236,7 +236,15 @@ async function ejecutar(puerto: number) {
 
   const materia = await post(
     '/subjects',
-    { name: 'Cálculo E2E', code: 'E2E-CAL', credits: 4, period: PERIODO, professorId: docenteId },
+    {
+      name: 'Cálculo E2E',
+      code: 'E2E-CAL',
+      credits: 4,
+      period: PERIODO,
+      professorId: docenteId,
+      // Con programa declarado: es lo que decide qué coordinación la ve.
+      programa: 'ING_SISTEMAS',
+    },
     admin,
   );
   const subjectId = String(materia.json?.item?._id ?? '');
@@ -796,6 +804,201 @@ async function ejecutar(puerto: number) {
   });
   ok('La sesión abierta antes del rechazo ya no se renueva → 401',
     refrescoRechazado.status === 401, `status ${refrescoRechazado.status}`);
+
+  // ── 19. Coordinación y secretaría ───────────────────────────────────────
+  //
+  // Las dos cosas que hay que ver aquí y no en una prueba de dominio: que el
+  // acotado por carrera llega hasta la consulta real, y que una sesión de
+  // secretaría recibe 403 al escribir aunque la ruta acepte a coordinación.
+  seccion('19) Alcance por programa y solo lectura');
+
+  const claveHash = await bcrypt.hash(CLAVE, 10);
+  await UserModel.create([
+    {
+      email: 'e2e-coordinacion@uts.edu.co',
+      passwordHash: claveHash,
+      fullName: 'Coordinación E2E',
+      role: 'COORDINATOR',
+      programas: ['ING_SISTEMAS'],
+    },
+    {
+      email: 'e2e-secretaria@uts.edu.co',
+      passwordHash: claveHash,
+      fullName: 'Secretaría E2E',
+      role: 'SECRETARY',
+      programas: ['ING_SISTEMAS'],
+    },
+    {
+      email: 'e2e-coordinacion-ajena@uts.edu.co',
+      passwordHash: claveHash,
+      fullName: 'Coordinación de otra carrera E2E',
+      role: 'COORDINATOR',
+      programas: ['ING_CIVIL'],
+    },
+  ]);
+
+  const coordinacion = await login('e2e-coordinacion@uts.edu.co');
+  const secretaria = await login('e2e-secretaria@uts.edu.co');
+  const coordinacionAjena = await login('e2e-coordinacion-ajena@uts.edu.co');
+
+  const panorama = await get(`/coordinacion/materias?period=${PERIODO}`, coordinacion);
+  const materiasVistas: { subjectId?: string }[] = panorama.json?.items ?? [];
+  ok('Coordinación ve la materia de su programa',
+    panorama.status === 200 && materiasVistas.some(item => item.subjectId === subjectId),
+    JSON.stringify(panorama.json).slice(0, 140));
+
+  const panoramaAjeno = await get(`/coordinacion/materias?period=${PERIODO}`, coordinacionAjena);
+  const ajenas: { subjectId?: string }[] = panoramaAjeno.json?.items ?? [];
+  ok('Coordinación de otra carrera no la ve',
+    panoramaAjeno.status === 200 && !ajenas.some(item => item.subjectId === subjectId),
+    JSON.stringify(panoramaAjeno.json).slice(0, 140));
+
+  const notasAjenas = await get(`/grades?subjectId=${subjectId}`, coordinacionAjena);
+  ok('Pedir las notas de otra carrera devuelve vacío, no un error',
+    notasAjenas.status === 200 && (notasAjenas.json?.items ?? []).length === 0,
+    `status ${notasAjenas.status}`);
+
+  const notasSecretaria = await get(`/grades?subjectId=${subjectId}`, secretaria);
+  ok('Secretaría lee las notas de su programa',
+    notasSecretaria.status === 200 && (notasSecretaria.json?.items ?? []).length > 0,
+    `status ${notasSecretaria.status}`);
+
+  const exportacion = await get(`/coordinacion/export.xlsx?period=${PERIODO}`, secretaria);
+  ok('Secretaría exporta (exportar es leer)', exportacion.status === 200,
+    `status ${exportacion.status}`);
+
+  const escrituraSecretaria = await post(
+    '/students',
+    { code: 'E2E-SEC', fullName: 'No debería crearse', program: 'Ingeniería de Sistemas' },
+    secretaria,
+  );
+  ok('Secretaría escribiendo → 403', escrituraSecretaria.status === 403,
+    `status ${escrituraSecretaria.status}`);
+
+  const usuariosParaSecretaria = await get('/usuarios', secretaria);
+  ok('El personal es solo de ADMIN → 403', usuariosParaSecretaria.status === 403,
+    `status ${usuariosParaSecretaria.status}`);
+
+  const usuariosParaAdmin = await get('/usuarios?role=SECRETARY', admin);
+  ok('ADMIN lista el personal',
+    usuariosParaAdmin.status === 200 && (usuariosParaAdmin.json?.items ?? []).length > 0,
+    `status ${usuariosParaAdmin.status}`);
+
+  // Alta desde Configuracion. Lo que hay que ver aqui es que la cuenta creada
+  // pueda entrar: `POST /usuarios` no firma ningun token, asi que si la
+  // contrasena no quedara bien guardada nada lo delataria hasta el primer login.
+  const nueva = await post(
+    '/usuarios',
+    {
+      email: 'e2e-nueva-coordinacion@uts.edu.co',
+      password: 'ClaveNueva2026',
+      fullName: 'Coordinación creada desde Configuración',
+      role: 'COORDINATOR',
+      programas: ['ING_SISTEMAS'],
+    },
+    admin,
+  );
+  ok('ADMIN crea una cuenta de coordinación',
+    nueva.status === 201 && nueva.json?.item?.role === 'COORDINATOR',
+    JSON.stringify(nueva.json).slice(0, 140));
+  ok('La cuenta nace con sus carreras asignadas',
+    (nueva.json?.item?.programas ?? []).includes('ING_SISTEMAS'),
+    JSON.stringify(nueva.json?.item?.programas));
+
+  const loginNueva = await post('/auth/login', {
+    email: 'e2e-nueva-coordinacion@uts.edu.co',
+    password: 'ClaveNueva2026',
+  });
+  ok('La cuenta creada entra con su contraseña', loginNueva.status === 200,
+    `status ${loginNueva.status}`);
+
+  const claveDebilDeAlta = await post(
+    '/usuarios',
+    { email: 'e2e-floja@uts.edu.co', password: 'corta', fullName: 'Clave floja', role: 'SECRETARY' },
+    admin,
+  );
+  ok('Una contraseña que no cumple la política → 400', claveDebilDeAlta.status === 400,
+    `status ${claveDebilDeAlta.status}`);
+
+  const correoRepetido = await post(
+    '/usuarios',
+    {
+      email: 'e2e-nueva-coordinacion@uts.edu.co',
+      password: 'OtraClave2026',
+      fullName: 'Repetida',
+      role: 'SECRETARY',
+    },
+    admin,
+  );
+  ok('Correo ya usado → 409', correoRepetido.status === 409, `status ${correoRepetido.status}`);
+
+  // ── Cambio de la propia contrasena ──────────────────────────────────────
+  //
+  // Lo que hay que ver aqui: que cerrar las demas sesiones es de verdad (el
+  // refresh viejo deja de servir) y que quien lo pide NO se queda fuera.
+  const sesionVieja = await post('/auth/login', {
+    email: 'e2e-nueva-coordinacion@uts.edu.co',
+    password: 'ClaveNueva2026',
+  });
+  const tokenVivo = String(sesionVieja.json?.accessToken ?? '');
+  const refrescoViejo = String(sesionVieja.json?.refreshToken ?? '');
+
+  const claveMal = await post(
+    '/auth/password',
+    { currentPassword: 'la-que-no-es', newPassword: 'OtraClave2026' },
+    tokenVivo,
+  );
+  ok('Contraseña actual equivocada → 401', claveMal.status === 401, `status ${claveMal.status}`);
+
+  const mismaClave = await post(
+    '/auth/password',
+    { currentPassword: 'ClaveNueva2026', newPassword: 'ClaveNueva2026' },
+    tokenVivo,
+  );
+  ok('Repetir la misma contraseña → 400', mismaClave.status === 400,
+    `status ${mismaClave.status}`);
+
+  const cambio = await post(
+    '/auth/password',
+    { currentPassword: 'ClaveNueva2026', newPassword: 'TerceraClave2026' },
+    tokenVivo,
+  );
+  ok('Cambia su propia contraseña',
+    cambio.status === 200 && String(cambio.json?.accessToken ?? '').length > 0,
+    `status ${cambio.status}`);
+
+  const refrescoRevocado = await post('/auth/refresh', { refreshToken: refrescoViejo });
+  ok('El refresh anterior al cambio ya no sirve → 401', refrescoRevocado.status === 401,
+    `status ${refrescoRevocado.status}`);
+
+  const refrescoNuevo = await post('/auth/refresh', {
+    refreshToken: String(cambio.json?.refreshToken ?? ''),
+  });
+  ok('Quien cambió la contraseña sigue dentro', refrescoNuevo.status === 200,
+    `status ${refrescoNuevo.status}`);
+
+  const loginNuevaClave = await post('/auth/login', {
+    email: 'e2e-nueva-coordinacion@uts.edu.co',
+    password: 'TerceraClave2026',
+  });
+  ok('Entra con la contraseña nueva', loginNuevaClave.status === 200,
+    `status ${loginNuevaClave.status}`);
+
+  const secretariaCambia = await post(
+    '/auth/password',
+    { currentPassword: CLAVE, newPassword: 'ClaveSecretaria2026' },
+    secretaria,
+  );
+  ok('Secretaría cambia la suya pese a ser de solo lectura',
+    secretariaCambia.status === 200, `status ${secretariaCambia.status}`);
+
+  const estudianteDirecto = await post(
+    '/usuarios',
+    { email: 'e2e-est@uts.edu.co', password: 'ClaveNueva2026', fullName: 'Est', role: 'STUDENT' },
+    admin,
+  );
+  ok('Una cuenta de estudiante no se crea aquí → 400', estudianteDirecto.status === 400,
+    `status ${estudianteDirecto.status}`);
 }
 
 main().catch(async error => {

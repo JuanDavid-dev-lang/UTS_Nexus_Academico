@@ -17,6 +17,8 @@
  * lo que se hace con ellos se decide aquí, donde una prueba puede afirmarlo.
  */
 
+import { acotarPorAlcance, type AlcanceDePrograma } from './program-scope.js';
+
 export type ProfessorScope = {
   subjectIds: string[];
   groupIds: string[];
@@ -164,8 +166,9 @@ export function filtroDeListado(
   criterios: CriteriosDeListado,
   usuario?: SolicitanteConAlcance,
   base: Record<string, unknown> = {},
+  alcance?: AlcanceDePrograma,
 ): Record<string, unknown> {
-  const filtro: Record<string, unknown> = { deletedAt: null, ...base };
+  let filtro: Record<string, unknown> = { deletedAt: null, ...base };
 
   // 1) Lo que pide quien consulta.
   if (criterios.studentId) filtro.studentId = String(criterios.studentId);
@@ -180,5 +183,24 @@ export function filtroDeListado(
     filtro.studentId = usuario.studentId ?? SIN_ESTUDIANTE_ID;
   }
 
+  // 3) Coordinación y secretaría se acotan por carrera, no por matrícula: ven
+  //    las materias de sus programas, las dicte quien las dicte. Va después de
+  //    lo que pide la URL por la misma razón que lo anterior — pedir una
+  //    materia de otra carrera devuelve vacío, nunca sus notas.
+  if (alcance && !alcance.total && esRolPorProgramaEnAlcance(usuario?.role)) {
+    filtro = acotarPorAlcance(filtro, 'subjectId', alcance.subjectIds);
+  }
+
   return filtro;
+}
+
+/**
+ * Copia local de la lista de roles acotados por programa.
+ *
+ * `shared/types.ts` no se importa desde aquí a propósito: `domains/` es puro y
+ * no depende de la capa de infraestructura. Son dos nombres; si algún día son
+ * cinco, la lista se sube a un módulo de dominio compartido.
+ */
+function esRolPorProgramaEnAlcance(role?: string): boolean {
+  return role === 'COORDINATOR' || role === 'SECRETARY';
 }

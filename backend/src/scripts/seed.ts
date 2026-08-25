@@ -13,6 +13,7 @@ import { AttendanceModel } from '../models/attendance.model.js';
 import { ActivityModel } from '../models/activity.model.js';
 import { ScheduleModel } from '../models/schedule.model.js';
 import { NotificationModel } from '../models/notification.model.js';
+import type { Role } from '../shared/types.js';
 
 /**
  * Contraseña de las cuentas sembradas.
@@ -36,9 +37,11 @@ const generada = !process.env.SEED_PASSWORD;
 async function upsertUser(input: {
   email: string;
   fullName: string;
-  role: 'ADMIN' | 'PROFESSOR' | 'COORDINATOR' | 'STUDENT';
+  role: Role;
   photoUrl?: string | null;
   studentId?: string | null;
+  /** Programas a cargo. Solo lo usan coordinacion y secretaria. */
+  programas?: string[];
 }) {
   const passwordHash = await bcrypt.hash(password, 12);
   return UserModel.findOneAndUpdate(
@@ -56,6 +59,7 @@ async function upsertUser(input: {
         fullName: input.fullName,
         photoUrl: input.photoUrl ?? null,
         studentId: input.studentId ?? null,
+        programas: input.programas ?? [],
       },
     },
     { upsert: true, new: true }
@@ -69,7 +73,21 @@ async function main() {
   // Se crean por su efecto: la demo necesita las tres cuentas, pero solo la del
   // docente se referencia más abajo.
   await upsertUser({ email: 'admin@uts.edu.co', fullName: 'Administrador UTS', role: 'ADMIN' });
-  await upsertUser({ email: 'coordinador@uts.edu.co', fullName: 'Coordinador UTS', role: 'COORDINATOR' });
+  // Coordinacion y secretaria sembradas CON programas: sin ellos su alcance es
+  // la institucion entera, que es lo que hacian antes, y la demo no ensenaria
+  // lo unico que distingue a estos dos roles de un administrador.
+  await upsertUser({
+    email: 'coordinador@uts.edu.co',
+    fullName: 'Coordinador UTS',
+    role: 'COORDINATOR',
+    programas: ['ING_SISTEMAS', 'TEC_DESARROLLO_SISTEMAS'],
+  });
+  await upsertUser({
+    email: 'secretaria@uts.edu.co',
+    fullName: 'Secretaria Academica UTS',
+    role: 'SECRETARY',
+    programas: ['ING_SISTEMAS', 'TEC_DESARROLLO_SISTEMAS'],
+  });
   const professor = await upsertUser({ email: 'docente@uts.edu.co', fullName: 'Docente Demo UTS', role: 'PROFESSOR' });
 
   await ProfessorModel.findOneAndUpdate(
@@ -140,6 +158,8 @@ async function main() {
         professorId: professor!.id,
         period: '2026-1',
         credits: 3,
+        // Con programa: es lo que hace que la coordinacion sembrada la vea.
+        programa: 'ING_SISTEMAS',
         studentIds: students.filter(Boolean).map(s => s!.id),
       },
     },
