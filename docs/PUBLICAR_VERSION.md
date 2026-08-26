@@ -172,17 +172,21 @@ todavía se está armando. Se muestran juntos —«Alfa 2.3.6»— y se guardan 
 | `beta` | Completa en funciones. Se arreglan fallos, no se añaden capacidades. |
 | `estable` | La etiqueta desaparece del nombre: se ve solo el número. |
 
-Para cambiar de etapa hay que tocar **tres sitios**, y los tres tienen que
+Para cambiar de etapa hay que tocar **dos archivos**, y los dos tienen que
 coincidir:
 
 | Dónde | Qué |
 |---|---|
 | `desktop/src/core/version.ts` | `export const ETAPA` |
 | `flutter_app/lib/core/version.dart` | `const String etapa` |
-| `.github/workflows/release.yml` | `releaseName:` del trabajo de escritorio **y** `name:` del paso «Publicar el espejo aquí» |
 
-En `estable` la etiqueta queda vacía y el nombre vuelve a ser solo el número, sin
-tocar ningún otro sitio.
+El nombre de la release **ya no se escribe en el workflow**: lo deriva
+`.github/scripts/comprobar-version.mjs` a partir de `version.ts`, y el mismo
+script falla la publicación si los dos archivos no dicen lo mismo. Mientras
+estuvo escrito a mano en el YAML eran tres sitios que tenían que acordarse el
+uno del otro, y el que se olvidaba publicaba una release con la etapa anterior.
+
+En `estable` la etiqueta queda vacía y el nombre vuelve a ser solo el número.
 
 Lo que **no** hay que hacer es meter la etapa dentro del número (`2.3.6-alfa`).
 El actualizador de Tauri y el `versionCode` de Android comparan versiones, y un
@@ -211,6 +215,29 @@ sufijo ahí cambia el orden de una forma que ninguno de los dos promete respetar
 > Y queda un salto que solo se da una vez y a mano: quien nunca instale el
 > puente se queda donde esté. El puente se publica **antes** de renumerar, no
 > después.
+
+### 2.1 Pasar a estable (`1.0.0`)
+
+El plan es salir de `pre-release` con la numeración empezando en `1.0.0`. Como
+`1.0.0` es **menor** que el `2.15.0` del puente, esto solo funciona sobre
+clientes que ya tengan el puente instalado — que es exactamente para lo que se
+publicó. Orden:
+
+1. Comprobar que ya no queda nadie por debajo de la 2.15.0. Quien se quede atrás
+   no recibe la 1.0.0 y tiene que reinstalar una vez.
+2. Cambiar la etapa a `estable` en `version.ts` y `version.dart`. La etiqueta
+   queda vacía: el producto pasa a mostrarse como «1.0.0», sin adjetivo.
+3. Bajar el número a `1.0.0` en los cuatro archivos y subir el `versionCode` de
+   Android (**siempre hacia arriba**, sin importar el número visible).
+4. `node .github/scripts/comprobar-version.mjs v1.0.0` antes de etiquetar.
+5. Etiquetar y empujar como cualquier otra publicación.
+
+> ⚠️ **Desde el puente, publicar una etiqueta vieja degrada a todo el mundo.**
+> Los clientes instalan lo que esté publicado, así que empujar por error un `v*`
+> antiguo —o rehacer una release anterior— reparte esa versión como si fuera la
+> nueva. Antes esto era imposible por construcción; ahora lo que protege es no
+> empujar etiquetas viejas. La comprobación de versión ayuda: falla si la
+> etiqueta no coincide con los archivos del árbol.
 
 ---
 
@@ -245,12 +272,17 @@ un APK cuyo `versionCode` no sea mayor que el instalado.
 > fiable, que es justo lo que uno necesita saber cuando algo falla en una sala
 > de cómputo.
 
-Para comprobar que no se ha quedado ninguno atrás:
+Para comprobar que no se ha quedado ninguno atrás, y de paso que la etiqueta
+que vas a empujar coincide con ellos:
 
 ```bash
-grep -rn '"version"' desktop/package.json desktop/src-tauri/tauri.conf.json
-grep -n '^version' desktop/src-tauri/Cargo.toml flutter_app/pubspec.yaml
+node .github/scripts/comprobar-version.mjs v1.0.0
 ```
+
+El mismo script corre en CI **antes** de compilar, así que una versión
+descuadrada no llega a publicarse. Comprueba los cuatro archivos de versión, el
+`versionCode` de Android, que las dos etapas coincidan, y que la etiqueta diga
+lo mismo que los archivos.
 
 ### 3.2 Etiquetar y empujar
 

@@ -115,6 +115,14 @@ jobs:
           cache: npm
           cache-dependency-path: desktop/package-lock.json
 
+      # Antes de gastar quince minutos compilando: que los cinco archivos de
+      # versión digan lo mismo y que coincidan con la etiqueta empujada. Una
+      # release mal numerada no se corrige, solo se reemplaza.
+      - name: Comprobar la versión
+        id: version
+        shell: bash
+        run: node .github/scripts/comprobar-version.mjs "${{ github.ref_name }}"
+
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: swatinem/rust-cache@v2
@@ -145,9 +153,12 @@ jobs:
           tagName: ${{ github.ref_name }}
           # La etapa va en el nombre a propósito: quien abre la página de
           # publicaciones tiene que saber que instala algo en construcción sin
-          # tener que deducirlo del número. Al pasar a beta o a estable hay que
-          # cambiarla aquí y en los dos archivos `version` de los clientes.
-          releaseName: UTS Nexus Académico Pre-release ${{ github.ref_name }}
+          # tener que deducirlo del número. **Sale de `version.ts`**, no de una
+          # cadena escrita aquí: mientras estuvo escrita a mano, cambiar de
+          # etapa eran tres sitios que tenían que acordarse el uno del otro, y
+          # el que se olvidaba publicaba una release con la etapa anterior.
+          # En la etapa estable la etiqueta queda vacía y solo se ve el número.
+          releaseName: UTS Nexus Académico ${{ steps.version.outputs.nombre }}
           releaseBody: ${{ steps.etiqueta.outputs.cuerpo }}
           # El commit de este repositorio no existe en el de instaladores, así
           # que la etiqueta tiene que nacer de su rama principal.
@@ -182,7 +193,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: UTS Nexus Académico Pre-release ${{ github.ref_name }}
+          name: UTS Nexus Académico ${{ steps.version.outputs.nombre }}
           body: ${{ steps.etiqueta.outputs.cuerpo }}
           files: |
             latest.json
