@@ -4,7 +4,7 @@
 
 **Plataforma académica unificada · Unidades Tecnológicas de Santander (UTS)**
 
-[![Node.js](https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-24-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?logo=tauri&logoColor=white)](https://tauri.app/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
@@ -28,8 +28,9 @@
 - [Modelo académico](#modelo-académico)
 - [Motor de calificaciones](#motor-de-calificaciones)
 - [Estructura del repositorio](#estructura-del-repositorio)
-- [Arranque rápido](#arranque-rápido)
+- [Instalación](#instalación)
 - [Variables de entorno](#variables-de-entorno)
+- [Roles y permisos](#roles-y-permisos)
 - [Credenciales de demo](#credenciales-de-demo)
 - [API REST — referencia rápida](#api-rest--referencia-rápida)
 - [WebSocket en tiempo real](#websocket-en-tiempo-real)
@@ -47,14 +48,14 @@
 
 ## Visión general
 
-**UTS Nexus Académico** integra en una sola plataforma la gestión de notas, asistencia, riesgo académico y reportes de las Unidades Tecnológicas de Santander, con soporte para docentes, administradores y estudiantes desde tres aplicaciones independientes que comparten un backend central y una base de datos en la nube.
+**UTS Nexus Académico** integra en una sola plataforma la gestión de notas, asistencia, riesgo académico y reportes de las Unidades Tecnológicas de Santander. Docencia, coordinación, secretaría, administración y estudiantes trabajan desde tres aplicaciones independientes que comparten un backend central y una base de datos en la nube — cada rol con su propio alcance: el docente ve lo suyo, coordinación ve sus carreras y secretaría ve lo mismo sin poder modificarlo ([Roles y permisos](#roles-y-permisos)).
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                      UTS Nexus Académico                        │
 │                                                                 │
 │   📱 App Móvil (Flutter)     🖥️  App Escritorio (Tauri+React)   │
-│   Docentes + Estudiantes     Administradores + Docentes         │
+│   Docentes + Estudiantes     Todos los roles                    │
 │           │                              │                      │
 │           └──────────────┬───────────────┘                      │
 │                          ▼                                      │
@@ -101,17 +102,20 @@ backend/src/
 │   └── risk/                 # Evaluación de riesgo académico
 │
 ├── modules/                  # Capa HTTP (Express)
-│   ├── auth/                 # Login · JWT · Refresh tokens
+│   ├── auth/                 # Login · JWT · Refresh tokens · contraseña propia
 │   ├── grades/               # CRUD de notas + consolidado
 │   ├── attendance/           # Registro y resumen de asistencia
 │   ├── enrollment/           # Matrículas (bulk import CSV)
 │   ├── analytics/            # Dashboard + riesgos
+│   ├── coordination/         # Panorama por carrera: materias, docentes, grupos
+│   ├── users/                # Personal: roles y programas a cargo (ADMIN)
 │   ├── notifications/        # Alertas + escáner de riesgo
 │   └── reports/              # PDF y Excel (notas, asistencia, consolidado)
 │
 └── shared/                   # Infraestructura transversal
     ├── academic.service.ts   # Agregación única (dashboard + riesgo + reportes)
     ├── professor-scope.ts    # Aislamiento por docente (matrículas + fallback)
+    ├── program-scope.ts      # Alcance por carrera (coordinación y secretaría)
     ├── socket.ts             # Socket.io con auth JWT + salas por usuario
     └── scheduler.ts          # Escaneo periódico de riesgo
 ```
@@ -122,6 +126,7 @@ backend/src/
 |-----------|---------------|
 | **Single Source of Truth** | `computeAcademicRecords()` — una sola pipeline usada por dashboard, riesgos, notificaciones y reportes |
 | **Professor Scoping** | Toda query filtra por `EnrollmentModel.professorId`; un docente nunca ve datos de otro |
+| **Alcance por carrera** | Coordinación y secretaría se acotan por programa académico, no por matrícula; el ámbito del rol se aplica **después** de lo que pide la URL |
 | **Partial vs. Final Grade** | El dashboard usa `calcularPromedioParcial()` (solo cortes calificados) para evitar falsos positivos a mitad de semestre |
 | **Immutable Domain Functions** | `domains/` son funciones puras sin efectos secundarios, 100% testeables |
 | **Secure WebSocket** | Handshake exige JWT; eventos emitidos solo a salas `user:<id>`, nunca broadcast global |
@@ -346,71 +351,146 @@ UTS_Nexus_Academico/
 
 ---
 
-## Arranque rápido
+## Instalación
 
-### 1. Configurar la base de datos
+Hay **un servidor en producción funcionando** —una instancia EC2 con la base en
+MongoDB Atlas— y las dos aplicaciones vienen apuntando a él de fábrica. Eso
+cambia cuál es la instalación que te toca:
 
-```bash
-cp backend/.env.example backend/.env
-# Editar backend/.env y definir MONGODB_URI con tu cadena de Atlas
+| Quiero… | Qué instalo | Sección |
+|---|---|---|
+| **Usar** la plataforma como docente, coordinación o secretaría | Solo la app | [A. Usar](#a-usar-la-plataforma-sin-instalar-el-repositorio) |
+| **Desarrollar** o revisar el código | Node, y opcionalmente Rust / Flutter / Python | [B. Desarrollo local](#b-desarrollo-local-windows) |
+| **Levantar tu propio servidor** | Docker en una máquina Linux | [C. Servidor propio](#c-servidor-propio-ec2--docker) |
+
+> No hace falta clonar el repositorio para usar la plataforma, y no hace falta
+> levantar un servidor para desarrollar los clientes: apuntan al de producción
+> mientras no se les diga otra cosa.
+
+---
+
+### A. Usar la plataforma (sin instalar el repositorio)
+
+1. Entra a la **página de descargas** ([utsnexus.github.io](https://utsnexus.github.io))
+   o al [último Release](https://github.com/JuanDavid-dev-lang/UTS_Nexus_Academico/releases/latest).
+2. **Windows**: descarga el `…-setup.exe` y ejecútalo.
+   **Android**: descarga el `.apk`; el teléfono pedirá permiso para instalar
+   desde el navegador, y esa autorización la exige el sistema, no la app.
+3. Abre e inicia sesión. **No hay que escribir ninguna dirección de servidor.**
+
+A partir de ahí las dos apps **se actualizan solas** desde GitHub Releases:
+`Configuración → Actualizaciones` en el escritorio y `Ajustes → Actualizaciones`
+en el móvil. El escritorio verifica la firma antes de instalar; el móvil entrega
+el APK al instalador de Android.
+
+> El archivo que baja la página de descargas lleva en el nombre una versión
+> anterior a la que trae dentro: el enlace de Dropbox apunta a un archivo fijo
+> que el workflow sobrescribe en cada publicación. Es lo esperado — está
+> explicado en [`docs/PUBLICAR_VERSION.md`](docs/PUBLICAR_VERSION.md) §1.3.
+
+**¿A qué servidor se conectan?** A `https://3-14-147-55.sslip.io`, escrito en
+`desktop/src/core/config/env.ts` y en `flutter_app/lib/core/config.dart`. Se
+puede cambiar sin recompilar: en el escritorio, `Configuración → Servidor`; en
+el móvil, `Ajustes → Servidor`, que además **barre la red local** preguntando por
+`/health` para encontrar un backend propio sin que nadie escriba una IP.
+
+---
+
+### B. Desarrollo local (Windows)
+
+Así está montado el equipo de desarrollo. Solo el backend es obligatorio: cada
+pieza que falte degrada a algo utilizable, y aquí se dice a qué.
+
+#### B.1 Requisitos
+
+| Pieza | Versión | Hace falta para | Si no está |
+|---|---|---|---|
+| **Node.js** | **24** (npm 11) | El backend | Con npm 10 el `install` falla con «Missing: yaml»: el lockfile lo mantiene npm 11 |
+| **MongoDB Atlas** | cualquier clúster | Guardar los datos | El backend arranca, no conecta, y todo sale vacío |
+| Rust + VS Build Tools | estable | Compilar el `.exe` del escritorio | `npm run dev` abre la interfaz en el navegador, sin funciones nativas |
+| Flutter SDK | Dart ≥ 3.8 | La app móvil | — |
+| Python | 3.12 | `ml_service/`: riesgo con modelo y lectura de PDF y fotos | El backend usa el motor de reglas y lo declara en el campo `source` |
+| Ollama | `llama3.1:8b` | El asistente conversacional | El asistente responde con el respaldo del servicio de ML |
+| `mongod` local | 6+ | `npm run test:e2e` | Las demás pruebas no tocan la base |
+
+La base **es Atlas, no un Mongo local**: no hay contenedor de Mongo en
+`docker-compose.yml` a propósito, porque Atlas ya hace copias y replicación
+mejor de lo que las haría una instancia suelta.
+
+#### B.2 Backend
+
+```powershell
+git clone https://github.com/JuanDavid-dev-lang/UTS_Nexus_Academico.git
+cd UTS_Nexus_Academico
+copy backend\.env.example backend\.env
 ```
 
-### 2. Ejecutar el script de arranque
+Edita `backend/.env` y define como mínimo:
 
-**Windows (PowerShell):**
+```ini
+MONGODB_URI=mongodb+srv://<usuario>:<clave>@<cluster>.mongodb.net/uts_nexus
+JWT_ACCESS_SECRET=<cadena larga y aleatoria>
+JWT_REFRESH_SECRET=<otra distinta>
+CLIENT_ORIGIN=*
+# Contraseña fija de las cuentas de demostración. Sin ella el seed genera una
+# al azar y la imprime UNA vez: cómodo en un servidor, incómodo aquí.
+SEED_PASSWORD=<la que quieras>
+```
+
+Comprueba que no haya erratas —**un nombre mal escrito no da error: cae al valor
+por defecto**— y arranca:
+
 ```powershell
+cd backend; npm run check:env; cd ..
 powershell -ExecutionPolicy Bypass -File .\iniciar.ps1
 ```
 
-**Linux / macOS / Git Bash:**
-```bash
-chmod +x iniciar.sh && ./iniciar.sh
-```
+`iniciar.ps1` verifica Node, copia el `.env` si falta, instala dependencias,
+compila TypeScript, siembra los datos de demo, levanta el servidor en una
+ventana minimizada y corre el smoke test. Dos banderas para el día a día:
 
-El script realiza automáticamente:
-1. Verifica Node.js instalado
-2. Instala dependencias (`npm install`)
-3. Compila TypeScript (`npm run build`)
-4. Siembra datos de demo (`npm run seed`)
-5. Levanta el servidor en segundo plano
-6. Ejecuta el smoke test de endpoints
+| Bandera | Para qué |
+|---|---|
+| `-SinSeed` | Arrancar sin volver a sembrar: conserva lo que ya hay en la base |
+| `-SoloSmoke` | Probar contra un servidor que ya está arriba |
 
-### 3. Acceder
+En Linux, macOS o Git Bash: `chmod +x iniciar.sh && ./iniciar.sh`.
 
-| Servicio | URL |
-|---------|-----|
-| API REST | `http://localhost:4000` |
-| Documentación Swagger | `http://localhost:4000/docs` |
+| Qué | Dónde |
+|---|---|
+| API | `http://localhost:4000/api/v1` |
+| Swagger interactivo | `http://localhost:4000/docs` |
+| Sonda de salud | `http://localhost:4000/health` |
 
-### App de escritorio (Windows)
+El backend escucha en `0.0.0.0`, no en `127.0.0.1`: es lo que permite que un
+teléfono de la misma red lo alcance.
 
-**Doble clic en `abrir_escritorio.bat`.** Compila el backend si hace falta, abre
-el ejecutable si ya existe, y si no lo compila por ti.
+Las cuentas que deja sembradas —una por rol— están en
+[Credenciales de demo](#credenciales-de-demo).
 
-```bash
-# Alternativa manual
+#### B.3 Escritorio
+
+```powershell
 cd desktop
 npm install
-npm run desktop:build    # genera el .exe y los instaladores
+npm run dev            # interfaz en http://localhost:5183, sin Rust
 ```
 
-Una vez compilado, el ejecutable queda en:
+`npm run dev` apunta al servidor de producción mientras no se le diga otra cosa.
+Para trabajar contra el backend local, crea `desktop/.env.local`:
 
+```ini
+VITE_SERVER_URL=http://127.0.0.1:4000
 ```
-desktop/src-tauri/target/release/uts-nexus-desktop.exe
+
+Con Rust instalado hay dos modos más:
+
+```powershell
+npm run desktop:dev      # ventana nativa con recarga en caliente
+npm run desktop:build    # .exe + instaladores NSIS y MSI
 ```
 
-Y los instaladores en `desktop/src-tauri/target/release/bundle/`:
-
-| Artefacto | Para qué |
-|-----------|----------|
-| `nsis/UTS Nexus Académico_<versión>_x64-setup.exe` | Instalación normal (recomendado) |
-| `msi/UTS Nexus Académico_<versión>_x64_en-US.msi` | Despliegue por política de dominio |
-| `uts-nexus-desktop.exe` | Ejecutar sin instalar (portable) |
-
-La versión del nombre es la de `desktop/src-tauri/tauri.conf.json`.
-
-**Requisitos para compilar** (solo la primera vez):
+Requisitos de compilación, solo la primera vez:
 
 ```powershell
 winget install Rustlang.Rustup
@@ -418,41 +498,122 @@ winget install --id Microsoft.VisualStudio.2022.BuildTools -e --override `
   "--wait --passive --norestart --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.Windows11SDK.22621 --includeRecommended"
 ```
 
-Para desarrollar la interfaz sin compilar Rust: `cd desktop && npm run dev`
-(abre en el navegador, con degradación automática de las funciones nativas).
+Lo compilado queda en `desktop/src-tauri/target/release/`:
 
-> Guía completa del cliente de escritorio: [`desktop/README.md`](desktop/README.md)
+| Artefacto | Para qué |
+|-----------|----------|
+| `bundle/nsis/…_x64-setup.exe` | Instalación normal (recomendado) |
+| `bundle/msi/…_x64_en-US.msi` | Despliegue por política de dominio |
+| `uts-nexus-desktop.exe` | Ejecutar sin instalar (portable) |
+
+La versión del nombre sale de `desktop/src-tauri/tauri.conf.json`. También está
+`abrir_escritorio.bat`: doble clic, abre el ejecutable si existe y lo compila si
+no.
+
+> Guía completa del cliente: [`desktop/README.md`](desktop/README.md)
+
+#### B.4 Móvil
+
+```bash
+cd flutter_app
+flutter pub get
+flutter run
+```
+
+- **Emulador de Android**: el `localhost` del PC es `10.0.2.2` para el emulador,
+  y el descubrimiento lo prueba solo.
+- **Teléfono físico en la misma red**: no escribas nada. `Ajustes → Servidor →
+  Buscar` barre la subred —254 sondas en paralelo, unos 2 s— y se queda con
+  quien responda `/health` como este backend. Si el router aísla los clientes
+  inalámbricos, escribe `http://IP_DEL_PC:4000` a mano.
+- `abrir_android.bat` hace lo mismo con un menú: abrir en Android Studio,
+  ejecutar o generar el APK.
+
+> Guía visual paso a paso: [`docs/COMO_ABRIR.md`](docs/COMO_ABRIR.md)
+
+#### B.5 Servicio de ML (opcional)
+
+```powershell
+cd ml_service
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+.venv\Scripts\python.exe -m uvicorn app.main:app --port 8100
+```
+
+Con `ML_ENABLED=1` y `ML_BASE_URL=http://127.0.0.1:8100` en `backend/.env`, el
+riesgo pasa a calcularlo el modelo entrenado y se habilita la lectura de
+listados en PDF y foto. **Si el servicio está caído no se rompe nada**: el
+backend vuelve al motor de reglas y lo dice en el campo `source`.
+
+#### B.6 Asistente conversacional (opcional)
+
+```powershell
+ollama pull llama3.1:8b
+```
+
+Con Ollama en `http://localhost:11434` y `AI_ENABLED=1`, el asistente usa el
+modelo local; sin él responde con el respaldo del servicio de ML. En producción
+está **apagado** a propósito: no cabe en la instancia.
 
 <details>
 <summary>App de escritorio v1 (Python) — en desuso</summary>
 
-Su lanzador se eliminó: abrirla por accidente y creer que era la versión
-actual es más caro que el rato que ahorra tenerla a mano. El código sigue en
+Su lanzador se eliminó: abrirla por accidente y creer que era la versión actual
+es más caro que el rato que ahorra tenerla a mano. El código sigue en
 `desktop_python/` como referencia histórica y no recibe cambios.
-
-```bash
-cd desktop_python
-pip install -r requirements.txt
-python main.py
-```
 
 </details>
 
-### App móvil (Flutter / Android Studio)
+---
 
-**Doble clic en `abrir_android.bat`** — descarga dependencias y ofrece un menú:
-abrir en Android Studio, ejecutar en emulador/teléfono o generar el APK.
+### C. Servidor propio (EC2 + Docker)
+
+El de producción es una instancia EC2 con tres contenedores —Caddy, backend y
+servicio de ML— y la base en Atlas. **Ni el backend ni Python publican puertos**:
+solo Caddy escucha desde internet, así que el 4000 y el 8100 no existen desde
+fuera aunque el grupo de seguridad se configure mal algún día.
+
+Dentro de una instancia Ubuntu o Amazon Linux recién creada:
 
 ```bash
-# Alternativa manual
-cd flutter_app
-flutter pub get
-flutter run
-# En emulador Android la API se resuelve en http://10.0.2.2:4000
-# En teléfono físico, configura http://IP_DE_TU_PC:4000 en la pantalla de login
+git clone https://github.com/JuanDavid-dev-lang/UTS_Nexus_Academico.git
+cd UTS_Nexus_Academico/deploy
+./instalar.sh
 ```
 
-> Guía visual paso a paso: [`docs/COMO_ABRIR.md`](docs/COMO_ABRIR.md)
+El script instala Docker, deriva el dominio de la IP pública de la instancia,
+pide la cadena de Atlas —sin eco en pantalla—, genera los secretos JWT con
+`openssl` y escribe `deploy/.env` con permisos 600. Es **idempotente**: si el
+`.env` ya existe lo conserva, así que volver a ejecutarlo no regenera ningún
+secreto.
+
+El certificado lo pide Caddy solo a Let's Encrypt. Con un nombre `sslip.io`
+—`52-1-2-3.sslip.io` resuelve a esa misma IP— el desafío HTTP-01 funciona **sin
+comprar dominio ni tocar DNS**, que es como está hoy.
+
+Dos cosas que muerden en una instancia nueva:
+
+- **El correo saliente es obligatorio en producción.** `docker-compose.yml`
+  exige `SMTP_HOST` y el backend aborta el arranque sin él, pero `instalar.sh`
+  no lo pregunta: hay que añadir las variables `SMTP_*` a `deploy/.env` antes de
+  levantar. Mejor que compose falle con un mensaje claro a que el contenedor
+  entre en bucle de reinicio.
+- **8 GB de disco no alcanzan** para construir las imágenes. El script avisa
+  antes de empezar, no a mitad de la compilación.
+
+Actualizar el servidor tras publicar una versión:
+
+```bash
+cd UTS_Nexus_Academico && git pull && cd deploy
+docker compose up -d --build
+```
+
+> ⚠️ **El release de GitHub no actualiza el servidor.** Publicar una versión
+> compila y sube los clientes; la instancia se queda donde estaba. Si la versión
+> tocó `backend/`, las apps ya actualizadas pedirán rutas que el servidor
+> todavía no tiene.
+
+Detalle completo: [`docs/DESPLIEGUE_AWS.md`](docs/DESPLIEGUE_AWS.md).
 
 ---
 
@@ -551,6 +712,43 @@ al valor por defecto.
 
 ---
 
+## Roles y permisos
+
+Cinco roles. Lo que separa a cada uno del de arriba es **qué alcance ve** y
+**si puede escribir**, no qué pantallas tiene.
+
+| Rol | Ve | Escribe | Además |
+|---|---|---|---|
+| **Administración** | Toda la institución | Todo | Auditoría, telemetría, reapertura de periodos, gestión del personal |
+| **Coordinación** | Los programas que tenga asignados | Sí, dentro de ellos | Cierra periodos; **no** los reabre ni entra a la auditoría |
+| **Secretaría** | Lo mismo que su coordinación | **Nada** | Consulta y exporta |
+| **Docente** | Sus materias, sus grupos, sus estudiantes | Notas y asistencia de lo suyo | — |
+| **Estudiante** | Su propio expediente | Nada | — |
+
+**El alcance de un docente sale de la matrícula; el de coordinación y
+secretaría, de la carrera.** Coordinación ve todos los grupos de sus programas,
+los dicte quien los dicte, y ninguno de los demás. Los programas se asignan en
+`Configuración → Cuentas del personal` o en la pantalla **Personal**, y solo
+puede hacerlo administración: quien asigna programas decide alcances, así que no
+lo mueve quien está debajo.
+
+> **Una cuenta de coordinación o secretaría sin programas asignados ve la
+> institución completa.** Es lo que veían antes de que el alcance existiera;
+> cerrarlas a «nada» al actualizar las habría dejado con pantallas vacías y sin
+> ninguna explicación. La pantalla de Personal lo avisa en la propia fila.
+
+Secretaría no se implementa repitiendo el rol en cada ruta, sino en un solo
+sitio: cuenta como coordinación **en lectura**, y un guardián global corta
+cualquier escritura por método HTTP. Marcar ruta por ruta cuáles escriben deja
+fuera la que se añada mañana, y una ruta de escritura sin marcar no falla:
+concede. Las únicas excepciones son las que escriben sobre su propia cuenta
+—entrar, salir, marcar un aviso como leído y cambiar su contraseña—.
+
+Exportar cuenta como leer, así que todos los exportables son `GET` y secretaría
+los descarga.
+
+---
+
 ## Credenciales de demo
 
 > Disponibles tras ejecutar `npm run seed`. La contraseña sale de
@@ -606,6 +804,7 @@ uno completo.
 | `POST` | `/auth/register` | Alta de cuenta — **solo ADMIN** |
 | `POST` | `/auth/recovery/request` | Envía el código de recuperación **por correo** |
 | `POST` | `/auth/recovery/reset` | Cambia la contraseña con el código |
+| `POST` | `/auth/password` | Cambia la contraseña propia. Cualquier rol; exige la actual y **cierra las demás sesiones**, devolviendo un par nuevo |
 | `GET` | `/auth/me` | Usuario de la sesión |
 | `POST` | `/registro` | Autorregistro de docente → queda `PENDIENTE` de revisión |
 
@@ -737,6 +936,25 @@ patrones de inasistencia, actividades y cierres de periodo. **El cliente no
 cruza colecciones**: si lo hiciera, el escritorio y el móvil contarían dos
 historias distintas del mismo estudiante.
 
+### Coordinación y personal
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `GET` | `/coordinacion/programas` | Carreras que esta cuenta puede mirar |
+| `GET` | `/coordinacion/resumen` | Cifras por programa: materias, grupos, docentes, promedio, riesgo |
+| `GET` | `/coordinacion/materias` | Materias del alcance, **cada una con su docente** |
+| `GET` | `/coordinacion/docentes` | Docentes del alcance, con las materias que dictan en él |
+| `GET` | `/coordinacion/grupos` | Grupos abiertos en el alcance |
+| `GET` | `/coordinacion/export.xlsx` | Un libro con las tres hojas |
+| `GET` | `/usuarios` · `/usuarios/roles` | Personal y catálogo de roles (**solo ADMIN**) |
+| `POST` | `/usuarios` | Alta de una cuenta con su rol y sus carreras (**solo ADMIN**) |
+| `PATCH` | `/usuarios/:id` | Cambiar rol, nombre o carreras (**solo ADMIN**) |
+| `DELETE` | `/usuarios/:id` | Baja lógica: la cuenta pierde el acceso, su historial se conserva |
+
+Todo `/coordinacion` es lectura, así que secretaría entra a lo mismo. El alta va
+por `POST /usuarios` y no por `/auth/register`: esa ruta firma los tokens de la
+cuenta recién creada, y crear personal desde ahí dejaba credenciales de otra
+persona en la sesión de quien la crea.
+
 ### Administración
 | Método | Ruta | Descripción |
 |--------|------|-------------|
@@ -859,7 +1077,7 @@ agregar intenciones están en [`docs/RUBRI.md`](docs/RUBRI.md).
 ## Comandos útiles
 
 ```bash
-# Desde /backend
+# Desde /backend  (Node 24)
 npm run check:env        # Verifica el .env sin imprimir secretos
 npm run dev              # Servidor con recarga automática (desarrollo)
 npm run build            # Compilar TypeScript
@@ -1002,6 +1220,12 @@ tardar varios minutos la primera vez.
 | `.xls` no abre | Formato binario legado | Guarda el archivo como `.xlsx` o `.csv` antes de importar |
 | Push no llega con app cerrada | FCM no configurado | Define `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL` y `FCM_PRIVATE_KEY` |
 | Recuperación no envía correo | SMTP apagado | Configura las variables SMTP; en desarrollo sin SMTP revisa `devCode` |
+| Coordinación ve toda la institución | Cuenta sin carreras asignadas | Asígnalas en **Personal**: sin ninguna, el alcance es la institución completa a propósito |
+| Coordinación no ve una materia suya | La materia no declara programa | Márcaselo en Materias; mientras tanto se deduce de la adscripción del docente, y la pantalla lo señala con `*` |
+| «Tu perfil es de consulta» al guardar | La cuenta es de secretaría | Es lo esperado: secretaría ve y exporta, no modifica |
+| El `.exe` no ofrece la versión nueva | No se subió el número | Hay que subirlo en los cinco archivos y empujar la etiqueta — [`docs/PUBLICAR_VERSION.md`](docs/PUBLICAR_VERSION.md) §3.1 |
+| Las apps actualizadas fallan contra el servidor | El release no actualiza EC2 | Entra a la instancia: `git pull && docker compose up -d --build` |
+| `npm install` falla con «Missing: yaml» | Node 22 (npm 10) | El lockfile lo mantiene npm 11: usa Node 24 |
 
 ---
 
@@ -1028,16 +1252,23 @@ una importación.
 
 | Componente | Estado |
 |-----------|--------|
-| Backend (Node.js / TypeScript) | ✅ Operativo · **186 pruebas** |
-| App de escritorio (Tauri 2 + React 19) | ✅ Operativa · **92 pruebas** |
-| App móvil (Flutter / Android) | ✅ Operativa · **53 pruebas** |
-| Servicio de ML (`ml_service/`) | ✅ Operativo · **51 pruebas** — ver [`ml_service/README.md`](ml_service/README.md) |
+| Backend (Node.js / TypeScript) | ✅ Operativo · **335 pruebas** |
+| App de escritorio (Tauri 2 + React 19) | ✅ Operativa · **124 pruebas** |
+| App móvil (Flutter / Android) | ✅ Operativa · **89 pruebas** |
+| Servicio de ML (`ml_service/`) | ✅ Operativo · **54 pruebas** — ver [`ml_service/README.md`](ml_service/README.md) |
 | App de escritorio v1 (PySide6) | 🪦 Muerta · sin lanzador, solo referencia histórica |
-| Pruebas E2E | ⏳ `npm run smoke` cubre el camino principal; falta cobertura de rutas |
+| Pruebas E2E | ✅ `npm run test:e2e` · **114 comprobaciones** sobre una base aislada |
 
-Las pruebas cubren **lógica pura**: cálculo de notas, riesgo, agenda, alcance
-por docente, filtros, paginación y navegación. Ninguna toca la base de datos;
-para eso está `npm run smoke`, que sí necesita servidor y Atlas arriba.
+Las pruebas de `npm test` cubren **lógica pura**: cálculo de notas, riesgo,
+agenda, alcance por docente y por programa, quién puede escribir, filtros,
+paginación y navegación. Ninguna toca la base de datos.
+
+Para lo que sí la toca hay dos niveles: `npm run smoke` recorre el camino
+principal contra el servidor que ya tengas arriba, y `npm run test:e2e` levanta
+un `mongod` local, crea su propia base, recorre 114 comprobaciones —incluidos el
+alcance por carrera, el 403 de secretaría al escribir y el cierre de sesiones al
+cambiar una contraseña— y borra la base al terminar. La suite **se niega a
+arrancar contra un `mongodb+srv`**: borra lo que toca.
 
 ### Predicción de riesgo con aprendizaje
 
