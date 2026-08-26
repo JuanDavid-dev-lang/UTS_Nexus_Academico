@@ -24,6 +24,21 @@ export type Programa = z.infer<typeof programaSchema>;
 
 const opcion = z.object({ id: z.string(), nombre: z.string() });
 
+/**
+ * Área académica: la carrera completa.
+ *
+ * En las UTS el ciclo tecnológico continúa en el profesional sobre la misma
+ * línea, así que coordinar «Sistemas» es coordinar los dos títulos. Se elige
+ * por área; lo que se guarda siguen siendo los ids de programa.
+ */
+export const areaSchema = z.object({
+  id: z.string(),
+  nombre: z.string(),
+  facultad: facultadId,
+  programas: z.array(z.string()),
+});
+export type Area = z.infer<typeof areaSchema>;
+
 /** Lo que necesita el formulario de registro. Se sirve sin autenticación. */
 export const catalogoSchema = z.object({
   ok: z.literal(true),
@@ -32,6 +47,9 @@ export const catalogoSchema = z.object({
   facultades: z.array(opcion),
   niveles: z.array(opcion),
   programas: z.array(programaSchema),
+  // Opcional: un backend anterior a las áreas no las manda, y la pantalla cae
+  // a la lista de programas sueltos en vez de quedarse en blanco.
+  areas: z.array(areaSchema).default([]),
 });
 export type Catalogo = z.infer<typeof catalogoSchema>;
 

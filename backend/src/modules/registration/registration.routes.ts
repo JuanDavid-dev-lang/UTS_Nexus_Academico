@@ -17,6 +17,7 @@ import {
   NOMBRE_NIVEL,
   NOMBRE_SEDE,
   PROGRAMAS,
+  AREAS,
   SEDES,
   validarAdscripcion,
 } from '../../domains/catalog/uts.js';
@@ -58,6 +59,11 @@ registrationRouter.get('/catalogo', async (_req, res, next) => {
       facultades: FACULTADES.map(id => ({ id, nombre: NOMBRE_FACULTAD[id] })),
       niveles: NIVELES.map(id => ({ id, nombre: NOMBRE_NIVEL[id] })),
       programas: PROGRAMAS,
+      // Las áreas son la carrera completa (ciclo tecnológico + profesional).
+      // Van en el mismo catálogo que ya piden los dos clientes en vez de en una
+      // ruta nueva: es el mismo dato, y una segunda ruta significa dos consultas
+      // que pueden contestar cosas distintas.
+      areas: AREAS,
     });
   } catch (err) {
     next(err);

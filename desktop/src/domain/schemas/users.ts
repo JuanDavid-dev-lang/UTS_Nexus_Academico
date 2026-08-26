@@ -26,6 +26,10 @@ export const usuarioPersonalSchema = z.object({
   role,
   programas: z.array(z.string()),
   programasNombres: z.array(z.string()),
+  /** Las mismas carreras agrupadas por área; `completa` = los dos ciclos. */
+  areas: z
+    .array(z.object({ id: z.string(), nombre: z.string(), completa: z.boolean() }))
+    .default([]),
   photoUrl: z.string().nullable(),
   lastLoginAt: z.string().nullable(),
   profesor: z

@@ -727,10 +727,22 @@ Cinco roles. Lo que separa a cada uno del de arriba es **qué alcance ve** y
 
 **El alcance de un docente sale de la matrícula; el de coordinación y
 secretaría, de la carrera.** Coordinación ve todos los grupos de sus programas,
-los dicte quien los dicte, y ninguno de los demás. Los programas se asignan en
+los dicte quien los dicte, y ninguno de los demás. Se asignan en
 `Configuración → Cuentas del personal` o en la pantalla **Personal**, y solo
-puede hacerlo administración: quien asigna programas decide alcances, así que no
+puede hacerlo administración: quien asigna carreras decide alcances, así que no
 lo mueve quien está debajo.
+
+**Se asigna por área, no por título.** Una carrera de las UTS es una cadena
+propedéutica: Tecnología en Desarrollo de Sistemas Informáticos continúa en
+Ingeniería de Sistemas, con los mismos estudiantes avanzando de una a otra, así
+que quien coordina «Sistemas» coordina las dos. Una casilla marca la carrera
+completa; el detalle se despliega para el caso raro de coordinar un solo ciclo,
+y entonces la pantalla lo marca como **«un solo ciclo»** en vez de dejarlo pasar
+por completo — media carrera y una carrera entera se veían igual, y lo que
+faltaba no lo echaba nadie de menos.
+
+Lo que se guarda siguen siendo los **ids de programa**: el área es cómo se
+elige, no cómo se guarda.
 
 > **Una cuenta de coordinación o secretaría sin programas asignados ve la
 > institución completa.** Es lo que veían antes de que el alcance existiera;

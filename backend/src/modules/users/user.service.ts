@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { UserModel } from '../../models/user.model.js';
 import { ProfessorModel } from '../../models/professor.model.js';
-import { buscarPrograma } from '../../domains/catalog/uts.js';
+import { areasDeProgramas, buscarPrograma } from '../../domains/catalog/uts.js';
 import type { Role } from '../../shared/types.js';
 
 /**
@@ -22,6 +22,14 @@ export type UsuarioDePersonal = {
   role: Role;
   programas: string[];
   programasNombres: string[];
+  /**
+   * Las mismas carreras, agrupadas como se eligen: por área.
+   *
+   * `completa` distingue «coordina la carrera» de «coordina solo el ciclo
+   * tecnológico». Sin ese dato, media carrera se lee igual que la carrera
+   * entera y la mitad que falta no la echa nadie de menos.
+   */
+  areas: { id: string; nombre: string; completa: boolean }[];
   photoUrl: string | null;
   lastLoginAt: Date | null;
   /** Ficha docente, cuando la tiene. */
@@ -71,6 +79,11 @@ function aPersonal(usuario: UsuarioCrudo, ficha: FichaCruda | undefined): Usuari
     role: usuario.role as Role,
     programas,
     programasNombres: programas.map(nombrePrograma),
+    areas: areasDeProgramas(programas).map(entrada => ({
+      id: entrada.area.id,
+      nombre: entrada.area.nombre,
+      completa: entrada.completa,
+    })),
     photoUrl: usuario.photoUrl ?? null,
     lastLoginAt: usuario.lastLoginAt ?? null,
     profesor: ficha

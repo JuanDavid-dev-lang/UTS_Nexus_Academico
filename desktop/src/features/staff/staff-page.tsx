@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ShieldCheck, UserMinus, UserRoundCog } from 'lucide-react';
 import {
+  AreasPicker,
   Badge,
   Button,
   Card,
@@ -18,6 +19,7 @@ import {
   PageContainer,
   PageHeader,
   SkeletonList,
+  resumenDeSeleccion,
 } from '@/shared/ui';
 import { usersRepository } from '@/infrastructure/repositories/coordination.repository';
 import { registroRepository } from '@/infrastructure/repositories/academic.repository';
@@ -26,6 +28,7 @@ import { useDebounce } from '@/shared/hooks/use-debounce';
 import { toast } from '@/state/toast.store';
 import type { Role } from '@/domain/schemas/common';
 import type { UsuarioPersonal } from '@/domain/schemas/users';
+import type { Area, Programa } from '@/domain/schemas/registration';
 
 /**
  * Personal: quién es qué rol y de qué carreras responde.
@@ -202,9 +205,13 @@ export default function StaffPage() {
                         </p>
                       ) : (
                         <div className="mt-1 flex flex-wrap gap-1">
-                          {usuario.programasNombres.map((nombre) => (
-                            <Badge key={nombre} tone="neutral">
-                              {nombre}
+                          {/* Por carrera, no por título: dos insignias
+                              —«Sistemas» y «Sistemas»— no dicen nada, y la
+                              marca de «solo un ciclo» es lo que hay que ver. */}
+                          {usuario.areas.map((area) => (
+                            <Badge key={area.id} tone={area.completa ? 'neutral' : 'warning'}>
+                              {area.nombre}
+                              {!area.completa && ' · un solo ciclo'}
                             </Badge>
                           ))}
                         </div>
@@ -231,6 +238,7 @@ export default function StaffPage() {
       {editando && (
         <EditorDePersonal
           usuario={editando}
+          areas={catalogo.data?.areas ?? []}
           programas={programas}
           roles={(roles.data ?? []).map((rol) => ({ id: rol.id, nombre: rol.nombre }))}
           guardando={guardar.isPending}
@@ -265,6 +273,7 @@ export default function StaffPage() {
  */
 function EditorDePersonal({
   usuario,
+  areas,
   programas,
   roles,
   guardando,
@@ -272,7 +281,8 @@ function EditorDePersonal({
   onSave,
 }: {
   usuario: UsuarioPersonal;
-  programas: { id: string; nombre: string }[];
+  areas: Area[];
+  programas: Programa[];
   roles: { id: Role; nombre: string }[];
   guardando: boolean;
   onCancel: () => void;
@@ -283,12 +293,6 @@ function EditorDePersonal({
   const [elegidos, setElegidos] = useState<string[]>(usuario.programas);
 
   const porPrograma = role === 'COORDINATOR' || role === 'SECRETARY';
-
-  function alternar(id: string) {
-    setElegidos((actuales) =>
-      actuales.includes(id) ? actuales.filter((otro) => otro !== id) : [...actuales, id],
-    );
-  }
 
   return (
     <Dialog open onOpenChange={(abierto) => !abierto && onCancel()}>
@@ -333,26 +337,18 @@ function EditorDePersonal({
               <p className="text-caption text-muted">
                 {elegidos.length === 0
                   ? 'Sin ninguna marcada, esta cuenta ve la institución completa.'
-                  : `Verá los grupos, docentes y estudiantes de ${elegidos.length} programa${
-                      elegidos.length === 1 ? '' : 's'
-                    }.`}
+                  : `Verá los grupos, docentes y estudiantes de ${resumenDeSeleccion(
+                      areas,
+                      elegidos,
+                    ).toLowerCase()}.`}
               </p>
-              <div className="max-h-64 overflow-y-auto rounded-xl border border-border p-2">
-                {programas.map((programa) => (
-                  <label
-                    key={programa.id}
-                    className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-alt"
-                  >
-                    <input
-                      type="checkbox"
-                      className="size-4 accent-[var(--accent)]"
-                      checked={elegidos.includes(programa.id)}
-                      onChange={() => alternar(programa.id)}
-                    />
-                    <span className="text-body text-text">{programa.nombre}</span>
-                  </label>
-                ))}
-              </div>
+              <AreasPicker
+                areas={areas}
+                programas={programas}
+                seleccion={elegidos}
+                onChange={setElegidos}
+                disabled={guardando}
+              />
             </div>
           )}
         </div>

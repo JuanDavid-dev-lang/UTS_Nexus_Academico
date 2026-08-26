@@ -40,4 +40,5 @@ export {
 export { StatCard } from './stat-card';
 export { PageHeader, PageHero, PageContainer, SectionHeader } from './page-header';
 export { DataTable, type Column } from './data-table';
+export { AreasPicker, resumenDeSeleccion } from './areas-picker';
 export { Chart, type ChartTokens } from './chart';

@@ -109,6 +109,15 @@ secretaría por **programa académico**; ADMIN no se acota.
   estas cuentas veían antes de que el alcance existiera; cerrarlo a «nada» habría
   dejado a las ya creadas mirando pantallas vacías tras actualizar. Se restringe
   asignando programas desde `PATCH /usuarios/:id`, que queda en la auditoría.
+- **Coordinación se asigna por área, no por título.** Una carrera de las UTS es
+  una cadena propedéutica —el ciclo tecnológico continúa en el profesional sobre
+  la misma línea—, así que `AREAS` en `domains/catalog/uts.ts` agrupa los dos y
+  la pantalla marca la carrera entera con una casilla. **Se guardan los ids de
+  programa, no el área**: el área es cómo se elige, no cómo se guarda, así el
+  motor de alcance no cambia y una adscripción a un solo ciclo sigue siendo
+  representable (la interfaz la marca como «a medias»). Una prueba fija que
+  ningún programa del catálogo se quede sin área: uno huérfano no daría error,
+  sería una carrera que nadie puede coordinar.
 - **El programa de una materia manda; el del docente es respaldo.**
   `Materia.programa` es el dato declarado; si falta —datos previos al campo— se
   deduce de `Profesor.programas`. La API marca lo deducido (`programaDeducido`) y

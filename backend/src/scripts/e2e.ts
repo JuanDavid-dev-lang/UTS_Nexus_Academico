@@ -905,6 +905,44 @@ async function ejecutar(puerto: number) {
     (nueva.json?.item?.programas ?? []).includes('ING_SISTEMAS'),
     JSON.stringify(nueva.json?.item?.programas));
 
+  // Un área es la carrera completa: se manda una y se guardan sus dos títulos.
+  const porArea = await post(
+    '/usuarios',
+    {
+      email: 'e2e-area@uts.edu.co',
+      password: 'ClaveNueva2026',
+      fullName: 'Coordinación por área',
+      role: 'COORDINATOR',
+      areas: ['AREA_SISTEMAS'],
+    },
+    admin,
+  );
+  const programasDelArea: string[] = porArea.json?.item?.programas ?? [];
+  ok('Elegir un área guarda los dos ciclos de la carrera',
+    porArea.status === 201 &&
+      programasDelArea.includes('TEC_DESARROLLO_SISTEMAS') &&
+      programasDelArea.includes('ING_SISTEMAS'),
+    JSON.stringify(programasDelArea));
+  ok('El área vuelve marcada como completa',
+    (porArea.json?.item?.areas ?? []).some(
+      (a: { id: string; completa: boolean }) => a.id === 'AREA_SISTEMAS' && a.completa,
+    ),
+    JSON.stringify(porArea.json?.item?.areas));
+
+  const areaInventada = await post(
+    '/usuarios',
+    {
+      email: 'e2e-area-mala@uts.edu.co',
+      password: 'ClaveNueva2026',
+      fullName: 'Área inventada',
+      role: 'COORDINATOR',
+      areas: ['AREA_QUE_NO_EXISTE'],
+    },
+    admin,
+  );
+  ok('Un área fuera del catálogo → 400', areaInventada.status === 400,
+    `status ${areaInventada.status}`);
+
   const loginNueva = await post('/auth/login', {
     email: 'e2e-nueva-coordinacion@uts.edu.co',
     password: 'ClaveNueva2026',

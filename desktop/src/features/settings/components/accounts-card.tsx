@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Eye, EyeOff, KeyRound, UserPlus, Users } from 'lucide-react';
 import {
+  AreasPicker,
   Badge,
   Button,
   Card,
@@ -13,6 +14,7 @@ import {
   Field,
   Input,
   NativeSelect,
+  resumenDeSeleccion,
 } from '@/shared/ui';
 import { usersRepository } from '@/infrastructure/repositories/coordination.repository';
 import { registroRepository } from '@/infrastructure/repositories/academic.repository';
@@ -93,12 +95,6 @@ export function AccountsCard() {
     form.fullName.trim().length >= 3 && form.email.trim().includes('@') && claveValida;
 
   const descripcionRol = roles.data?.find((item) => item.id === form.role)?.descripcion;
-
-  function alternarPrograma(id: string) {
-    setProgramas((actuales) =>
-      actuales.includes(id) ? actuales.filter((otro) => otro !== id) : [...actuales, id],
-    );
-  }
 
   return (
     <Card>
@@ -212,26 +208,17 @@ export function AccountsCard() {
             <p className="text-caption text-muted">
               {programas.length === 0
                 ? 'Sin ninguna marcada, la cuenta verá la institución completa.'
-                : `Verá los grupos, docentes y estudiantes de ${programas.length} programa${
-                    programas.length === 1 ? '' : 's'
-                  }.`}
+                : `Verá los grupos, docentes y estudiantes de ${resumenDeSeleccion(
+                    catalogo.data?.areas ?? [],
+                    programas,
+                  ).toLowerCase()}.`}
             </p>
-            <div className="max-h-56 overflow-y-auto rounded-xl border border-border p-2">
-              {(catalogo.data?.programas ?? []).map((programa) => (
-                <label
-                  key={programa.id}
-                  className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-alt"
-                >
-                  <input
-                    type="checkbox"
-                    className="size-4 accent-[var(--accent)]"
-                    checked={programas.includes(programa.id)}
-                    onChange={() => alternarPrograma(programa.id)}
-                  />
-                  <span className="text-body text-text">{programa.nombre}</span>
-                </label>
-              ))}
-            </div>
+            <AreasPicker
+              areas={catalogo.data?.areas ?? []}
+              programas={catalogo.data?.programas ?? []}
+              seleccion={programas}
+              onChange={setProgramas}
+            />
           </div>
         )}
 

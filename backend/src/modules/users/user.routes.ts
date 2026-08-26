@@ -6,7 +6,7 @@ import { auditChange } from '../../shared/audit.js';
 import { emitToAdmins, emitToUser } from '../../shared/socket.js';
 import { invalidarAlcance } from '../../shared/program-scope.js';
 import { ROLES, NOMBRE_ROL, DESCRIPCION_ROL, ROLES_POR_PROGRAMA } from '../../shared/types.js';
-import { buscarPrograma } from '../../domains/catalog/uts.js';
+import { buscarPrograma, buscarArea, programasDeAreas } from '../../domains/catalog/uts.js';
 import type { Role } from '../../shared/types.js';
 import {
   actualizarUsuario,
@@ -92,6 +92,30 @@ const programas = z
   });
 
 /**
+ * Áreas: la carrera completa, que es como se coordina de verdad.
+ *
+ * En las UTS una carrera es una cadena propedéutica —el ciclo tecnológico
+ * continúa en el profesional sobre la misma línea—, así que coordinación se
+ * asigna por área y no título por título. Se **expanden a programas al
+ * guardar**: el alcance sigue viviendo en `programas`, y el área es cómo se
+ * elige, no cómo se guarda. Guardar el área en su lugar habría obligado a
+ * expandirla en cada consulta y a decidir qué pasa con una adscripción a medias
+ * heredada, que hoy es perfectamente representable.
+ */
+const areas = z
+  .array(campo.codigo)
+  .max(40)
+  .refine(ids => ids.every(id => Boolean(buscarArea(id))), {
+    message: 'Hay un área que no está en el catálogo académico.',
+  });
+
+/** Une lo pedido por área y por programa suelto, sin repetir. */
+function alcanceElegido(input: { programas?: string[]; areas?: string[] }): string[] | undefined {
+  if (!input.programas && !input.areas) return undefined;
+  return [...new Set([...(input.programas ?? []), ...programasDeAreas(input.areas ?? [])])];
+}
+
+/**
  * Alta de una cuenta.
  *
  * La contrasena la fija quien crea la cuenta y se le comunica a la persona:
@@ -109,6 +133,8 @@ userRouter.post('/', async (req, res, next) => {
         fullName: campo.nombre.min(3),
         role: z.enum(ROLES as [string, ...string[]]),
         programas: programas.default([]),
+        /** Alternativa cómoda a `programas`: se expande y se suma a ellos. */
+        areas: areas.default([]),
         employeeCode: campo.codigo.optional(),
       })
       .parse(req.body);
@@ -123,7 +149,11 @@ userRouter.post('/', async (req, res, next) => {
       });
     }
 
-    const item = await crearUsuario({ ...body, role: body.role as Role });
+    const item = await crearUsuario({
+      ...body,
+      role: body.role as Role,
+      programas: alcanceElegido(body) ?? [],
+    });
     if (!item) {
       return res.status(409).json({ ok: false, message: 'Ya existe una cuenta con ese correo.' });
     }
@@ -150,6 +180,7 @@ userRouter.patch('/:id', async (req, res, next) => {
         fullName: campo.nombre.min(3).optional(),
         role: z.enum(ROLES as [string, ...string[]]).optional(),
         programas: programas.optional(),
+        areas: areas.optional(),
       })
       .parse(req.body);
 
@@ -163,7 +194,16 @@ userRouter.patch('/:id', async (req, res, next) => {
       });
     }
 
-    const { antes, item } = await actualizarUsuario(String(req.params.id), body);
+    // `areas` no se guarda: se expande y desaparece del cambio, porque lo que
+    // el alcance lee es `programas`. Dejarla pasar crearía un campo en la
+    // colección que nadie consulta y que quedaría desincronizado al primer
+    // cambio hecho desde otra pantalla.
+    const { areas: _areas, ...cambios } = body;
+    const elegidos = alcanceElegido(body);
+    const { antes, item } = await actualizarUsuario(String(req.params.id), {
+      ...cambios,
+      ...(elegidos ? { programas: elegidos } : {}),
+    });
     if (!item) return res.status(404).json({ ok: false, message: 'Not found' });
 
     // El alcance se cachea por usuario: sin invalidarlo, quitarle un programa a
