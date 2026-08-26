@@ -124,7 +124,12 @@ class UpdateService {
     final tag = (data['tag_name'] ?? '').toString();
     if (tag.isEmpty) return null;
     final latest = tag.replaceFirst(RegExp(r'^v'), '');
-    if (compareVersions(latest, installed) <= 0) return null;
+    // Se ofrece lo que esté publicado, aunque su número sea menor: `<= 0`
+    // dejaba sin salida a toda instalación existente en cuanto el producto
+    // renumeraba —al pasar de 2.14.0 a Pre-release 0.1.0 no había ninguna
+    // actualización que aceptar—, y de ahí solo se salía reinstalando a mano.
+    // Lo que decide qué se instala es lo que publica quien publica.
+    if (compareVersions(latest, installed) == 0) return null;
 
     final assets = (data['assets'] as List?) ?? const [];
     final apk = assets.cast<Map?>().firstWhere(

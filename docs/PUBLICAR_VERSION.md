@@ -193,14 +193,24 @@ sufijo ahí cambia el orden de una forma que ninguno de los dos promete respetar
 > que lo instalado: `tauri-plugin-updater` no instala una versión inferior, y
 > el móvil descarta la release en `compareVersions(latest, installed) <= 0`.
 >
-> El 26 de agosto de 2026 se pasó de `2.14.0` a `pre-release 0.1.0` **a
-> propósito**, reiniciando la numeración. Consecuencia asumida: quien tuviera
-> instalada la 2.14.0 no recibe nada y tiene que reinstalar desde la página de
-> descargas. El `versionCode` de Android sí siguió subiendo (34 → 35), porque
-> es independiente del número visible y sin eso el APK ni siquiera se instala
-> encima.
+> El 26 de agosto de 2026 se pasó de `2.14.0` a `pre-release 0.1.0` y se
+> comprobó en carne propia: las instalaciones existentes se quedaron sin
+> ninguna actualización que aceptar, y ningún cambio en el servidor podía
+> arreglarlo — la comparación va **dentro** del binario instalado.
 >
-> A partir de aquí la numeración vuelve a ser creciente: `0.1.0` → `0.2.0` → …
+> La salida fue publicar `2.15.0` como **puente**: número mayor, así que la
+> 2.14.0 sí lo instala, y ese build es el primero que pide `allowDowngrades`
+> (escritorio) y compara `== 0` en vez de `<= 0` (móvil). **Desde la 2.15.0 en
+> adelante se instala lo que esté publicado, aunque el número baje**, así que
+> renumerar deja de dejar a nadie fuera.
+>
+> Lo que sigue valiendo: el `versionCode` de Android **tiene que crecer siempre**
+> (34 → 35 → 36). Es independiente del número visible, y sin eso el sistema no
+> deja instalar el APK encima.
+>
+> Y queda un salto que solo se da una vez y a mano: quien nunca instale el
+> puente se queda donde esté. El puente se publica **antes** de renumerar, no
+> después.
 
 ---
 

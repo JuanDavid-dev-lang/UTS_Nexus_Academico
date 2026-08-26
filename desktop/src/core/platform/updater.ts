@@ -38,13 +38,33 @@ async function updaterApi() {
  * update (browser mode). Network failures are surfaced as a thrown error so the
  * caller can tell "you are up to date" apart from "we could not check".
  */
+/**
+ * Se instala **lo que esté publicado**, aunque su número sea menor.
+ *
+ * Por defecto el plugin solo ofrece una versión mayor que la instalada, y esa
+ * regla convierte cualquier renumeración en una vía muerta: al pasar de
+ * `2.14.0` a `Pre-release 0.1.0`, todas las instalaciones existentes se
+ * quedaron sin ninguna actualización que aceptar. No es un caso raro —renumerar
+ * pasa cuando un producto cambia de etapa— y el precio de no preverlo es
+ * reinstalar a mano equipo por equipo.
+ *
+ * Lo que decide qué hay que instalar es **lo que publica quien publica**, no la
+ * aritmética de dos números. La firma sigue verificándose igual: esto cambia
+ * cuál se ofrece, no si es de fiar.
+ *
+ * Va en las dos llamadas, no solo en la comprobación: `downloadAndInstall`
+ * trabaja sobre el objeto que devuelve `check()`, así que con opciones
+ * distintas la pantalla ofrecería una versión que la instalación no encuentra.
+ */
+const OPCIONES_DE_COMPROBACION = { allowDowngrades: true } as const;
+
 export async function checkForUpdate(): Promise<UpdateInfo | null> {
   if (!isDesktop) return null;
 
   const { check } = await updaterApi();
   let update: Awaited<ReturnType<typeof check>>;
   try {
-    update = await check();
+    update = await check(OPCIONES_DE_COMPROBACION);
   } catch (causa) {
     // `cause` encadenado: sin él, el fallo real del plugin —firma inválida,
     // red caída, servidor de versiones sin responder— desaparece y solo queda
@@ -103,7 +123,7 @@ export async function installUpdate(onProgress?: (progress: DownloadProgress) =>
   if (!isDesktop) throw new Error('Las actualizaciones solo están disponibles en la app de escritorio.');
 
   const { check } = await updaterApi();
-  const update = await check();
+  const update = await check(OPCIONES_DE_COMPROBACION);
   if (!update) throw new Error('No hay ninguna actualización pendiente.');
 
   let downloaded = 0;
