@@ -10,10 +10,11 @@
 /// Gemelo de `desktop/src/core/version.ts`. Los dos y la etiqueta del workflow
 /// de publicación tienen que decir lo mismo; el procedimiento para cambiar de
 /// etapa está en `docs/PUBLICAR_VERSION.md`.
-const String etapa = 'beta';
+const String etapa = 'pre-release';
 
 /// Cómo se escribe delante del número. Vacía en la etapa estable.
 const Map<String, String> etiquetaEtapa = {
+  'pre-release': 'Pre-release',
   'alfa': 'Alfa',
   'beta': 'Beta',
   'estable': '',

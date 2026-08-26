@@ -14,10 +14,11 @@
  * publicación. Los tres tienen que decir lo mismo; el procedimiento está en
  * `docs/PUBLICAR_VERSION.md`.
  */
-export const ETAPA = 'beta' as const;
+export const ETAPA = 'pre-release' as const;
 
 /** Cómo se escribe delante del número. Vacío en la etapa estable. */
 export const ETIQUETA_ETAPA: Record<string, string> = {
+  'pre-release': 'Pre-release',
   alfa: 'Alfa',
   beta: 'Beta',
   estable: '',

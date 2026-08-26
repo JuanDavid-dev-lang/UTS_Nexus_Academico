@@ -150,7 +150,7 @@ Mover la carpeta en Dropbox no rompe nada; borrar los archivos y volver a subirl
 
 ---
 
-## 2. Etapas: alfa, beta, estable
+## 2. Etapas: pre-release, alfa, beta, estable
 
 El número de versión y la etapa contestan preguntas distintas y por eso se
 guardan separados.
@@ -163,10 +163,11 @@ La **etapa** dice en qué punto está el producto, y va dirigida a quien lo
 instala. No es lo mismo la 2.3.6 de algo terminado que la 2.3.6 de algo que
 todavía se está armando. Se muestran juntos —«Alfa 2.3.6»— y se guardan aparte.
 
-**Hoy estamos en `beta`.**
+**Hoy estamos en `pre-release`.**
 
 | Etapa | Qué significa |
 |---|---|
+| `pre-release` | Se entrega para probarlo. La numeración arranca de cero: lo publicado antes no es una versión anterior de esto. |
 | `alfa` | Se usa de verdad, pero puede cambiar de forma entre versiones. Cosas que faltan y cosas que se rompen. |
 | `beta` | Completa en funciones. Se arreglan fallos, no se añaden capacidades. |
 | `estable` | La etiqueta desaparece del nombre: se ve solo el número. |
@@ -186,6 +187,20 @@ tocar ningún otro sitio.
 Lo que **no** hay que hacer es meter la etapa dentro del número (`2.3.6-alfa`).
 El actualizador de Tauri y el `versionCode` de Android comparan versiones, y un
 sufijo ahí cambia el orden de una forma que ninguno de los dos promete respetar.
+
+> ⚠️ **Bajar el número rompe la cadena de actualización, y es irreversible para
+> lo ya instalado.** Los dos actualizadores solo ofrecen lo que sea **mayor**
+> que lo instalado: `tauri-plugin-updater` no instala una versión inferior, y
+> el móvil descarta la release en `compareVersions(latest, installed) <= 0`.
+>
+> El 26 de agosto de 2026 se pasó de `2.14.0` a `pre-release 0.1.0` **a
+> propósito**, reiniciando la numeración. Consecuencia asumida: quien tuviera
+> instalada la 2.14.0 no recibe nada y tiene que reinstalar desde la página de
+> descargas. El `versionCode` de Android sí siguió subiendo (34 → 35), porque
+> es independiente del número visible y sin eso el APK ni siquiera se instala
+> encima.
+>
+> A partir de aquí la numeración vuelve a ser creciente: `0.1.0` → `0.2.0` → …
 
 ---
 
