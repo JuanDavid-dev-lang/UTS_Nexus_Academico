@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ShieldCheck, UserMinus, UserRoundCog } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ShieldCheck, UserMinus, UserPlus, UserRoundCog } from 'lucide-react';
 import {
   AreasPicker,
   Badge,
@@ -26,6 +27,7 @@ import { registroRepository } from '@/infrastructure/repositories/academic.repos
 import { queryKeys } from '@/core/api/query-keys';
 import { useDebounce } from '@/shared/hooks/use-debounce';
 import { toast } from '@/state/toast.store';
+import { CUENTAS_PERSONAL_HASH } from '@/shared/lib/scroll-to-hash';
 import type { Role } from '@/domain/schemas/common';
 import type { UsuarioPersonal } from '@/domain/schemas/users';
 import type { Area, Programa } from '@/domain/schemas/registration';
@@ -111,6 +113,14 @@ export default function StaffPage() {
         eyebrow="Administración"
         title="Personal"
         subtitle="Define el rol de cada cuenta y las carreras de las que responde"
+        actions={
+          <Button asChild variant="primary">
+            <Link to={`/configuracion${CUENTAS_PERSONAL_HASH}`}>
+              <UserPlus aria-hidden />
+              Crear cuenta
+            </Link>
+          </Button>
+        }
       />
 
       <Card>

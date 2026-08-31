@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Check, LogOut, Monitor, Moon, Server, ShieldCheck, Sun, Wifi } from 'lucide-react';
 import {
@@ -25,6 +25,7 @@ import { normalizeServerUrl, env } from '@/core/config/env';
 import { toast } from '@/state/toast.store';
 import { modKeyLabel } from '@/shared/hooks/use-hotkeys';
 import { cn } from '@/shared/lib/cn';
+import { CUENTAS_PERSONAL_HASH, desplazarASeccion } from '@/shared/lib/scroll-to-hash';
 import { UpdateCard } from './components/update-card';
 import { RegistrationCard } from './components/registration-card';
 import { AccountsCard } from './components/accounts-card';
@@ -61,8 +62,13 @@ export default function SettingsPage() {
 
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => setServerDraft(serverUrl), [serverUrl]);
+
+  useEffect(() => {
+    if (location.hash === CUENTAS_PERSONAL_HASH) desplazarASeccion(location.hash);
+  }, [location.hash]);
 
   async function handleSaveServer() {
     setChecking(true);

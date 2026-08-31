@@ -732,6 +732,11 @@ los dicte quien los dicte, y ninguno de los demás. Se asignan en
 puede hacerlo administración: quien asigna carreras decide alcances, así que no
 lo mueve quien está debajo.
 
+En **Personal**, el botón **Crear cuenta** abre directamente ese formulario de
+Configuración. Los ejemplos de nombre y correo son solo guías; al intentar
+guardar, la aplicación marca cada campo obligatorio pendiente antes de enviar
+el alta a MongoDB mediante `POST /usuarios`.
+
 **Se asigna por área, no por título.** Una carrera de las UTS es una cadena
 propedéutica: Tecnología en Desarrollo de Sistemas Informáticos continúa en
 Ingeniería de Sistemas, con los mismos estudiantes avanzando de una a otra, así

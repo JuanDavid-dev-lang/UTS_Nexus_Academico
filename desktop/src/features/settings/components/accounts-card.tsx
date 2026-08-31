@@ -23,6 +23,7 @@ import { can } from '@/core/auth/permissions';
 import { useUserRole } from '@/state/session.store';
 import { toast } from '@/state/toast.store';
 import { REGLAS_CONTRASENA, contrasenaValida } from '@/shared/lib/password-rules';
+import { CUENTAS_PERSONAL_HASH } from '@/shared/lib/scroll-to-hash';
 import type { Role } from '@/domain/schemas/common';
 
 /**
@@ -42,12 +43,36 @@ import type { Role } from '@/domain/schemas/common';
 
 const VACIO = { fullName: '', email: '', password: '', role: 'PROFESSOR' as Role };
 
+function erroresDeCuenta(form: typeof VACIO) {
+  const fullName = form.fullName.trim();
+  const email = form.email.trim();
+
+  return {
+    fullName:
+      fullName.length < 3
+        ? 'Escribe al menos 3 caracteres.'
+        : fullName.length > 120
+          ? 'El nombre admite hasta 120 caracteres.'
+          : undefined,
+    email:
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254
+        ? 'Escribe un correo válido.'
+        : undefined,
+    password: !contrasenaValida(form.password)
+      ? 'Cumple las cuatro reglas de contraseña indicadas abajo.'
+      : form.password.length > 128
+        ? 'La contraseña admite hasta 128 caracteres.'
+        : undefined,
+  };
+}
+
 export function AccountsCard() {
   const role = useUserRole();
   const queryClient = useQueryClient();
   const [form, setForm] = useState(VACIO);
   const [programas, setProgramas] = useState<string[]>([]);
   const [verClave, setVerClave] = useState(false);
+  const [intentoCrear, setIntentoCrear] = useState(false);
 
   const roles = useQuery({
     queryKey: queryKeys.users.roles(),
@@ -77,6 +102,7 @@ export function AccountsCard() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.coordination.all });
       setForm(VACIO);
       setProgramas([]);
+      setIntentoCrear(false);
       toast.success(
         'Cuenta creada',
         `${item.fullName} ya puede entrar con ${item.email}.`,
@@ -90,14 +116,18 @@ export function AccountsCard() {
   if (!can(role, 'staff.manage')) return null;
 
   const porPrograma = form.role === 'COORDINATOR' || form.role === 'SECRETARY';
-  const claveValida = contrasenaValida(form.password);
-  const listo =
-    form.fullName.trim().length >= 3 && form.email.trim().includes('@') && claveValida;
+  const errores = erroresDeCuenta(form);
+
+  function handleCrear() {
+    setIntentoCrear(true);
+    if (errores.fullName || errores.email || errores.password) return;
+    crear.mutate();
+  }
 
   const descripcionRol = roles.data?.find((item) => item.id === form.role)?.descripcion;
 
   return (
-    <Card>
+    <Card id={CUENTAS_PERSONAL_HASH.slice(1)} className="scroll-mt-6">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <UserPlus className="size-5 text-muted" aria-hidden />
@@ -113,121 +143,151 @@ export function AccountsCard() {
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="flex flex-col gap-4">
-        <div className="grid gap-3 @xl:grid-cols-2">
-          <Field label="Nombre completo">
-            {(props) => (
-              <Input
-                {...props}
-                value={form.fullName}
-                onChange={(event) => setForm({ ...form, fullName: event.target.value })}
-                placeholder="María Fernanda Ortiz"
-              />
-            )}
-          </Field>
-
-          <Field label="Correo institucional">
-            {(props) => (
-              <Input
-                {...props}
-                type="email"
-                value={form.email}
-                onChange={(event) => setForm({ ...form, email: event.target.value })}
-                placeholder="coordinacion.sistemas@uts.edu.co"
-              />
-            )}
-          </Field>
-
-          <Field label="Rol">
-            {(props) => (
-              <NativeSelect
-                {...props}
-                value={form.role}
-                onChange={(event) => setForm({ ...form, role: event.target.value as Role })}
-              >
-                {(roles.data ?? [])
-                  // Un estudiante no se crea aquí: su cuenta cuelga de la ficha
-                  // del estudiante, y una sin vincular no ve ni su expediente.
-                  .filter((item) => item.id !== 'STUDENT')
-                  .map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.nombre}
-                    </option>
-                  ))}
-              </NativeSelect>
-            )}
-          </Field>
-
-          <Field label="Contraseña inicial">
-            {(props) => (
-              <div className="flex gap-2">
+      <CardContent>
+        <form
+          noValidate
+          className="flex flex-col gap-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            handleCrear();
+          }}
+        >
+          <div className="grid gap-3 @xl:grid-cols-2">
+            <Field
+              label="Nombre completo"
+              required
+              error={intentoCrear ? errores.fullName : undefined}
+            >
+              {(props) => (
                 <Input
                   {...props}
-                  type={verClave ? 'text' : 'password'}
-                  value={form.password}
-                  onChange={(event) => setForm({ ...form, password: event.target.value })}
-                  placeholder="La que le vas a entregar"
-                  autoComplete="new-password"
+                  value={form.fullName}
+                  onChange={(event) => setForm({ ...form, fullName: event.target.value })}
+                  placeholder="Ej.: María Fernanda Ortiz"
+                  autoComplete="name"
+                  required
                 />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setVerClave((visible) => !visible)}
-                  aria-label={verClave ? 'Ocultar la contraseña' : 'Ver la contraseña'}
+              )}
+            </Field>
+
+            <Field
+              label="Correo institucional"
+              required
+              error={intentoCrear ? errores.email : undefined}
+            >
+              {(props) => (
+                <Input
+                  {...props}
+                  type="email"
+                  value={form.email}
+                  onChange={(event) => setForm({ ...form, email: event.target.value })}
+                  placeholder="Ej.: coordinacion.sistemas@uts.edu.co"
+                  autoComplete="email"
+                  required
+                />
+              )}
+            </Field>
+
+            <Field label="Rol" required>
+              {(props) => (
+                <NativeSelect
+                  {...props}
+                  value={form.role}
+                  onChange={(event) => setForm({ ...form, role: event.target.value as Role })}
+                  required
                 >
-                  {verClave ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                </Button>
-              </div>
-            )}
-          </Field>
-        </div>
+                  {(roles.data ?? [])
+                    // Un estudiante no se crea aquí: su cuenta cuelga de la ficha
+                    // del estudiante, y una sin vincular no ve ni su expediente.
+                    .filter((item) => item.id !== 'STUDENT')
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.nombre}
+                      </option>
+                    ))}
+                </NativeSelect>
+              )}
+            </Field>
 
-        {descripcionRol && (
-          <p className="text-caption text-muted">{descripcionRol}</p>
-        )}
-
-        {/* Las reglas se ven mientras se escribe: enterarse de la política por
-            un 400 después de rellenar el formulario entero es la peor forma. */}
-        {form.password.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {REGLAS_CONTRASENA.map((regla) => (
-              <Badge key={regla.texto} tone={regla.cumple(form.password) ? 'success' : 'neutral'}>
-                <KeyRound className="size-3" aria-hidden />
-                {regla.texto}
-              </Badge>
-            ))}
+            <Field
+              label="Contraseña inicial"
+              required
+              error={intentoCrear ? errores.password : undefined}
+            >
+              {(props) => (
+                <div className="flex gap-2">
+                  <Input
+                    {...props}
+                    type={verClave ? 'text' : 'password'}
+                    value={form.password}
+                    onChange={(event) => setForm({ ...form, password: event.target.value })}
+                    placeholder="La que le vas a entregar"
+                    autoComplete="new-password"
+                    required
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setVerClave((visible) => !visible)}
+                    aria-label={verClave ? 'Ocultar la contraseña' : 'Ver la contraseña'}
+                  >
+                    {verClave ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </Button>
+                </div>
+              )}
+            </Field>
           </div>
-        )}
 
-        {porPrograma && (
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <Users className="size-4 text-muted" aria-hidden />
-              <p className="text-body font-medium text-text">Carreras a cargo</p>
+          {descripcionRol && (
+            <p className="text-caption text-muted">{descripcionRol}</p>
+          )}
+
+          {/* Las reglas se ven mientras se escribe: enterarse de la política por
+              un 400 después de rellenar el formulario entero es la peor forma. */}
+          {form.password.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {REGLAS_CONTRASENA.map((regla) => (
+                <Badge key={regla.texto} tone={regla.cumple(form.password) ? 'success' : 'neutral'}>
+                  <KeyRound className="size-3" aria-hidden />
+                  {regla.texto}
+                </Badge>
+              ))}
             </div>
-            <p className="text-caption text-muted">
-              {programas.length === 0
-                ? 'Sin ninguna marcada, la cuenta verá la institución completa.'
-                : `Verá los grupos, docentes y estudiantes de ${resumenDeSeleccion(
-                    catalogo.data?.areas ?? [],
-                    programas,
-                  ).toLowerCase()}.`}
-            </p>
-            <AreasPicker
-              areas={catalogo.data?.areas ?? []}
-              programas={catalogo.data?.programas ?? []}
-              seleccion={programas}
-              onChange={setProgramas}
-            />
-          </div>
-        )}
+          )}
 
-        <div className="flex items-center justify-end gap-2">
-          <Button onClick={() => crear.mutate()} disabled={!listo || crear.isPending}>
-            <UserPlus className="size-4" aria-hidden />
-            {crear.isPending ? 'Creando…' : 'Crear cuenta'}
-          </Button>
-        </div>
+          {porPrograma && (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <Users className="size-4 text-muted" aria-hidden />
+                <p className="text-body font-medium text-text">Carreras a cargo</p>
+              </div>
+              <p className="text-caption text-muted">
+                {programas.length === 0
+                  ? 'Sin ninguna marcada, la cuenta verá la institución completa.'
+                  : `Verá los grupos, docentes y estudiantes de ${resumenDeSeleccion(
+                      catalogo.data?.areas ?? [],
+                      programas,
+                    ).toLowerCase()}.`}
+              </p>
+              <AreasPicker
+                areas={catalogo.data?.areas ?? []}
+                programas={catalogo.data?.programas ?? []}
+                seleccion={programas}
+                onChange={setProgramas}
+              />
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-caption text-muted">
+              Los campos con <span className="text-danger">*</span> son obligatorios.
+            </p>
+            <Button type="submit" loading={crear.isPending}>
+              <UserPlus className="size-4" aria-hidden />
+              Crear cuenta
+            </Button>
+          </div>
+        </form>
       </CardContent>
     </Card>
   );
