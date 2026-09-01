@@ -15,6 +15,7 @@ El autorregistro de docentes en escritorio adoptó la misma línea de diseño de
 - **Niveles interactivos:** En lugar de casillas de verificación planas, los niveles (`Tecnológico` y `Profesional`) son botones seleccionables tipo credencial con respuesta visual inmediata.
 - **Buscador y acciones por lote en programas:** Cuando una facultad ofrece múltiples carreras, un buscador en vivo permite encontrar la titulación en segundos, acompañado de botones para marcar o desmarcar todo el bloque con un clic.
 - **Contraseña asistida y en vivo:** Cuatro insignias dinámicas evalúan los requisitos de seguridad institucionales (10+ caracteres, mayúscula, minúscula y número) mientras se escribe, junto a un botón para alternar entre ver u ocultar la clave.
+- **Desplazamiento fluido y contraste cuidado:** Altura delimitada a la ventana con scroll vertical interactivo mediante la rueda del ratón y trackpad, con amplio margen inferior para revisar las acciones finales, y textos de alto contraste en el panel lateral adaptados a modo claro y oscuro.
 - **Radicación clara:** Al enviar, la pantalla de éxito explica exactamente qué ocurre a continuación: la solicitud queda radicada y la cuenta se habilitará tras la revisión de coordinación o administración.
 
 ### 📱 Registro móvil rediseñado en el teléfono
