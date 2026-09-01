@@ -227,7 +227,7 @@ export default function RegisterPage() {
 
   return (
     <MarcoLayout panelLateral>
-      <div className="mx-auto w-full max-w-2xl py-8">
+      <div className="mx-auto w-full max-w-2xl py-4 pb-20">
         <div className="mb-6 flex items-center justify-between">
           <Link
             to="/login"
@@ -611,61 +611,65 @@ function MarcoLayout({
   panelLateral?: boolean;
 }) {
   return (
-    <div className="flex min-h-screen w-screen bg-bg">
+    <div className="flex h-screen w-screen overflow-hidden bg-bg">
       {panelLateral && (
-        <aside className="relative hidden w-80 flex-col justify-between overflow-hidden bg-primary p-10 text-on-primary lg:flex xl:w-96">
+        <aside className="relative hidden w-80 shrink-0 flex-col justify-between overflow-y-auto bg-primary p-8 text-on-primary lg:flex xl:w-96">
           <div
             aria-hidden
-            className="absolute -right-24 -top-24 size-96 rounded-full bg-accent/20 blur-3xl"
+            className="pointer-events-none absolute -right-24 -top-24 size-96 rounded-full bg-accent/20 blur-3xl"
           />
           <div
             aria-hidden
-            className="absolute -bottom-32 -left-16 size-96 rounded-full bg-accent/10 blur-3xl"
+            className="pointer-events-none absolute -bottom-32 -left-16 size-96 rounded-full bg-accent/10 blur-3xl"
           />
 
           <div className="relative flex items-center gap-3">
             <Logo size={44} alt="" />
             <div className="flex flex-col">
-              <span className="text-body font-bold leading-tight">UTS Nexus Académico</span>
-              <span className="text-caption opacity-80">Unidades Tecnológicas de Santander</span>
+              <span className="text-body font-bold leading-tight text-on-primary">UTS Nexus Académico</span>
+              <span className="text-caption text-on-primary/80">Unidades Tecnológicas de Santander</span>
             </div>
           </div>
 
-          <div className="relative flex flex-col gap-5">
-            <span className="inline-block rounded-full bg-white/10 px-3 py-1 text-caption font-semibold tracking-wide uppercase text-accent">
+          <div className="relative flex flex-col gap-4 py-6">
+            <span className="inline-block w-fit rounded-full bg-black/15 px-3 py-1 text-caption font-semibold tracking-wide uppercase text-on-primary">
               Convocatoria & Docencia
             </span>
-            <h2 className="text-h2 font-bold leading-tight">
+            <h2 className="text-h2 font-bold leading-tight text-on-primary">
               Forma parte de la comunidad académica UTS.
             </h2>
-            <p className="text-body leading-relaxed opacity-85">
+            <p className="text-body leading-relaxed text-on-primary/90">
               Gestiona tus calificaciones, el control de asistencia y el seguimiento a tus estudiantes en una plataforma ágil y moderna.
             </p>
 
-            <div className="mt-2 flex flex-col gap-3 text-caption opacity-90">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="size-4 shrink-0 text-accent" />
+            <div className="mt-2 flex flex-col gap-3 text-caption text-on-primary/95">
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="size-4 shrink-0 text-on-primary" />
                 <span>Adscripción oficial a tus sedes y facultades</span>
               </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="size-4 shrink-0 text-accent" />
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="size-4 shrink-0 text-on-primary" />
                 <span>Validación directa por parte de la coordinación</span>
               </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="size-4 shrink-0 text-accent" />
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="size-4 shrink-0 text-on-primary" />
                 <span>Cálculos automáticos bajo el reglamento institucional</span>
               </div>
             </div>
           </div>
 
-          <p className="relative flex items-center gap-2 text-caption opacity-75">
-            <ShieldCheck className="size-4" aria-hidden />
+          <p className="relative flex items-center gap-2 text-caption text-on-primary/80">
+            <ShieldCheck className="size-4 shrink-0" aria-hidden />
             Unidades Tecnológicas de Santander · Bucaramanga
           </p>
         </aside>
       )}
 
-      <main className="flex flex-1 items-start justify-center overflow-y-auto px-4 py-8 sm:px-8">
+      <main
+        className={`flex h-full min-h-0 flex-1 justify-center overflow-y-auto px-4 py-8 sm:px-8 ${
+          !panelLateral ? 'items-center' : 'items-start'
+        }`}
+      >
         {children}
       </main>
     </div>
