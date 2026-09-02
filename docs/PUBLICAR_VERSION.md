@@ -163,14 +163,14 @@ La **etapa** dice en qué punto está el producto, y va dirigida a quien lo
 instala. No es lo mismo la 2.3.6 de algo terminado que la 2.3.6 de algo que
 todavía se está armando. Se muestran juntos —«Alfa 2.3.6»— y se guardan aparte.
 
-**Hoy estamos en `pre-release`.**
+**Hoy estamos en etapa `estable` (versión `1.0.0`).**
 
 | Etapa | Qué significa |
 |---|---|
 | `pre-release` | Se entrega para probarlo. La numeración arranca de cero: lo publicado antes no es una versión anterior de esto. |
 | `alfa` | Se usa de verdad, pero puede cambiar de forma entre versiones. Cosas que faltan y cosas que se rompen. |
 | `beta` | Completa en funciones. Se arreglan fallos, no se añaden capacidades. |
-| `estable` | La etiqueta desaparece del nombre: se ve solo el número. |
+| `estable` | La etiqueta desaparece del nombre: se ve solo el número (ej. `1.0.0`). |
 
 Para cambiar de etapa hay que tocar **dos archivos**, y los dos tienen que
 coincidir:
@@ -202,35 +202,29 @@ sufijo ahí cambia el orden de una forma que ninguno de los dos promete respetar
 > ninguna actualización que aceptar, y ningún cambio en el servidor podía
 > arreglarlo — la comparación va **dentro** del binario instalado.
 >
-> La salida fue publicar `2.15.0` como **puente**: número mayor, así que la
-> 2.14.0 sí lo instala, y ese build es el primero que pide `allowDowngrades`
-> (escritorio) y compara `== 0` en vez de `<= 0` (móvil). **Desde la 2.15.0 en
-> adelante se instala lo que esté publicado, aunque el número baje**, así que
-> renumerar deja de dejar a nadie fuera.
+> La salida fue publicar `2.15.0` y `2.16.0` como **puente**: números mayores,
+> con soporte para `allowDowngrades` (escritorio) y comparación `== 0` en vez de
+> `<= 0` (móvil). **Desde la 2.15.0 en adelante se instala lo que esté publicado,
+> aunque el número baje**, lo cual hace posible renumerar a `1.0.0` sin dejar a
+> nadie fuera.
 >
 > Lo que sigue valiendo: el `versionCode` de Android **tiene que crecer siempre**
-> (34 → 35 → 36). Es independiente del número visible, y sin eso el sistema no
+> (36 → 37 → 38). Es independiente del número visible, y sin eso el sistema no
 > deja instalar el APK encima.
->
-> Y queda un salto que solo se da una vez y a mano: quien nunca instale el
-> puente se queda donde esté. El puente se publica **antes** de renumerar, no
-> después.
 
-### 2.1 Pasar a estable (`1.0.0`)
+### 2.1 Salto a versión definitiva (`1.0.0`)
 
-El plan es salir de `pre-release` con la numeración empezando en `1.0.0`. Como
-`1.0.0` es **menor** que el `2.15.0` del puente, esto solo funciona sobre
-clientes que ya tengan el puente instalado — que es exactamente para lo que se
-publicó. Orden:
+El producto ha salido de `pre-release` y queda configurado en `estable` con
+numeración canónica `1.0.0`:
 
-1. Comprobar que ya no queda nadie por debajo de la 2.15.0. Quien se quede atrás
-   no recibe la 1.0.0 y tiene que reinstalar una vez.
-2. Cambiar la etapa a `estable` en `version.ts` y `version.dart`. La etiqueta
-   queda vacía: el producto pasa a mostrarse como «1.0.0», sin adjetivo.
-3. Bajar el número a `1.0.0` en los cuatro archivos y subir el `versionCode` de
-   Android (**siempre hacia arriba**, sin importar el número visible).
-4. `node .github/scripts/comprobar-version.mjs v1.0.0` antes de etiquetar.
-5. Etiquetar y empujar como cualquier otra publicación.
+1. La etapa está en `estable` en `version.ts` y `version.dart`. La etiqueta
+   queda vacía: el producto se muestra limpiamente como «1.0.0».
+2. El número base está en `1.0.0` en los cuatro archivos y el `versionCode` de
+   Android se incrementó a `38`.
+3. `node .github/scripts/comprobar-version.mjs v1.0.0` valida la coherencia
+   de todos los archivos antes del etiquetado.
+4. Para publicar la versión definitiva cuando corresponda, se crea y empuja
+   el tag `v1.0.0`.
 
 > ⚠️ **Desde el puente, publicar una etiqueta vieja degrada a todo el mundo.**
 > Los clientes instalan lo que esté publicado, así que empujar por error un `v*`
