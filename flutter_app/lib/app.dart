@@ -35,6 +35,7 @@ import './features/subjects/subject_detail_page.dart';
 import './features/grades/grades_page.dart';
 import './features/feedback/feedback_page.dart';
 import './features/thesis/thesis_formats_page.dart';
+import './features/admin/admin_supervision_page.dart';
 
 /// Navigator raíz. Lo necesita [UpdateGate]: el `builder` de `MaterialApp` se
 /// dibuja por encima del Navigator del router, así que desde su contexto no hay
@@ -79,6 +80,7 @@ final router = GoRouter(
     // y el tutorial se abre en pantalla completa sobre cualquier estado.
     GoRoute(path: '/registro', builder: (_, __) => const RegisterPage()),
     GoRoute(path: '/tutorial', builder: (_, __) => const TutorialPage()),
+    GoRoute(path: '/admin-supervision', builder: (_, __) => const AdminSupervisionPage()),
 
     /// Shell con estado por pestaña.
     ///

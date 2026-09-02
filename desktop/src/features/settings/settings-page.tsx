@@ -32,6 +32,7 @@ import { AccountsCard } from './components/accounts-card';
 import { PasswordCard } from './components/password-card';
 import { DownloadsCard } from './components/downloads-card';
 import { NotificationsCard } from './components/notifications-card';
+import { AdminModeCard } from './components/admin-mode-card';
 
 const THEME_OPTIONS: { value: ThemePreference; label: string; description: string; Icon: typeof Sun }[] =
   [
@@ -220,6 +221,8 @@ export default function SettingsPage() {
       </Card>
 
       <NotificationsCard />
+
+      <AdminModeCard />
 
       {/* Crear cuentas va antes que la cola de autorregistro: es la vía por la
           que entran coordinación y secretaría, que no se autorregistran. */}

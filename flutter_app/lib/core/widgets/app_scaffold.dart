@@ -10,6 +10,7 @@ import '../telemetry/error_reporter.dart';
 import '../theme/app_theme.dart';
 import './offline_banner.dart';
 import './session_menu.dart';
+import '../admin/admin_mode_provider.dart';
 
 /// Estructura de navegación.
 ///
@@ -511,6 +512,27 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                 const SizedBox(height: AppSpacing.gap),
                 Divider(height: 1, color: palette.border),
                 const SizedBox(height: AppSpacing.gapSm),
+                if (ref.watch(isAdminModeActiveProvider))
+                  ListTile(
+                    leading: _IconoDeMenu(
+                      icono: Icons.admin_panel_settings_outlined,
+                      color: palette.primary,
+                      fondo: palette.primarySoft,
+                    ),
+                    title: const Text('Supervisión Admin'),
+                    subtitle: const Text(
+                      'Previsualización de docentes y cuentas',
+                    ),
+                    trailing: Icon(
+                      Icons.chevron_right,
+                      size: 18,
+                      color: palette.subtle,
+                    ),
+                    onTap: () {
+                      Navigator.of(contextoHoja).pop();
+                      context.push('/admin-supervision');
+                    },
+                  ),
                 if (userId != null)
                   ListTile(
                     leading: _IconoDeMenu(

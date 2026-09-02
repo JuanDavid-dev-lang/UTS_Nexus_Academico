@@ -21,6 +21,8 @@ import {
   GraduationCap,
   LayoutDashboard,
   Settings,
+  Shield,
+  ShieldCheck,
   UserCog,
   Users,
   UsersRound,
@@ -29,6 +31,7 @@ import { cn } from '@/shared/lib/cn';
 import { Logo } from '@/shared/ui/logo';
 import { Tooltip } from '@/shared/ui/primitives';
 import { useUserRole } from '@/state/session.store';
+import { useAdminModeStore, useIsAdminModeActive } from '@/state/admin-mode.store';
 import { can, type Capability } from '@/core/auth/permissions';
 import { useUnreadCount } from '@/features/notifications/hooks/use-notifications';
 import { profileRepository } from '@/infrastructure/repositories/profile.repository';
@@ -107,6 +110,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: 'Administración',
     items: [
+      { to: '/supervision-admin', label: 'Supervisión Cuentas y Docentes', icon: ShieldCheck, capability: 'staff.manage' },
       // Coordinación abre el grupo: para quien tiene ese rol es la pantalla de
       // entrada, no una herramienta ocasional.
       { to: '/coordinacion', label: 'Coordinación', icon: Building2, capability: 'coordination.read' },
@@ -140,7 +144,22 @@ export function Sidebar({
   });
   const esDirector = role === 'ADMIN' || role === 'COORDINATOR' || Boolean(perfil.data?.esDirectorTrabajoGrado);
 
+  const isAdminMode = useIsAdminModeActive();
+  const { toggleAdminMode } = useAdminModeStore();
+
   function visible(item: NavItem) {
+    if (role === 'ADMIN' && !isAdminMode) {
+      if (
+        item.to === '/supervision-admin' ||
+        item.to === '/personal' ||
+        item.to === '/docentes' ||
+        item.to === '/periodos' ||
+        item.to === '/auditoria' ||
+        item.to === '/estado-sistema'
+      ) {
+        return false;
+      }
+    }
     return (
       (!item.capability || can(role, item.capability)) &&
       (!item.requiresDirector || esDirector)
@@ -224,7 +243,22 @@ export function Sidebar({
         <Logo size={34} className="shrink-0" alt="" />
         {!collapsed ? (
           <div className="flex min-w-0 flex-col">
-            <span className="truncate text-body font-bold leading-tight text-text">UTS Nexus</span>
+            <div className="flex items-center gap-1.5">
+              <span className="truncate text-body font-bold leading-tight text-text">UTS Nexus</span>
+              {role === 'ADMIN' && (
+                <span
+                  className={cn(
+                    'rounded px-1 text-[9px] font-bold uppercase tracking-wider',
+                    isAdminMode
+                      ? 'bg-primary/20 text-primary'
+                      : 'bg-surface-alt text-muted',
+                  )}
+                  title={isAdminMode ? 'Modo Administrador activo' : 'Modo Normal activo'}
+                >
+                  {isAdminMode ? 'Admin' : 'Normal'}
+                </span>
+              )}
+            </div>
             {/* El acento de marca aparece exactamente una vez en el menú, aquí.
                 Repetido en cada sección dejaría de señalar nada. */}
             <span className="truncate text-caption font-semibold uppercase tracking-wide leading-tight text-accent-strong">
@@ -260,6 +294,28 @@ export function Sidebar({
       </nav>
 
       <div className="flex flex-col gap-0.5 border-t border-border p-2">
+        {role === 'ADMIN' && !collapsed && (
+          <button
+            type="button"
+            onClick={toggleAdminMode}
+            className={cn(
+              'mb-1 flex items-center justify-between rounded-lg px-2.5 py-1.5 text-caption font-medium transition-colors',
+              isAdminMode
+                ? 'bg-primary-soft/60 text-primary hover:bg-primary-soft'
+                : 'text-muted hover:bg-surface-alt hover:text-text',
+            )}
+            title="Alternar entre Modo Normal y Modo Administrador"
+          >
+            <span className="flex items-center gap-2">
+              <Shield className="size-3.5 shrink-0" aria-hidden />
+              <span>{isAdminMode ? 'Modo Admin' : 'Modo Normal'}</span>
+            </span>
+            <span className="rounded bg-primary/20 px-1 py-0.5 text-[9px] font-bold text-primary">
+              {isAdminMode ? 'ACTIVO' : 'ACTIVAR'}
+            </span>
+          </button>
+        )}
+
         {/* Configuración vive al pie y no dentro de «Administración»: no es una
             tarea de administrar la institución, es la de ajustar esta copia de
             la aplicación, y se busca en la esquina donde se busca siempre. */}

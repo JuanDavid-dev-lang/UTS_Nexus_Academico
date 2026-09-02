@@ -35,6 +35,7 @@ const AuditPage = lazy(() => import('@/features/audit/audit-page'));
 const HealthPage = lazy(() => import('@/features/system/health-page'));
 const CoordinationPage = lazy(() => import('@/features/coordination/coordination-page'));
 const StaffPage = lazy(() => import('@/features/staff/staff-page'));
+const SupervisionAdminPage = lazy(() => import('@/features/admin/supervision-page'));
 
 /** Blocks the app routes until the session is known to be valid. */
 function RequireAuth() {
@@ -90,6 +91,7 @@ export const router = createBrowserRouter([
           { path: '/estado-sistema', element: <HealthPage /> },
           { path: '/notificaciones', element: <NotificationsPage /> },
           { path: '/configuracion', element: <SettingsPage /> },
+          { path: '/supervision-admin', element: <SupervisionAdminPage /> },
         ],
       },
     ],

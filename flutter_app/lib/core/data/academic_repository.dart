@@ -359,4 +359,22 @@ class AcademicRepository {
     final response = await _api.post('/students/bulk', data: rows);
     return _items(response.data).length;
   }
+
+  /// Listado administrativo de docentes (solo ADMIN o COORDINATOR).
+  Future<List<Map<String, dynamic>>> listProfessors({String? query, String? programa}) async {
+    final response = await _api.get('/professors', query: {
+      if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
+      if (programa != null && programa.trim().isNotEmpty) 'programa': programa.trim(),
+    });
+    return _items(response.data);
+  }
+
+  /// Listado administrativo de cuentas/usuarios (solo ADMIN).
+  Future<List<Map<String, dynamic>>> listUsers({String? role, String? query}) async {
+    final response = await _api.get('/usuarios', query: {
+      if (role != null && role.isNotEmpty) 'role': role,
+      if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
+    });
+    return _items(response.data);
+  }
 }

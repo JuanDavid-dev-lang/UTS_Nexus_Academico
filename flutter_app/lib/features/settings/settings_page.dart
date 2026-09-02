@@ -10,6 +10,8 @@ import '../../core/widgets/ui_kit.dart';
 import './widgets/notifications_section.dart';
 import './widgets/password_section.dart';
 import './widgets/update_section.dart';
+import '../../core/auth/auth_controller.dart';
+import '../../core/admin/admin_mode_provider.dart';
 
 /// Ajustes.
 ///
@@ -52,6 +54,74 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       body: ListView(
         padding: AppSpacing.pagePadding,
         children: [
+          if (ref.watch(authControllerProvider).user?.role == 'ADMIN') ...[
+            _SectionLabel('Modo de Interfaz Administrador', muted: muted),
+            AppCard(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: ref.watch(adminModeProvider)
+                              ? AppColors.primarySoft
+                              : (isDark ? Colors.grey.shade800 : Colors.grey.shade200),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.admin_panel_settings_outlined,
+                          color: ref.watch(adminModeProvider)
+                              ? AppColors.primary
+                              : muted,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              ref.watch(adminModeProvider)
+                                  ? 'Modo Administrador Activo'
+                                  : 'Modo Normal (Admin)',
+                              style: AppType.bodyStrong,
+                            ),
+                            Text(
+                              ref.watch(adminModeProvider)
+                                  ? 'Supervisión de docentes y cuentas activada.'
+                                  : 'Vista simplificada de trabajo académico.',
+                              style: AppType.caption.copyWith(color: muted),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch(
+                        value: ref.watch(adminModeProvider),
+                        onChanged: (val) =>
+                            ref.read(adminModeProvider.notifier).set(val),
+                      ),
+                    ],
+                  ),
+                  if (ref.watch(adminModeProvider)) ...[
+                    const Divider(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.tonalIcon(
+                        onPressed: () => context.push('/admin-supervision'),
+                        icon: const Icon(Icons.travel_explore_outlined, size: 18),
+                        label: const Text('Supervisión de Cuentas y Docentes'),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 22),
+          ],
           _SectionLabel('Servidor', muted: muted),
           AppCard(
             child: Column(
