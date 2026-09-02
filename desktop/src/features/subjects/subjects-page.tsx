@@ -92,13 +92,16 @@ export default function SubjectsPage() {
     );
   }, [subjects.data, debouncedQuery]);
 
-  /** Grouping by period keeps the current semester visually separate. */
+  /** Grouping by period keeps the current semester visually separate and sorted by code. */
   const byPeriod = useMemo(() => {
     const groups = new Map<string, Subject[]>();
     for (const subject of filtered) {
       const list = groups.get(subject.period) ?? [];
       list.push(subject);
       groups.set(subject.period, list);
+    }
+    for (const list of groups.values()) {
+      list.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
     }
     return [...groups.entries()].sort(([left], [right]) => right.localeCompare(left));
   }, [filtered]);

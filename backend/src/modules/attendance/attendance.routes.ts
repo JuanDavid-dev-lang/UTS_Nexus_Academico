@@ -4,6 +4,9 @@ import { z } from 'zod';
 import * as campo from '../../shared/validation.js';
 import { AttendanceModel } from '../../models/attendance.model.js';
 import { ScheduleModel } from '../../models/schedule.model.js';
+import { EnrollmentModel } from '../../models/enrollment.model.js';
+import { SubjectModel } from '../../models/subject.model.js';
+import { GroupModel } from '../../models/group.model.js';
 import { identificar, requireRole } from '../../middlewares/auth.js';
 import { auditChange } from '../../shared/audit.js';
 import { emitSync } from '../../shared/socket.js';
@@ -65,6 +68,32 @@ attendanceRouter.post('/', requireRole('ADMIN', 'PROFESSOR'), async (req, res, n
       if (!scope.subjectIds.includes(body.subjectId)) return res.status(403).json({ ok: false, message: 'Subject not assigned' });
       if (!scope.studentIds.includes(body.studentId)) return res.status(403).json({ ok: false, message: 'Student not assigned' });
       if (body.groupId && !scope.groupIds.includes(body.groupId)) return res.status(403).json({ ok: false, message: 'Group not assigned' });
+
+      // Verificar que el estudiante esté realmente matriculado en ESTA materia
+      const matriculado = await EnrollmentModel.exists({
+        studentId: body.studentId,
+        subjectId: body.subjectId,
+        period: body.period,
+        ...(body.groupId ? { groupId: body.groupId } : {}),
+        deletedAt: null,
+        enrollmentStatus: 'ACTIVE',
+      });
+      if (!matriculado) {
+        const legacySubject = await SubjectModel.exists({
+          _id: body.subjectId,
+          studentIds: body.studentId,
+          deletedAt: null,
+        });
+        const legacyGroup = body.groupId
+          ? await GroupModel.exists({ _id: body.groupId, studentIds: body.studentId, deletedAt: null })
+          : false;
+        if (!legacySubject && !legacyGroup) {
+          return res.status(403).json({
+            ok: false,
+            message: 'El estudiante no está matriculado en esta materia.',
+          });
+        }
+      }
     }
 
     const schedule = body.scheduleId

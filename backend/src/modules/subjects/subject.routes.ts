@@ -13,8 +13,16 @@ subjectRouter.use(identificar);
 
 subjectRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (_req, res, next) => {
   try {
-    const pagina = campo.paginacionCon(100).parse(_req.query);
+    const query = z
+      .object({
+        period: z.string().optional(),
+        q: z.string().trim().max(120).optional(),
+      })
+      .merge(campo.paginacionCon(100))
+      .parse(_req.query);
+
     let filter: Record<string, unknown> = { deletedAt: null };
+    if (query.period) filter.period = query.period;
     if (_req.user?.role === 'PROFESSOR') filter.professorId = _req.user.id;
     // Coordinación y secretaría ven las materias de sus programas, las dicte
     // quien las dicte. Con el alcance total (ADMIN, o sin programas asignados)
@@ -22,12 +30,17 @@ subjectRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (
     if (_req.alcance && !_req.alcance.total) {
       filter = acotarPorAlcance(filter, '_id', _req.alcance.subjectIds);
     }
-    const { skip, limit } = campo.saltoYTope(pagina);
+    if (query.q) {
+      const escaped = query.q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const term = new RegExp(escaped, 'i');
+      filter.$or = [{ name: term }, { code: term }];
+    }
+    const { skip, limit } = campo.saltoYTope(query);
     const [items, total] = await Promise.all([
       SubjectModel.find(filter).sort({ period: -1, code: 1 }).skip(skip).limit(limit).lean(),
       SubjectModel.countDocuments(filter),
     ]);
-    res.json(campo.respuestaPaginada(items, total, pagina));
+    res.json(campo.respuestaPaginada(items, total, query));
   } catch (err) {
     next(err);
   }

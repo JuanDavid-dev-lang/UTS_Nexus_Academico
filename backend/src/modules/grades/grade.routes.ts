@@ -9,7 +9,7 @@ import { EnrollmentModel } from '../../models/enrollment.model.js';
 import { identificar, requireRole } from '../../middlewares/auth.js';
 import { auditChange } from '../../shared/audit.js';
 import { emitToUser } from '../../shared/socket.js';
-import { getProfessorScope } from '../../shared/professor-scope.js';
+import { getProfessorScope, getEnrolledStudentIds } from '../../shared/professor-scope.js';
 import { filtroDeListado } from '../../domains/scope/professor-scope.js';
 import { acotarPorAlcance } from '../../domains/scope/program-scope.js';
 import {
@@ -103,6 +103,21 @@ gradeRouter.get('/consolidado', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR',
     }
 
     const studentIds = [...porEstudiante.keys()];
+    if (query.subjectId || query.groupId) {
+      const isProfessor = req.user?.role === 'PROFESSOR';
+      const enrolled = await getEnrolledStudentIds({
+        subjectId: query.subjectId,
+        groupId: query.groupId,
+        period: query.period,
+        professorId: isProfessor ? req.user!.id : undefined,
+      });
+      for (const id of enrolled) {
+        if (!porEstudiante.has(id)) {
+          studentIds.push(id);
+        }
+      }
+    }
+
     const students = await StudentModel.find({ _id: { $in: studentIds } })
       .select('code fullName')
       .lean();
@@ -110,7 +125,8 @@ gradeRouter.get('/consolidado', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR',
 
     const items = studentIds
       .map(id => {
-        const resumen = calcularNotaFinal(aNotasComponente(porEstudiante.get(id)!));
+        const notasEstudiante = porEstudiante.get(id) ?? [];
+        const resumen = calcularNotaFinal(aNotasComponente(notasEstudiante));
         const student = studentMap.get(id);
         return {
           studentId: id,
@@ -263,6 +279,26 @@ gradeRouter.post('/', requireRole('ADMIN', 'PROFESSOR'), async (req, res, next) 
       if (!scope.subjectIds.includes(body.subjectId)) return res.status(403).json({ ok: false, message: 'Subject not assigned' });
       if (!scope.studentIds.includes(body.studentId)) return res.status(403).json({ ok: false, message: 'Student not assigned' });
       if (body.groupId && !scope.groupIds.includes(body.groupId)) return res.status(403).json({ ok: false, message: 'Group not assigned' });
+
+      // Verificar que el estudiante esté formalmente matriculado en esta materia concreta
+      const matriculado = await EnrollmentModel.exists({
+        studentId: body.studentId,
+        subjectId: body.subjectId,
+        period: body.period,
+        ...(body.groupId ? { groupId: body.groupId } : {}),
+        deletedAt: null,
+        enrollmentStatus: 'ACTIVE',
+      });
+      if (!matriculado) {
+        const legacySubject = await SubjectModel.exists({
+          _id: body.subjectId,
+          studentIds: body.studentId,
+          deletedAt: null,
+        });
+        if (!legacySubject) {
+          return res.status(403).json({ ok: false, message: 'El estudiante no está matriculado en esta materia.' });
+        }
+      }
     }
 
     const key = {

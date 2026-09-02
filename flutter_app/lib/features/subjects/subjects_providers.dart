@@ -14,7 +14,11 @@ import '../../core/data/providers.dart';
 final periodSubjectsProvider = Provider<AsyncValue<List<Subject>>>((ref) {
   final period = ref.watch(selectedPeriodProvider);
   return ref.watch(subjectsProvider).whenData(
-        (subjects) => subjects.where((s) => s.period == period).toList(),
+        (subjects) {
+          final list = subjects.where((s) => s.period == period).toList();
+          list.sort((a, b) => a.code.compareTo(b.code));
+          return list;
+        },
       );
 });
 
@@ -33,7 +37,7 @@ final subjectRosterProvider =
   // cada materia de la lista.
   final results = await Future.wait([
     repository.enrollments(subjectId: subjectId, period: period),
-    repository.students(),
+    repository.students(subjectId: subjectId),
     repository.consolidated(period: period, subjectId: subjectId),
     ref.watch(risksProvider.future),
   ]);

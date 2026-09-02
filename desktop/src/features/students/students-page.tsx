@@ -61,6 +61,13 @@ export default function StudentsPage() {
   // asignatura sale de la matrícula, y recortar en el cliente una lista ya
   // mezclada daría el conjunto equivocado en cuanto un estudiante repita materia.
   const subjects = useSubjects();
+  const sortedSubjects = useMemo(() => {
+    return [...(subjects.data ?? [])].sort(
+      (a, b) =>
+        b.period.localeCompare(a.period) ||
+        a.code.localeCompare(b.code, undefined, { numeric: true }),
+    );
+  }, [subjects.data]);
   const students = useStudents(subjectFilter ? { subjectId: subjectFilter } : undefined);
   const createStudent = useCreateStudent();
   const updateStudent = useUpdateStudent();
@@ -300,9 +307,9 @@ export default function StudentsPage() {
           onChange={(event) => handleSubjectFilter(event.target.value)}
         >
           <option value="">Todas mis materias</option>
-          {(subjects.data ?? []).map((subject) => (
+          {sortedSubjects.map((subject) => (
             <option key={subject._id} value={subject._id}>
-              {subject.name}
+              {subject.code} · {subject.name}
             </option>
           ))}
         </NativeSelect>
