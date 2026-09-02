@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/admin/admin_mode_provider.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/data/providers.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/widgets/compact.dart';
 import '../../core/widgets/debounced_search_field.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
