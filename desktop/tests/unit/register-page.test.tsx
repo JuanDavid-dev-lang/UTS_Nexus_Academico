@@ -85,6 +85,11 @@ describe('pantalla de registro de docentes', () => {
     fireEvent.change(screen.getByLabelText(/Nombres/i), { target: { value: 'María Fernanda' } });
     fireEvent.change(screen.getByLabelText(/Apellidos/i), { target: { value: 'Ortiz Gómez' } });
 
+    // El catálogo del mock no trae instituciones: el campo cae al texto libre.
+    fireEvent.change(screen.getByLabelText(/Institución/i), {
+      target: { value: 'Universidad Industrial de Santander' },
+    });
+
     // Elegir sede y facultad
     fireEvent.change(screen.getByLabelText(/Sede institucional/i), { target: { value: 'BUCARAMANGA' } });
     fireEvent.change(screen.getByLabelText(/Facultad/i), { target: { value: 'NATURALES_INGENIERIAS' } });
@@ -117,6 +122,7 @@ describe('pantalla de registro de docentes', () => {
         facultad: 'NATURALES_INGENIERIAS',
         niveles: ['TECNOLOGICO'],
         programas: ['SIS-TEC'],
+        institucionSolicitada: 'Universidad Industrial de Santander',
         email: 'maria.ortiz@uts.edu.co',
         password: 'ClaveSegura2026',
       });
@@ -140,5 +146,42 @@ describe('pantalla de registro de docentes', () => {
     renderPage();
     await screen.findByText('El registro está cerrado');
     expect(screen.getByRole('link', { name: /Volver/i })).toHaveAttribute('href', '/login');
+  });
+
+  it('ofrece un selector cuando el catálogo trae instituciones, y "otra" abre el texto libre', async () => {
+    repositories.catalogo.mockResolvedValueOnce({
+      ok: true,
+      abierto: true,
+      sedes: [{ id: 'BUCARAMANGA', nombre: 'Bucaramanga' }],
+      facultades: [{ id: 'NATURALES_INGENIERIAS', nombre: 'Ciencias Naturales e Ingenierías' }],
+      niveles: [
+        { id: 'TECNOLOGICO', nombre: 'Tecnológico' },
+        { id: 'PROFESIONAL', nombre: 'Profesional' },
+      ],
+      programas: [
+        {
+          id: 'SIS-TEC',
+          nombre: 'Tecnología en Desarrollo de Sistemas Informáticos',
+          facultad: 'NATURALES_INGENIERIAS',
+          nivel: 'TECNOLOGICO',
+        },
+      ],
+      areas: [],
+      instituciones: [{ id: '1', institutionId: 'uts', nombre: 'Unidades Tecnológicas de Santander', sigla: 'UTS' }],
+    });
+
+    renderPage();
+    await screen.findByText('Registro de docentes');
+
+    // Con instituciones en el catálogo, el campo es un selector: no hay input
+    // de texto libre hasta que se elige la opción "otra".
+    expect(screen.queryByPlaceholderText(/Nombre de tu institución/i)).not.toBeInTheDocument();
+
+    const selector = screen.getByLabelText(/Institución/i);
+    fireEvent.change(selector, { target: { value: 'uts' } });
+    expect(screen.queryByPlaceholderText(/Escribe el nombre de tu institución/i)).not.toBeInTheDocument();
+
+    fireEvent.change(selector, { target: { value: '__otra__' } });
+    expect(screen.getByPlaceholderText(/Escribe el nombre de tu institución/i)).toBeVisible();
   });
 });

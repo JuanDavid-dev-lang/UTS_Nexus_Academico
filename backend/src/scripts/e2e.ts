@@ -77,6 +77,7 @@ const mongoose = (await import('mongoose')).default;
 const { app } = await import('../app.js');
 const { UserModel } = await import('../models/user.model.js');
 const bcrypt = (await import('bcryptjs')).default;
+const { asegurarPerfilesIniciales } = await import('../shared/institutions-bootstrap.js');
 
 // ── Utilidades de la suite ────────────────────────────────────────────────
 
@@ -133,6 +134,9 @@ async function pedir(
 const get = (ruta: string, token?: string) => pedir('GET', ruta, { token });
 const post = (ruta: string, body: unknown, token?: string) =>
   pedir('POST', ruta, { token, body });
+const put = (ruta: string, body: unknown, token?: string) =>
+  pedir('PUT', ruta, { token, body });
+const del = (ruta: string, token?: string) => pedir('DELETE', ruta, { token });
 const patch = (ruta: string, body: unknown, token?: string) =>
   pedir('PATCH', ruta, { token, body });
 
@@ -166,6 +170,9 @@ async function main() {
   console.log(`   Base de datos aislada: ${NOMBRE_BD}\n`);
 
   await mongoose.connect(process.env.MONGODB_URI!);
+  // Lo mismo que hace `server.ts` al arrancar: UTS, UIS y UDES existen antes
+  // de la primera petición, así que el registro tiene qué ofrecer.
+  await asegurarPerfilesIniciales();
 
   // El servidor escucha en un puerto que elige el sistema (`0`): dos suites en
   // paralelo, o una suite mientras alguien tiene `npm run dev` levantado, no
@@ -1037,6 +1044,229 @@ async function ejecutar(puerto: number) {
   );
   ok('Una cuenta de estudiante no se crea aquí → 400', estudianteDirecto.status === 400,
     `status ${estudianteDirecto.status}`);
+
+  // ── 20. Perfiles institucionales ────────────────────────────────────────
+  seccion('20) Perfiles institucionales');
+
+  const activas = await get('/instituciones/activas', docente);
+  const slugsActivas = (activas.json?.items ?? []).map((i: any) => i.institutionId).sort();
+  ok('UTS, UIS y UDES existen al arrancar sin ejecutar nada',
+    JSON.stringify(slugsActivas) === JSON.stringify(['udes', 'uis', 'uts']),
+    JSON.stringify(slugsActivas));
+
+  const catalogoInst = await get('/registro/catalogo');
+  ok('El catálogo del registro lista las instituciones activas',
+    (catalogoInst.json?.instituciones ?? []).length === 3,
+    `${(catalogoInst.json?.instituciones ?? []).length} instituciones`);
+
+  const utsPerfil = await get('/instituciones/uts', admin);
+  ok('UTS conserva los ponderados del motor (30/60/10 y 33/33/34)',
+    utsPerfil.status === 200 &&
+      JSON.stringify(utsPerfil.json?.item?.configuracionAcademica?.cortes?.map((c: any) => c.peso)) ===
+        JSON.stringify([0.33, 0.33, 0.34]) &&
+      JSON.stringify(utsPerfil.json?.item?.configuracionAcademica?.componentes?.map((c: any) => c.peso)) ===
+        JSON.stringify([0.3, 0.6, 0.1]),
+    JSON.stringify(utsPerfil.json?.item?.configuracionAcademica).slice(0, 160));
+  ok('Los docentes existentes quedaron vinculados a las UTS',
+    Number(utsPerfil.json?.item?.docentes ?? 0) >= 1, `docentes ${utsPerfil.json?.item?.docentes}`);
+
+  const udesPerfil = await get('/instituciones/udes', admin);
+  ok('UDES nace sin ponderados: los fija un administrador',
+    udesPerfil.status === 200 && udesPerfil.json?.item?.configuracionAcademica === null,
+    JSON.stringify(udesPerfil.json?.item?.configuracionAcademica));
+
+  const crearComoDocente = await post(
+    '/instituciones',
+    { institutionId: 'unab', nombre: 'Universidad Autónoma de Bucaramanga', sigla: 'UNAB' },
+    docente,
+  );
+  ok('Un docente no crea instituciones → 403', crearComoDocente.status === 403,
+    `status ${crearComoDocente.status}`);
+
+  const sinNombre = await post('/instituciones', { institutionId: 'x1', nombre: '  ', sigla: 'X1' }, admin);
+  ok('Sin nombre → 400', sinNombre.status === 400, `status ${sinNombre.status}`);
+
+  const siglaMala = await post(
+    '/instituciones',
+    { institutionId: 'unab', nombre: 'Universidad Autónoma de Bucaramanga', sigla: 'U N!' },
+    admin,
+  );
+  ok('Sigla inválida → 400', siglaMala.status === 400, `status ${siglaMala.status}`);
+
+  const duplicadaPorTildes = await post(
+    '/instituciones',
+    { institutionId: 'uts2', nombre: 'UNIDADES TECNOLOGICAS DE SANTANDER', sigla: 'UTS2' },
+    admin,
+  );
+  ok('El mismo nombre sin tildes ni mayúsculas → 409', duplicadaPorTildes.status === 409,
+    `status ${duplicadaPorTildes.status}`);
+
+  const idDuplicado = await post(
+    '/instituciones',
+    { institutionId: 'uis', nombre: 'Otra con el mismo id', sigla: 'OTRA' },
+    admin,
+  );
+  ok('Identificador duplicado → 409', idDuplicado.status === 409, `status ${idDuplicado.status}`);
+
+  const coincidencias = await get(
+    `/instituciones/coincidencias?nombre=${encodeURIComponent('Universidad de Santander UDES')}&sigla=USA`,
+    admin,
+  );
+  ok('Antes de crear se advierte del parecido con UDES',
+    (coincidencias.json?.items ?? []).some((c: any) => c.perfil?.institutionId === 'udes'),
+    JSON.stringify(coincidencias.json?.items ?? []).slice(0, 160));
+
+  const creada = await post(
+    '/instituciones',
+    {
+      institutionId: 'unab',
+      nombre: 'Universidad Autónoma de Bucaramanga',
+      sigla: 'unab',
+      aliases: ['Autónoma de Bucaramanga', 'Autonoma de Bucaramanga'],
+    },
+    admin,
+  );
+  ok('ADMIN crea una universidad nueva → 201', creada.status === 201, JSON.stringify(creada.json).slice(0, 140));
+  ok('La sigla se guarda en mayúsculas y los alias sin repetidos',
+    creada.json?.item?.sigla === 'UNAB' && (creada.json?.item?.aliases ?? []).length === 1,
+    JSON.stringify(creada.json?.item?.aliases));
+
+  const porAlias = await post(
+    '/instituciones',
+    { institutionId: 'autonoma', nombre: 'Autonoma de Bucaramanga', sigla: 'ADB' },
+    admin,
+  );
+  ok('Un alias registrado impide crear el duplicado → 409', porAlias.status === 409,
+    `status ${porAlias.status}`);
+
+  const catalogoConNueva = await get('/registro/catalogo');
+  ok('La universidad nueva aparece en el selector del registro sin tocar nada más',
+    (catalogoConNueva.json?.instituciones ?? []).some((i: any) => i.institutionId === 'unab'),
+    `${(catalogoConNueva.json?.instituciones ?? []).length} instituciones`);
+
+  const pesosMal = await put(
+    '/instituciones/unab/configuracion',
+    {
+      cortes: [{ numero: 1, nombre: 'Único', peso: 0.5 }],
+      componentes: [{ id: 'PARCIALES', nombre: 'Parciales', peso: 1 }],
+      notaMinima: 0, notaMaxima: 5, notaAprobacion: 3,
+    },
+    admin,
+  );
+  ok('Ponderados que no suman 100 % → 400', pesosMal.status === 400,
+    `status ${pesosMal.status} ${pesosMal.json?.message ?? ''}`);
+
+  const configurada = await put(
+    '/instituciones/unab/configuracion',
+    {
+      cortes: [
+        { numero: 1, nombre: 'Primer corte', peso: 0.5 },
+        { numero: 2, nombre: 'Segundo corte', peso: 0.5 },
+      ],
+      componentes: [
+        { id: 'TALLERES', nombre: 'Talleres', peso: 0.4 },
+        { id: 'EXAMEN', nombre: 'Examen', peso: 0.6 },
+      ],
+      notaMinima: 0, notaMaxima: 5, notaAprobacion: 3,
+    },
+    admin,
+  );
+  ok('ADMIN configura cortes y ponderados de la nueva',
+    configurada.status === 200 && configurada.json?.item?.configuracionAcademica?.cortes?.length === 2,
+    `status ${configurada.status}`);
+
+  const configComoDocente = await put(
+    '/instituciones/uts/configuracion',
+    { cortes: [], componentes: [], notaMinima: 0, notaMaxima: 5, notaAprobacion: 3 },
+    docente,
+  );
+  ok('Un docente no toca la configuración institucional → 403', configComoDocente.status === 403,
+    `status ${configComoDocente.status}`);
+
+  // Registro con una institución que no existe: queda como solicitud.
+  const solicitudOtra = await post('/registro', {
+    ...SOLICITUD,
+    cedula: '1098765433',
+    email: 'e2e-otra-universidad@uts.edu.co',
+    institucionSolicitada: 'Universidad Pontificia Bolivariana',
+  });
+  ok('Registro con institución escrita a mano → 201', solicitudOtra.status === 201,
+    JSON.stringify(solicitudOtra.json).slice(0, 120));
+
+  const solicitudPorAlias = await post('/registro', {
+    ...SOLICITUD,
+    cedula: '1098765434',
+    email: 'e2e-por-alias@uts.edu.co',
+    institucionSolicitada: 'autonoma de bucaramanga',
+  });
+  ok('Escribir un alias vincula a la institución existente → 201', solicitudPorAlias.status === 201,
+    `status ${solicitudPorAlias.status}`);
+
+  const inexistente = await post('/registro', {
+    ...SOLICITUD,
+    cedula: '1098765435',
+    email: 'e2e-inexistente@uts.edu.co',
+    institutionId: 'no-existe',
+  });
+  ok('Un institutionId que no existe → 400', inexistente.status === 400, `status ${inexistente.status}`);
+
+  const solicitudes = await get('/instituciones/solicitudes', admin);
+  const pendienteUpb = (solicitudes.json?.items ?? []).find(
+    (s: any) => s.email === 'e2e-otra-universidad@uts.edu.co',
+  );
+  ok('La institución pedida aparece en las solicitudes pendientes',
+    Boolean(pendienteUpb) && pendienteUpb.institucionSolicitada === 'Universidad Pontificia Bolivariana',
+    `${(solicitudes.json?.items ?? []).length} solicitudes`);
+  ok('La que coincidió con un alias no queda pendiente',
+    !(solicitudes.json?.items ?? []).some((s: any) => s.email === 'e2e-por-alias@uts.edu.co'));
+
+  const docentesUnab = await get('/instituciones/unab/docentes', admin);
+  ok('La institución lista a sus docentes vinculados',
+    (docentesUnab.json?.items ?? []).some((d: any) => d.email === 'e2e-por-alias@uts.edu.co'),
+    `${(docentesUnab.json?.items ?? []).length} docentes`);
+
+  const creadaDesdeSolicitud = await post(
+    `/instituciones/solicitudes/${pendienteUpb?.id}/crear`,
+    { institutionId: 'upb', nombre: 'Universidad Pontificia Bolivariana', sigla: 'UPB' },
+    admin,
+  );
+  ok('Crear el perfil desde la solicitud la vincula en el mismo paso',
+    creadaDesdeSolicitud.status === 201 && creadaDesdeSolicitud.json?.docente?.institucionSolicitada === null,
+    JSON.stringify(creadaDesdeSolicitud.json).slice(0, 160));
+
+  const cambioDocente = await patch(
+    `/instituciones/docentes/${pendienteUpb?.id}`,
+    { institutionId: 'unab' },
+    admin,
+  );
+  ok('ADMIN cambia la institución de un docente', cambioDocente.status === 200,
+    `status ${cambioDocente.status}`);
+
+  const borrarConDocentes = await del('/instituciones/unab', admin);
+  ok('Eliminar una institución con docentes → 409', borrarConDocentes.status === 409,
+    `status ${borrarConDocentes.status}`);
+
+  const desactivada = await patch('/instituciones/upb', { activa: false }, admin);
+  ok('Desactivar conserva el perfil', desactivada.status === 200 && desactivada.json?.item?.activa === false,
+    `status ${desactivada.status}`);
+  const catalogoSinUpb = await get('/registro/catalogo');
+  ok('Una institución desactivada deja de ofrecerse en el registro',
+    !(catalogoSinUpb.json?.instituciones ?? []).some((i: any) => i.institutionId === 'upb'));
+  const registroEnDesactivada = await post('/registro', {
+    ...SOLICITUD,
+    cedula: '1098765436',
+    email: 'e2e-desactivada@uts.edu.co',
+    institutionId: 'upb',
+  });
+  ok('Registrarse en una desactivada → 400', registroEnDesactivada.status === 400,
+    `status ${registroEnDesactivada.status}`);
+
+  const borrarSinDocentes = await del('/instituciones/upb', admin);
+  ok('Eliminar una sin registros relacionados → 200 (borrado lógico)',
+    borrarSinDocentes.status === 200, `status ${borrarSinDocentes.status}`);
+  const listaFinal = await get('/instituciones', admin);
+  ok('La eliminada no vuelve a listarse',
+    !(listaFinal.json?.items ?? []).some((i: any) => i.institutionId === 'upb'));
 }
 
 main().catch(async error => {

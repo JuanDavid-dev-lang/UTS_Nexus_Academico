@@ -233,6 +233,26 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
                   ),
                 ],
 
+                if (datos.institutionNombre != null || datos.institucionSolicitada != null) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.apartment_outlined, size: 16, color: muted),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          datos.institutionNombre != null
+                              ? 'Institución: ${datos.institutionNombre}'
+                                  '${datos.institutionSigla != null ? ' (${datos.institutionSigla})' : ''}'
+                              : 'Institución pendiente de aprobación: ${datos.institucionSolicitada}',
+                          style: AppType.caption.copyWith(color: muted),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+
                 const SizedBox(height: 20),
                 FilledButton(
                   onPressed: _guardando ? null : _guardar,

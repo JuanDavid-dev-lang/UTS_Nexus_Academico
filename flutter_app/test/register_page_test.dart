@@ -16,6 +16,8 @@ class MockRegistroService extends Fake implements RegistroService {
     required List<String> programas,
     required String email,
     required String password,
+    String? institutionId,
+    String? institucionSolicitada,
   })? onSolicitar;
 
   MockRegistroService({
@@ -37,6 +39,8 @@ class MockRegistroService extends Fake implements RegistroService {
     required List<String> programas,
     required String email,
     required String password,
+    String? institutionId,
+    String? institucionSolicitada,
   }) async {
     if (onSolicitar != null) {
       return onSolicitar!(
@@ -49,6 +53,8 @@ class MockRegistroService extends Fake implements RegistroService {
         programas: programas,
         email: email,
         password: password,
+        institutionId: institutionId,
+        institucionSolicitada: institucionSolicitada,
       );
     }
     return 'Solicitud radicada con éxito';
@@ -130,6 +136,8 @@ void main() {
         required List<String> programas,
         required String email,
         required String password,
+        String? institutionId,
+        String? institucionSolicitada,
       }) async {
         payloadEnviado = {
           'cedula': cedula,
@@ -141,6 +149,8 @@ void main() {
           'programas': programas,
           'email': email,
           'password': password,
+          'institutionId': institutionId,
+          'institucionSolicitada': institucionSolicitada,
         };
         return 'Solicitud radicada con éxito';
       },
@@ -153,6 +163,14 @@ void main() {
     await tester.enterText(find.widgetWithText(TextFormField, 'Cédula de ciudadanía'), '1098765432');
     await tester.enterText(find.widgetWithText(TextFormField, 'Nombres completos'), 'María Fernanda');
     await tester.enterText(find.widgetWithText(TextFormField, 'Apellidos completos'), 'Ortiz Gómez');
+
+    // El catálogo de prueba no trae instituciones: solo aparece el campo de
+    // texto libre.
+    await tester.ensureVisible(find.widgetWithText(TextFormField, 'Nombre de tu institución'));
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Nombre de tu institución'),
+      'Universidad Industrial de Santander',
+    );
 
     // Seleccionar sede y facultad
     await tester.ensureVisible(find.widgetWithText(DropdownButtonFormField<String>, 'Sede institucional'));
@@ -206,6 +224,8 @@ void main() {
     expect(payloadEnviado!['programas'], ['SIS_TEC']);
     expect(payloadEnviado!['email'], 'docente@uts.edu.co');
     expect(payloadEnviado!['password'], 'ClaveSegura2026');
+    expect(payloadEnviado!['institucionSolicitada'], 'Universidad Industrial de Santander');
+    expect(payloadEnviado!['institutionId'], isNull);
 
     // Pantalla de confirmación
     expect(find.text('¡Solicitud enviada!'), findsOneWidget);
@@ -215,4 +235,57 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Pantalla de Acceso'), findsOneWidget);
   });
+
+  testWidgets(
+    'con instituciones en el catálogo ofrece el desplegable y la opción "otra"',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final catalogoConInstituciones = Catalogo(
+        abierto: true,
+        sedes: catalogoPrueba.sedes,
+        facultades: catalogoPrueba.facultades,
+        niveles: catalogoPrueba.niveles,
+        programas: catalogoPrueba.programas,
+        instituciones: const [
+          InstitucionOpcion(
+            id: '1',
+            institutionId: 'uts',
+            nombre: 'Unidades Tecnológicas de Santander',
+            sigla: 'UTS',
+          ),
+          InstitucionOpcion(
+            id: '2',
+            institutionId: 'uis',
+            nombre: 'Universidad Industrial de Santander',
+            sigla: 'UIS',
+          ),
+        ],
+      );
+
+      final mockService = MockRegistroService(catalogoMock: catalogoConInstituciones);
+      await tester.pumpWidget(appCon(servicio: mockService));
+      await tester.pumpAndSettle();
+
+      // Con instituciones en el catálogo aparece el desplegable, no el campo
+      // de texto libre.
+      expect(find.widgetWithText(DropdownButtonFormField<String>, 'Institución'), findsOneWidget);
+      expect(find.widgetWithText(TextFormField, 'Nombre de tu institución'), findsNothing);
+
+      await tester.ensureVisible(find.widgetWithText(DropdownButtonFormField<String>, 'Institución'));
+      await tester.tap(find.widgetWithText(DropdownButtonFormField<String>, 'Institución'));
+      await tester.pumpAndSettle();
+      expect(find.text('Unidades Tecnológicas de Santander (UTS)'), findsWidgets);
+      expect(find.text('Universidad Industrial de Santander (UIS)'), findsWidgets);
+      expect(find.text('Otra institución (no está en la lista)'), findsWidgets);
+
+      // Elegir "otra" revela el campo de texto libre.
+      await tester.tap(find.text('Otra institución (no está en la lista)').last);
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(TextFormField, 'Nombre de tu institución'), findsOneWidget);
+    },
+  );
 }

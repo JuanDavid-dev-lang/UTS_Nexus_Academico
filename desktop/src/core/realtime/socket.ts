@@ -35,7 +35,8 @@ export type SyncEntity =
   | 'period'
   | 'attendanceCase'
   | 'clientError'
-  | 'user';
+  | 'user'
+  | 'institution';
 
 /**
  * Estado de la sincronización.
@@ -146,6 +147,12 @@ export const INVALIDATION_MAP: Record<SyncEntity, readonly (readonly unknown[])[
     queryKeys.profile.all,
     queryKeys.coordination.all,
   ],
+  /**
+   * Crear, editar o eliminar un perfil institucional cambia lo que ofrece el
+   * selector del registro (`registro`) y, si además reasigna a un docente, lo
+   * que ve su cuenta (`user`, por el mismo motivo que un cambio de rol).
+   */
+  institution: [queryKeys.institutions.all, queryKeys.registro.all, queryKeys.users.all],
 };
 
 let socket: Socket | null = null;

@@ -184,6 +184,46 @@ Mismo contrato de dos pasos que el listado y el escáner de asistencia: `POST /g
 ### Buzón de sugerencias (`/feedback`)
 El docente escribe (escritorio y móvil), ADMIN revisa y cambia el estado; al resolver/descartar se avisa al autor vía `crearNotificacion()` con `dedupeKey`. No confundir con `risk-feedback` (realimentación del modelo ML). Un docente solo ve lo suyo.
 
+### Perfiles institucionales (`/instituciones`)
+
+Las universidades **no están en el código**: son documentos de `instituciones`
+(`models/institution.model.ts`) que ADMIN crea desde la pantalla «Perfiles
+institucionales» (`/instituciones`) del escritorio, y el selector de `/registro` las lee de
+`GET /registro/catalogo` (`instituciones`, solo las activas). Añadir una no
+toca ningún cliente ni exige redesplegar.
+
+- `domains/institutions/institution-profile.ts` es la lógica pura, con pruebas:
+  `normalizarNombre()` (sin tildes, minúsculas, sin puntuación) decide qué es un
+  duplicado; `buscarCoincidencias()` distingue `exacta` (nombre, sigla o alias
+  ya usados: bloquea con 409) de `posible` (parecido: solo advierte);
+  `validarConfiguracionAcademica()` exige pesos en (0,1] que sumen 1 y una
+  escala coherente.
+- `institutionId` es un slug estable e **inmutable** (`uts`, `uis`, `udes`…), **generado por el servidor** desde la sigla (`unab`, `unab-2`… si ya existe): es
+  lo que usará UniPlanner. `_id` es el vínculo interno desde `Profesor.institutionId`.
+- **Solo UTS nace con configuración**, y se deriva de `RUBRICA`
+  (`configuracionDesdeRubrica()`), no se copia: una prueba fija que coinciden.
+  UIS, UDES y las nuevas nacen con `configuracionAcademica: null` hasta que un
+  administrador las configure. No inventar ponderados.
+- `shared/institutions-bootstrap.ts` corre en cada arranque (y en el seed y la
+  E2E): crea los tres perfiles **solo si faltan** —lo editado manda— y vincula
+  a UTS a los docentes sin institución y sin solicitud (antes de los perfiles
+  todas las cuentas eran UTS).
+- El registro acepta `institutionId` (activa) **o** `institucionSolicitada`
+  (texto libre). Si el texto coincide exactamente con nombre, sigla o alias de
+  una activa se vincula solo; si no, queda en `GET /instituciones/solicitudes`
+  y ADMIN la asocia a una existente o crea el perfil desde ahí. Sin ninguno de
+  los dos se asume UTS: un móvil anterior a esta capacidad no manda el campo.
+- Borrar es lógico y solo sin docentes vinculados (409 si los hay: lo que
+  corresponde es desactivar). Una desactivada no se ofrece en el registro ni
+  acepta `institutionId` a mano, pero conserva docentes e historial.
+- Un docente **nunca** edita su institución ni la configuración: `PATCH
+  /professors/me` no acepta el campo y todo `/instituciones` de escritura es
+  ADMIN. Coordinación y secretaría solo leen.
+- El motor de calificación sigue aplicando `RUBRICA` para todos; la
+  configuración por institución se guarda y valida, pero **todavía no
+  parametriza `domains/grading`**. Hacerlo es un cambio aparte (tipos
+  `CorteNumero = 1|2|3` y clientes que pintan tres cortes).
+
 ### Directores de trabajo de grado
 `esDirectorTrabajoGrado` en `Profesor` lo activa ADMIN/COORDINATOR desde la pantalla Docentes del escritorio (`PATCH /professors/:id`; nunca editable por `/me`). El middleware `requireDirector` consulta la ficha —no el token—, así que activar el flag surte efecto sin cerrar sesión. Los formatos oficiales (`/trabajos-grado/formatos`) se guardan en `backend/formatos/`, **fuera** de `uploads/` que es estático y público: se descargan solo por la ruta autenticada. El gate del menú en los dos clientes lee el flag del perfil (`sidebar.tsx` / `esDirectorProvider`).
 

@@ -3,6 +3,7 @@
  */
 import { z } from 'zod';
 import { mongoDoc } from './common';
+import { institucionPublicaSchema } from './institutions';
 
 // ── Catálogo institucional y registro de docentes ───────────────────────────
 
@@ -50,25 +51,47 @@ export const catalogoSchema = z.object({
   // Opcional: un backend anterior a las áreas no las manda, y la pantalla cae
   // a la lista de programas sueltos en vez de quedarse en blanco.
   areas: z.array(areaSchema).default([]),
+  // Opcional por la misma razón: un backend anterior a los perfiles
+  // institucionales no lo manda, y sin instituciones el formulario cae al
+  // input de texto libre en vez de quedarse sin nada que ofrecer.
+  instituciones: z.array(institucionPublicaSchema).default([]),
 });
 export type Catalogo = z.infer<typeof catalogoSchema>;
 
-export const solicitudRegistroSchema = z.object({
-  cedula: z.string().regex(/^\d{6,10}$/, 'La cédula debe tener entre 6 y 10 dígitos'),
-  nombres: z.string().min(2, 'Escribe tus nombres'),
-  apellidos: z.string().min(2, 'Escribe tus apellidos'),
-  sede: sedeId,
-  facultad: facultadId,
-  niveles: z.array(nivelId).min(1, 'Marca al menos un nivel'),
-  programas: z.array(z.string()).min(1, 'Elige al menos un programa'),
-  email: z.string().email('Correo inválido'),
-  password: z
-    .string()
-    .min(10, 'Mínimo 10 caracteres')
-    .regex(/[a-z]/, 'Incluye una minúscula')
-    .regex(/[A-Z]/, 'Incluye una mayúscula')
-    .regex(/\d/, 'Incluye un número'),
-});
+export const solicitudRegistroSchema = z
+  .object({
+    cedula: z.string().regex(/^\d{6,10}$/, 'La cédula debe tener entre 6 y 10 dígitos'),
+    nombres: z.string().min(2, 'Escribe tus nombres'),
+    apellidos: z.string().min(2, 'Escribe tus apellidos'),
+    sede: sedeId,
+    facultad: facultadId,
+    niveles: z.array(nivelId).min(1, 'Marca al menos un nivel'),
+    programas: z.array(z.string()).min(1, 'Elige al menos un programa'),
+    // Uno de los dos, nunca los dos: el slug de una institución activa, o el
+    // nombre escrito a mano cuando no está en la lista. El backend asume UTS
+    // si no llega ninguno (compatibilidad con clientes viejos); este cliente
+    // exige elegir uno de forma explícita, por eso el `superRefine`.
+    institutionId: z.string().optional(),
+    institucionSolicitada: z.string().max(160, 'Máximo 160 caracteres').optional(),
+    email: z.string().email('Correo inválido'),
+    password: z
+      .string()
+      .min(10, 'Mínimo 10 caracteres')
+      .regex(/[a-z]/, 'Incluye una minúscula')
+      .regex(/[A-Z]/, 'Incluye una mayúscula')
+      .regex(/\d/, 'Incluye un número'),
+  })
+  .superRefine((datos, ctx) => {
+    const tieneId = Boolean(datos.institutionId?.trim());
+    const tieneTexto = Boolean(datos.institucionSolicitada?.trim());
+    if (!tieneId && !tieneTexto) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['institutionId'],
+        message: 'Elige tu institución o escribe su nombre',
+      });
+    }
+  });
 export type SolicitudRegistro = z.infer<typeof solicitudRegistroSchema>;
 
 /** Solicitud tal como la ve quien la revisa. */

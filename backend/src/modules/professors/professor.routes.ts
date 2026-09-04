@@ -40,7 +40,11 @@ const perfilPropioSchema = z.object({
 /** Ficha del docente que hace la petición. */
 professorRouter.get('/me', requireRole('PROFESSOR', 'ADMIN', 'COORDINATOR'), async (req, res, next) => {
   try {
-    const item = await ProfessorModel.findOne({ userId: req.user?.id, deletedAt: null }).lean();
+    const item = await ProfessorModel.findOne({ userId: req.user?.id, deletedAt: null })
+      // La institución va poblada: el perfil muestra a qué universidad
+      // pertenece, y el docente no la edita (`PATCH /me` no la acepta).
+      .populate('institutionId', 'institutionId nombre sigla activa')
+      .lean();
     if (!item) return res.status(404).json({ ok: false, message: 'Sin ficha de docente' });
     res.json({ ok: true, item });
   } catch (err) {

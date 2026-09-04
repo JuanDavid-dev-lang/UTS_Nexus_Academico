@@ -24,6 +24,19 @@ const schema = new Schema(
     programas: { type: [String], default: [] },
 
     /**
+     * Institución a la que pertenece. Referencia a `Institucion`, que es un
+     * documento y no una enumeración: la administración la asigna o la cambia
+     * desde «Perfiles institucionales». Un docente nunca la edita: es la que
+     * decide con qué cortes y ponderados se lee su trabajo.
+     *
+     * `null` cuando el registro pidió una institución que todavía no existe;
+     * el nombre pedido queda en `institucionSolicitada` para que la
+     * administración la cree o la asocie a una existente.
+     */
+    institutionId: { type: Schema.Types.ObjectId, ref: 'Institucion', default: null, index: true },
+    institucionSolicitada: { type: String, default: null },
+
+    /**
      * Estado de la cuenta cuando llega por autorregistro.
      *
      * `PENDIENTE` mientras la administración no lo aprueba. No es burocracia:

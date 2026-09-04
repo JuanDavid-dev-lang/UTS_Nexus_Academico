@@ -102,6 +102,21 @@ describe('secretaría: coordinación sin escritura', () => {
   });
 });
 
+describe('perfiles institucionales', () => {
+  it('solo ADMIN gestiona instituciones', () => {
+    expect(can('ADMIN', 'institutions.manage')).toBe(true);
+    expect(can('COORDINATOR', 'institutions.manage')).toBe(false);
+    expect(can('SECRETARY', 'institutions.manage')).toBe(false);
+    expect(can('PROFESSOR', 'institutions.manage')).toBe(false);
+  });
+
+  it('coordinación y secretaría leen, sin escribir', () => {
+    expect(can('COORDINATOR', 'institutions.read')).toBe(true);
+    expect(can('SECRETARY', 'institutions.read')).toBe(true);
+    expect(can('SECRETARY', 'institutions.manage')).toBe(false);
+  });
+});
+
 describe('canAny', () => {
   it('passes when at least one capability is granted', () => {
     expect(canAny('STUDENT', ['grades.write', 'grades.read'])).toBe(true);

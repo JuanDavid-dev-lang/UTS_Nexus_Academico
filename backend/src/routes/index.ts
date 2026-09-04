@@ -32,6 +32,7 @@ import { timelineRouter } from '../modules/timeline/timeline.routes.js';
 import { telemetryRouter } from '../modules/telemetry/telemetry.routes.js';
 import { coordinationRouter } from '../modules/coordination/coordination.routes.js';
 import { userRouter } from '../modules/users/user.routes.js';
+import { institutionRouter } from '../modules/institutions/institution.routes.js';
 import { identificar, bloquearSoloLectura } from '../middlewares/auth.js';
 import { cargarAlcance } from '../middlewares/scope.js';
 
@@ -107,3 +108,6 @@ apiRouter.use('/telemetry', telemetryRouter);
 apiRouter.use('/coordinacion', coordinationRouter);
 // Alta y gestión del personal: quién es qué rol y de qué programas responde.
 apiRouter.use('/usuarios', userRouter);
+// Perfiles institucionales: universidades creadas desde el panel, sus cortes
+// y ponderados, y qué docente pertenece a cuál. Solo ADMIN escribe.
+apiRouter.use('/instituciones', institutionRouter);

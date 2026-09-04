@@ -33,6 +33,31 @@ class Programa {
       );
 }
 
+/// Una institución activa que un docente puede elegir al registrarse.
+///
+/// `institutionId` es el slug estable (uts, uis, udes...); `id` es el `_id`
+/// de Mongo. El formulario envía el slug, no el `_id`.
+class InstitucionOpcion {
+  final String id;
+  final String institutionId;
+  final String nombre;
+  final String sigla;
+
+  const InstitucionOpcion({
+    required this.id,
+    required this.institutionId,
+    required this.nombre,
+    required this.sigla,
+  });
+
+  factory InstitucionOpcion.fromJson(Map<String, dynamic> json) => InstitucionOpcion(
+        id: (json['id'] ?? '').toString(),
+        institutionId: (json['institutionId'] ?? '').toString(),
+        nombre: (json['nombre'] ?? '').toString(),
+        sigla: (json['sigla'] ?? '').toString(),
+      );
+}
+
 /// Catálogo institucional. Lo sirve el backend sin exigir sesión, porque el
 /// formulario de registro lo necesita antes de que exista la cuenta.
 class Catalogo {
@@ -42,12 +67,17 @@ class Catalogo {
   final List<Opcion> niveles;
   final List<Programa> programas;
 
+  /// Instituciones activas. Lista vacía si el backend todavía no la manda
+  /// (campo opcional, compatibilidad con versiones anteriores del servidor).
+  final List<InstitucionOpcion> instituciones;
+
   const Catalogo({
     required this.abierto,
     required this.sedes,
     required this.facultades,
     required this.niveles,
     required this.programas,
+    this.instituciones = const [],
   });
 
   factory Catalogo.fromJson(Map<String, dynamic> json) {
@@ -63,6 +93,7 @@ class Catalogo {
       facultades: lista('facultades', Opcion.fromJson),
       niveles: lista('niveles', Opcion.fromJson),
       programas: lista('programas', Programa.fromJson),
+      instituciones: lista('instituciones', InstitucionOpcion.fromJson),
     );
   }
 
@@ -90,6 +121,10 @@ class RegistroService {
   }
 
   /// Envía la solicitud. Devuelve el mensaje que hay que mostrarle a la persona.
+  ///
+  /// [institutionId] (slug de una institución activa) e [institucionSolicitada]
+  /// (nombre escrito a mano) son mutuamente excluyentes: solo se manda al
+  /// servidor el que no sea nulo ni esté vacío.
   Future<String> solicitar({
     required String cedula,
     required String nombres,
@@ -100,6 +135,8 @@ class RegistroService {
     required List<String> programas,
     required String email,
     required String password,
+    String? institutionId,
+    String? institucionSolicitada,
   }) async {
     final r = await _api.post('/registro', data: {
       'cedula': cedula,
@@ -111,6 +148,10 @@ class RegistroService {
       'programas': programas,
       'email': email,
       'password': password,
+      if (institutionId != null && institutionId.trim().isNotEmpty)
+        'institutionId': institutionId.trim()
+      else if (institucionSolicitada != null && institucionSolicitada.trim().isNotEmpty)
+        'institucionSolicitada': institucionSolicitada.trim(),
     });
     final d = r.data;
     if (d is Map && d['message'] is String) return d['message'] as String;

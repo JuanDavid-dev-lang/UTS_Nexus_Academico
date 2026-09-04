@@ -14,6 +14,7 @@ import { ActivityModel } from '../models/activity.model.js';
 import { ScheduleModel } from '../models/schedule.model.js';
 import { NotificationModel } from '../models/notification.model.js';
 import type { Role } from '../shared/types.js';
+import { asegurarPerfilesIniciales } from '../shared/institutions-bootstrap.js';
 
 /**
  * Contraseña de las cuentas sembradas.
@@ -69,6 +70,9 @@ async function upsertUser(input: {
 async function main() {
   // connectDbOrThrow ya valida MONGODB_URI y fija strictQuery.
   await connectDbOrThrow();
+  // Perfiles institucionales (UTS con su configuración, UIS y UDES sin ella)
+  // antes que las cuentas: el docente demo nace vinculado a las UTS.
+  await asegurarPerfilesIniciales();
 
   // Se crean por su efecto: la demo necesita las tres cuentas, pero solo la del
   // docente se referencia más abajo.

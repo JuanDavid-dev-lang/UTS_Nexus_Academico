@@ -22,6 +22,15 @@ import {
   validarAdscripcion,
 } from '../../domains/catalog/uts.js';
 import { passwordNueva } from '../../shared/validation.js';
+import {
+  ErrorInstitucion,
+  listarActivas,
+  resolverInstitucionDeRegistro,
+} from '../institutions/institution.service.js';
+import {
+  INSTITUTION_ID_UTS,
+  LIMITES as LIMITES_INSTITUCION,
+} from '../../domains/institutions/institution-profile.js';
 
 /**
  * Autorregistro de docentes.
@@ -64,6 +73,10 @@ registrationRouter.get('/catalogo', async (_req, res, next) => {
       // ruta nueva: es el mismo dato, y una segunda ruta significa dos consultas
       // que pueden contestar cosas distintas.
       areas: AREAS,
+      // Instituciones activas, leídas de la base: una universidad creada desde
+      // el panel aparece aquí sin tocar el código ni redesplegar. Las
+      // desactivadas no se ofrecen; sus docentes y su historial siguen ahí.
+      instituciones: await listarActivas(),
     });
   } catch (err) {
     next(err);
@@ -124,6 +137,14 @@ const solicitud = z.object({
   // La política vive en `shared/validation.js`, compartida con el alta que
   // hace la administración y con la recuperación de contraseña.
   password: passwordNueva,
+  /**
+   * Institución: el id estable de una activa, o el nombre escrito a mano si
+   * no estaba en el selector. Los dos opcionales en el esquema —un móvil
+   * anterior a los perfiles no manda ninguno— y resueltos en
+   * `resolverInstitucionDeRegistro`, que exige uno de los dos.
+   */
+  institutionId: z.string().trim().max(LIMITES_INSTITUCION.ID_MAX).optional(),
+  institucionSolicitada: z.string().trim().max(LIMITES_INSTITUCION.NOMBRE_MAX).optional(),
 });
 
 // ── Solicitud de registro ───────────────────────────────────────────────────
@@ -141,6 +162,21 @@ registrationRouter.post('/', limiteSolicitudes, async (req, res, next) => {
     const errores = validarAdscripcion(datos);
     if (errores.length > 0) {
       return res.status(400).json({ ok: false, message: errores[0]?.mensaje, errores });
+    }
+
+    // Un cliente anterior a los perfiles no manda institución: era de las UTS,
+    // que es lo único que existía. Uno actual manda una de las dos cosas.
+    let institucion: Awaited<ReturnType<typeof resolverInstitucionDeRegistro>>;
+    try {
+      const sinDato = !datos.institutionId && !datos.institucionSolicitada;
+      institucion = await resolverInstitucionDeRegistro(
+        sinDato ? { institutionId: INSTITUTION_ID_UTS } : datos,
+      );
+    } catch (err) {
+      if (err instanceof ErrorInstitucion) {
+        return res.status(err.statusCode).json({ ok: false, message: err.message, errores: err.errores });
+      }
+      throw err;
     }
 
     // Se comprueban las dos unicidades por separado para poder decir cuál falla.
@@ -169,6 +205,8 @@ registrationRouter.post('/', limiteSolicitudes, async (req, res, next) => {
       programas: datos.programas,
       employeeCode: datos.cedula,
       department: NOMBRE_FACULTAD[datos.facultad],
+      institutionId: institucion.institutionId,
+      institucionSolicitada: institucion.institucionSolicitada,
       // Nace pendiente: la cuenta existe pero todavía no abre nada.
       estado: 'PENDIENTE',
     });
@@ -178,7 +216,13 @@ registrationRouter.post('/', limiteSolicitudes, async (req, res, next) => {
       action: 'CREATE',
       entity: 'Profesor',
       entityId: profesor.id,
-      after: { estado: 'PENDIENTE', cedula: datos.cedula, sede: datos.sede },
+      after: {
+        estado: 'PENDIENTE',
+        cedula: datos.cedula,
+        sede: datos.sede,
+        institutionId: institucion.institutionId ? String(institucion.institutionId) : null,
+        institucionSolicitada: institucion.institucionSolicitada,
+      },
     });
 
     // Se avisa a la administración para que no dependa de entrar a mirar. Solo
@@ -252,6 +296,9 @@ registrationRouter.get('/solicitudes', requireRole('ADMIN', 'COORDINATOR'), asyn
 
     const items = await ProfessorModel.find({ estado, deletedAt: null })
       .populate('userId', 'email fullName createdAt')
+      // Quien revisa necesita saber de qué institución es la solicitud, y si
+      // pidió una que aún no existe (`institucionSolicitada` sin vínculo).
+      .populate('institutionId', 'institutionId nombre sigla activa')
       .sort({ createdAt: 1 })
       .limit(300)
       .lean();

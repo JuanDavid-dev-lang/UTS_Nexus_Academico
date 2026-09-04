@@ -24,6 +24,10 @@ class RegisterPage extends StatefulWidget {
 }
 
 class _RegisterPageState extends State<RegisterPage> {
+  /// Valor especial del desplegable de institución: la persona escribe el
+  /// nombre a mano porque no está en el catálogo.
+  static const String _otraInstitucionValor = '__otra__';
+
   final _formulario = GlobalKey<FormState>();
   late final RegistroService _servicio;
 
@@ -33,9 +37,11 @@ class _RegisterPageState extends State<RegisterPage> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   final _searchProgramas = TextEditingController();
+  final _institucionOtra = TextEditingController();
 
   String? _sede;
   String? _facultad;
+  String? _institutionId;
   final Set<String> _niveles = {};
   final Set<String> _programas = {};
 
@@ -68,7 +74,15 @@ class _RegisterPageState extends State<RegisterPage> {
   void dispose() {
     _password.removeListener(_onPasswordChanged);
     _searchProgramas.removeListener(_onSearchChanged);
-    for (final c in [_cedula, _nombres, _apellidos, _email, _password, _searchProgramas]) {
+    for (final c in [
+      _cedula,
+      _nombres,
+      _apellidos,
+      _email,
+      _password,
+      _searchProgramas,
+      _institucionOtra,
+    ]) {
       c.dispose();
     }
     super.dispose();
@@ -129,6 +143,27 @@ class _RegisterPageState extends State<RegisterPage> {
       return;
     }
 
+    final catalogo = _catalogo;
+    if (catalogo == null) return;
+
+    // La institución es uno de dos: un slug del catálogo, o el nombre escrito
+    // a mano cuando no está en la lista (o el catálogo no trajo ninguna).
+    String? institutionIdEnviar;
+    String? institucionSolicitadaEnviar;
+    if (catalogo.instituciones.isEmpty || _institutionId == _otraInstitucionValor) {
+      final otra = _institucionOtra.text.trim();
+      if (otra.isEmpty) {
+        AppToast.error(context, 'Falta la institución', 'Escribe el nombre de tu institución.');
+        return;
+      }
+      institucionSolicitadaEnviar = otra;
+    } else if (_institutionId == null || _institutionId!.isEmpty) {
+      AppToast.error(context, 'Falta la institución', 'Elige tu institución.');
+      return;
+    } else {
+      institutionIdEnviar = _institutionId;
+    }
+
     setState(() => _enviando = true);
     try {
       final mensaje = await _servicio.solicitar(
@@ -141,6 +176,8 @@ class _RegisterPageState extends State<RegisterPage> {
         programas: _programas.toList(),
         email: _email.text.trim(),
         password: _password.text,
+        institutionId: institutionIdEnviar,
+        institucionSolicitada: institucionSolicitadaEnviar,
       );
       if (!mounted) return;
       setState(() {
@@ -425,6 +462,65 @@ class _RegisterPageState extends State<RegisterPage> {
                   subtitulo: 'Sede, facultad y carreras a cargo',
                 ),
                 const SizedBox(height: 14),
+
+                // La institución va primero: sede, facultad y programas
+                // solo tienen sentido para la institución que se elija aquí.
+                if (c.instituciones.isNotEmpty) ...[
+                  DropdownButtonFormField<String>(
+                    initialValue: _institutionId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Institución',
+                      prefixIcon: Icon(Icons.apartment_outlined),
+                      isDense: true,
+                    ),
+                    items: [
+                      ...c.instituciones.map(
+                        (i) => DropdownMenuItem(
+                          value: i.institutionId,
+                          child: Text('${i.nombre} (${i.sigla})', overflow: TextOverflow.ellipsis),
+                        ),
+                      ),
+                      const DropdownMenuItem(
+                        value: _otraInstitucionValor,
+                        child: Text('Otra institución (no está en la lista)'),
+                      ),
+                    ],
+                    onChanged: (v) => setState(() => _institutionId = v),
+                    validator: (v) => v == null || v.isEmpty ? 'Elige tu institución' : null,
+                  ),
+                  if (_institutionId == _otraInstitucionValor) ...[
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _institucionOtra,
+                      maxLength: 160,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(
+                        labelText: 'Nombre de tu institución',
+                        prefixIcon: Icon(Icons.edit_outlined),
+                        isDense: true,
+                        counterText: '',
+                      ),
+                      validator: (v) =>
+                          (v?.trim().length ?? 0) >= 2 ? null : 'Escribe el nombre de tu institución',
+                    ),
+                  ],
+                ] else
+                  TextFormField(
+                    controller: _institucionOtra,
+                    maxLength: 160,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      labelText: 'Nombre de tu institución',
+                      prefixIcon: Icon(Icons.apartment_outlined),
+                      isDense: true,
+                      counterText: '',
+                    ),
+                    validator: (v) =>
+                        (v?.trim().length ?? 0) >= 2 ? null : 'Escribe el nombre de tu institución',
+                  ),
+                const SizedBox(height: 12),
+
                 DropdownButtonFormField<String>(
                   initialValue: _sede,
                   isExpanded: true,

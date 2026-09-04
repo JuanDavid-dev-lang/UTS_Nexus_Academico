@@ -339,6 +339,12 @@ class _UtsAppState extends ConsumerState<UtsApp> {
           // grado sin cerrar sesión: el gate lee la ficha, no el token.
           case 'professor':
             ref.invalidate(miPerfilProvider);
+          // Alta, edición o desactivación de una institución: lo único que
+          // depende de esto en el móvil es la ficha propia (nombre, sigla,
+          // si sigue pendiente de aprobación). No hay catálogo de registro
+          // cacheado en un provider: esa pantalla se abre sin sesión.
+          case 'institution':
+            ref.invalidate(miPerfilProvider);
           case 'thesisFormat':
             ref.invalidate(thesisFormatsProvider);
           // Cambiarle el rol o los programas a alguien cambia lo que ve. El

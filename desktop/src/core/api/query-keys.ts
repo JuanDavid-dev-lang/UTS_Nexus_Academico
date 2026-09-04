@@ -216,4 +216,20 @@ export const queryKeys = {
     previewAttendance: (scope: Scope) => ['reports', 'preview', 'attendance', scope] as const,
     template: () => ['reports', 'template'] as const,
   },
+
+  /**
+   * Perfiles institucionales. `coincidencias` lleva la clave compuesta
+   * (nombre|sigla|alias) que el formulario debouncea antes de guardar; no
+   * cuelga de `all` porque comprobar duplicados no es una vista de la lista.
+   */
+  institutions: {
+    all: ['institutions'] as const,
+    list: (filtro?: Record<string, unknown>) =>
+      filtro ? (['institutions', 'list', filtro] as const) : (['institutions', 'list'] as const),
+    detail: (id: string) => ['institutions', 'detail', id] as const,
+    docentes: (id: string) => ['institutions', 'docentes', id] as const,
+    solicitudes: () => ['institutions', 'solicitudes'] as const,
+    activas: () => ['institutions', 'activas'] as const,
+    coincidencias: (q: string) => ['institutions', 'coincidencias', q] as const,
+  },
 } as const;

@@ -452,3 +452,92 @@ no se entere manda el cambio y recibe un 409 que no espera.
 Las actividades salen por `emitToUser`, no por difusión: llevan el título de una
 evaluación y la fecha de un parcial, y emitirlas a `role:PROFESSOR` las mandaría
 a todos los docentes de la institución.
+
+---
+
+## 8. Perfiles institucionales
+
+### El problema
+
+Nexus nació para las Unidades Tecnológicas de Santander y la institución era
+un supuesto, no un dato: el catálogo de programas, el departamento por defecto
+del docente y los pesos de las notas daban por hecho que todo el mundo era de
+las UTS. Para admitir a la UIS, la UDES o cualquier otra universidad hacía
+falta que la institución fuera un registro que la administración pudiera crear
+desde el panel, sin tocar el código ni redesplegar.
+
+### Qué es un perfil
+
+Un documento de la colección `instituciones`:
+
+| Campo | Qué es |
+|---|---|
+| `institutionId` | Identificador estable (slug: `uts`, `uis`, `udes`). Lo genera el servidor desde la sigla al crear (`unab`, `unab-2` si ya existe); no cambia nunca; es el que usará UniPlanner. |
+| `nombre`, `sigla` | Lo visible. La sigla se guarda en mayúsculas. |
+| `aliases[]` | Otros nombres con los que se conoce. Evitan que «UDES» y «Universidad de Santander» acaben en dos perfiles. |
+| `clavesBusqueda[]` | Nombre, sigla y alias normalizados (sin tildes, minúsculas). Índice único: dos perfiles no pueden compartir ninguna. |
+| `activa` | Si se ofrece en el registro. Desactivar conserva docentes e historial. |
+| `configuracionAcademica` | Cortes, componentes y escala. `null` hasta que un administrador la fije. |
+
+### Perfiles iniciales
+
+UTS, UIS y UDES se crean en cada arranque **si faltan** (`shared/institutions-bootstrap.ts`);
+lo que la administración haya editado no se toca. Solo UTS nace configurada, y
+su configuración se deriva del motor de calificación (`RUBRICA`), no se copia:
+una prueba comprueba que coinciden. A UIS y UDES no se les inventan ponderados.
+
+En el mismo arranque, los docentes sin institución y sin solicitud quedan
+vinculados a UTS: antes de esta capacidad, todas las cuentas eran de las UTS.
+
+### Duplicados
+
+Antes de crear, el panel consulta `GET /instituciones/coincidencias` y muestra
+lo que podría ser la misma institución:
+
+- **Exacta**: alguna clave (nombre, sigla o alias) ya pertenece a otro perfil.
+  La creación se rechaza con 409; lo que corresponde es añadir el nombre como
+  alias del perfil existente.
+- **Posible**: las palabras con contenido se parecen, o la sigla de una son las
+  iniciales de la otra, o el nombre contiene la sigla de otra. No bloquea; se
+  advierte y quien crea decide.
+
+La comparación ignora mayúsculas, tildes, puntuación y espacios repetidos, y
+palabras vacías como «universidad», «de» o «la».
+
+### Registro de docentes
+
+El selector del formulario lee las instituciones activas del catálogo. Quien no
+encuentra la suya la escribe a mano (`institucionSolicitada`):
+
+- Si el texto coincide exactamente con nombre, sigla o alias de una activa, se
+  vincula en el acto. Para eso existen los alias.
+- Si no, la cuenta nace sin institución y aparece en «Solicitudes» del panel,
+  con las coincidencias sugeridas. ADMIN la **asocia** a un perfil existente o
+  **crea** el perfil desde la solicitud, que queda vinculada en el mismo paso.
+
+### Configuración académica
+
+Por institución: lista de cortes (numerados 1..N, con nombre y peso), lista de
+componentes (id en mayúsculas, nombre y peso) y escala (mínima, máxima,
+aprobación). Los pesos son fracciones que suman 1 dentro de cada lista, con
+tolerancia de 0,001 para que 0,33 + 0,33 + 0,34 pase. Un peso cero, una
+numeración con saltos, un componente repetido o una aprobación fuera de la
+escala se rechazan con 400 y el campo que falla.
+
+**Hoy el motor de calificación sigue aplicando la rúbrica de las UTS a todo el
+mundo.** La configuración por institución se guarda y se valida, y es lo que
+permitirá parametrizar `domains/grading` después; ese cambio es aparte porque
+toca los tipos del motor y los tres clientes, que dibujan tres cortes.
+
+### Quién puede qué
+
+- ADMIN: crear, editar, activar/desactivar, configurar, eliminar (solo sin
+  docentes vinculados; si los hay, 409), asignar o cambiar la institución de
+  un docente, resolver solicitudes.
+- Coordinación y secretaría: ver la lista y la ficha.
+- Docente: ve su institución en el perfil. No la edita: `PATCH /professors/me`
+  no acepta el campo. La institución decide con qué reglas se lee su trabajo,
+  así que no puede ser suya la decisión.
+
+Todo cambio queda en la auditoría (`Institucion`, `Profesor`) y emite
+`sync:update` con `entity: 'institution'` a las salas administrativas.

@@ -42,7 +42,15 @@ export type Capability =
   // Alta y edición del personal: quién es qué rol y de qué programas responde.
   // Solo ADMIN: quien asigna programas decide alcances, y un rol no puede mover
   // su propio techo.
-  | 'staff.manage';
+  | 'staff.manage'
+  // Perfiles institucionales: crear, editar, configurar cortes/ponderados y
+  // reasignar docentes. Solo ADMIN, igual que el backend (`/instituciones`
+  // fuera de las lecturas es ADMIN-only).
+  | 'institutions.manage'
+  // Ver el catálogo y los docentes por institución. Coordinación y secretaría
+  // lo necesitan para entender de dónde viene un docente; ninguna de las dos
+  // escribe.
+  | 'institutions.read';
 
 const MATRIX: Record<Role, Capability[]> = {
   ADMIN: [
@@ -56,6 +64,7 @@ const MATRIX: Record<Role, Capability[]> = {
     'periods.read', 'periods.close', 'periods.reopen',
     'audit.read', 'system.health', 'telemetry.read', 'telemetry.manage',
     'coordination.read', 'coordination.export', 'staff.manage',
+    'institutions.manage', 'institutions.read',
   ],
   COORDINATOR: [
     'students.read', 'students.write', 'students.delete',
@@ -72,6 +81,7 @@ const MATRIX: Record<Role, Capability[]> = {
     // coordinación la convertiría en una forma cómoda de vigilar al personal.
     'system.health', 'telemetry.read',
     'coordination.read', 'coordination.export',
+    'institutions.read',
   ],
   /**
    * Secretaría: **lo mismo que coordinación, sin una sola escritura.**
@@ -96,6 +106,7 @@ const MATRIX: Record<Role, Capability[]> = {
     'activities.read',
     'periods.read',
     'coordination.read', 'coordination.export',
+    'institutions.read',
   ],
   PROFESSOR: [
     'students.read', 'students.write',

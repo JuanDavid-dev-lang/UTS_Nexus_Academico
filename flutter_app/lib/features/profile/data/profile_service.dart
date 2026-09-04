@@ -15,6 +15,15 @@ class Profile {
   final String? sede;
   final String? facultad;
 
+  /// Institución a la que está vinculado el docente. `null` cuando la
+  /// solicitud sigue pendiente (mira [institucionSolicitada] en ese caso).
+  final String? institutionNombre;
+  final String? institutionSigla;
+
+  /// Nombre que el docente escribió a mano al registrarse, cuando su
+  /// institución todavía no tiene vínculo (`institutionNombre` es null).
+  final String? institucionSolicitada;
+
   /// Abre la sección de trabajos de grado. Lo activa la administración.
   final bool esDirectorTrabajoGrado;
 
@@ -25,18 +34,33 @@ class Profile {
     this.photoUrl,
     this.sede,
     this.facultad,
+    this.institutionNombre,
+    this.institutionSigla,
+    this.institucionSolicitada,
     this.esDirectorTrabajoGrado = false,
   });
 
-  factory Profile.fromJson(Map<String, dynamic> json) => Profile(
-        id: json['_id']?.toString() ?? '',
-        title: json['title']?.toString() ?? 'Docente',
-        department: json['department']?.toString() ?? 'UTS',
-        photoUrl: json['photoUrl']?.toString(),
-        sede: json['sede']?.toString(),
-        facultad: json['facultad']?.toString(),
-        esDirectorTrabajoGrado: json['esDirectorTrabajoGrado'] == true,
-      );
+  factory Profile.fromJson(Map<String, dynamic> json) {
+    // `institutionId` viene poblado como {_id, institutionId, nombre, sigla,
+    // activa} o null. Se tolera también un String suelto (id sin poblar) o
+    // cualquier otra forma inesperada: en esos casos no hay nombre ni sigla
+    // que mostrar, pero el resto del perfil sigue siendo válido.
+    final institucion = json['institutionId'];
+    final institucionMap = institucion is Map ? Map<String, dynamic>.from(institucion) : null;
+
+    return Profile(
+      id: json['_id']?.toString() ?? '',
+      title: json['title']?.toString() ?? 'Docente',
+      department: json['department']?.toString() ?? 'UTS',
+      photoUrl: json['photoUrl']?.toString(),
+      sede: json['sede']?.toString(),
+      facultad: json['facultad']?.toString(),
+      institutionNombre: institucionMap?['nombre']?.toString(),
+      institutionSigla: institucionMap?['sigla']?.toString(),
+      institucionSolicitada: json['institucionSolicitada']?.toString(),
+      esDirectorTrabajoGrado: json['esDirectorTrabajoGrado'] == true,
+    );
+  }
 }
 
 class ProfileService {

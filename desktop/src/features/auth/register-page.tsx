@@ -51,9 +51,14 @@ const VACIO = {
   facultad: '',
   niveles: [] as NivelId[],
   programas: [] as string[],
+  institutionId: '',
+  institucionSolicitada: '',
   email: '',
   password: '',
 };
+
+/** Valor del selector cuando la institución no está en la lista. No es un slug real: nunca viaja al servidor. */
+const OTRA_INSTITUCION = '__otra__';
 
 /**
  * Solicitud de registro de un docente.
@@ -140,7 +145,17 @@ export default function RegisterPage() {
 
     setEnviando(true);
     try {
-      const { message } = await registroRepository.solicitar(parsed.data);
+      // Exactamente uno de los dos viaja: `JSON.stringify` descarta las claves
+      // en `undefined`, así que el otro ni siquiera llega vacío.
+      const eligioInstitucion = parsed.data.institutionId && parsed.data.institutionId !== OTRA_INSTITUCION;
+      const payload: SolicitudRegistro = {
+        ...parsed.data,
+        institutionId: eligioInstitucion ? parsed.data.institutionId : undefined,
+        institucionSolicitada: eligioInstitucion
+          ? undefined
+          : parsed.data.institucionSolicitada?.trim() || undefined,
+      };
+      const { message } = await registroRepository.solicitar(payload);
       setEnviado(message);
     } catch (causa) {
       toast.fromError(causa, 'No se pudo enviar la solicitud');
@@ -316,7 +331,63 @@ export default function RegisterPage() {
             subtitulo="Sede, facultad y programas a los que estás vinculado en el periodo"
             icono={GraduationCap}
           >
-            <div className="grid gap-3 sm:grid-cols-2">
+            {/* La institución va primero: sede y facultad son de las UTS, y no
+                significan nada para quien está pidiendo cuenta en otra. */}
+            <Field label="Institución" error={errores.institutionId} required>
+              {props => {
+                const instituciones = catalogo.data?.instituciones ?? [];
+                if (instituciones.length === 0) {
+                  return (
+                    <Input
+                      {...props}
+                      value={valores.institucionSolicitada}
+                      onChange={e => {
+                        set('institucionSolicitada', e.target.value);
+                        set('institutionId', '');
+                      }}
+                      placeholder="Nombre de tu institución"
+                      required
+                    />
+                  );
+                }
+                return (
+                  <div className="flex flex-col gap-2">
+                    <NativeSelect
+                      {...props}
+                      value={valores.institutionId}
+                      onChange={e => {
+                        const valor = e.target.value;
+                        setValores(previos => ({
+                          ...previos,
+                          institutionId: valor,
+                          institucionSolicitada: valor === OTRA_INSTITUCION ? previos.institucionSolicitada : '',
+                        }));
+                        setErrores(previos => ({ ...previos, institutionId: undefined }));
+                      }}
+                      required
+                    >
+                      <option value="">Elige tu institución…</option>
+                      {instituciones.map(inst => (
+                        <option key={inst.institutionId} value={inst.institutionId}>
+                          {inst.nombre}
+                        </option>
+                      ))}
+                      <option value={OTRA_INSTITUCION}>Otra institución (no está en la lista)</option>
+                    </NativeSelect>
+                    {valores.institutionId === OTRA_INSTITUCION && (
+                      <Input
+                        value={valores.institucionSolicitada}
+                        onChange={e => set('institucionSolicitada', e.target.value)}
+                        placeholder="Escribe el nombre de tu institución"
+                        aria-label="Nombre de la institución"
+                      />
+                    )}
+                  </div>
+                );
+              }}
+            </Field>
+
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <Field label="Sede institucional" error={errores.sede} required>
                 {props => (
                   <NativeSelect

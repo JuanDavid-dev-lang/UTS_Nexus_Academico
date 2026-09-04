@@ -39,6 +39,9 @@ export type UsuarioDePersonal = {
     estado: string;
     esDirectorTrabajoGrado: boolean;
     programas: string[];
+    /** Perfil institucional al que pertenece; `null` si aún no se le asignó. */
+    institucion: { id: string; institutionId: string; nombre: string; sigla: string } | null;
+    institucionSolicitada: string | null;
   } | null;
 };
 
@@ -67,7 +70,17 @@ type FichaCruda = {
   estado: string;
   esDirectorTrabajoGrado?: boolean | null;
   programas?: string[] | null;
+  /** Poblado con `institutionId nombre sigla`; un id suelto si no se pobló. */
+  institutionId?: unknown;
+  institucionSolicitada?: string | null;
 };
+
+function institucionDe(ficha: FichaCruda): NonNullable<UsuarioDePersonal['profesor']>['institucion'] {
+  const valor = ficha.institutionId;
+  if (!valor || typeof valor !== 'object' || !('institutionId' in valor)) return null;
+  const doc = valor as { _id: unknown; institutionId: string; nombre: string; sigla: string };
+  return { id: String(doc._id), institutionId: doc.institutionId, nombre: doc.nombre, sigla: doc.sigla };
+}
 
 /** Une la cuenta con su ficha docente y traduce los programas a nombre visible. */
 function aPersonal(usuario: UsuarioCrudo, ficha: FichaCruda | undefined): UsuarioDePersonal {
@@ -93,6 +106,8 @@ function aPersonal(usuario: UsuarioCrudo, ficha: FichaCruda | undefined): Usuari
           estado: ficha.estado,
           esDirectorTrabajoGrado: Boolean(ficha.esDirectorTrabajoGrado),
           programas: ficha.programas ?? [],
+          institucion: institucionDe(ficha),
+          institucionSolicitada: ficha.institucionSolicitada ?? null,
         }
       : null,
   };
@@ -128,7 +143,8 @@ export async function listarUsuarios(
     userId: { $in: usuarios.map(usuario => usuario._id) },
     deletedAt: null,
   })
-    .select('_id userId cedula estado esDirectorTrabajoGrado programas')
+    .select('_id userId cedula estado esDirectorTrabajoGrado programas institutionId institucionSolicitada')
+    .populate('institutionId', 'institutionId nombre sigla')
     .lean();
   const porUsuario = new Map(fichas.map(ficha => [String(ficha.userId), ficha]));
 
@@ -145,7 +161,8 @@ export async function obtenerUsuario(id: string): Promise<UsuarioDePersonal | nu
   if (!usuario) return null;
 
   const ficha = await ProfessorModel.findOne({ userId: id, deletedAt: null })
-    .select('_id userId cedula estado esDirectorTrabajoGrado programas')
+    .select('_id userId cedula estado esDirectorTrabajoGrado programas institutionId institucionSolicitada')
+    .populate('institutionId', 'institutionId nombre sigla')
     .lean();
 
   return aPersonal(usuario, ficha ?? undefined);

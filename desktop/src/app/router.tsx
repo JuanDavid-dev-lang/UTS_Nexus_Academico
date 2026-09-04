@@ -35,6 +35,7 @@ const AuditPage = lazy(() => import('@/features/audit/audit-page'));
 const HealthPage = lazy(() => import('@/features/system/health-page'));
 const CoordinationPage = lazy(() => import('@/features/coordination/coordination-page'));
 const StaffPage = lazy(() => import('@/features/staff/staff-page'));
+const InstitutionsPage = lazy(() => import('@/features/institutions/institutions-page'));
 const SupervisionAdminPage = lazy(() => import('@/features/admin/supervision-page'));
 
 /** Blocks the app routes until the session is known to be valid. */
@@ -83,6 +84,7 @@ export const router = createBrowserRouter([
           { path: '/sugerencias', element: <FeedbackPage /> },
           { path: '/coordinacion', element: <CoordinationPage /> },
           { path: '/personal', element: <StaffPage /> },
+          { path: '/instituciones', element: <InstitutionsPage /> },
           { path: '/docentes', element: <ProfessorsPage /> },
           { path: '/trabajos-grado', element: <ThesisFormatsPage /> },
           { path: '/actividades', element: <ActivitiesPage /> },

@@ -19,6 +19,7 @@ import {
   ChevronLeft,
   FileSpreadsheet,
   GraduationCap,
+  Landmark,
   LayoutDashboard,
   Settings,
   Shield,
@@ -115,6 +116,7 @@ const NAV_GROUPS: NavGroup[] = [
       // entrada, no una herramienta ocasional.
       { to: '/coordinacion', label: 'Coordinación', icon: Building2, capability: 'coordination.read' },
       { to: '/personal', label: 'Personal', icon: UsersRound, capability: 'staff.manage' },
+      { to: '/instituciones', label: 'Perfiles institucionales', icon: Landmark, capability: 'institutions.read' },
       { to: '/docentes', label: 'Docentes', icon: UserCog, capability: 'professors.manage' },
       { to: '/periodos', label: 'Periodos', icon: CalendarRange, capability: 'periods.close' },
       { to: '/auditoria', label: 'Auditoría', icon: ScrollText, capability: 'audit.read' },
@@ -152,6 +154,7 @@ export function Sidebar({
       if (
         item.to === '/supervision-admin' ||
         item.to === '/personal' ||
+        item.to === '/instituciones' ||
         item.to === '/docentes' ||
         item.to === '/periodos' ||
         item.to === '/auditoria' ||
