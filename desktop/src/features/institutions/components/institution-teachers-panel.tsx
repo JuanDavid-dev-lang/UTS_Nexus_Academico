@@ -13,6 +13,7 @@ import {
   DialogContent,
   DialogFooter,
   EmptyState,
+  ErrorState,
   Field,
   NativeSelect,
   SkeletonList,
@@ -78,6 +79,10 @@ export function InstitutionTeachersPanel({
       <CardContent>
         {docentes.isPending ? (
           <SkeletonList rows={3} />
+        ) : docentes.isError ? (
+          // Un fallo no es «nadie»: con seis docentes vinculados y la lista
+          // vacía por un error de lectura, quien mira concluye que no existen.
+          <ErrorState error={docentes.error} onRetry={() => void docentes.refetch()} />
         ) : (docentes.data ?? []).length === 0 ? (
           <EmptyState title="Sin docentes" message="Nadie tiene esta institución asignada todavía." />
         ) : (

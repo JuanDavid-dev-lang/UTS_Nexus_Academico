@@ -60,11 +60,13 @@ export const estadoDocenteInstitucion = z.enum(['PENDIENTE', 'APROBADO', 'RECHAZ
 
 export const docenteInstitucionSchema = z.object({
   id: objectId,
-  userId: objectId,
+  userId: z.string().default(''),
   cedula: z.string().nullable().default(null),
-  nombre: z.string(),
-  email: z.string(),
-  estado: estadoDocenteInstitucion,
+  nombre: z.string().default(''),
+  email: z.string().default(''),
+  // Fichas anteriores al autorregistro no traen `estado`; un valor raro en una
+  // fila no debe tumbar la lista entera (así se vio «Sin docentes» con 6).
+  estado: estadoDocenteInstitucion.catch('APROBADO'),
   programas: z.array(z.string()).default([]),
   institucionSolicitada: z.string().nullable().default(null),
 });

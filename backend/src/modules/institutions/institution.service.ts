@@ -389,7 +389,8 @@ function aDocente(doc: ProfesorCrudo): DocenteDeInstitucion {
     cedula: doc.cedula ?? null,
     nombre,
     email: usuario?.email ?? '',
-    estado: doc.estado,
+    // Fichas anteriores al autorregistro no traen `estado`: nacieron aprobadas.
+    estado: doc.estado ?? 'APROBADO',
     programas: doc.programas ?? [],
     institucionSolicitada: doc.institucionSolicitada ?? null,
   };
