@@ -10,6 +10,7 @@ const repositories = vi.hoisted(() => ({
   create: vi.fn(),
   roles: vi.fn(),
   catalogo: vi.fn(),
+  activas: vi.fn(),
 }));
 const toasts = vi.hoisted(() => ({ success: vi.fn(), fromError: vi.fn() }));
 
@@ -22,6 +23,10 @@ vi.mock('@/infrastructure/repositories/coordination.repository', () => ({
 
 vi.mock('@/infrastructure/repositories/academic.repository', () => ({
   registroRepository: { catalogo: repositories.catalogo },
+}));
+
+vi.mock('@/infrastructure/repositories/institutions.repository', () => ({
+  institutionsRepository: { activas: repositories.activas },
 }));
 
 vi.mock('@/state/toast.store', () => ({
@@ -63,8 +68,22 @@ describe('alta de cuentas del personal', () => {
         descripcion: 'Solo sus materias, sus grupos y sus estudiantes.',
         porPrograma: false,
       },
+      {
+        id: 'ADMIN',
+        nombre: 'Administración',
+        descripcion: 'Ve y administra toda la instalación, sin institución.',
+        porPrograma: false,
+      },
     ]);
     repositories.catalogo.mockResolvedValue({ areas: [], programas: [] });
+    repositories.activas.mockResolvedValue([
+      {
+        id: '65f0000000000000000000cc',
+        institutionId: 'uts',
+        nombre: 'Unidades Tecnológicas de Santander',
+        sigla: 'UTS',
+      },
+    ]);
     repositories.create.mockResolvedValue({
       id: '507f191e810c19729de860ea',
       fullName: 'María Fernanda Ortiz',
@@ -101,6 +120,14 @@ describe('alta de cuentas del personal', () => {
     fireEvent.change(screen.getByLabelText(/Contraseña inicial/), {
       target: { value: 'ClaveSegura2026' },
     });
+
+    // Con una sola institución activa se preselecciona sola; hay que esperar
+    // a que la consulta resuelva antes de enviar o el envío se bloquea por
+    // falta de institución.
+    await waitFor(() =>
+      expect(screen.getByLabelText(/Institución/)).toHaveValue('uts'),
+    );
+
     fireEvent.click(screen.getByRole('button', { name: 'Crear cuenta' }));
 
     await waitFor(() =>
@@ -110,6 +137,7 @@ describe('alta de cuentas del personal', () => {
         password: 'ClaveSegura2026',
         role: 'PROFESSOR',
         programas: [],
+        institutionId: 'uts',
       }),
     );
     await waitFor(() => expect(toasts.success).toHaveBeenCalledWith(
@@ -121,6 +149,45 @@ describe('alta de cuentas del personal', () => {
     expect(screen.getByLabelText(/Contraseña inicial/)).toHaveValue('');
     expect(invalidar).toHaveBeenCalledWith({ queryKey: ['users'] });
     expect(invalidar).toHaveBeenCalledWith({ queryKey: ['coordination'] });
+  });
+
+  it('oculta el selector de institución para ADMIN y no la envía', async () => {
+    renderCard();
+
+    fireEvent.change(screen.getByLabelText(/Nombre completo/), {
+      target: { value: 'Administración Nueva' },
+    });
+    fireEvent.change(screen.getByLabelText(/Correo institucional/), {
+      target: { value: 'admin.nuevo@uts.edu.co' },
+    });
+    fireEvent.change(screen.getByLabelText(/Contraseña inicial/), {
+      target: { value: 'ClaveSegura2026' },
+    });
+
+    // El `<select>` de React solo respeta un valor si ya existe la `<option>`
+    // que lo representa: hay que esperar a que el catálogo de roles cargue
+    // antes de intentar seleccionar "Administración".
+    await screen.findByText('Administración');
+    fireEvent.change(screen.getByLabelText(/^Rol/), {
+      target: { value: 'ADMIN' },
+    });
+
+    // ADMIN no se acota a ninguna institución: el campo desaparece del todo,
+    // no se deshabilita mostrando algo que no se va a usar.
+    expect(screen.queryByLabelText(/Institución/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Crear cuenta' }));
+
+    await waitFor(() =>
+      expect(repositories.create).toHaveBeenCalledWith({
+        fullName: 'Administración Nueva',
+        email: 'admin.nuevo@uts.edu.co',
+        password: 'ClaveSegura2026',
+        role: 'ADMIN',
+        programas: [],
+        institutionId: undefined,
+      }),
+    );
   });
 
   it('no ofrece el alta a roles sin permiso administrativo', () => {

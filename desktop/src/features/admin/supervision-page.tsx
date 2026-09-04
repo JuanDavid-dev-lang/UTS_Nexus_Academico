@@ -236,7 +236,16 @@ export default function SupervisionAdminPage() {
               : row.role === 'PROFESSOR'
                 ? 'success'
                 : 'neutral';
-        return <Badge tone={tone}>{row.role}</Badge>;
+        return (
+          <div className="flex flex-wrap items-center justify-center gap-1.5">
+            <Badge tone={tone}>{row.role}</Badge>
+            {row.role !== 'ADMIN' && row.institucion && (
+              <Badge tone="neutral" title={row.institucion.nombre}>
+                {row.institucion.sigla}
+              </Badge>
+            )}
+          </div>
+        );
       },
     },
     {
@@ -546,6 +555,14 @@ export default function SupervisionAdminPage() {
                   <div className="mt-1">
                     <Badge tone="primary">{previewUser.role}</Badge>
                   </div>
+                </div>
+                <div>
+                  <span className="text-caption text-muted">Institución:</span>
+                  <p className="text-body text-text">
+                    {previewUser.role === 'ADMIN'
+                      ? 'Todas las instituciones'
+                      : (previewUser.institucion?.nombre ?? 'Sin institución asignada')}
+                  </p>
                 </div>
                 <div>
                   <span className="text-caption text-muted">Programas con alcance:</span>

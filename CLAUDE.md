@@ -216,6 +216,14 @@ toca ningún cliente ni exige redesplegar.
 - Borrar es lógico y solo sin docentes vinculados (409 si los hay: lo que
   corresponde es desactivar). Una desactivada no se ofrece en el registro ni
   acepta `institutionId` a mano, pero conserva docentes e historial.
+- **Toda cuenta que no sea ADMIN pertenece a una institución** (`Usuario.institutionId`,
+  la misma que `Profesor.institutionId` para docentes; se escriben juntas). ADMIN va
+  sin ella y ve todas. El alcance de coordinación y secretaría
+  (`domains/scope/program-scope.ts`, `institutionId` en `AlcanceDePrograma`) solo
+  deja entrar materias dictadas por docentes de su institución, tengan o no
+  programas asignados; sin programas y con institución el alcance es «su
+  institución entera», no total. Se asigna desde Personal (`POST|PATCH /usuarios`,
+  obligatoria salvo ADMIN) y el arranque vincula a UTS a las cuentas anteriores.
 - Un docente **nunca** edita su institución ni la configuración: `PATCH
   /professors/me` no acepta el campo y todo `/instituciones` de escritura es
   ADMIN. Coordinación y secretaría solo leen.

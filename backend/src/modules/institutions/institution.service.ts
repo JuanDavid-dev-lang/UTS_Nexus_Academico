@@ -1,6 +1,8 @@
 import { Types } from 'mongoose';
 import { InstitutionModel } from '../../models/institution.model.js';
 import { ProfessorModel } from '../../models/professor.model.js';
+import { UserModel } from '../../models/user.model.js';
+import { invalidarAlcance } from '../../shared/program-scope.js';
 import {
   buscarCoincidencias,
   clavesDePerfil,
@@ -92,6 +94,16 @@ function aDto(doc: InstitucionCruda, docentes?: number): InstitucionDto {
 
 function aPublica(doc: InstitucionCruda): InstitucionPublica {
   return { id: String(doc._id), institutionId: doc.institutionId, nombre: doc.nombre, sigla: doc.sigla };
+}
+
+/**
+ * `_id` de una institución a partir de su `_id` o su `institutionId`.
+ * Lanza 404 si no existe. Para quien guarda el vínculo en otra colección.
+ */
+export async function resolverIdInstitucion(idOSlug: string): Promise<Types.ObjectId> {
+  const doc = await InstitutionModel.findOne(filtroPorId(idOSlug)).select('_id').lean();
+  if (!doc) throw new ErrorInstitucion(404, 'Institución no encontrada.');
+  return doc._id as Types.ObjectId;
 }
 
 /** Filtro por `_id` o por `institutionId`: la URL admite los dos. */
@@ -427,6 +439,11 @@ export async function asignarDocente(
     .populate('userId', 'email fullName')
     .lean();
   if (!doc) throw new ErrorInstitucion(404, 'Docente no encontrado.');
+
+  // La cuenta lleva la misma institución que la ficha: el alcance se lee de
+  // la cuenta y una ficha movida con la cuenta quieta seguiría viendo lo de antes.
+  await UserModel.updateOne({ _id: antes.userId }, { $set: { institutionId: destino ? destino._id : null } });
+  invalidarAlcance(String(antes.userId));
 
   return {
     docente: aDocente(doc as ProfesorCrudo),

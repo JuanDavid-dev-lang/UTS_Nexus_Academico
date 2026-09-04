@@ -149,7 +149,9 @@ institutionRouter.get('/', requireRole('ADMIN', 'COORDINATOR', 'SECRETARY'), asy
       q: query.q,
       activa: query.activa === undefined ? undefined : query.activa === 'true',
     });
-    res.json({ ok: true, items });
+    // Coordinación y secretaría solo ven la suya; ADMIN (sin institución) todas.
+    const propia = req.alcance?.institutionId ?? null;
+    res.json({ ok: true, items: propia ? items.filter(item => item.id === propia) : items });
   } catch (err) {
     next(err);
   }
@@ -158,7 +160,10 @@ institutionRouter.get('/', requireRole('ADMIN', 'COORDINATOR', 'SECRETARY'), asy
 institutionRouter.get('/:id', requireRole('ADMIN', 'COORDINATOR', 'SECRETARY'), async (req, res, next) => {
   try {
     const item = await obtenerInstitucion(idParam(req));
-    if (!item) return res.status(404).json({ ok: false, message: 'Institución no encontrada.' });
+    const propia = req.alcance?.institutionId ?? null;
+    if (!item || (propia && item.id !== propia)) {
+      return res.status(404).json({ ok: false, message: 'Institución no encontrada.' });
+    }
     res.json({ ok: true, item });
   } catch (err) {
     next(err);

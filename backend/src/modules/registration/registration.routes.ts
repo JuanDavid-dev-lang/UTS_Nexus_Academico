@@ -192,6 +192,8 @@ registrationRouter.post('/', limiteSolicitudes, async (req, res, next) => {
       passwordHash: await bcrypt.hash(datos.password, 12),
       role: 'PROFESSOR',
       fullName: `${datos.nombres} ${datos.apellidos}`.replace(/\s+/g, ' ').trim(),
+      // La misma que la ficha: el alcance se lee de la cuenta.
+      institutionId: institucion.institutionId,
     });
 
     const profesor = await ProfessorModel.create({

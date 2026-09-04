@@ -8,6 +8,7 @@ import { invalidarAlcance } from '../../shared/program-scope.js';
 import { ROLES, NOMBRE_ROL, DESCRIPCION_ROL, ROLES_POR_PROGRAMA } from '../../shared/types.js';
 import { buscarPrograma, buscarArea, programasDeAreas } from '../../domains/catalog/uts.js';
 import type { Role } from '../../shared/types.js';
+import { resolverIdInstitucion } from '../institutions/institution.service.js';
 import {
   actualizarUsuario,
   crearUsuario,
@@ -136,8 +137,20 @@ userRouter.post('/', async (req, res, next) => {
         /** Alternativa cómoda a `programas`: se expande y se suma a ellos. */
         areas: areas.default([]),
         employeeCode: campo.codigo.optional(),
+        /** `institutionId` (slug) o `_id`. Obligatoria salvo para ADMIN. */
+        institutionId: z.string().trim().min(1).max(40).nullable().optional(),
       })
       .parse(req.body);
+
+    // Todo rol que no sea ADMIN pertenece a una institución: sin ella, una
+    // coordinación vería la instalación entera, que es lo que los perfiles
+    // institucionales existen para evitar.
+    if (body.role !== 'ADMIN' && !body.institutionId) {
+      return res.status(400).json({ ok: false, message: 'Indica la institución de la cuenta.' });
+    }
+    const institutionId = body.role === 'ADMIN' || !body.institutionId
+      ? null
+      : await resolverIdInstitucion(body.institutionId);
 
     // Un estudiante no se crea aqui: su cuenta cuelga de una ficha Estudiante
     // (`studentId`), y una sin vincular no ve ni su propio expediente. Se
@@ -153,6 +166,7 @@ userRouter.post('/', async (req, res, next) => {
       ...body,
       role: body.role as Role,
       programas: alcanceElegido(body) ?? [],
+      institutionId,
     });
     if (!item) {
       return res.status(409).json({ ok: false, message: 'Ya existe una cuenta con ese correo.' });
@@ -163,7 +177,7 @@ userRouter.post('/', async (req, res, next) => {
       action: 'CREATE',
       entity: 'Usuario',
       entityId: item.id,
-      after: { email: item.email, role: item.role, programas: item.programas },
+      after: { email: item.email, role: item.role, programas: item.programas, institucion: item.institucion?.institutionId ?? null },
     });
 
     emitToAdmins('sync:update', { entity: 'user', action: 'create', id: item.id });
@@ -181,6 +195,8 @@ userRouter.patch('/:id', async (req, res, next) => {
         role: z.enum(ROLES as [string, ...string[]]).optional(),
         programas: programas.optional(),
         areas: areas.optional(),
+        /** Cambia la institución (slug o `_id`); `null` la quita. Se ignora al pasar a ADMIN. */
+        institutionId: z.string().trim().min(1).max(40).nullable().optional(),
       })
       .parse(req.body);
 
@@ -198,11 +214,14 @@ userRouter.patch('/:id', async (req, res, next) => {
     // el alcance lee es `programas`. Dejarla pasar crearía un campo en la
     // colección que nadie consulta y que quedaría desincronizado al primer
     // cambio hecho desde otra pantalla.
-    const { areas: _areas, ...cambios } = body;
+    const { areas: _areas, institutionId: institucionPedida, ...cambios } = body;
     const elegidos = alcanceElegido(body);
     const { antes, item } = await actualizarUsuario(String(req.params.id), {
       ...cambios,
       ...(elegidos ? { programas: elegidos } : {}),
+      ...(institucionPedida === undefined
+        ? {}
+        : { institutionId: institucionPedida ? await resolverIdInstitucion(institucionPedida) : null }),
     });
     if (!item) return res.status(404).json({ ok: false, message: 'Not found' });
 
@@ -216,8 +235,8 @@ userRouter.patch('/:id', async (req, res, next) => {
       action: 'UPDATE',
       entity: 'Usuario',
       entityId: item.id,
-      before: { role: antes?.role, programas: antes?.programas },
-      after: { role: item.role, programas: item.programas },
+      before: { role: antes?.role, programas: antes?.programas, institutionId: antes?.institutionId },
+      after: { role: item.role, programas: item.programas, institutionId: item.institucion?.id ?? null },
     });
 
     // Al interesado, para que su menú y su alcance cambien sin cerrar sesión.

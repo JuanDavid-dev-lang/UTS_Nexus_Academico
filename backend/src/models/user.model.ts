@@ -31,6 +31,16 @@ const schema = new Schema(
     sede: { type: String, default: null },
     facultad: { type: String, default: null },
 
+    /**
+     * Institución a la que pertenece la cuenta. **ADMIN va sin ella** (`null`)
+     * y ve todas; el resto de roles tiene una y su alcance se acota a ella:
+     * una coordinación de la UDES no ve docentes ni grupos de las UTS aunque
+     * no tenga programas asignados. Para un docente es la misma que la de su
+     * ficha (`Profesor.institutionId`): se escriben juntas para que el alcance
+     * se lea de un solo sitio.
+     */
+    institutionId: { type: Schema.Types.ObjectId, ref: 'Institucion', default: null, index: true },
+
     lastLoginAt: { type: Date, default: null },
     passwordResetCodeHash: { type: String, default: null },
     passwordResetExpiresAt: { type: Date, default: null },

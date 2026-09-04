@@ -1,5 +1,6 @@
 import { InstitutionModel } from '../models/institution.model.js';
 import { ProfessorModel } from '../models/professor.model.js';
+import { UserModel } from '../models/user.model.js';
 import {
   INSTITUTION_ID_UTS,
   PERFILES_INICIALES,
@@ -50,6 +51,42 @@ export async function asegurarPerfilesIniciales(): Promise<{ creados: string[]; 
       { $set: { institutionId: uts._id } },
     );
     docentesVinculados = resultado.modifiedCount;
+
+    // Las cuentas también: la de un docente lleva la de su ficha; coordinación,
+    // secretaría y estudiantes anteriores a los perfiles eran de las UTS. ADMIN
+    // se queda sin institución a propósito: ve todas.
+    const fichas = await ProfessorModel.find({ institutionId: { $ne: null }, deletedAt: null })
+      .select('userId institutionId')
+      .lean();
+    if (fichas.length > 0) {
+      await UserModel.bulkWrite(
+        fichas.map(ficha => ({
+          updateOne: {
+            filter: { _id: ficha.userId, institutionId: null, role: { $ne: 'ADMIN' } },
+            update: { $set: { institutionId: ficha.institutionId } },
+          },
+        })),
+        { ordered: false },
+      );
+    }
+    await UserModel.updateMany(
+      { institutionId: null, role: { $nin: ['ADMIN', 'PROFESSOR'] } },
+      { $set: { institutionId: uts._id } },
+    );
+    // Cuentas de docente sin ficha, o cuya ficha sigue sin institución porque
+    // no pidió ninguna: también eran de las UTS. Las que pidieron otra quedan
+    // como solicitud pendiente.
+    const conSolicitud = await ProfessorModel.find({
+      institutionId: null,
+      institucionSolicitada: { $nin: [null, ''] },
+    })
+      .select('userId')
+      .lean();
+    await UserModel.updateMany(
+      { institutionId: null, role: 'PROFESSOR', _id: { $nin: conSolicitud.map(ficha => ficha.userId) } },
+      { $set: { institutionId: uts._id } },
+    );
+    await UserModel.updateMany({ role: 'ADMIN', institutionId: { $ne: null } }, { $set: { institutionId: null } });
   }
 
   if (creados.length > 0 || docentesVinculados > 0) {

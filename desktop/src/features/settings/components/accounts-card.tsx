@@ -18,6 +18,7 @@ import {
 } from '@/shared/ui';
 import { usersRepository } from '@/infrastructure/repositories/coordination.repository';
 import { registroRepository } from '@/infrastructure/repositories/academic.repository';
+import { institutionsRepository } from '@/infrastructure/repositories/institutions.repository';
 import { queryKeys } from '@/core/api/query-keys';
 import { can } from '@/core/auth/permissions';
 import { useUserRole } from '@/state/session.store';
@@ -41,9 +42,9 @@ import type { Role } from '@/domain/schemas/common';
  * creando otra cuenta.
  */
 
-const VACIO = { fullName: '', email: '', password: '', role: 'PROFESSOR' as Role };
+const VACIO = { fullName: '', email: '', password: '', role: 'PROFESSOR' as Role, institutionId: '' };
 
-function erroresDeCuenta(form: typeof VACIO) {
+function erroresDeCuenta(form: typeof VACIO, institucionEfectiva: string) {
   const fullName = form.fullName.trim();
   const email = form.email.trim();
 
@@ -62,6 +63,12 @@ function erroresDeCuenta(form: typeof VACIO) {
       ? 'Cumple las cuatro reglas de contraseña indicadas abajo.'
       : form.password.length > 128
         ? 'La contraseña admite hasta 128 caracteres.'
+        : undefined,
+    // ADMIN no se acota a ninguna institución; los demás roles la necesitan
+    // porque el backend responde 400 sin ella.
+    institutionId:
+      form.role !== 'ADMIN' && !institucionEfectiva
+        ? 'Elige la institución de la cuenta.'
         : undefined,
   };
 }
@@ -88,6 +95,20 @@ export function AccountsCard() {
     staleTime: 10 * 60_000,
   });
 
+  const instituciones = useQuery({
+    queryKey: queryKeys.institutions.activas(),
+    queryFn: () => institutionsRepository.activas(),
+    enabled: can(role, 'staff.manage'),
+    staleTime: 10 * 60_000,
+  });
+
+  const listaInstituciones = instituciones.data ?? [];
+  // Con una sola institución activa no tiene sentido obligar a elegirla: se
+  // preselecciona, y el usuario todavía puede cambiarla si aparece otra.
+  const institucionEfectiva =
+    form.institutionId ||
+    (listaInstituciones.length === 1 ? (listaInstituciones[0]?.institutionId ?? '') : '');
+
   const crear = useMutation({
     mutationFn: () =>
       usersRepository.create({
@@ -96,6 +117,7 @@ export function AccountsCard() {
         password: form.password,
         role: form.role,
         programas,
+        institutionId: form.role === 'ADMIN' ? undefined : institucionEfectiva || undefined,
       }),
     onSuccess(item) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
@@ -116,11 +138,11 @@ export function AccountsCard() {
   if (!can(role, 'staff.manage')) return null;
 
   const porPrograma = form.role === 'COORDINATOR' || form.role === 'SECRETARY';
-  const errores = erroresDeCuenta(form);
+  const errores = erroresDeCuenta(form, institucionEfectiva);
 
   function handleCrear() {
     setIntentoCrear(true);
-    if (errores.fullName || errores.email || errores.password) return;
+    if (errores.fullName || errores.email || errores.password || errores.institutionId) return;
     crear.mutate();
   }
 
@@ -240,6 +262,33 @@ export function AccountsCard() {
 
           {descripcionRol && (
             <p className="text-caption text-muted">{descripcionRol}</p>
+          )}
+
+          {/* ADMIN no se acota a ninguna institución y ve todas; los demás
+              roles la necesitan porque el backend responde 400 sin ella. */}
+          {form.role !== 'ADMIN' && (
+            <Field
+              label="Institución"
+              required
+              error={intentoCrear ? errores.institutionId : undefined}
+              hint="Acota lo que ve la cuenta a esa institución. Administración ve todas."
+            >
+              {(props) => (
+                <NativeSelect
+                  {...props}
+                  value={institucionEfectiva}
+                  onChange={(event) => setForm({ ...form, institutionId: event.target.value })}
+                  required
+                >
+                  <option value="">Elige la institución…</option>
+                  {listaInstituciones.map((inst) => (
+                    <option key={inst.institutionId} value={inst.institutionId}>
+                      {inst.nombre} ({inst.sigla})
+                    </option>
+                  ))}
+                </NativeSelect>
+              )}
+            </Field>
           )}
 
           {/* Las reglas se ven mientras se escribe: enterarse de la política por

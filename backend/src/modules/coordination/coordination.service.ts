@@ -130,7 +130,11 @@ function nombrePrograma(id: string | null | undefined): string {
  * carrera vería la de al lado escribiendo su id en la barra de direcciones.
  */
 function programasPedidos(filtro: FiltroCoordinacion, alcance: AlcanceDePrograma): string[] | null {
-  if (alcance.total) return filtro.programa ? [filtro.programa] : null;
+  // Sin programas asignados el alcance no acota por carrera (es total, o es la
+  // institución entera y ya viene acotado por `subjectIds`): cualquier
+  // programa se puede pedir. Con `[]` aquí, «sin programas» se leía como
+  // «ningún programa» y la coordinación de una institución veía todo vacío.
+  if (alcance.total || alcance.programas.length === 0) return filtro.programa ? [filtro.programa] : null;
   if (!filtro.programa) return alcance.programas;
   return alcance.programas.includes(filtro.programa) ? [filtro.programa] : [];
 }

@@ -1,17 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { ShieldCheck, UserMinus, UserPlus, UserRoundCog } from 'lucide-react';
+import { UserMinus, UserPlus, UserRoundCog } from 'lucide-react';
 import {
-  AreasPicker,
   Badge,
   Button,
   Card,
   CardContent,
   ConfirmDialog,
-  Dialog,
-  DialogContent,
-  DialogFooter,
   EmptyState,
   ErrorState,
   Field,
@@ -20,17 +16,17 @@ import {
   PageContainer,
   PageHeader,
   SkeletonList,
-  resumenDeSeleccion,
 } from '@/shared/ui';
 import { usersRepository } from '@/infrastructure/repositories/coordination.repository';
 import { registroRepository } from '@/infrastructure/repositories/academic.repository';
+import { institutionsRepository } from '@/infrastructure/repositories/institutions.repository';
 import { queryKeys } from '@/core/api/query-keys';
 import { useDebounce } from '@/shared/hooks/use-debounce';
 import { toast } from '@/state/toast.store';
 import { CUENTAS_PERSONAL_HASH } from '@/shared/lib/scroll-to-hash';
+import { EditorDePersonal } from './components/editor-de-personal';
 import type { Role } from '@/domain/schemas/common';
 import type { UsuarioPersonal } from '@/domain/schemas/users';
-import type { Area, Programa } from '@/domain/schemas/registration';
 
 /**
  * Personal: quién es qué rol y de qué carreras responde.
@@ -79,6 +75,12 @@ export default function StaffPage() {
   const catalogo = useQuery({
     queryKey: queryKeys.registro.catalogo(),
     queryFn: () => registroRepository.catalogo(),
+    staleTime: 10 * 60_000,
+  });
+
+  const instituciones = useQuery({
+    queryKey: queryKeys.institutions.activas(),
+    queryFn: () => institutionsRepository.activas(),
     staleTime: 10 * 60_000,
   });
 
@@ -199,6 +201,15 @@ export default function StaffPage() {
                       <Badge tone={TONO_ROL[usuario.role]}>
                         {roles.data?.find((rol) => rol.id === usuario.role)?.nombre ?? usuario.role}
                       </Badge>
+                      {usuario.role === 'ADMIN' ? (
+                        <span className="text-caption text-muted">Todas las instituciones</span>
+                      ) : usuario.institucion ? (
+                        <Badge tone="neutral" title={usuario.institucion.nombre}>
+                          {usuario.institucion.sigla}
+                        </Badge>
+                      ) : (
+                        <Badge tone="warning">Sin institución</Badge>
+                      )}
                       {usuario.profesor?.esDirectorTrabajoGrado && (
                         <Badge tone="neutral">Dirige trabajos de grado</Badge>
                       )}
@@ -251,6 +262,7 @@ export default function StaffPage() {
           areas={catalogo.data?.areas ?? []}
           programas={programas}
           roles={(roles.data ?? []).map((rol) => ({ id: rol.id, nombre: rol.nombre }))}
+          instituciones={instituciones.data ?? []}
           guardando={guardar.isPending}
           onCancel={() => setEditando(null)}
           onSave={(cambios) => guardar.mutate({ id: editando.id, cambios })}
@@ -271,119 +283,5 @@ export default function StaffPage() {
         onConfirm={() => dandoBaja && darDeBaja.mutate(dandoBaja.id)}
       />
     </PageContainer>
-  );
-}
-
-/**
- * Formulario de una cuenta.
- *
- * El selector de programas solo aparece para los roles que se acotan por
- * carrera. Mostrarlo siempre invitaba a asignarle programas a un docente, donde
- * no significan nada: el alcance de un docente lo da su matrícula.
- */
-function EditorDePersonal({
-  usuario,
-  areas,
-  programas,
-  roles,
-  guardando,
-  onCancel,
-  onSave,
-}: {
-  usuario: UsuarioPersonal;
-  areas: Area[];
-  programas: Programa[];
-  roles: { id: Role; nombre: string }[];
-  guardando: boolean;
-  onCancel: () => void;
-  onSave: (cambios: { fullName?: string; role?: Role; programas?: string[] }) => void;
-}) {
-  const [fullName, setFullName] = useState(usuario.fullName);
-  const [role, setRole] = useState<Role>(usuario.role);
-  const [elegidos, setElegidos] = useState<string[]>(usuario.programas);
-
-  const porPrograma = role === 'COORDINATOR' || role === 'SECRETARY';
-
-  return (
-    <Dialog open onOpenChange={(abierto) => !abierto && onCancel()}>
-      <DialogContent
-        title={usuario.fullName}
-        description={usuario.email}
-        className="max-w-2xl"
-      >
-        <div className="flex flex-col gap-4">
-          <Field label="Nombre">
-            {(props) => (
-              <Input
-                {...props}
-                value={fullName}
-                onChange={(event) => setFullName(event.target.value)}
-              />
-            )}
-          </Field>
-
-          <Field label="Rol">
-            {(props) => (
-              <NativeSelect
-                {...props}
-                value={role}
-                onChange={(event) => setRole(event.target.value as Role)}
-              >
-                {roles.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.nombre}
-                  </option>
-                ))}
-              </NativeSelect>
-            )}
-          </Field>
-
-          {porPrograma && (
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="size-4 text-muted" aria-hidden />
-                <p className="text-body font-medium text-text">Carreras a cargo</p>
-              </div>
-              <p className="text-caption text-muted">
-                {elegidos.length === 0
-                  ? 'Sin ninguna marcada, esta cuenta ve la institución completa.'
-                  : `Verá los grupos, docentes y estudiantes de ${resumenDeSeleccion(
-                      areas,
-                      elegidos,
-                    ).toLowerCase()}.`}
-              </p>
-              <AreasPicker
-                areas={areas}
-                programas={programas}
-                seleccion={elegidos}
-                onChange={setElegidos}
-                disabled={guardando}
-              />
-            </div>
-          )}
-        </div>
-
-        <DialogFooter>
-          <Button variant="ghost" onClick={onCancel} disabled={guardando}>
-            Cancelar
-          </Button>
-          <Button
-            onClick={() =>
-              onSave({
-                fullName: fullName.trim(),
-                role,
-                // Un rol que no se acota por carrera se guarda sin programas:
-                // dejarle los antiguos haría que reaparecieran si algún día
-                // vuelve a ser coordinación, sin que nadie los revisara.
-                programas: porPrograma ? elegidos : [],
-              })
-            }
-            disabled={guardando || fullName.trim().length < 3}
-          >
-            {guardando ? 'Guardando…' : 'Guardar cambios'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }

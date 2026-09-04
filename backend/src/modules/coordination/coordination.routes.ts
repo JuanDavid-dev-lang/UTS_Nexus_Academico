@@ -40,7 +40,9 @@ const consulta = z.object({
 coordinationRouter.get('/programas', async (req, res, next) => {
   try {
     const alcance = req.alcance ?? ALCANCE_TOTAL;
-    const items = alcance.total
+    // Sin programas asignados (alcance total, o la institución entera) el
+    // selector ofrece el catálogo completo: no hay carrera que excluir.
+    const items = alcance.total || alcance.programas.length === 0
       ? PROGRAMAS.map(programa => ({ ...programa }))
       : alcance.programas
           .map(id => buscarPrograma(id))

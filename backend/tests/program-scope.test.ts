@@ -157,3 +157,58 @@ describe('dentroDelAlcanceDePrograma', () => {
     expect(dentroDelAlcanceDePrograma(alcance, 'studentIds', 'est-3')).toBe(false);
   });
 });
+
+describe('alcance por institución', () => {
+  const docentesConInstitucion = [
+    { userId: 'doc-sistemas', programas: ['ING_SISTEMAS'], institutionId: 'uts' },
+    { userId: 'doc-civil', programas: ['ING_CIVIL'], institutionId: 'uts' },
+    { userId: 'doc-udes', programas: ['ING_SISTEMAS'], institutionId: 'udes' },
+    // Recién aprobado, sin materias todavía.
+    { userId: 'doc-nuevo-udes', programas: [], institutionId: 'udes' },
+  ];
+  const materiasConInstitucion = [
+    ...materias,
+    { _id: 'mat-udes', professorId: 'doc-udes', programa: 'ING_SISTEMAS' },
+  ];
+  const gruposConInstitucion = [...grupos, { _id: 'gru-udes', subjectId: 'mat-udes', professorId: 'doc-udes' }];
+  const matriculasConInstitucion = [...matriculas, { studentId: 'est-udes', subjectId: 'mat-udes' }];
+
+  function alcanceDeInstitucion(institutionId: string | null, programas: string[] = []) {
+    return construirAlcanceDePrograma({
+      programas,
+      materias: materiasConInstitucion,
+      grupos: gruposConInstitucion,
+      matriculas: matriculasConInstitucion,
+      docentes: docentesConInstitucion,
+      institutionId,
+    });
+  }
+
+  it('sin programas pero con institución, el alcance es la institución entera y no es total', () => {
+    const alcance = alcanceDeInstitucion('udes');
+    expect(alcance.total).toBe(false);
+    expect(alcance.institutionId).toBe('udes');
+    expect(alcance.subjectIds).toEqual(['mat-udes']);
+    expect(alcance.studentIds).toEqual(['est-udes']);
+    expect(alcance.groupIds).toEqual(['gru-udes']);
+  });
+
+  it('incluye a los docentes de la institución aunque aún no dicten nada', () => {
+    expect(alcanceDeInstitucion('udes').professorIds).toEqual(
+      expect.arrayContaining(['doc-udes', 'doc-nuevo-udes']),
+    );
+    expect(alcanceDeInstitucion('udes').professorIds).not.toContain('doc-sistemas');
+  });
+
+  it('con programas, una materia del mismo programa en otra institución no entra', () => {
+    const alcance = alcanceDeInstitucion('uts', ['ING_SISTEMAS']);
+    expect(alcance.subjectIds).toContain('mat-sistemas');
+    expect(alcance.subjectIds).not.toContain('mat-udes');
+    expect(alcance.studentIds).not.toContain('est-udes');
+  });
+
+  it('sin institución ni programas sigue siendo total (ADMIN y cuentas anteriores)', () => {
+    expect(alcanceDeInstitucion(null).total).toBe(true);
+    expect(ALCANCE_TOTAL.institutionId).toBeNull();
+  });
+});

@@ -541,3 +541,21 @@ toca los tipos del motor y los tres clientes, que dibujan tres cortes.
 
 Todo cambio queda en la auditoría (`Institucion`, `Profesor`) y emite
 `sync:update` con `entity: 'institution'` a las salas administrativas.
+
+### Institución por rol
+
+Toda cuenta que no sea de administración pertenece a una institución:
+docentes (la de su ficha), coordinación, secretaría y estudiantes. ADMIN no
+tiene ninguna y ve todas. Se asigna desde Personal al crear la cuenta
+(obligatoria salvo ADMIN) o al editarla; para un docente, también desde el
+panel de docentes de la institución. Al pasar una cuenta a ADMIN, la
+institución se borra sola.
+
+El alcance de coordinación y secretaría se acota primero por institución y
+después por programas: solo entran las materias que dicta un docente de su
+institución. Sin programas asignados, una coordinación ve **su institución
+entera**, no la instalación. En el listado de instituciones, coordinación y
+secretaría ven solo la suya.
+
+Las cuentas anteriores a esta capacidad quedan vinculadas a las UTS en el
+arranque, igual que los docentes.

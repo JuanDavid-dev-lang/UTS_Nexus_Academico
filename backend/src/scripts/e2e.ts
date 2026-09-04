@@ -901,6 +901,7 @@ async function ejecutar(puerto: number) {
       password: 'ClaveNueva2026',
       fullName: 'Coordinación creada desde Configuración',
       role: 'COORDINATOR',
+      institutionId: 'uts',
       programas: ['ING_SISTEMAS'],
     },
     admin,
@@ -919,6 +920,7 @@ async function ejecutar(puerto: number) {
       email: 'e2e-area@uts.edu.co',
       password: 'ClaveNueva2026',
       fullName: 'Coordinación por área',
+      institutionId: 'uts',
       role: 'COORDINATOR',
       areas: ['AREA_SISTEMAS'],
     },
@@ -941,6 +943,7 @@ async function ejecutar(puerto: number) {
     {
       email: 'e2e-area-mala@uts.edu.co',
       password: 'ClaveNueva2026',
+      institutionId: 'uts',
       fullName: 'Área inventada',
       role: 'COORDINATOR',
       areas: ['AREA_QUE_NO_EXISTE'],
@@ -969,6 +972,7 @@ async function ejecutar(puerto: number) {
     '/usuarios',
     {
       email: 'e2e-nueva-coordinacion@uts.edu.co',
+      institutionId: 'uts',
       password: 'OtraClave2026',
       fullName: 'Repetida',
       role: 'SECRETARY',
@@ -1267,6 +1271,77 @@ async function ejecutar(puerto: number) {
   const listaFinal = await get('/instituciones', admin);
   ok('La eliminada no vuelve a listarse',
     !(listaFinal.json?.items ?? []).some((i: any) => i.institutionId === 'upb'));
+
+  // ── 21. Institución por rol ─────────────────────────────────────────────
+  seccion('21) Institución por rol: todos menos ADMIN');
+
+  // El arranque vincula a las UTS las cuentas y fichas anteriores a los
+  // perfiles: aquí se crearon después de arrancar, así que se repite lo que
+  // hace el arranque antes de comprobar alcances.
+  await asegurarPerfilesIniciales();
+
+  const sinInstitucion = await post(
+    '/usuarios',
+    { email: 'e2e-sin-inst@uts.edu.co', password: 'ClaveNueva2026', fullName: 'Sin institución', role: 'COORDINATOR' },
+    admin,
+  );
+  ok('Una coordinación sin institución → 400', sinInstitucion.status === 400, `status ${sinInstitucion.status}`);
+
+  const adminNuevo = await post(
+    '/usuarios',
+    { email: 'e2e-admin2@uts.edu.co', password: 'ClaveNueva2026', fullName: 'Admin dos', role: 'ADMIN' },
+    admin,
+  );
+  ok('ADMIN se crea sin institución y ve todas',
+    adminNuevo.status === 201 && adminNuevo.json?.item?.institucion === null,
+    JSON.stringify(adminNuevo.json?.item?.institucion));
+
+  const coordUdes = await post(
+    '/usuarios',
+    {
+      email: 'e2e-coord-udes@uts.edu.co',
+      password: CLAVE,
+      fullName: 'Coordinación UDES',
+      role: 'COORDINATOR',
+      institutionId: 'udes',
+    },
+    admin,
+  );
+  ok('Una coordinación nace con su institución',
+    coordUdes.status === 201 && coordUdes.json?.item?.institucion?.institutionId === 'udes',
+    JSON.stringify(coordUdes.json?.item?.institucion));
+  const coordUdesId = String(coordUdes.json?.item?.id ?? '');
+
+  const sesionUdes = await login('e2e-coord-udes@uts.edu.co');
+  const materiasUdes = await get(`/coordinacion/materias?period=${PERIODO}`, sesionUdes);
+  ok('Coordinación de la UDES no ve materias de docentes de las UTS',
+    materiasUdes.status === 200 && (materiasUdes.json?.items ?? []).length === 0,
+    `status ${materiasUdes.status} · ${JSON.stringify(materiasUdes.json).slice(0, 160)}`);
+  const institucionesUdes = await get('/instituciones', sesionUdes);
+  ok('Coordinación solo ve su propia institución en el listado',
+    institucionesUdes.status === 200 &&
+      (institucionesUdes.json?.items ?? []).map((i: any) => i.institutionId).join() === 'udes',
+    `status ${institucionesUdes.status} · ${JSON.stringify(institucionesUdes.json).slice(0, 160)}`);
+
+  const movida = await patch(`/usuarios/${coordUdesId}`, { institutionId: 'uts' }, admin);
+  ok('ADMIN cambia la institución de una cuenta',
+    movida.status === 200 && movida.json?.item?.institucion?.institutionId === 'uts',
+    JSON.stringify(movida.json?.item?.institucion));
+  const materiasTrasMover = await get(`/coordinacion/materias?period=${PERIODO}`, sesionUdes);
+  ok('Al pasar a las UTS ve sus materias sin cerrar sesión',
+    materiasTrasMover.status === 200 && (materiasTrasMover.json?.items ?? []).length >= 1,
+    `${(materiasTrasMover.json?.items ?? []).length} materias`);
+
+  const ascenso = await patch(`/usuarios/${coordUdesId}`, { role: 'ADMIN' }, admin);
+  ok('Al pasar a ADMIN la institución se borra',
+    ascenso.status === 200 && ascenso.json?.item?.institucion === null,
+    JSON.stringify(ascenso.json?.item?.institucion));
+
+  const docenteDemo = await get('/usuarios?role=PROFESSOR', admin);
+  const fichaDemo = (docenteDemo.json?.items ?? []).find((u: any) => u.email === 'e2e-docente@uts.edu.co');
+  ok('La cuenta del docente lleva la institución de su ficha (UTS)',
+    fichaDemo?.institucion?.institutionId === 'uts',
+    JSON.stringify(fichaDemo?.institucion));
 }
 
 main().catch(async error => {

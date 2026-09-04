@@ -35,6 +35,8 @@ export type AlcanceDePrograma = {
   /** Docentes que dictan algo dentro del alcance. */
   professorIds: string[];
   studentIds: string[];
+  /** Institución que acota (`_id`), o `null` si no se acota por institución. */
+  institutionId: string | null;
 };
 
 export const ALCANCE_TOTAL: AlcanceDePrograma = {
@@ -44,6 +46,7 @@ export const ALCANCE_TOTAL: AlcanceDePrograma = {
   groupIds: [],
   professorIds: [],
   studentIds: [],
+  institutionId: null,
 };
 
 export type MateriaDeAlcance = {
@@ -66,6 +69,8 @@ export type MatriculaDeAlcancePrograma = {
 export type DocenteDeAlcance = {
   userId: unknown;
   programas?: string[] | null;
+  /** Institución de la ficha. Si el alcance es por institución, decide quién entra. */
+  institutionId?: unknown;
 };
 
 /**
@@ -104,23 +109,49 @@ export function construirAlcanceDePrograma(input: {
   grupos: GrupoDeAlcance[];
   matriculas: MatriculaDeAlcancePrograma[];
   docentes: DocenteDeAlcance[];
+  /**
+   * Institución de quien consulta. Con ella, **solo entran las materias que
+   * dicta un docente de esa institución**, tengan o no programas pedidos; sin
+   * ella ni programas, el alcance es total (ADMIN, o una cuenta anterior a
+   * los perfiles institucionales).
+   */
+  institutionId?: string | null;
 }): AlcanceDePrograma {
   const programas = [...new Set(input.programas.filter(Boolean))];
-  if (programas.length === 0) return { ...ALCANCE_TOTAL };
+  const institucion = input.institutionId ? String(input.institutionId) : null;
+  if (programas.length === 0 && !institucion) return { ...ALCANCE_TOTAL };
+
+  const docentesDeLaInstitucion = institucion
+    ? new Set(
+        input.docentes
+          .filter(docente => docente.institutionId != null && String(docente.institutionId) === institucion)
+          .map(docente => String(docente.userId)),
+      )
+    : null;
 
   const pedidos = new Set(programas);
   const programasPorDocente = new Map<string, string[]>(
     input.docentes.map(docente => [String(docente.userId), docente.programas ?? []]),
   );
 
-  const materias = input.materias.filter(materia =>
-    materiaEnProgramas(materia, pedidos, programasPorDocente),
-  );
+  const materias = input.materias.filter(materia => {
+    // Una materia de un docente de otra institución no entra ni aunque su
+    // programa coincida: el programa es un nombre, la institución es quién.
+    if (docentesDeLaInstitucion && !docentesDeLaInstitucion.has(String(materia.professorId ?? ''))) {
+      return false;
+    }
+    return pedidos.size === 0 || materiaEnProgramas(materia, pedidos, programasPorDocente);
+  });
   const subjectIds = new Set(materias.map(materia => String(materia._id)));
 
   const professorIds = new Set<string>();
   for (const materia of materias) {
     if (materia.professorId != null) professorIds.add(String(materia.professorId));
+  }
+  // Por institución, todos sus docentes cuentan aunque hoy no dicten nada:
+  // es lo que permite ver a uno recién aprobado y sin materias todavía.
+  if (docentesDeLaInstitucion) {
+    for (const id of docentesDeLaInstitucion) professorIds.add(id);
   }
 
   const groupIds = new Set<string>();
@@ -145,6 +176,7 @@ export function construirAlcanceDePrograma(input: {
     groupIds: [...groupIds],
     professorIds: [...professorIds],
     studentIds: [...studentIds],
+    institutionId: institucion,
   };
 }
 

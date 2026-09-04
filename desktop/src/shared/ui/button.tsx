@@ -76,19 +76,31 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   { className, variant, size, block, asChild, loading, disabled, children, ...props },
   ref,
 ) {
-  const Component = asChild ? Slot : 'button';
+  const classes = cn(buttonVariants({ variant, size, block }), className);
+
+  // `Slot` exige UN solo hijo. El hueco del spinner (`null`) ya cuenta como
+  // segundo hijo, y desde @radix-ui/react-slot 1.2 eso revienta la página
+  // entera («Slot failed to slot onto its children»), como pasó en Personal.
+  // Con `asChild` el spinner no tiene sentido: el hijo es un enlace.
+  if (asChild) {
+    return (
+      <Slot ref={ref} className={classes} aria-disabled={disabled || loading || undefined} {...props}>
+        {children}
+      </Slot>
+    );
+  }
 
   return (
-    <Component
+    <button
       ref={ref}
-      className={cn(buttonVariants({ variant, size, block }), className)}
+      className={classes}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
       {...props}
     >
       {loading ? <Loader2 className="animate-spin" aria-hidden /> : null}
       {children}
-    </Component>
+    </button>
   );
 });
 

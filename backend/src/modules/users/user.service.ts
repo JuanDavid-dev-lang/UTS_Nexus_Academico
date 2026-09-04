@@ -1,3 +1,4 @@
+import type { Types } from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { UserModel } from '../../models/user.model.js';
 import { ProfessorModel } from '../../models/professor.model.js';
@@ -13,7 +14,7 @@ import type { Role } from '../../shared/types.js';
  * que se olvida en un listado viaja a los tres clientes.
  */
 
-const CAMPOS_PUBLICOS = '_id email fullName role programas sede facultad photoUrl lastLoginAt createdAt';
+const CAMPOS_PUBLICOS = '_id email fullName role programas sede facultad photoUrl lastLoginAt createdAt institutionId';
 
 export type UsuarioDePersonal = {
   id: string;
@@ -32,6 +33,11 @@ export type UsuarioDePersonal = {
   areas: { id: string; nombre: string; completa: boolean }[];
   photoUrl: string | null;
   lastLoginAt: Date | null;
+  /**
+   * Institución de la cuenta. `null` solo para ADMIN, que ve todas; para el
+   * resto es lo que acota su alcance.
+   */
+  institucion: { id: string; institutionId: string; nombre: string; sigla: string } | null;
   /** Ficha docente, cuando la tiene. */
   profesor: {
     id: string;
@@ -62,6 +68,7 @@ type UsuarioCrudo = {
   programas?: string[] | null;
   photoUrl?: string | null;
   lastLoginAt?: Date | null;
+  institutionId?: unknown;
 };
 
 type FichaCruda = {
@@ -75,11 +82,17 @@ type FichaCruda = {
   institucionSolicitada?: string | null;
 };
 
-function institucionDe(ficha: FichaCruda): NonNullable<UsuarioDePersonal['profesor']>['institucion'] {
-  const valor = ficha.institutionId;
+type InstitucionResumen = { id: string; institutionId: string; nombre: string; sigla: string } | null;
+
+/** Referencia poblada con `institutionId nombre sigla`; un id suelto o nulo da `null`. */
+function institucionPoblada(valor: unknown): InstitucionResumen {
   if (!valor || typeof valor !== 'object' || !('institutionId' in valor)) return null;
   const doc = valor as { _id: unknown; institutionId: string; nombre: string; sigla: string };
   return { id: String(doc._id), institutionId: doc.institutionId, nombre: doc.nombre, sigla: doc.sigla };
+}
+
+function institucionDe(ficha: FichaCruda): InstitucionResumen {
+  return institucionPoblada(ficha.institutionId);
 }
 
 /** Une la cuenta con su ficha docente y traduce los programas a nombre visible. */
@@ -99,6 +112,7 @@ function aPersonal(usuario: UsuarioCrudo, ficha: FichaCruda | undefined): Usuari
     })),
     photoUrl: usuario.photoUrl ?? null,
     lastLoginAt: usuario.lastLoginAt ?? null,
+    institucion: institucionPoblada(usuario.institutionId) ?? (ficha ? institucionDe(ficha) : null),
     profesor: ficha
       ? {
           id: String(ficha._id),
@@ -132,6 +146,7 @@ export async function listarUsuarios(
   const [usuarios, total] = await Promise.all([
     UserModel.find(query)
       .select(CAMPOS_PUBLICOS)
+      .populate('institutionId', 'institutionId nombre sigla')
       .sort({ role: 1, fullName: 1 })
       .skip(skip)
       .limit(limit)
@@ -157,6 +172,7 @@ export async function listarUsuarios(
 export async function obtenerUsuario(id: string): Promise<UsuarioDePersonal | null> {
   const usuario = await UserModel.findOne({ _id: id, deletedAt: null })
     .select(CAMPOS_PUBLICOS)
+    .populate('institutionId', 'institutionId nombre sigla')
     .lean();
   if (!usuario) return null;
 
@@ -187,16 +203,20 @@ export async function crearUsuario(input: {
   role: Role;
   programas?: string[];
   employeeCode?: string;
+  /** `_id` de la institución. ADMIN va sin ella (ve todas). */
+  institutionId?: Types.ObjectId | null;
 }): Promise<UsuarioDePersonal | null> {
   const existente = await UserModel.findOne({ email: input.email }).select('_id').lean();
   if (existente) return null;
 
+  const institutionId = input.role === 'ADMIN' ? null : input.institutionId ?? null;
   const passwordHash = await bcrypt.hash(input.password, 12);
   const usuario = await UserModel.create({
     email: input.email,
     passwordHash,
     fullName: input.fullName,
     role: input.role,
+    institutionId,
     // Solo significan algo para coordinacion y secretaria. Para el resto se
     // guardan vacios en vez de rechazarlos: el formulario no los ofrece, y un
     // 400 por un campo que la pantalla no muestra no se puede corregir.
@@ -212,20 +232,40 @@ export async function crearUsuario(input: {
       userId: usuario.id,
       employeeCode: input.employeeCode ?? null,
       estado: 'APROBADO',
+      institutionId,
     });
   }
 
   return obtenerUsuario(usuario.id);
 }
 
+export type CambiosDeUsuario = {
+  fullName?: string;
+  role?: string;
+  programas?: string[];
+  /** `_id` de la institución; `null` la quita. Se ignora al pasar a ADMIN. */
+  institutionId?: Types.ObjectId | null;
+};
+
 export async function actualizarUsuario(
   id: string,
-  cambios: { fullName?: string; role?: string; programas?: string[] },
-): Promise<{ antes: { role: Role; programas: string[] } | null; item: UsuarioDePersonal | null }> {
-  const antes = await UserModel.findOne({ _id: id, deletedAt: null }).select('role programas').lean();
+  cambios: CambiosDeUsuario,
+): Promise<{
+  antes: { role: Role; programas: string[]; institutionId: string | null } | null;
+  item: UsuarioDePersonal | null;
+}> {
+  const antes = await UserModel.findOne({ _id: id, deletedAt: null })
+    .select('role programas institutionId')
+    .lean();
   if (!antes) return { antes: null, item: null };
 
-  await UserModel.updateOne({ _id: id, deletedAt: null }, { $set: cambios });
+  const rolFinal = cambios.role ?? antes.role;
+  const { institutionId, ...resto } = cambios;
+  // ADMIN no se acota: si la cuenta pasa a serlo, la institución se borra.
+  const cambioInstitucion =
+    rolFinal === 'ADMIN' ? { institutionId: null } : institutionId === undefined ? {} : { institutionId };
+
+  await UserModel.updateOne({ _id: id, deletedAt: null }, { $set: { ...resto, ...cambioInstitucion } });
 
   // Un ascenso a docente sin ficha deja una cuenta que no puede registrarse en
   // ningún grupo y que no aparece en el listado de docentes: la ficha se crea
@@ -237,9 +277,20 @@ export async function actualizarUsuario(
       { upsert: true },
     );
   }
+  // La ficha docente lleva la misma institución que la cuenta.
+  if ('institutionId' in cambioInstitucion) {
+    await ProfessorModel.updateOne(
+      { userId: id, deletedAt: null },
+      { $set: { institutionId: cambioInstitucion.institutionId } },
+    );
+  }
 
   return {
-    antes: { role: antes.role as Role, programas: antes.programas ?? [] },
+    antes: {
+      role: antes.role as Role,
+      programas: antes.programas ?? [],
+      institutionId: antes.institutionId ? String(antes.institutionId) : null,
+    },
     item: await obtenerUsuario(id),
   };
 }

@@ -9,6 +9,7 @@
  */
 import { z } from 'zod';
 import { objectId, role } from './common';
+import { institucionPublicaSchema } from './institutions';
 
 export const rolCatalogoSchema = z.object({
   id: role,
@@ -32,6 +33,12 @@ export const usuarioPersonalSchema = z.object({
     .default([]),
   photoUrl: z.string().nullable(),
   lastLoginAt: z.string().nullable(),
+  /**
+   * `null` para ADMIN (sin institución, ve todas) y para backends viejos que
+   * todavía no mandan el campo — de ahí el `.default(null)`: un backend sin
+   * desplegar la institución no puede tumbar el parseo del listado entero.
+   */
+  institucion: institucionPublicaSchema.nullable().default(null),
   profesor: z
     .object({
       id: objectId,
@@ -39,6 +46,9 @@ export const usuarioPersonalSchema = z.object({
       estado: z.string(),
       esDirectorTrabajoGrado: z.boolean(),
       programas: z.array(z.string()),
+      institucion: institucionPublicaSchema.nullable().default(null),
+      /** Nombre libre que el docente escribió al registrarse, sin perfil todavía. */
+      institucionSolicitada: z.string().nullable().default(null),
     })
     .nullable(),
 });
@@ -58,10 +68,14 @@ export type NuevaCuenta = {
   role: z.infer<typeof role>;
   programas?: string[];
   employeeCode?: string;
+  /** Obligatorio salvo para ADMIN, que no se acota a ninguna institución. */
+  institutionId?: string;
 };
 
 export type CambioDeUsuario = {
   fullName?: string;
   role?: z.infer<typeof role>;
   programas?: string[];
+  /** `null` quita la institución de la cuenta. */
+  institutionId?: string | null;
 };

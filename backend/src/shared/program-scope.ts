@@ -7,6 +7,7 @@ import {
   ALCANCE_TOTAL,
   construirAlcanceDePrograma,
   type AlcanceDePrograma,
+  type DocenteDeAlcance,
 } from '../domains/scope/program-scope.js';
 import { esRolPorPrograma } from './types.js';
 import type { Role } from './types.js';
@@ -74,15 +75,51 @@ export async function getProgramScope(user?: { id: string; role: Role }): Promis
   return valor;
 }
 
+/**
+ * Institución de una cuenta: la de la cuenta y, si no la tiene, la de su
+ * ficha docente. `null` para ADMIN (ve todas) y para cuentas anteriores a los
+ * perfiles institucionales que el arranque no haya podido vincular.
+ */
+export async function institucionDelUsuario(userId: string): Promise<string | null> {
+  const [usuario, ficha] = await Promise.all([
+    UserModel.findOne({ _id: userId, deletedAt: null }).select('institutionId').lean(),
+    ProfessorModel.findOne({ userId, deletedAt: null }).select('institutionId').lean(),
+  ]);
+  const id = usuario?.institutionId ?? ficha?.institutionId ?? null;
+  return id ? String(id) : null;
+}
+
 async function calcularAlcance(userId: string): Promise<AlcanceDePrograma> {
-  const programas = await programasDelUsuario(userId);
-  if (programas.length === 0) return ALCANCE_TOTAL;
+  const [programas, institutionId] = await Promise.all([
+    programasDelUsuario(userId),
+    institucionDelUsuario(userId),
+  ]);
+  if (programas.length === 0 && !institutionId) return ALCANCE_TOTAL;
 
   // Los docentes del programa se necesitan antes que las materias: son el
-  // respaldo de las materias que no tienen `programa` escrito.
-  const docentes = await ProfessorModel.find({ programas: { $in: programas }, deletedAt: null })
-    .select('userId programas')
+  // respaldo de las materias que no tienen `programa` escrito. Con institución,
+  // se traen solo los suyos: es el filtro que el dominio aplica después.
+  const fichas = await ProfessorModel.find({
+    deletedAt: null,
+    ...(institutionId ? { institutionId } : { programas: { $in: programas } }),
+  })
+    .select('userId programas institutionId')
     .lean();
+  const docentes: DocenteDeAlcance[] = [...fichas];
+
+  // Por institución cuenta también la cuenta de docente sin ficha (las hay
+  // anteriores al alta por Personal): la institución vive en la cuenta y sus
+  // materias llevan su `userId`. Sin esto, esas materias no entrarían en el
+  // alcance de nadie.
+  if (institutionId) {
+    const conFicha = new Set(fichas.map(ficha => String(ficha.userId)));
+    const cuentas = await UserModel.find({ role: 'PROFESSOR', institutionId, deletedAt: null })
+      .select('_id')
+      .lean();
+    for (const cuenta of cuentas) {
+      if (!conFicha.has(String(cuenta._id))) docentes.push({ userId: cuenta._id, programas: [], institutionId });
+    }
+  }
 
   const idsDocentes = docentes.map(docente => String(docente.userId));
 
@@ -91,7 +128,9 @@ async function calcularAlcance(userId: string): Promise<AlcanceDePrograma> {
   // docente) lo hace el dominio; aquí solo se acota lo que se trae de la base.
   const materias = await SubjectModel.find({
     deletedAt: null,
-    $or: [{ programa: { $in: programas } }, { professorId: { $in: idsDocentes } }],
+    ...(institutionId
+      ? { professorId: { $in: idsDocentes } }
+      : { $or: [{ programa: { $in: programas } }, { professorId: { $in: idsDocentes } }] }),
   })
     .select('_id professorId programa')
     .lean();
@@ -111,5 +150,5 @@ async function calcularAlcance(userId: string): Promise<AlcanceDePrograma> {
       .lean(),
   ]);
 
-  return construirAlcanceDePrograma({ programas, materias, grupos, matriculas, docentes });
+  return construirAlcanceDePrograma({ programas, materias, grupos, matriculas, docentes, institutionId });
 }
