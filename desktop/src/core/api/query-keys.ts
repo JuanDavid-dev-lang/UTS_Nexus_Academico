@@ -31,6 +31,18 @@ export const queryKeys = {
   },
 
   /**
+   * Puente con UniPlanner. `estado` va aparte de `enlaces` porque cambia con el
+   * despliegue, no con los datos: preguntarlo en cada cambio de materia sería
+   * repetir una respuesta que solo se mueve al reiniciar el servidor.
+   */
+  uniplanner: {
+    all: ['uniplanner'] as const,
+    estado: () => ['uniplanner', 'estado'] as const,
+    enlaces: (filtro: { subjectId: string; period?: string }) =>
+      ['uniplanner', 'enlaces', filtro] as const,
+  },
+
+  /**
    * Vista de coordinación. Las cuatro consultas cuelgan de la misma raíz
    * porque miran el mismo conjunto de datos: si una nota cambia, el promedio de
    * la materia, el del docente y el del grupo cambian a la vez, y tenerlas en

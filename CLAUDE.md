@@ -269,8 +269,8 @@ pantalla se queda con la lista vieja.
 
 Tres capas que se acumulan, **todas contando por usuario cuando hay sesión y por
 IP cuando no**: `limiteGeneral` (600/15 min), `limiteEscritura` (120/15 min,
-solo métodos que modifican) y `limiteLotes` (20/15 min, las cuatro rutas masivas
-y los tres escáneres). Login aparte, por IP a propósito: quien prueba
+solo métodos que modifican) y `limiteLotes` (20/15 min, las cuatro rutas masivas,
+los tres escáneres y los tres avisos de UniPlanner que reparten a una lista). Login aparte, por IP a propósito: quien prueba
 contraseñas todavía no es nadie y la clave saldría del correo que él mismo elige.
 
 - **Van en `routes/index.ts`, después de `identificar`.** En `app.ts` corren

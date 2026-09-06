@@ -104,6 +104,36 @@ export const env = {
   FCM_CLIENT_EMAIL: process.env.FCM_CLIENT_EMAIL ?? '',
   /** Clave privada de la cuenta de servicio. Admite los `\n` escapados del JSON. */
   FCM_PRIVATE_KEY: (process.env.FCM_PRIVATE_KEY ?? '').replace(/\\n/g, '\n'),
+
+  // ── Puente con UniPlanner (Firestore REST) ─────────────────────────────
+  // La clave de cada institución **no** vive aquí: es `Institucion.institutionId`
+  // en la base, que es el identificador estable que el propio modelo declara
+  // como «el que usará UniPlanner». En una variable de entorno el despliegue
+  // entero quedaría clavado a una sola universidad, y este backend ya sirve a
+  // varias.
+  //
+  // Sin las tres credenciales el canal queda desactivado y se anota en el log,
+  // igual que el push y el correo: nadie debería necesitar una cuenta de
+  // servicio de otro proyecto para levantar esto en local. La lista de clase
+  // sigue funcionando; lo que desaparece es la insignia de enlazado y el botón
+  // de avisar.
+  UNIPLANNER_PROJECT_ID: process.env.UNIPLANNER_PROJECT_ID ?? '',
+  UNIPLANNER_CLIENT_EMAIL: process.env.UNIPLANNER_CLIENT_EMAIL ?? '',
+  /** Clave privada de la cuenta de servicio. Admite los `\n` escapados del JSON. */
+  UNIPLANNER_PRIVATE_KEY: (process.env.UNIPLANNER_PRIVATE_KEY ?? '').replace(/\\n/g, '\n'),
+  /**
+   * Solo se escribe a enlaces confirmados.
+   *
+   * Apagado por defecto porque hoy nadie confirma ninguno y encenderlo dejaría
+   * el canal mudo. Existe para el día que haya un proceso de verificación: el
+   * nombre del documento de enlace es calculable, así que hasta entonces una
+   * cuenta puede reclamar el código de otra persona y recibir sus avisos. Ver
+   * `docs/UNIPLANNER.md`.
+   */
+  UNIPLANNER_SOLO_VERIFICADOS: ['1', 'true', 'si', 'yes'].includes(
+    (process.env.UNIPLANNER_SOLO_VERIFICADOS ?? '0').toLowerCase(),
+  ),
+
   /** URL del servidor de IA local (Ollama). */
   AI_BASE_URL: process.env.AI_BASE_URL ?? 'http://localhost:11434',
   /** Modelo de Ollama para el asistente académico. */

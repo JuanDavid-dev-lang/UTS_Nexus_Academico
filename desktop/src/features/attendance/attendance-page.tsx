@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarCheck, Camera, Check, X } from 'lucide-react';
+import { CalendarCheck, Camera, Check, Send, Smartphone, X } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -30,6 +30,14 @@ import {
 import { cn } from '@/shared/lib/cn';
 import { toast } from '@/state/toast.store';
 import { SheetScanDialog } from './components/sheet-scan-dialog';
+import {
+  useEnlacesUniPlanner,
+  useEstadoUniPlanner,
+} from '@/features/uniplanner/hooks/use-uniplanner';
+import {
+  NotifyDialog,
+  type DestinatarioAviso,
+} from '@/features/uniplanner/components/notify-dialog';
 
 /**
  * Attendance roll call.
@@ -43,6 +51,7 @@ export default function AttendancePage() {
   const [subjectId, setSubjectId] = useState('');
   const [date, setDate] = useState(toIsoDate());
   const [scanOpen, setScanOpen] = useState(false);
+  const [avisando, setAvisando] = useState<DestinatarioAviso[] | null>(null);
 
   const user = useCurrentUser();
   const role = useUserRole();
@@ -52,6 +61,27 @@ export default function AttendancePage() {
   const enrolled = useEnrolledStudents({ subjectId, period });
   const attendance = useAttendance({ subjectId: subjectId || undefined, period }, Boolean(subjectId));
   const markAttendance = useMarkAttendance();
+
+  /*
+    Puente con UniPlanner. Se pregunta primero si está encendido: sin
+    credenciales configuradas no se pide la lista de enlaces —que es una
+    llamada a otro proyecto— ni se pinta ningún botón que no podría funcionar.
+  */
+  const puente = useEstadoUniPlanner();
+  const puenteActivo = puente.data?.configurado === true;
+  const enlaces = useEnlacesUniPlanner({ subjectId, period }, puenteActivo && Boolean(subjectId));
+
+  const enlacePorEstudiante = useMemo(
+    () => new Map((enlaces.data ?? []).map((enlace) => [enlace.studentId, enlace])),
+    [enlaces.data],
+  );
+
+  /** Los que están en riesgo por faltas y además tienen la app. */
+  const enRiesgoConApp = useMemo(
+    () =>
+      (enlaces.data ?? []).filter((enlace) => enlace.enlazado && enlace.nivel !== 'VERDE'),
+    [enlaces.data],
+  );
 
   useEffect(() => {
     if (subjectId) return;
@@ -231,6 +261,34 @@ export default function AttendancePage() {
             <Badge tone={absentCount > 0 ? 'danger' : 'neutral'}>{absentCount} ausentes</Badge>
           </div>
 
+          {/*
+            Aviso masivo. Solo aparece cuando hay alguien a quien mandarlo: un
+            botón permanente que casi siempre no hace nada se acaba pulsando
+            por costumbre, y esto escribe en el teléfono de treinta personas.
+          */}
+          {canWrite && puenteActivo && enRiesgoConApp.length > 0 ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setAvisando(
+                  enRiesgoConApp.map((enlace) => ({
+                    studentId: enlace.studentId,
+                    code: enlace.code,
+                    fullName:
+                      enrolled.data.find((student) => student._id === enlace.studentId)?.fullName ??
+                      enlace.code,
+                    enlazado: true,
+                    verificado: enlace.verificado,
+                  })),
+                )
+              }
+            >
+              <Send aria-hidden />
+              Avisar a {enRiesgoConApp.length} en riesgo
+            </Button>
+          ) : null}
+
           <div className="min-w-40 flex-1">
             <Progress
               value={(registeredCount / enrolled.data.length) * 100}
@@ -311,6 +369,60 @@ export default function AttendancePage() {
                   </Badge>
                 ) : null}
 
+                {/*
+                  Estado en UniPlanner. La insignia no es decorativa: dice si
+                  pulsar "avisar" va a servir de algo. Sin ella, el docente
+                  manda un aviso a alguien que no tiene la app y se queda
+                  esperando una reacción que no puede llegar.
+                */}
+                {puenteActivo ? (() => {
+                  const enlace = enlacePorEstudiante.get(student._id);
+                  if (!enlace?.enlazado) {
+                    return (
+                      <Badge tone="neutral" title="Sin UniPlanner enlazado">
+                        <Smartphone aria-hidden className="size-3.5 opacity-50" />
+                        Sin app
+                      </Badge>
+                    );
+                  }
+                  return (
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <Badge
+                        tone={enlace.verificado ? 'success' : 'warning'}
+                        title={
+                          enlace.verificado
+                            ? 'Enlazado a UniPlanner y confirmado'
+                            : 'Enlazado a UniPlanner, sin confirmar por la institución'
+                        }
+                      >
+                        <Smartphone aria-hidden className="size-3.5" />
+                        {enlace.verificado ? 'UniPlanner' : 'Sin confirmar'}
+                      </Badge>
+                      {canWrite ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            setAvisando([
+                              {
+                                studentId: student._id,
+                                code: student.code,
+                                fullName: student.fullName,
+                                enlazado: true,
+                                verificado: enlace.verificado,
+                              },
+                            ])
+                          }
+                          aria-label={`Avisar por UniPlanner a ${student.fullName}`}
+                          title="Avisar por UniPlanner"
+                        >
+                          <Send aria-hidden />
+                        </Button>
+                      ) : null}
+                    </div>
+                  );
+                })() : null}
+
                 {canWrite ? (
                   /*
                     Los dos botones van pegados dentro de un carril hundido: es
@@ -351,6 +463,21 @@ export default function AttendancePage() {
           })}
         </ul>
       )}
+
+      {avisando ? (
+        <NotifyDialog
+          open
+          onOpenChange={(abierto) => {
+            if (!abierto) setAvisando(null);
+          }}
+          subjectId={subjectId}
+          subjectName={
+            periodSubjects.find((subject) => subject._id === subjectId)?.name ?? 'la materia'
+          }
+          period={period}
+          destinatarios={avisando}
+        />
+      ) : null}
     </PageContainer>
   );
 }

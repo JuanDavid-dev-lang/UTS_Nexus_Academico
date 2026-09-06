@@ -24,6 +24,16 @@ export type ResultadoRiesgo = {
   sinNotas: boolean;
   porcentajeAsistencia: number;
   clasesAusente: number;
+  /**
+   * Clases dictadas hasta ahora.
+   *
+   * No lo usa el cálculo del riesgo —que va por minutos, no por clases— pero
+   * sale de la misma pasada y es lo que necesita quien tenga que expresar el
+   * cupo de faltas en un número que un estudiante cuente. Sin esto habría que
+   * volver a recorrer la asistencia fuera, que es exactamente la fórmula
+   * paralela que este dominio existe para evitar.
+   */
+  clasesTotales: number;
   motivos: string[];
 };
 
@@ -86,6 +96,7 @@ export function evaluarRiesgo(entrada: EntradaRiesgo): ResultadoRiesgo {
     sinNotas,
     porcentajeAsistencia: asistencia.porcentaje,
     clasesAusente: asistencia.clasesAusente,
+    clasesTotales: asistencia.totalClases,
     motivos,
   };
 }
