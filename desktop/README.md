@@ -91,6 +91,14 @@ empaquetada tapa a la del sistema, el EGL de Mesa no puede inicializar la
 plataforma wayland contra una versión más vieja y `WebKitWebProcess` aborta. En
 Windows y macOS el script no hace nada. El porqué completo está en `CLAUDE.md`.
 
+> **Compilando en local sin la clave de firma**, `tauri build` termina en error
+> («A public key has been found, but no private key»), así que el `&&` corta y
+> **el saneado no llega a ejecutarse**: la AppImage que queda en `bundle/appimage/`
+> abre con la ventana en blanco. No es un fallo nuevo, es esa AppImage sin sanear.
+> Se arregla con `node scripts/sanear-appimage.mjs`, que es idempotente. En la
+> publicación no pasa: allí la clave está y el saneado corre.
+
+
 ---
 
 ## 3. Comandos

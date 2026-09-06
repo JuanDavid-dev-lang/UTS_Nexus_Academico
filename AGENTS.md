@@ -650,6 +650,14 @@ El `.deb` y el `.rpm` **no tienen este problema y no se tocan**: usan el WebKit
 y el wayland del propio sistema, así que no puede haber desajuste. Es una razón
 más para no dejar solo la AppImage.
 
+**Compilando en local sin la clave de firma no se sanea nada**, y conviene
+saberlo antes de perder una tarde: `tauri build` termina en error porque hay
+clave pública y no privada, el `&&` de `desktop:build` corta ahí, y la AppImage
+que queda en `bundle/appimage/` es la sucia — abre con la ventana en blanco. No
+es un fallo nuevo, es esa AppImage sin sanear. Se arregla con
+`node scripts/sanear-appimage.mjs`, que es idempotente y se puede ejecutar
+suelto. En la publicación no ocurre: allí la clave está.
+
 **Formatos y actualización no son lo mismo en Linux.** Una AppImage se reemplaza
 a sí misma sin permisos; un `.deb` o un `.rpm` instalan en `/usr` y el sistema
 pide la contraseña de administrador. `core/platform/paquete.ts` traduce el
