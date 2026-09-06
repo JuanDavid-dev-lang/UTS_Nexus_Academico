@@ -7,11 +7,19 @@ let io: Server | null = null;
 
 type SocketUser = { id: string; role: string };
 
+/**
+ * Token del handshake: `auth.token` o cabecera `Authorization`.
+ *
+ * **No se acepta por query string.** Se aceptaba, y ningún cliente lo usaba:
+ * los dos mandan `auth.token`. Lo que sí hacía era dejar la puerta abierta a
+ * que alguien lo usara, y un token en la URL acaba escrito en el log de acceso
+ * de cualquier proxy que haya en medio, en el historial de conexiones y en la
+ * cabecera `Referer` de lo que se cargue después. Un token que se registra en
+ * texto plano en tres sitios ya no es un secreto.
+ */
 function extractToken(socket: Socket): string | null {
   const authToken = (socket.handshake.auth as { token?: string })?.token;
-  if (authToken) return authToken;
-  const queryToken = socket.handshake.query?.token;
-  if (typeof queryToken === 'string') return queryToken;
+  if (typeof authToken === 'string' && authToken) return authToken;
   const header = socket.handshake.headers?.authorization;
   if (header?.startsWith('Bearer ')) return header.slice(7);
   return null;

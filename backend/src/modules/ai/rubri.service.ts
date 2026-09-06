@@ -1,4 +1,5 @@
 import { env } from '../../shared/env.js';
+import { mlFetch } from '../../shared/ml-client.js';
 
 export const RUBRI_INTENTS = [
   'CREATE_COURSE', 'GET_COURSES', 'GET_STUDENTS', 'IMPORT_STUDENTS',
@@ -37,11 +38,11 @@ export function accionSegura(intent: RubriIntent, confidence: number): RubriActi
 export async function interpretarConRubri(message: string): Promise<RubriInterpretation | null> {
   if (!env.ML_ENABLED) return null;
   try {
-    const response = await fetch(`${env.ML_BASE_URL}/rubri/intent`, {
+    const response = await mlFetch('/rubri/intent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message }),
-      signal: AbortSignal.timeout(5000),
+      timeoutMs: 5000,
     });
     if (!response.ok) return null;
     const data = (await response.json()) as Record<string, unknown>;
@@ -60,9 +61,7 @@ export async function interpretarConRubri(message: string): Promise<RubriInterpr
 export async function estadoRubri(): Promise<{ available: boolean; model?: string; metrics?: unknown }> {
   if (!env.ML_ENABLED) return { available: false };
   try {
-    const response = await fetch(`${env.ML_BASE_URL}/rubri/metrics`, {
-      signal: AbortSignal.timeout(3000),
-    });
+    const response = await mlFetch('/rubri/metrics', { timeoutMs: 3000 });
     if (!response.ok) return { available: false };
     const data = (await response.json()) as Record<string, unknown>;
     return { available: data.ok === true, model: String(data.version ?? ''), metrics: data };

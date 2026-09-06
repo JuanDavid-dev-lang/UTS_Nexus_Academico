@@ -9,7 +9,6 @@ import { GradeModel } from '../../models/grade.model.js';
 import { identificar, requireRole } from '../../middlewares/auth.js';
 import { auditBatch } from '../../shared/audit.js';
 import { emitToUser } from '../../shared/socket.js';
-import { env } from '../../shared/env.js';
 import {
   cruzarNotasConMatricula,
   interpretarMatrizNotas,
@@ -17,6 +16,8 @@ import {
 } from '../../domains/grading/import-notas.js';
 import type { Matriculado } from '../../domains/attendance/sheet-match.js';
 import { exigirPeriodoAbierto } from '../../shared/period-guard.js';
+import { mlFetch } from '../../shared/ml-client.js';
+import { ENTRADA_DE_ESCANER, exigirTipoReal, filtroPorMimetype } from '../../shared/uploads.js';
 
 /**
  * Importación de calificaciones en dos pasos, con el mismo contrato que el
@@ -37,7 +38,13 @@ gradeScanRouter.use(identificar);
 /** En memoria: el archivo se interpreta o se reenvía; nunca se guarda. */
 const subirArchivo = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 12 * 1024 * 1024 },
+  limits: { fileSize: 12 * 1024 * 1024, files: 1 },
+  // Ver el comentario de `attendance-scan.routes.ts`: sin filtro, lo que
+  // llegara acababa dentro de los parsers nativos del servicio de visión.
+  fileFilter: filtroPorMimetype(
+    ENTRADA_DE_ESCANER,
+    'Solo se aceptan fotos (JPG, PNG, WebP), PDF o una hoja de cálculo (.xls/.xlsx).',
+  ),
 });
 
 /** Verifica que el grupo pertenezca al profesor autenticado (o que sea ADMIN). */
@@ -71,6 +78,12 @@ gradeScanRouter.post(
         return res.status(400).json({ ok: false, message: 'Falta el archivo de notas.' });
       }
 
+      // Los bytes tienen que ser los del tipo declarado, y de aquí sale además
+      // si es una hoja de cálculo (se interpreta aquí) o una imagen/PDF (va al
+      // servicio de visión). Antes esa decisión la tomaba `esExcel()` mirando
+      // el mimetype y el nombre, los dos escritos por el cliente.
+      const tipoReal = exigirTipoReal(req.file, ENTRADA_DE_ESCANER);
+
       const { groupId } = z.object({ groupId: z.string().min(1) }).parse(req.body);
       const owned = await grupoPropio(req, groupId);
       if (owned.error) {
@@ -83,7 +96,7 @@ gradeScanRouter.post(
       let filasLeidas: FilaNotasLeida[];
       let columnas: number;
 
-      if (esExcel(req.file)) {
+      if (esExcel(tipoReal)) {
         // El Excel se interpreta aquí: exceljs ya es dependencia del backend y
         // no hay reconocimiento que pueda fallar — confianza 1.0.
         const matriz = await excelAMatriz(req.file.buffer);
@@ -112,10 +125,12 @@ gradeScanRouter.post(
           columnas: number;
         };
         try {
-          const respuesta = await fetch(`${env.ML_BASE_URL}/vision/grades`, {
+          // Sin `Content-Type`: lo compone `fetch` con su boundary a partir del
+          // FormData. `mlFetch` añade el secreto compartido del servicio.
+          const respuesta = await mlFetch('/vision/grades', {
             method: 'POST',
             body: formulario,
-            signal: AbortSignal.timeout(60_000),
+            timeoutMs: 60_000,
           });
           if (!respuesta.ok) {
             const detalle = await respuesta.json().catch(() => ({ detail: '' }));

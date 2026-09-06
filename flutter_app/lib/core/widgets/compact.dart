@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import './keyboard_inset.dart';
 import './ui_kit.dart';
 
 /// Componentes compactos del sistema de diseño móvil.
@@ -253,13 +254,16 @@ class InitialsAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tono = SemanticTone.of(context, SemanticKind.brand);
-    final partes = nombre.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty);
+    final partes = nombre
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty);
     final iniciales = partes.isEmpty
         ? '?'
         : partes.length == 1
-            ? partes.first.characters.first.toUpperCase()
-            : '${partes.first.characters.first}${partes.last.characters.first}'
-                .toUpperCase();
+        ? partes.first.characters.first.toUpperCase()
+        : '${partes.first.characters.first}${partes.last.characters.first}'
+              .toUpperCase();
 
     return Container(
       width: size,
@@ -275,7 +279,10 @@ class InitialsAvatar extends StatelessWidget {
       ),
       child: Text(
         iniciales,
-        style: AppType.captionStrong.copyWith(color: tono.fg, fontWeight: FontWeight.w700),
+        style: AppType.captionStrong.copyWith(
+          color: tono.fg,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -306,8 +313,9 @@ class MetricChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
-    final color =
-        tono == null ? palette.text : SemanticTone.of(context, tono!).fg;
+    final color = tono == null
+        ? palette.text
+        : SemanticTone.of(context, tono!).fg;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -369,7 +377,8 @@ class CompactStat extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
     final semantico = tono == null ? null : SemanticTone.of(context, tono!);
-    final color = semantico?.fg ?? (palette.isDark ? palette.text : palette.primary);
+    final color =
+        semantico?.fg ?? (palette.isDark ? palette.text : palette.primary);
     final rail = semantico?.fg ?? palette.primary;
 
     return AppCard(
@@ -544,12 +553,16 @@ class FilterChipCompact extends StatelessWidget {
             curve: AppMotion.curve,
             // El alto mínimo garantiza el objetivo táctil aunque el chip mida
             // poco de ancho; el relleno solo controla la densidad horizontal.
-            constraints: const BoxConstraints(minHeight: AppSpacing.tapTargetMin - 8),
+            constraints: const BoxConstraints(
+              minHeight: AppSpacing.tapTargetMin - 8,
+            ),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
             decoration: BoxDecoration(
               color: fondo,
               borderRadius: BorderRadius.circular(AppSpacing.radiusPill),
-              border: Border.all(color: activo ? palette.primary : palette.border),
+              border: Border.all(
+                color: activo ? palette.primary : palette.border,
+              ),
               boxShadow: activo ? AppShadows.sm(palette.isDark) : null,
             ),
             child: Row(
@@ -569,12 +582,17 @@ class FilterChipCompact extends StatelessWidget {
                 if (recuento != null) ...[
                   const SizedBox(width: AppSpacing.gapXs + 1),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 1,
+                    ),
                     decoration: BoxDecoration(
                       color: activo
                           ? frente.withValues(alpha: 0.2)
                           : palette.surfaceSunken,
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusPill),
+                      borderRadius: BorderRadius.circular(
+                        AppSpacing.radiusPill,
+                      ),
                     ),
                     child: Text(
                       '$recuento',
@@ -650,8 +668,12 @@ class SegmentedTabs extends StatelessWidget {
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: i == indice ? palette.surface : Colors.transparent,
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusInput - 3),
-                      boxShadow: i == indice ? AppShadows.sm(palette.isDark) : null,
+                      borderRadius: BorderRadius.circular(
+                        AppSpacing.radiusInput - 3,
+                      ),
+                      boxShadow: i == indice
+                          ? AppShadows.sm(palette.isDark)
+                          : null,
                     ),
                     child: Text(
                       opciones[i],
@@ -659,7 +681,9 @@ class SegmentedTabs extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: AppType.captionStrong.copyWith(
                         color: i == indice ? palette.text : palette.muted,
-                        fontWeight: i == indice ? FontWeight.w700 : FontWeight.w600,
+                        fontWeight: i == indice
+                            ? FontWeight.w700
+                            : FontWeight.w600,
                       ),
                     ),
                   ),
@@ -728,7 +752,10 @@ class CollapsibleSection extends StatelessWidget {
           title: Text(titulo, style: AppType.bodyStrong),
           subtitle: resumen == null
               ? null
-              : Text(resumen!, style: AppType.caption.copyWith(color: palette.muted)),
+              : Text(
+                  resumen!,
+                  style: AppType.caption.copyWith(color: palette.muted),
+                ),
           expandedCrossAxisAlignment: CrossAxisAlignment.start,
           children: hijos,
         ),
@@ -744,7 +771,21 @@ class CollapsibleSection extends StatelessWidget {
 /// Centraliza tres cosas que cada pantalla resolvía a su manera y a veces mal:
 /// el tope de altura (sin él, en un teléfono bajo o con la fuente del sistema
 /// ampliada el contenido se recorta y las últimas filas dejan de existir), el
-/// `SafeArea` y el desplazamiento propio.
+/// área segura y el desplazamiento propio.
+///
+/// Dos detalles que no son cosméticos y que hay que conservar al tocar esto:
+///
+/// **`useSafeArea: true` va en la ruta, no un `SafeArea` dentro del
+/// constructor.** Sin la bandera, `showModalBottomSheet` envuelve la hoja en un
+/// `MediaQuery.removePadding`, que depende del `MediaQueryData` **entero**: cada
+/// fotograma de la animación del teclado invalida la construcción de la página
+/// y rehace el subárbol completo de la hoja. Además, sin ella la hoja no puede
+/// pintar bajo la barra de estado.
+///
+/// **El desplazamiento del teclado lo pone `KeyboardInset`**, que lee el inset
+/// en su propio `build` y recibe el contenido ya construido. Leerlo aquí, en el
+/// constructor de la hoja, volvía a poner la dependencia sobre todo lo que la
+/// hoja contiene.
 Future<T?> showCompactSheet<T>({
   required BuildContext context,
   required String titulo,
@@ -756,6 +797,9 @@ Future<T?> showCompactSheet<T>({
     context: context,
     showDragHandle: true,
     isScrollControlled: true,
+    // Ver la nota de arriba: sin esto la hoja se reconstruye entera en cada
+    // fotograma de la animación del teclado.
+    useSafeArea: true,
     // `sizeOf` y no `of`: leer solo el alto no debe suscribir al MediaQueryData
     // entero, que el teclado anima fotograma a fotograma.
     constraints: BoxConstraints(
@@ -764,62 +808,60 @@ Future<T?> showCompactSheet<T>({
     builder: (contextoHoja) {
       final palette = AppPalette.of(contextoHoja);
 
-      return SafeArea(
-        child: Padding(
-          // El teclado: `viewInsetsOf` y no `of`, por lo mismo de arriba.
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.viewInsetsOf(contextoHoja).bottom,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
+      return KeyboardInset(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.page,
+                0,
+                AppSpacing.page,
+                AppSpacing.gap,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          titulo,
+                          style: AppType.bodyStrong.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (subtitulo != null)
+                          Text(
+                            subtitulo,
+                            style: AppType.caption.copyWith(
+                              color: palette.muted,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  ...acciones,
+                ],
+              ),
+            ),
+            // Un separador bajo el título: sin él, el contenido de la hoja
+            // empieza pegado al encabezado y las dos cosas se leen como un
+            // bloque, sobre todo cuando lo primero es una lista.
+            Divider(height: 1, color: palette.border),
+            Flexible(
+              child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.page,
-                  0,
+                  AppSpacing.gap,
                   AppSpacing.page,
                   AppSpacing.gap,
                 ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            titulo,
-                            style: AppType.bodyStrong.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                          if (subtitulo != null)
-                            Text(
-                              subtitulo,
-                              style: AppType.caption.copyWith(color: palette.muted),
-                            ),
-                        ],
-                      ),
-                    ),
-                    ...acciones,
-                  ],
-                ),
+                child: constructor(contextoHoja),
               ),
-              // Un separador bajo el título: sin él, el contenido de la hoja
-              // empieza pegado al encabezado y las dos cosas se leen como un
-              // bloque, sobre todo cuando lo primero es una lista.
-              Divider(height: 1, color: palette.border),
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.page,
-                    AppSpacing.gap,
-                    AppSpacing.page,
-                    AppSpacing.gap,
-                  ),
-                  child: constructor(contextoHoja),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       );
     },
@@ -895,7 +937,9 @@ class StickySummaryBar extends StatelessWidget {
                               color: metrica.tono == null
                                   ? palette.text
                                   : SemanticTone.of(context, metrica.tono!).fg,
-                              fontFeatures: const [FontFeature.tabularFigures()],
+                              fontFeatures: const [
+                                FontFeature.tabularFigures(),
+                              ],
                             ),
                           ),
                         ],
@@ -940,7 +984,10 @@ class SkeletonRows extends StatelessWidget {
         filas,
         (_) => const Padding(
           padding: EdgeInsets.only(bottom: AppSpacing.gapSm),
-          child: SkeletonBox(height: AppSpacing.rowHeight, radius: AppSpacing.radiusCard),
+          child: SkeletonBox(
+            height: AppSpacing.rowHeight,
+            radius: AppSpacing.radiusCard,
+          ),
         ),
       ),
     );
@@ -978,7 +1025,10 @@ class CompactEmpty extends StatelessWidget {
           ),
           const SizedBox(width: AppSpacing.gap),
           Expanded(
-            child: Text(mensaje, style: AppType.caption.copyWith(color: palette.muted)),
+            child: Text(
+              mensaje,
+              style: AppType.caption.copyWith(color: palette.muted),
+            ),
           ),
           if (accion != null) accion!,
         ],
@@ -996,7 +1046,12 @@ class CompactSectionHeader extends StatelessWidget {
   final String? accion;
   final VoidCallback? onAccion;
 
-  const CompactSectionHeader(this.titulo, {super.key, this.accion, this.onAccion});
+  const CompactSectionHeader(
+    this.titulo, {
+    super.key,
+    this.accion,
+    this.onAccion,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1025,7 +1080,9 @@ class CompactSectionHeader extends StatelessWidget {
             TextButton(
               onPressed: onAccion,
               style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.gapSm),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.gapSm,
+                ),
                 minimumSize: const Size(0, AppSpacing.tapTargetMin),
                 textStyle: AppType.captionStrong,
               ),

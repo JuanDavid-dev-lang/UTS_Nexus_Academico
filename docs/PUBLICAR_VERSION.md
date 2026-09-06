@@ -242,6 +242,24 @@ numeración canónica `1.0.0`:
 El actualizador compara la versión publicada con la que lleva el binario instalado. Si
 no se sube, no se ofrece nada.
 
+**No los edites a mano. Ejecuta el script:**
+
+```bash
+node .github/scripts/subir-version.mjs patch      # o: minor | major | 1.4.2
+node .github/scripts/subir-version.mjs --check    # ¿está todo alineado ahora mismo?
+```
+
+Actualiza los cuatro archivos, sube el `versionCode` de Android y regenera
+`package-lock.json` y `Cargo.lock`. Si `cargo` no está instalado en tu máquina
+te lo dice en vez de fingir que lo hizo.
+
+Existía solo el verificador —el de más abajo, que **detecta** el descuadre— y no
+el que lo evita. La tabla de aviso de esta misma sección cuenta cómo acabó eso.
+El script es la otra mitad.
+
+Lo que sigue explica **qué** toca, para cuando haya que revisarlo a mano o
+añadir un archivo nuevo a la lista.
+
 **Los dos que deciden la publicación:**
 
 | Cliente | Archivo | Campo |
@@ -265,6 +283,11 @@ un APK cuyo `versionCode` no sea mayor que el instalado.
 > convierte «¿qué versión tiene este equipo?» en una pregunta sin respuesta
 > fiable, que es justo lo que uno necesita saber cuando algo falla en una sala
 > de cómputo.
+
+**¿Añades un archivo que nombre la versión?** Añádelo a `ARCHIVOS` en
+`subir-version.mjs` **y** a `fuentes` en `comprobar-version.mjs`. En una sola de
+las dos, o queda sin actualizar o hace fallar la publicación en CI después de
+que ya hayas empujado la etiqueta.
 
 Para comprobar que no se ha quedado ninguno atrás, y de paso que la etiqueta
 que vas a empujar coincide con ellos:

@@ -9,6 +9,7 @@
 import { env } from '../../shared/env.js';
 import { evaluarRiesgo } from '../../domains/risk/risk.service.js';
 import type { AcademicRecord } from '../../shared/academic.service.js';
+import { mlFetch } from '../../shared/ml-client.js';
 
 export type MlFeatures = {
   student_id: string;
@@ -96,9 +97,7 @@ export async function mlStatus(): Promise<{
   }
 
   try {
-    const response = await fetch(`${env.ML_BASE_URL}/metrics`, {
-      signal: AbortSignal.timeout(3000),
-    });
+    const response = await mlFetch('/metrics', { timeoutMs: 3000 });
     if (!response.ok) return { enabled: true, available: false, message: `HTTP ${response.status}` };
 
     const data = (await response.json()) as Record<string, unknown>;
@@ -148,11 +147,11 @@ export async function predictRisk(records: AcademicRecord[]): Promise<MlPredicti
   );
 
   try {
-    const response = await fetch(`${env.ML_BASE_URL}/predict`, {
+    const response = await mlFetch('/predict', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ students }),
-      signal: AbortSignal.timeout(15000),
+      timeoutMs: 15000,
     });
 
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -176,12 +175,12 @@ export async function trainModel(
   if (!env.ML_ENABLED) return { ok: false, detail: 'ML desactivado.' };
 
   try {
-    const response = await fetch(`${env.ML_BASE_URL}/train`, {
+    const response = await mlFetch('/train', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ examples, force }),
       // Entrenar tarda; el presupuesto es amplio a propósito.
-      signal: AbortSignal.timeout(180000),
+      timeoutMs: 180000,
     });
 
     const data = (await response.json()) as Record<string, unknown>;

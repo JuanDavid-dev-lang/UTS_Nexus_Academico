@@ -83,6 +83,18 @@ const FILTROS: { valor: Filtro; etiqueta: string }[] = [
  * aviso que no lleva a ninguna parte obliga a repetir a mano la búsqueda que el
  * propio aviso ya había hecho.
  */
+/**
+ * ¿Es una ruta de esta aplicación?
+ *
+ * No basta `startsWith('/')`: `//otro-sitio.com` también empieza por barra y es
+ * una URL protocolo-relativa, no una ruta — el router la trataría como externa.
+ * El servidor ya rechaza esa forma al crear el aviso; esto lo repite aquí
+ * porque las notificaciones ya guardadas no se revalidan al leerlas.
+ */
+function esRutaInterna(link: string): boolean {
+  return link.startsWith('/') && !link.startsWith('//') && !link.startsWith('/\\');
+}
+
 export default function NotificationsPage() {
   const [filtro, setFiltro] = useState<Filtro>('all');
 
@@ -108,9 +120,7 @@ export default function NotificationsPage() {
   /** Abre lo que la notificación referencia y la marca leída de paso. */
   function abrir(notification: Notification) {
     if (isUnread(notification)) markRead.mutate(notification._id);
-    // Solo rutas internas: una notificación no puede sacar al docente de la
-    // aplicación hacia una dirección que alguien haya podido escribir.
-    if (notification.link.startsWith('/')) navigate(notification.link);
+    if (esRutaInterna(notification.link)) navigate(notification.link);
   }
 
   return (
@@ -218,7 +228,7 @@ function NotificationRow({
   const presentation = TYPE_PRESENTATION[notification.type];
   const prioridad = PRIORITY_PRESENTATION[notification.priority];
   const unread = isUnread(notification);
-  const navegable = notification.link.startsWith('/');
+  const navegable = esRutaInterna(notification.link);
 
   return (
     <li

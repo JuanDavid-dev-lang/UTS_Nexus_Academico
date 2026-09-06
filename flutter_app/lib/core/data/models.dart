@@ -398,7 +398,14 @@ class AppNotification {
   bool get isUnread => readAt == null;
 
   /// ¿Se puede abrir algo al tocarla?
-  bool get esNavegable => link.startsWith('/');
+  ///
+  /// Tiene que ser una ruta **interna**, y por eso no basta `startsWith('/')`:
+  /// `//otro-sitio.com` también empieza por barra y es una URL protocolo-
+  /// relativa, no una ruta. El servidor ya rechaza esa forma al crear el aviso;
+  /// esto lo repite en el cliente porque las notificaciones que ya están
+  /// guardadas no se revalidan al leerlas.
+  bool get esNavegable =>
+      link.startsWith('/') && !link.startsWith('//') && !link.startsWith(r'/\');
 
   factory AppNotification.fromJson(Map<String, dynamic> json) => AppNotification(
         id: _toStr(json['_id'] ?? json['id']),

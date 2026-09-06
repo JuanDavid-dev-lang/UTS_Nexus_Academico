@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { excelSheetStyle, enviarExcel } from '../reports/excel.renderer.js';
+import { agregarFila, excelSheetStyle, enviarExcel } from '../reports/excel.renderer.js';
 import type { Panorama } from './coordination.service.js';
 
 /**
@@ -48,7 +48,7 @@ export async function enviarPanoramaExcel(
   ];
   excelSheetStyle(materias, 14);
   for (const materia of panorama.materias) {
-    materias.addRow({
+    agregarFila(materias, {
       code: materia.code,
       name: materia.name,
       // El asterisco marca lo deducido de la adscripción del docente. Sin la
@@ -85,7 +85,7 @@ export async function enviarPanoramaExcel(
   ];
   excelSheetStyle(docentes, 11);
   for (const docente of panorama.docentes) {
-    docentes.addRow({
+    agregarFila(docentes, {
       nombre: docente.nombre,
       cedula: docente.cedula ?? '',
       correo: docente.email,
@@ -114,7 +114,7 @@ export async function enviarPanoramaExcel(
   ];
   excelSheetStyle(grupos, 8);
   for (const grupo of panorama.grupos) {
-    grupos.addRow({
+    agregarFila(grupos, {
       name: grupo.name,
       materia: grupo.materia ? `${grupo.materia.code} ${grupo.materia.name}` : '',
       programa: grupo.programaNombre,

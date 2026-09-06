@@ -15,14 +15,21 @@
  */
 import ExcelJS from 'exceljs';
 import * as SheetJS from 'xlsx';
+import { HOJAS_DE_CALCULO, type TipoAceptado } from './uploads.js';
 
-const EXCEL_MIMES = new Set([
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.ms-excel',
-]);
-
-export function esExcel(file: { mimetype: string; originalname: string }): boolean {
-  return EXCEL_MIMES.has(file.mimetype) || /\.xlsx?$/i.test(file.originalname);
+/**
+ * ¿El tipo ya reconocido es una hoja de cálculo?
+ *
+ * Recibe el `TipoAceptado` que devolvió `exigirTipoReal()`, no el `req.file`.
+ * Antes decidía con `EXCEL_MIMES.has(file.mimetype) || /\.xlsx?$/i.test(
+ * file.originalname)`, y los dos lados de ese `||` los escribe el cliente: era
+ * el nombre del archivo el que elegía qué parser abría los bytes. Aquí la
+ * consecuencia era leve —si no era una hoja, los dos parsers fallaban y salía
+ * un 400 explicado— pero encaminar bytes según un dato no verificado es
+ * justamente lo que no debe hacerse antes de un parser nativo.
+ */
+export function esExcel(tipo: TipoAceptado): boolean {
+  return HOJAS_DE_CALCULO.some(hoja => hoja.mimetype === tipo.mimetype);
 }
 
 /** Primera hoja del libro como matriz de textos. */

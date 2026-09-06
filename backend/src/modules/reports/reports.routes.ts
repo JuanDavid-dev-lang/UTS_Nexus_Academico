@@ -13,7 +13,7 @@ import {
   type Plantilla,
 } from './report-template.js';
 import { formatDate, startPdf, tablaDeCatalogo } from './pdf.renderer.js';
-import { enviarExcel, hojaDeCatalogo } from './excel.renderer.js';
+import { agregarFila, enviarExcel, hojaDeCatalogo } from './excel.renderer.js';
 import {
   buscarAsistencia,
   buscarNotas,
@@ -177,7 +177,7 @@ reportsRouter.get('/excel/consolidado', requireRole('ADMIN', 'PROFESSOR', 'COORD
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Consolidado');
     hojaDeCatalogo(ws, columnas, plantilla);
-    construirFilas(columnas, records, maps).forEach(fila => ws.addRow(fila));
+    construirFilas(columnas, records, maps).forEach(fila => agregarFila(ws, fila));
 
     await enviarExcel(res, wb, 'consolidado-notas.xlsx');
   } catch (err) {
@@ -288,7 +288,7 @@ reportsRouter.get('/excel/grades', requireRole('ADMIN', 'PROFESSOR', 'COORDINATO
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Notas');
     hojaDeCatalogo(ws, columnas, plantilla);
-    construirFilas(columnas, ordenarNotasParaActa(grades, maps), maps).forEach(fila => ws.addRow(fila));
+    construirFilas(columnas, ordenarNotasParaActa(grades, maps), maps).forEach(fila => agregarFila(ws, fila));
 
     await enviarExcel(res, wb, 'reporte-notas.xlsx');
   } catch (err) {
@@ -311,7 +311,7 @@ reportsRouter.get('/excel/attendance', requireRole('ADMIN', 'PROFESSOR', 'COORDI
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Asistencia');
     hojaDeCatalogo(ws, columnas, plantilla);
-    construirFilas(columnas, attendance, maps).forEach(fila => ws.addRow(fila));
+    construirFilas(columnas, attendance, maps).forEach(fila => agregarFila(ws, fila));
 
     await enviarExcel(res, wb, 'reporte-asistencia.xlsx');
   } catch (err) {
@@ -336,11 +336,11 @@ reportsRouter.get('/excel/combined', requireRole('ADMIN', 'PROFESSOR', 'COORDINA
     const wb = new ExcelJS.Workbook();
     const gradeWs = wb.addWorksheet('Notas');
     hojaDeCatalogo(gradeWs, columnasNotas, plantilla);
-    construirFilas(columnasNotas, ordenarNotasParaActa(grades, maps), maps).forEach(fila => gradeWs.addRow(fila));
+    construirFilas(columnasNotas, ordenarNotasParaActa(grades, maps), maps).forEach(fila => agregarFila(gradeWs, fila));
 
     const attendanceWs = wb.addWorksheet('Asistencia');
     hojaDeCatalogo(attendanceWs, columnasAsistencia, plantilla);
-    construirFilas(columnasAsistencia, attendance, maps).forEach(fila => attendanceWs.addRow(fila));
+    construirFilas(columnasAsistencia, attendance, maps).forEach(fila => agregarFila(attendanceWs, fila));
 
     await enviarExcel(res, wb, 'reporte-academico.xlsx');
   } catch (err) {

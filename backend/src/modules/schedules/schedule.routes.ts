@@ -4,11 +4,11 @@ import { z } from 'zod';
 import { ScheduleModel } from '../../models/schedule.model.js';
 import { SubjectModel } from '../../models/subject.model.js';
 import { GroupModel } from '../../models/group.model.js';
-import { env } from '../../shared/env.js';
 import { identificar, requireRole } from '../../middlewares/auth.js';
 import { emitToUser } from '../../shared/socket.js';
 import { crearNotificacion, fechaCampus } from '../../shared/notify.js';
 import { getProfessorScope } from '../../shared/professor-scope.js';
+import { mlFetch } from '../../shared/ml-client.js';
 
 export const scheduleRouter = Router();
 scheduleRouter.use(identificar);
@@ -231,10 +231,12 @@ scheduleRouter.post(
 
       let lectura: { origen: string; avisos: string[]; sesiones: SesionLeida[] };
       try {
-        const respuesta = await fetch(`${env.ML_BASE_URL}/vision/schedule`, {
+        // Sin `Content-Type`: lo compone `fetch` con su boundary a partir del
+        // FormData. `mlFetch` añade el secreto compartido del servicio.
+        const respuesta = await mlFetch('/vision/schedule', {
           method: 'POST',
           body: formulario,
-          signal: AbortSignal.timeout(60_000),
+          timeoutMs: 60_000,
         });
         if (!respuesta.ok) {
           const detalle = (await respuesta.json().catch(() => ({}))) as { detail?: string };

@@ -10,8 +10,9 @@ import { auditBatch } from '../../shared/audit.js';
 import { emitSync } from '../../shared/socket.js';
 import { getEnrolledStudentIds, getProfessorScope } from '../../shared/professor-scope.js';
 import { cruzarConMatricula, ordenarPorApellido } from '../../domains/attendance/sheet-match.js';
-import { env } from '../../shared/env.js';
 import { exigirPeriodoAbierto } from '../../shared/period-guard.js';
+import { mlFetch } from '../../shared/ml-client.js';
+import { ENTRADA_DE_ESCANER, exigirTipoReal, filtroPorMimetype } from '../../shared/uploads.js';
 
 /**
  * Importación de asistencia a partir de la foto de una planilla.
@@ -31,7 +32,14 @@ attendanceScanRouter.use(identificar);
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 12 * 1024 * 1024 },
+  limits: { fileSize: 12 * 1024 * 1024, files: 1 },
+  // Sin filtro, aquí entraba CUALQUIER archivo y se reenviaba tal cual al
+  // servicio de visión, que lo abre con opencv, pypdf y rapidocr: tres parsers
+  // nativos alimentados con bytes arbitrarios desde una sesión de docente.
+  fileFilter: filtroPorMimetype(
+    ENTRADA_DE_ESCANER,
+    'Solo se aceptan fotos (JPG, PNG, WebP), PDF o una hoja de cálculo (.xls/.xlsx).',
+  ),
 });
 
 /** Comprueba que el grupo sea del docente y devuelve su materia y periodo. */
@@ -51,6 +59,10 @@ attendanceScanRouter.post(
   async (req, res, next) => {
     try {
       if (!req.file) return res.status(400).json({ ok: false, message: 'Falta la foto de la planilla.' });
+
+      // Los bytes tienen que ser los del tipo declarado. El `fileFilter` de
+      // arriba solo pudo creerse la cabecera; esto lo comprueba.
+      exigirTipoReal(req.file, ENTRADA_DE_ESCANER);
 
       const { groupId } = z.object({ groupId: z.string().min(1) }).parse(req.body);
       const propietario = await grupoDelDocente(req, groupId);
@@ -98,10 +110,12 @@ attendanceScanRouter.post(
       };
 
       try {
-        const respuesta = await fetch(`${env.ML_BASE_URL}/vision/attendance-sheet`, {
+        // Sin `Content-Type`: lo compone `fetch` con su boundary a partir del
+        // FormData. `mlFetch` añade el secreto compartido del servicio.
+        const respuesta = await mlFetch('/vision/attendance-sheet', {
           method: 'POST',
           body: formulario,
-          signal: AbortSignal.timeout(60_000),
+          timeoutMs: 60_000,
         });
 
         if (!respuesta.ok) {

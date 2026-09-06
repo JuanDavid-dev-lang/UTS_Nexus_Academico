@@ -237,14 +237,54 @@ notificationRouter.post('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), a
           'SCHEDULE',
         ]),
         priority: z.enum(['URGENT', 'IMPORTANT', 'INFO', 'SYSTEM']).default('INFO'),
-        link: z.string().max(300).default(''),
+        /**
+         * Ruta **interna** de la aplicación, no una URL.
+         *
+         * Era `z.string().max(300)` sin más, así que aquí cabía cualquier cosa
+         * —`javascript:…`, `https://otro-sitio`— y llegaba a los dos clientes
+         * dentro de un aviso con la cara del sistema. El escritorio se defendía
+         * solo (`if (link.startsWith('/')) navigate(...)`) y el móvil no. Se
+         * valida en el servidor porque es el único sitio donde arreglarlo lo
+         * arregla para los dos, incluidas las versiones ya instaladas.
+         */
+        link: z
+          .string()
+          .max(300)
+          .refine(v => v === '' || /^\/[^/\\]/.test(v), 'El enlace debe ser una ruta interna, como «/notas».')
+          .default(''),
         dedupeKey: z.string().max(200).optional(),
-        metadata: z.record(z.any()).optional(),
+        /**
+         * Metadatos del aviso. Acotados: `z.record(z.any())` admitía los 2 MB
+         * del cuerpo, y esto se guarda y viaja después en cada listado de la
+         * bandeja.
+         */
+        metadata: z.record(z.union([z.string().max(500), z.number(), z.boolean(), z.null()])).optional(),
       })
       .parse(req.body);
 
     if (req.user?.role === 'PROFESSOR' && body.userId !== req.user.id) {
       return res.status(403).json({ ok: false, message: 'Forbidden' });
+    }
+
+    /**
+     * Coordinación solo escribe a gente de su alcance.
+     *
+     * Sin esto, un `COORDINATOR` mandaba `title` y `message` arbitrarios a
+     * **cualquier** `userId` de la institución: un canal de suplantación con la
+     * cara del sistema, y encima con un enlace propio. El docente ya estaba
+     * acotado a sí mismo; coordinación no lo estaba a nada.
+     */
+    if (req.user?.role === 'COORDINATOR' && req.alcance && !req.alcance.total) {
+      // `professorIds` son ids de cuenta (`Materia.professorId` apunta a
+      // Usuario), así que se comparan directamente con el destinatario.
+      const destinatarioPermitido =
+        body.userId === req.user.id || req.alcance.professorIds.includes(String(body.userId));
+      if (!destinatarioPermitido) {
+        return res.status(403).json({
+          ok: false,
+          message: 'Solo puedes enviar avisos a personas de tus programas.',
+        });
+      }
     }
 
     const resultado = await crearNotificacion(body);

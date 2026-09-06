@@ -10,10 +10,11 @@ import { identificar, requireRole } from '../../middlewares/auth.js';
 import { acotarPorAlcance } from '../../domains/scope/program-scope.js';
 import { auditChange } from '../../shared/audit.js';
 import { emitToUser } from '../../shared/socket.js';
-import { env } from '../../shared/env.js';
 import { interpretarMatrizListado } from '../../domains/enrollment/import-roster.js';
 import { exigirPeriodoAbierto } from '../../shared/period-guard.js';
 import { assertUniqueStudentEmails } from '../students/student.service.js';
+import { mlFetch } from '../../shared/ml-client.js';
+import { ENTRADA_DE_ESCANER, exigirTipoReal, filtroPorMimetype } from '../../shared/uploads.js';
 
 export const enrollmentRouter = Router();
 enrollmentRouter.use(identificar);
@@ -21,7 +22,13 @@ enrollmentRouter.use(identificar);
 /** En memoria: el archivo se reenvía al servicio de lectura y no se guarda. */
 const subirArchivo = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 12 * 1024 * 1024 },
+  limits: { fileSize: 12 * 1024 * 1024, files: 1 },
+  // Ver el comentario de `attendance-scan.routes.ts`: sin filtro, lo que
+  // llegara acababa dentro de los parsers nativos del servicio de visión.
+  fileFilter: filtroPorMimetype(
+    ENTRADA_DE_ESCANER,
+    'Solo se aceptan fotos (JPG, PNG, WebP), PDF o una hoja de cálculo (.xls/.xlsx).',
+  ),
 });
 
 /** Verifica que el grupo pertenezca al profesor autenticado (o que sea ADMIN/COORDINATOR). */
@@ -135,13 +142,16 @@ enrollmentRouter.post(
         return res.status(400).json({ ok: false, message: 'Falta el archivo del listado.' });
       }
 
+      // Igual que en el escáner de notas: la firma decide, no el nombre.
+      const tipoReal = exigirTipoReal(req.file, ENTRADA_DE_ESCANER);
+
       const { groupId } = z.object({ groupId: z.string().min(1) }).parse(req.body);
       const owned = await assertGroupOwnership(req, groupId);
       if (owned.error) {
         return res.status(owned.error.status).json({ ok: false, message: owned.error.message });
       }
 
-      if (esExcel(req.file)) {
+      if (esExcel(tipoReal)) {
         const lectura = interpretarMatrizListado(await excelAMatriz(req.file.buffer));
         return res.json({
           ok: true,
@@ -179,10 +189,12 @@ enrollmentRouter.post(
       };
 
       try {
-        const respuesta = await fetch(`${env.ML_BASE_URL}/vision/roster`, {
+        // Sin `Content-Type`: lo compone `fetch` con su boundary a partir del
+        // FormData. `mlFetch` añade el secreto compartido del servicio.
+        const respuesta = await mlFetch('/vision/roster', {
           method: 'POST',
           body: formulario,
-          signal: AbortSignal.timeout(60_000),
+          timeoutMs: 60_000,
         });
 
         if (!respuesta.ok) {
@@ -262,14 +274,38 @@ enrollmentRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'),
 
     await assertUniqueStudentEmails(body.students);
 
+    /**
+     * Un listado importado **crea** expedientes; no reescribe los que ya
+     * existen.
+     *
+     * Antes el `$set` llevaba `fullName` y `email`, así que importar una lista
+     * pisaba la identidad de cualquier estudiante cuya cédula apareciera en
+     * ella. Dos problemas en uno:
+     *
+     *  - **De seguridad**: la cédula es la clave del upsert y el directorio
+     *    global (`GET /students/search`) la entrega a cualquier docente, así
+     *    que bastaba meter cédulas ajenas en el listado de un grupo propio
+     *    para renombrar a estudiantes de otras carreras.
+     *  - **De datos**: esta ruta recibe lo que salió de un OCR o de un pegado.
+     *    Un nombre mal leído sobre una cédula correcta no da error — renombra
+     *    en silencio a una persona real, y eso aparece semanas después en un
+     *    acta.
+     *
+     * Todo lo identitario vive ahora en `$setOnInsert`. Corregir el nombre de
+     * alguien que ya existe se hace por su ficha (`PATCH /students/:id`), que
+     * sí comprueba el alcance y queda en la auditoría.
+     */
+    const yaExistian = new Set(
+      (await StudentModel.find({ code: { $in: codigos }, deletedAt: null }).select('code').lean()).map(
+        doc => String(doc.code),
+      ),
+    );
+
     await StudentModel.bulkWrite(
       body.students.map(row => ({
         updateOne: {
           filter: { code: row.code, deletedAt: null },
           update: {
-            // Un correo informado y revisado actualiza la ficha; omitirlo
-            // conserva el valor actual en vez de borrarlo.
-            $set: { fullName: row.fullName, ...(row.email ? { email: row.email } : {}) },
             // Sin `academicHistory`: es un array del esquema, Mongoose lo
             // entrega como `[]` al leer aunque el documento no lo traiga, y
             // declararlo aquí rompe el tipado de `bulkWrite`.
@@ -282,13 +318,8 @@ enrollmentRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'),
             // de uno creado por `POST /students/bulk`.
             $setOnInsert: {
               code: row.code,
-              // El correo ya viaja en `$set` cuando la fila lo trae. Declararlo
-              // también aquí pone el mismo camino en dos operadores del mismo
-              // update, y Mongo rechaza el lote entero con el código 40
-              // (`ConflictingUpdateOperators`): la importación respondía 500 y no
-              // matriculaba a nadie. El `null` inicial solo se reserva cuando la
-              // fila NO trae correo, igual que en `upsertStudents()`.
-              ...(row.email ? {} : { email: null }),
+              fullName: row.fullName,
+              email: row.email ?? null,
               program: row.program ?? 'UTS',
               attendanceRate: 0,
               academicPerformance: 0,
@@ -303,6 +334,7 @@ enrollmentRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'),
     const estudiantes = await StudentModel.find({ code: { $in: codigos }, deletedAt: null })
       .select('_id code')
       .lean();
+    const creados = estudiantes.filter(e => !yaExistian.has(String(e.code))).length;
 
     await EnrollmentModel.bulkWrite(
       estudiantes.map(estudiante => ({
@@ -327,7 +359,15 @@ enrollmentRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'),
     const matriculados = estudiantes.length;
 
     emitToUser(String(group.professorId), 'sync:update', { entity: 'enrollment', action: 'bulk', id: body.groupId });
-    res.status(201).json({ ok: true, count: matriculados });
+    // `creados` y `reutilizados` van en la respuesta porque ahora significan
+    // cosas distintas: los reutilizados conservan el nombre que ya tenían, y el
+    // docente tiene que poder ver que su listado no los renombró.
+    res.status(201).json({
+      ok: true,
+      count: matriculados,
+      creados,
+      reutilizados: matriculados - creados,
+    });
   } catch (err) {
     next(err);
   }

@@ -176,6 +176,60 @@ for (const [clave, porDefecto, descripcion] of tareas) {
   console.log(`  ${green('✓')} ${clave.padEnd(20).slice(0, 20)} ${texto}`);
 }
 
+// ── Seguridad del despliegue ────────────────────────────────────────────────
+// Estas tres son las que convirtieron un despliegue distraído en un problema
+// real: el guardián de producción colgaba de `NODE_ENV`, así que olvidarla
+// dejaba secretos de juguete, sin límite de login y con el código de
+// recuperación viajando en la respuesta.
+const esProd = (env.NODE_ENV ?? '') === 'production';
+console.log(
+  `  ${esProd ? green('✓') : yellow('!')} NODE_ENV             ${env.NODE_ENV ?? dim('(sin declarar → development)')}`,
+);
+if (!esProd && mongo) {
+  warnings.push(
+    'Hay MONGODB_URI pero NODE_ENV no es "production".\n' +
+      '    Los secretos JWT se validan igualmente (el arranque falla si son los de\n' +
+      '    desarrollo), pero CORS queda en "*" y el formato del log es el de dev.',
+  );
+}
+
+const trustProxy = env.TRUST_PROXY === undefined ? esProd : ['1', 'true', 'yes'].includes(env.TRUST_PROXY.toLowerCase());
+console.log(
+  `  ${green('✓')} TRUST_PROXY          ${trustProxy ? 'sí (hay un proxy inverso delante)' : dim('no (el backend recibe directo)')}`,
+);
+
+if (env.ALLOW_DEV_RECOVERY_CODE && ['1', 'true', 'yes'].includes(env.ALLOW_DEV_RECOVERY_CODE.toLowerCase())) {
+  console.log(`  ${yellow('!')} ALLOW_DEV_RECOVERY   ${yellow('encendida')}`);
+  if (esProd) {
+    problems.push(
+      'ALLOW_DEV_RECOVERY_CODE está encendida en producción. El código nunca se\n' +
+        '    devuelve ahí (hay una segunda comprobación), pero no tiene nada que hacer\n' +
+        '    en este archivo: quítala.',
+    );
+  } else {
+    warnings.push(
+      'ALLOW_DEV_RECOVERY_CODE devuelve el código de recuperación en la respuesta\n' +
+        '    de /auth/recovery/request cuando no hay SMTP. Cómodo en local; quítala\n' +
+        '    antes de exponer este servidor a nadie más.',
+    );
+  }
+}
+
+const mlSecret = env.ML_SHARED_SECRET;
+const mlUrl = env.ML_BASE_URL ?? 'http://127.0.0.1:8100';
+const mlLocal = /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:|\/|$)/.test(mlUrl);
+console.log(
+  `  ${green('✓')} ML_SHARED_SECRET     ${mlSecret ? `${hide(mlSecret)} ${dim(`(${mlSecret.length} caracteres)`)}` : dim('(vacía)')}`,
+);
+if (!mlSecret && !mlLocal) {
+  problems.push(
+    `ML_BASE_URL apunta a ${mlUrl}, que no es la máquina local, y no hay\n` +
+      '    ML_SHARED_SECRET. El servicio de ML expone POST /train —reentrena el modelo\n' +
+      '    que decide qué estudiantes salen en rojo— y /vision/*, que acepta archivos.\n' +
+      '    Pon el mismo valor aquí y en el entorno del servicio de Python.',
+  );
+}
+
 // ── Claves desconocidas: casi siempre son erratas ───────────────────────────
 // La lista tiene que cubrir TODO lo que lee `shared/env.ts`. Incompleta, este
 // aviso convierte una configuración correcta en una advertencia falsa, y una
@@ -186,7 +240,8 @@ const KNOWN = new Set([
   'REFRESH_TOKEN_TTL', 'CLIENT_ORIGIN', 'PORT', 'HOST', 'NODE_ENV',
   'RISK_SCAN_INTERVAL_MIN',
   'AI_BASE_URL', 'AI_MODEL', 'AI_ENABLED',
-  'ML_BASE_URL', 'ML_ENABLED',
+  'ML_BASE_URL', 'ML_ENABLED', 'ML_SHARED_SECRET',
+  'TRUST_PROXY', 'ALLOW_DEV_RECOVERY_CODE',
   'CAMPUS_UTC_OFFSET_MIN', 'CLASS_REMINDER_INTERVAL_MIN',
   'ACTIVITY_DUE_INTERVAL_MIN', 'ATTENDANCE_PATTERN_INTERVAL_MIN',
   'TELEMETRY_RETENTION_DAYS', 'ANNOUNCEMENT_PUBLISH_INTERVAL_MIN',

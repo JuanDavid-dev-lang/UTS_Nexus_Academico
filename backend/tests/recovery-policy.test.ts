@@ -7,7 +7,12 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../src/models/user.model.js', () => ({ UserModel: { findOneAndUpdate: mocks.findOneAndUpdate, findOne: mocks.findOne, updateOne: mocks.updateOne } }));
 vi.mock('../src/models/session.model.js', () => ({ SessionModel: { updateMany: mocks.updateMany } }));
 vi.mock('../src/shared/mailer.js', () => ({ enviarCorreo: mocks.sendMail, correoActivo: mocks.mailEnabled }));
-vi.mock('../src/shared/env.js', () => ({ esProduccion: false }));
+vi.mock('../src/shared/env.js', () => ({
+  esProduccion: false,
+  // El código de recuperación solo vuelve en la respuesta si esto está
+  // encendido a propósito. Las pruebas que lo esperan lo declaran aquí.
+  env: { ALLOW_DEV_RECOVERY_CODE: true },
+}));
 vi.mock('bcryptjs', () => ({ default: { hash: mocks.hash, compare: mocks.compare } }));
 vi.mock('mongoose', () => ({ default: { startSession: mocks.startSession } }));
 

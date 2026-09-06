@@ -17,6 +17,25 @@ export const env = {
   /** Interfaz de escucha. En local todas; detrás de un proxy, solo la loopback. */
   HOST: process.env.HOST ?? '0.0.0.0',
   MONGODB_URI: process.env.MONGODB_URI ?? '',
+  /**
+   * `1` cuando hay un proxy inverso delante (Caddy, Nginx, un túnel).
+   *
+   * Activa `trust proxy`, que es lo que hace que el limitador de tasa vea la IP
+   * real del cliente en vez de la del proxy.
+   *
+   * Sin declarar, cae en `NODE_ENV === 'production'`, que es lo que hacía antes
+   * — el despliegue que ya funciona detrás de Caddy no cambia de
+   * comportamiento. Lo que añade la variable es poder decirlo **cuando
+   * `NODE_ENV` no está puesto**, que era el caso en el que el limitador
+   * quedaba contando a toda la institución como un solo cliente.
+   *
+   * Y poder apagarlo importa igual: con `trust proxy` y sin proxy delante,
+   * cualquiera manda su propia cabecera `X-Forwarded-For` y estrena cupo de
+   * intentos de login en cada petición.
+   */
+  TRUST_PROXY: process.env.TRUST_PROXY
+    ? ['1', 'true', 'yes'].includes(process.env.TRUST_PROXY.toLowerCase())
+    : process.env.NODE_ENV === 'production',
   JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET ?? 'dev-access',
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET ?? 'dev-refresh',
   ACCESS_TOKEN_TTL: process.env.ACCESS_TOKEN_TTL ?? '15m',
@@ -95,6 +114,19 @@ export const env = {
   ML_BASE_URL: process.env.ML_BASE_URL ?? 'http://127.0.0.1:8100',
   /** '0' lo desactiva y el backend usa solo el motor de reglas. */
   ML_ENABLED: !['0', 'false', 'no'].includes((process.env.ML_ENABLED ?? '1').toLowerCase()),
+  /**
+   * Secreto compartido con el servicio de ML. Viaja en la cabecera `X-ML-Secret`.
+   *
+   * Vacío en local: el servicio tampoco lo exige mientras escuche solo en la
+   * loopback, así que un `git clone` arranca sin configurar nada. En cuanto se
+   * expone —`ML_HOST` fuera de `127.0.0.1`— el propio servicio se niega a
+   * arrancar sin él, porque `POST /train` reentrena el modelo que decide qué
+   * estudiantes salen en rojo y `/vision/*` acepta archivos.
+   *
+   * Tiene que ser **el mismo valor** que `ML_SHARED_SECRET` en el entorno del
+   * servicio de Python.
+   */
+  ML_SHARED_SECRET: process.env.ML_SHARED_SECRET ?? '',
   // ── Correo saliente ────────────────────────────────────────────────────
   // Sin SMTP_HOST el envío queda desactivado y se registra en el log, igual
   // que hace el servicio ML: una instalación local no debería tener que
@@ -112,11 +144,49 @@ export const env = {
   /** Horas entre comprobaciones de versión nueva. 0 = desactivado. */
   RELEASE_CHECK_INTERVAL_H: Number(process.env.RELEASE_CHECK_INTERVAL_H ?? 0),
 
+  /**
+   * Devuelve el código de recuperación **en la respuesta HTTP** de
+   * `/auth/recovery/request`. Apagado salvo que se pida explícitamente.
+   *
+   * Antes esto se deducía de «no es producción y no hay SMTP», y esa deducción
+   * era el último eslabón de una cadena fea: un despliegue sin `NODE_ENV` ni
+   * `SMTP_HOST` convertía la ruta en una toma de cuenta de un solo paso —basta
+   * conocer un correo, que está en el directorio— sin que nadie hubiera
+   * decidido nada. Deducir un permiso a partir de dos ausencias es lo contrario
+   * de conceder un permiso.
+   *
+   * Con una variable propia sigue siendo cómodo desarrollar sin servidor de
+   * correo, pero hay que escribirlo, y se ve en el `.env`.
+   */
+  ALLOW_DEV_RECOVERY_CODE: ['1', 'true', 'yes'].includes(
+    (process.env.ALLOW_DEV_RECOVERY_CODE ?? '').toLowerCase(),
+  ),
+
   /** `production` activa las comprobaciones de abajo. */
   NODE_ENV: process.env.NODE_ENV ?? 'development',
 };
 
 export const esProduccion = env.NODE_ENV === 'production';
+
+/**
+ * ¿Estamos ante una instalación real, aunque nadie haya declarado `NODE_ENV`?
+ *
+ * Esta pregunta existe por un fallo concreto de diseño que tuvo esta función.
+ * `validarProduccion()` empezaba con `if (!esProduccion) return`, es decir: el
+ * guardián que impide desplegar con los secretos de juguete **solo se activaba
+ * si ya estaba puesta la variable que él mismo tendría que verificar**. Un
+ * `pm2 start` sin `NODE_ENV`, un `systemd` sin `Environment=` o un contenedor
+ * al que se le olvidó la variable arrancaban sin un solo aviso con
+ * `JWT_ACCESS_SECRET = 'dev-access'` — que está escrito en este repositorio, o
+ * sea que cualquiera puede firmarse un token con `role: 'ADMIN'`.
+ *
+ * La señal de que esto no es un clon recién hecho es que haya una base de datos
+ * configurada: nadie apunta `MONGODB_URI` a un clúster de verdad para trastear.
+ * Con esa señal, las comprobaciones que no cuestan nada en desarrollo se hacen
+ * SIEMPRE, y `NODE_ENV` deja de ser el interruptor de la seguridad para volver
+ * a ser lo que debe: el interruptor del rendimiento y del formato del log.
+ */
+const hayBaseConfigurada = Boolean(process.env.MONGODB_URI);
 
 /**
  * Comprueba que la configuración sea segura antes de aceptar una sola petición.
@@ -126,39 +196,59 @@ export const esProduccion = env.NODE_ENV === 'production';
  * log que nadie lee, y aquí lo que está en juego son las cédulas y las notas de
  * los estudiantes. Es preferible que el despliegue se caiga ruidosamente el
  * primer día a que quede abierto en silencio.
+ *
+ * Dos niveles, a propósito:
+ *
+ *  - **Siempre** (haya o no `NODE_ENV=production`): los secretos de firma. Un
+ *    secreto de juguete no es una molestia de configuración, es una cuenta de
+ *    administrador regalada, y no hay ninguna razón para tolerarlo en una
+ *    instalación que ya tiene base de datos.
+ *  - **Solo en producción**: lo que sí molestaría en local — CORS acotado y
+ *    servidor de correo. Ahí `NODE_ENV` sigue siendo la señal correcta.
  */
 export function validarProduccion(): void {
-  if (!esProduccion) return;
-
   const fallos: string[] = [];
 
-  if (SECRETOS_DE_DESARROLLO.has(env.JWT_ACCESS_SECRET) || env.JWT_ACCESS_SECRET.length < 32) {
-    // El valor por defecto está escrito en un repositorio público: con él,
-    // cualquiera puede fabricarse un token de administrador válido.
-    fallos.push('JWT_ACCESS_SECRET falta, es el de desarrollo o tiene menos de 32 caracteres.');
+  // ── Siempre que haya una base configurada ────────────────────────────────
+  if (hayBaseConfigurada || esProduccion) {
+    if (SECRETOS_DE_DESARROLLO.has(env.JWT_ACCESS_SECRET) || env.JWT_ACCESS_SECRET.length < 32) {
+      // El valor por defecto está escrito en un repositorio público: con él,
+      // cualquiera puede fabricarse un token de administrador válido.
+      fallos.push('JWT_ACCESS_SECRET falta, es el de desarrollo o tiene menos de 32 caracteres.');
+    }
+    if (SECRETOS_DE_DESARROLLO.has(env.JWT_REFRESH_SECRET) || env.JWT_REFRESH_SECRET.length < 32) {
+      fallos.push('JWT_REFRESH_SECRET falta, es el de desarrollo o tiene menos de 32 caracteres.');
+    }
+    if (env.JWT_ACCESS_SECRET === env.JWT_REFRESH_SECRET) {
+      // Con un solo secreto, un token de acceso caducado sirve como refresh.
+      fallos.push('JWT_ACCESS_SECRET y JWT_REFRESH_SECRET no pueden ser iguales.');
+    }
   }
-  if (SECRETOS_DE_DESARROLLO.has(env.JWT_REFRESH_SECRET) || env.JWT_REFRESH_SECRET.length < 32) {
-    fallos.push('JWT_REFRESH_SECRET falta, es el de desarrollo o tiene menos de 32 caracteres.');
-  }
-  if (env.JWT_ACCESS_SECRET === env.JWT_REFRESH_SECRET) {
-    // Con un solo secreto, un token de acceso caducado sirve como refresh.
-    fallos.push('JWT_ACCESS_SECRET y JWT_REFRESH_SECRET no pueden ser iguales.');
-  }
-  if (!env.MONGODB_URI) {
-    fallos.push('MONGODB_URI es obligatoria.');
-  }
-  if (env.CLIENT_ORIGIN === '*') {
-    fallos.push(
-      'CLIENT_ORIGIN no puede ser "*" en producción: indica los orígenes permitidos separados por coma.',
-    );
-  }
-  if (!env.SMTP_HOST) {
-    fallos.push('SMTP_HOST es obligatorio en producción para recuperar contraseñas.');
+
+  // ── Solo en producción declarada ─────────────────────────────────────────
+  if (esProduccion) {
+    if (!env.MONGODB_URI) {
+      fallos.push('MONGODB_URI es obligatoria.');
+    }
+    if (env.CLIENT_ORIGIN === '*') {
+      fallos.push(
+        'CLIENT_ORIGIN no puede ser "*" en producción: indica los orígenes permitidos separados por coma.',
+      );
+    }
+    if (!env.SMTP_HOST) {
+      fallos.push('SMTP_HOST es obligatorio en producción para recuperar contraseñas.');
+    }
   }
 
   if (fallos.length > 0) {
     console.error('\n[config] El servidor NO va a arrancar. Corrige esto en el entorno:\n');
     for (const fallo of fallos) console.error(`  · ${fallo}`);
+    if (!esProduccion) {
+      console.error(
+        '\n  (Estas comprobaciones se hacen aunque NODE_ENV no sea "production" porque\n' +
+          '   hay una MONGODB_URI configurada: no es un clon recién hecho.)',
+      );
+    }
     console.error(
       '\nGenera secretos con:  node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'base64url\'))"\n',
     );

@@ -8,10 +8,11 @@ import {
   getEnrolledStudentIds,
   professorOwnsStudent,
 } from '../../shared/professor-scope.js';
-import { intersectar } from '../../domains/scope/professor-scope.js';
+import { intersectar, particionarLotePorAlcance } from '../../domains/scope/professor-scope.js';
 import { dentroDelAlcanceDePrograma } from '../../domains/scope/program-scope.js';
 import {
   createStudent,
+  estudiantesPorCodigo,
   findStudent,
   listStudents,
   searchStudents,
@@ -27,6 +28,38 @@ studentRouter.use(identificar);
 /** Neutraliza los metacaracteres para que el texto buscado se trate como literal. */
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Qué fichas de estudiante puede *modificar* quien hace la petición.
+ *
+ * Une los dos acotados que ya existen —el del docente por matrícula y el de
+ * coordinación por programa— en la forma que espera `particionarLotePorAlcance`.
+ * Se calcula aquí y no en el dominio porque las dos mitades son consultas.
+ *
+ * `total: true` es ADMIN, y también coordinación sin programas asignados, que
+ * es como se comportaba antes de que el alcance existiera.
+ */
+async function alcanceDeEscrituraDeEstudiantes(req: {
+  user?: { id: string; role: string };
+  alcance?: { total: boolean; studentIds: string[] };
+}): Promise<{ total: boolean; studentIds: string[] }> {
+  const esDocente = req.user?.role === 'PROFESSOR';
+  const acotadoPorPrograma = Boolean(req.alcance && !req.alcance.total);
+
+  if (!esDocente && !acotadoPorPrograma) return { total: true, studentIds: [] };
+
+  const delDocente = esDocente ? (await getProfessorScope(req.user!.id)).studentIds : null;
+  const delPrograma = acotadoPorPrograma ? req.alcance!.studentIds : null;
+
+  // Los dos a la vez se intersectan, igual que en el listado: ninguno amplía al
+  // otro. Un docente de otra carrera no gana alcance por ser también docente.
+  const studentIds =
+    delDocente && delPrograma
+      ? intersectar(delDocente, delPrograma)
+      : (delDocente ?? delPrograma ?? []);
+
+  return { total: false, studentIds };
 }
 
 /**
@@ -167,13 +200,42 @@ studentRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), as
     // escribir de una vez.
     const body = z.array(fichaEstudiante).min(1).max(campo.TOPE_LOTE).parse(req.body);
 
+    /**
+     * El alcance se comprueba ANTES de escribir, y se comprueba aquí porque el
+     * upsert casa por cédula y no por id: sin esto, mandar la cédula de
+     * cualquier estudiante de la institución le reescribía la ficha. Era la
+     * puerta de atrás de `PATCH /students/:id`, que sí lo comprobaba.
+     *
+     * Crear a alguien que no existe sigue permitido para todos: es el trabajo
+     * de esta ruta. Lo que se cierra es *modificar* a quien ya existe y no
+     * corresponde a quien llama.
+     */
+    const alcance = await alcanceDeEscrituraDeEstudiantes(req);
+    const { permitidas, rechazadas } = particionarLotePorAlcance(
+      body,
+      await estudiantesPorCodigo(body.map(fila => fila.code)),
+      alcance,
+    );
+
+    if (permitidas.length === 0) {
+      return res.status(403).json({
+        ok: false,
+        message:
+          'Ninguna de las fichas del lote está a tu alcance: todas corresponden a ' +
+          'estudiantes de otras asignaturas o programas.',
+        rechazadas,
+      });
+    }
+
     // Una escritura para todo el lote y una lectura para devolverlo, en vez de
     // un `findOneAndUpdate` por fila. Importar un listado de 300 estudiantes
     // eran 300 viajes encadenados a la base; ahora son dos.
-    const items = await upsertStudents(body);
+    const items = await upsertStudents(permitidas);
 
     emitSync('sync:update', { entity: 'student', action: 'bulk', id: String(items.length) });
-    res.status(201).json({ ok: true, items, count: items.length });
+    // `rechazadas` va siempre, aunque esté vacía: un cliente que la lea no tiene
+    // que distinguir «no hubo rechazos» de «esta versión no las informa».
+    res.status(201).json({ ok: true, items, count: items.length, rechazadas });
   } catch (err) {
     next(err);
   }

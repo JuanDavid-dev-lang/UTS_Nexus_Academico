@@ -60,6 +60,22 @@ export function findStudent(id: string) {
   return StudentModel.findOne({ _id: id, deletedAt: null }).lean();
 }
 
+/**
+ * Los estudiantes que ya existen con alguna de estas cédulas.
+ *
+ * Es la lectura que necesita `particionarLotePorAlcance` para saber qué filas
+ * de un lote *crean* y cuáles *modifican*. Una sola consulta por lote: hacerla
+ * fila a fila devolvía la escritura masiva al bucle de idas y vueltas que
+ * `bulkWrite` existe para evitar.
+ */
+export async function estudiantesPorCodigo(codes: string[]): Promise<Array<{ id: string; code: string }>> {
+  if (codes.length === 0) return [];
+  const docs = await StudentModel.find({ code: { $in: [...new Set(codes)] }, deletedAt: null })
+    .select('_id code')
+    .lean();
+  return docs.map(doc => ({ id: String(doc._id), code: String(doc.code) }));
+}
+
 export async function createStudent(input: StudentInput) {
   await assertUniqueStudentEmails([input]);
   return StudentModel.create(input);

@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import { UserModel } from '../../models/user.model.js';
 import { SessionModel } from '../../models/session.model.js';
 import { correoActivo, enviarCorreo } from '../../shared/mailer.js';
-import { esProduccion } from '../../shared/env.js';
+import { env, esProduccion } from '../../shared/env.js';
 import mongoose from 'mongoose';
 
 export const CODE_TTL_MS = 60 * 60 * 1000;
@@ -70,7 +70,19 @@ export async function requestPasswordReset(email: string): Promise<{ devCode?: s
       'Caduca en una hora. Si no has pedido tú este cambio, ignora este mensaje.',
   });
 
-  if (!sent && !esProduccion && !correoActivo()) return { devCode: code };
+  /**
+   * El código solo vuelve en la respuesta si alguien lo pidió por escrito.
+   *
+   * Las tres condiciones se acumulan y ninguna sobra: la variable declara la
+   * intención, `!esProduccion` impide que esa variable se cuele en un
+   * despliegue real, y `!correoActivo()` evita devolverlo cuando el correo sí
+   * funciona y por tanto ya llegó por el canal bueno. Antes bastaban las dos
+   * últimas, así que un servidor sin `NODE_ENV` ni `SMTP_HOST` lo devolvía sin
+   * que nadie lo hubiera decidido.
+   */
+  if (!sent && env.ALLOW_DEV_RECOVERY_CODE && !esProduccion && !correoActivo()) {
+    return { devCode: code };
+  }
   if (!sent) {
     // El hash se reservó antes de llamar al proveedor para que dos solicitudes
     // concurrentes no puedan saltarse el cooldown. Si la entrega falla, se

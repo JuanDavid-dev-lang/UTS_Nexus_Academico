@@ -72,7 +72,7 @@ cuántos llevas.
 cd ml_service
 python -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements.txt
-.venv\Scripts\python.exe -m uvicorn app.main:app --port 8100
+.venv\Scripts\python.exe -m uvicorn app.main:app --port 8100   # 127.0.0.1 por defecto
 ```
 
 En el primer arranque entrena el modelo de bootstrap (unos segundos) y lo guarda
@@ -83,9 +83,48 @@ En `backend/.env`:
 ```ini
 ML_BASE_URL=http://127.0.0.1:8100
 ML_ENABLED=1
+# El mismo valor que ML_SHARED_SECRET en el entorno de este servicio.
+ML_SHARED_SECRET=
 ```
 
 `ML_ENABLED=0` desactiva el servicio y el backend usa solo el motor de reglas.
+
+## Autenticación del servicio
+
+Este servicio **no está pensado para recibir peticiones de fuera**, solo del
+backend de Node que corre al lado. Por eso `uvicorn` escucha en `127.0.0.1` por
+defecto y por eso lo que sigue existe.
+
+No tenía autenticación de ningún tipo. Nueve endpoints abiertos, entre ellos
+`POST /train` —que reentrena y **promueve** el modelo de riesgo, es decir, decide
+qué estudiantes salen marcados en rojo en las tres aplicaciones— y los cuatro
+`/vision/*`, que reciben archivos y los pasan por `opencv`, `pypdf` y
+`rapidocr`. Lo único que lo acotaba era la interfaz de escucha por defecto: una
+convención, no un cierre. Un `--host 0.0.0.0` en un `docker run` lo abría entero
+y nada lo advertía.
+
+| Situación | Comportamiento |
+|---|---|
+| `ML_HOST` local (por defecto) y sin secreto | Arranca y **no exige nada**. Es el modo de desarrollo: un `git clone` funciona sin configurar. |
+| `ML_HOST` local y con secreto | Arranca y exige la cabecera en todas las rutas salvo `/health`. |
+| `ML_HOST` fuera de la loopback y sin secreto | **No arranca.** Sale con código 1 y explica por qué. |
+| `ML_HOST` fuera de la loopback y con secreto | Arranca y exige la cabecera. |
+
+El secreto viaja en la cabecera `X-ML-Secret` y se compara con
+`hmac.compare_digest`, para que el tiempo de respuesta no diga cuántos
+caracteres iniciales se acertaron. Tiene que valer **lo mismo** que
+`ML_SHARED_SECRET` en `backend/.env`; del lado del backend lo añade
+`shared/ml-client.ts` a las nueve llamadas.
+
+`/health` queda deliberadamente fuera: es la sonda con la que el backend decide
+si el servicio está vivo, y tiene que poder responder antes de compartir nada.
+
+```bash
+# Generar un secreto
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+Ver `.env.example` y `tests/test_security.py`.
 
 ---
 

@@ -640,6 +640,19 @@ PORT=4000
 # (ver la nota de abajo).
 CLIENT_ORIGIN=*
 
+# 1 cuando hay un proxy inverso delante (Caddy, Nginx, un túnel). Sin declarar
+# sigue a NODE_ENV, que es lo que hacía antes. Activa `trust proxy`, que es lo
+# que hace que el límite de intentos de login vea la IP real del cliente en vez
+# de la del proxy. NO la actives sin proxy delante: cualquiera podría inventarse
+# su X-Forwarded-For y estrenar cupo en cada petición.
+TRUST_PROXY=
+
+# Devuelve el código de recuperación EN LA RESPUESTA de /auth/recovery/request,
+# y solo además fuera de producción y sin SMTP configurado. Existe para poder
+# recuperar una contraseña en local sin servidor de correo. Nunca en un servidor
+# al que llegue nadie más: convierte esa ruta en una toma de cuenta de un paso.
+ALLOW_DEV_RECOVERY_CODE=0
+
 # Escaneo automático de riesgo (0 = desactivado)
 RISK_SCAN_INTERVAL_MIN=30
 
@@ -1186,12 +1199,42 @@ docker compose up --build   # Levantar backend en contenedor
   el mismo alcance que los listados.
 - Zod valida cuerpos, consultas, paginación y tamaños. MongoDB no recibe filtros
   arbitrarios del cliente.
-- Archivos en memoria, límite de 12 MB y flujo propuesta → revisión → escritura.
+- **Las escrituras masivas comprueban el alcance igual que las unitarias.** No es
+  redundante: `POST /students/bulk` casa por cédula y no por id, así que sin esa
+  comprobación era la puerta de atrás de `PATCH /students/:id`. Crear a quien no
+  existe se permite siempre; modificar a quien ya existe, solo dentro del
+  alcance, y las filas rechazadas vuelven en la respuesta.
+- **Un listado importado crea expedientes, no reescribe los que ya existen.** Lo
+  identitario va en `$setOnInsert`. Un nombre mal leído por OCR sobre una cédula
+  correcta no daría error: renombraría en silencio a una persona real.
+- Archivos en memoria, límite de tamaño y flujo propuesta → revisión → escritura.
   Fotos y PDF no se conservan después de interpretarlos.
+- **El tipo de un archivo lo decide su firma real**, no el `mimetype` ni la
+  extensión que manda el cliente (`shared/uploads.ts`). El nombre con el que se
+  guarda y el `Content-Type` con el que se sirve los compone el servidor.
+- **Los exportables de Excel neutralizan las fórmulas.** Una celda que empiece
+  por `=`, `+`, `-`, `@` o tabulador se ejecuta al abrir el archivo, y quien lo
+  abre es coordinación, no quien escribió el nombre del estudiante.
 - Errores 5xx sin detalles internos; `/health` no expone causas de conexión.
-- Socket.io exige JWT y emite a salas autenticadas o usuarios concretos.
+- Socket.io exige JWT —por `auth.token` o cabecera, **nunca por query string**,
+  que acabaría en el log de acceso de cualquier proxy— y emite a salas
+  autenticadas o usuarios concretos.
+- **Los secretos de firma se validan aunque no se declare `NODE_ENV`.** Basta que
+  haya `MONGODB_URI` configurada: es la señal de que no es un clon recién hecho.
+  El límite de intentos de login también va siempre. Antes las dos cosas
+  colgaban de `NODE_ENV=production`, así que olvidar esa variable dejaba el
+  servidor con los secretos de desarrollo —que están en este repositorio— y sin
+  límite de fuerza bruta.
+- **El servicio de ML se autentica con un secreto compartido** y se niega a
+  arrancar si escucha fuera de `127.0.0.1` sin él: `POST /train` promueve el
+  modelo que decide qué estudiantes salen en rojo.
 - Rubri no accede a MongoDB, no ejecuta URLs del modelo y no entrena con datos
   académicos reales de forma automática.
+
+El detalle de qué falló, cómo se corrigió y **por qué existe cada una de estas
+defensas** está en [`docs/AUDITORIA_SEGURIDAD.md`](docs/AUDITORIA_SEGURIDAD.md).
+Léelo antes de quitar una comprobación que parezca redundante: varias lo
+parecen y ninguna lo es.
 
 En producción usa HTTPS, secretos distintos y largos, un usuario MongoDB con
 privilegios mínimos, CORS explícito, copias de seguridad de Atlas y límites de
@@ -1208,15 +1251,15 @@ almacén seguro.
 
 ## Testing
 
-| Capa | Comando | Cobertura principal |
-|---|---|---|
-| Backend puro | `cd backend && npm test` | Notas, asistencia, riesgo, agenda, alcance, importación y reportes |
-| Backend E2E | servidor arriba + `npm run smoke` | Login y flujo REST contra MongoDB |
-| Escritorio | `cd desktop && npm test` | Parsers, permisos, navegación, caché y errores |
-| Escritorio tipos | `npm run typecheck` | Contratos TypeScript |
-| Móvil | `cd flutter_app && flutter test` | Red, tema, navegación, caché y tiempo del campus |
-| Móvil estático | `flutter analyze` | Lints y tipos Dart |
-| ML | `cd ml_service && python -m pytest tests/` | Riesgo, Rubri, OCR y lectura de archivos |
+| Capa | Comando | Pruebas | Cobertura principal |
+|---|---|---|---|
+| Backend puro | `cd backend && npm test` | 406 | Notas, asistencia, riesgo, agenda, alcance, importación, reportes, subidas y escape de fórmulas |
+| Backend E2E | servidor arriba + `npm run smoke` | — | Login y flujo REST contra MongoDB |
+| Escritorio | `cd desktop && npm test` | 140 | Parsers, permisos, navegación, caché y errores |
+| Escritorio tipos | `npm run typecheck` | — | Contratos TypeScript |
+| Móvil | `cd flutter_app && flutter test` | 103 | Red, tema, navegación, caché, tiempo del campus y coste de reconstrucción |
+| Móvil estático | `flutter analyze` | — | Lints y tipos Dart |
+| ML | `cd ml_service && python -m pytest tests/` | — | Riesgo, Rubri, OCR, lectura de archivos y autenticación del servicio |
 
 Las pruebas de dominio no necesitan red ni base. El smoke sí requiere backend y
 MongoDB configurados. Las pruebas OCR descargan/cargan modelos ONNX y pueden
@@ -1308,6 +1351,12 @@ alerta.
 # backend/.env
 ML_BASE_URL=http://127.0.0.1:8100
 ML_ENABLED=1
+# Secreto compartido con el servicio de ML (cabecera X-ML-Secret). Vacío mientras
+# el servicio escuche solo en 127.0.0.1, que es lo que hace por defecto. En
+# cuanto se exponga es obligatorio y tiene que valer LO MISMO aquí y en el
+# entorno del servicio de Python, que se niega a arrancar sin él: POST /train
+# promueve el modelo que decide qué estudiantes salen marcados en rojo.
+ML_SHARED_SECRET=
 ```
 
 ---

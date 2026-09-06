@@ -204,3 +204,74 @@ export function filtroDeListado(
 function esRolPorProgramaEnAlcance(role?: string): boolean {
   return role === 'COORDINATOR' || role === 'SECRETARY';
 }
+
+// ── Escritura por lotes sobre fichas de estudiante ──────────────────────────
+
+/** Fila de un lote, reducida a lo que decide si se puede escribir. */
+export type FilaDeLote = { code: string };
+
+/** Estudiante que ya existe, tal como lo devuelve la consulta previa. */
+export type EstudianteExistente = { id: string; code: string };
+
+export type ParticionDeLote<T extends FilaDeLote> = {
+  /** Filas que se pueden escribir: nuevas, o de estudiantes dentro del alcance. */
+  permitidas: T[];
+  /** Cédulas rechazadas por pertenecer a un estudiante fuera del alcance. */
+  rechazadas: string[];
+};
+
+/**
+ * Separa un lote de fichas de estudiante en lo que quien llama puede escribir
+ * y lo que no. **Lógica pura**: recibe el alcance y los existentes ya resueltos.
+ *
+ * Existe por un agujero concreto. `POST /students/bulk` hace un upsert cuyo
+ * filtro es la **cédula**, no el id, y no comprobaba absolutamente nada:
+ *
+ *     filter: { code: row.code, deletedAt: null },
+ *     update: { $set: { ...rest } },
+ *     upsert: true,
+ *
+ * `PATCH /students/:id` y `DELETE /students/:id` sí comprueban
+ * `professorOwnsStudent()` y `dentroDelAlcanceDePrograma()`, así que el lote era
+ * la puerta de atrás de las dos: bastaba mandar la cédula de cualquiera para
+ * reescribirle el nombre, el programa y el correo. Y las cédulas las entrega la
+ * propia API — `GET /students/search` es el directorio global, abierto a
+ * cualquier docente para poder matricular a alguien que aún no es suyo.
+ *
+ * **Una fila cuyo `code` no existe todavía siempre se permite.** Ese es el
+ * trabajo legítimo de esta ruta: importar el listado de un grupo trae gente que
+ * el sistema no conoce. Lo que no puede es *tocar* a quien ya existe y no le
+ * corresponde.
+ *
+ * Las rechazadas se devuelven en vez de descartarse en silencio: el docente
+ * tiene que poder ver qué filas de su listado no se guardaron y por qué. Un
+ * lote que dice «300 importados» habiendo escrito 280 es una pérdida de datos
+ * con buena presentación.
+ */
+export function particionarLotePorAlcance<T extends FilaDeLote>(
+  filas: T[],
+  existentes: EstudianteExistente[],
+  alcance: { total: boolean; studentIds: string[] },
+): ParticionDeLote<T> {
+  if (alcance.total) return { permitidas: filas, rechazadas: [] };
+
+  const permitidos = new Set(alcance.studentIds.map(String));
+  // Cédula → id del estudiante que ya existe con esa cédula.
+  const idPorCodigo = new Map(existentes.map(e => [e.code, String(e.id)]));
+
+  const permitidas: T[] = [];
+  const rechazadas: string[] = [];
+
+  for (const fila of filas) {
+    const idExistente = idPorCodigo.get(fila.code);
+    // No existe todavía: crear es legítimo.
+    if (idExistente === undefined) {
+      permitidas.push(fila);
+      continue;
+    }
+    if (permitidos.has(idExistente)) permitidas.push(fila);
+    else rechazadas.push(fila.code);
+  }
+
+  return { permitidas, rechazadas };
+}

@@ -9,6 +9,13 @@ import { identificar, requireRole } from '../../middlewares/auth.js';
 import { requireDirector } from '../../middlewares/director.js';
 import { auditChange } from '../../shared/audit.js';
 import { emitSync } from '../../shared/socket.js';
+import {
+  exigirTipoReal,
+  filtroPorMimetype,
+  FORMATOS_INSTITUCIONALES,
+  nombreEnDisco,
+  nombreParaDescarga,
+} from '../../shared/uploads.js';
 
 /**
  * Repositorio de formatos oficiales de trabajo de grado.
@@ -25,24 +32,33 @@ const CARPETA = path.resolve(process.cwd(), 'formatos');
 
 const ETAPAS = ['PROPUESTA', 'DESARROLLO', 'INFORME_FINAL', 'EVALUACION', 'GRADO'] as const;
 
-/** Word y PDF: lo que la institución publica. Cualquier otra cosa se rechaza. */
-const MIMES_PERMITIDOS = new Set([
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-]);
-const EXTENSIONES = /\.(pdf|docx?|DOCX?|PDF)$/;
-
+/**
+ * Word y PDF: lo que la institución publica. Cualquier otra cosa se rechaza.
+ *
+ * El filtro aceptaba con **O** —`MIMES.has(file.mimetype) ||
+ * EXTENSIONES.test(file.originalname)`— y los dos lados de ese `||` los escribe
+ * el cliente, así que bastaba cumplir uno. Un archivo llamado `guia.pdf` con
+ * `Content-Type: text/html` pasaba, ese mimetype quedaba guardado en la ficha, y
+ * la ruta de descarga lo devolvía tal cual en la cabecera: HTML servido desde el
+ * origen de la API. Lo único que lo salvaba era el `attachment` de la línea
+ * siguiente, es decir, la suerte.
+ *
+ * Ahora los tipos aceptados y su reconocimiento por firma viven en
+ * `shared/uploads.ts`, igual que en `POST /uploads/image`.
+ */
 const subirFormato = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    if (MIMES_PERMITIDOS.has(file.mimetype) || EXTENSIONES.test(file.originalname)) return cb(null, true);
-    // Con statusCode para que `shared/error.ts` responda 400 y no un 500 que
-    // el cliente reintentaría.
-    cb(Object.assign(new Error('Solo se aceptan formatos Word (.doc/.docx) o PDF.'), { statusCode: 400 }));
-  },
+  limits: { fileSize: 20 * 1024 * 1024, files: 1 },
+  fileFilter: filtroPorMimetype(
+    FORMATOS_INSTITUCIONALES,
+    'Solo se aceptan formatos Word (.doc/.docx) o PDF.',
+  ),
 });
+
+/** Mimetype de salida por extensión guardada. El del cliente no se reutiliza. */
+const MIMETYPE_POR_EXTENSION = new Map(
+  FORMATOS_INSTITUCIONALES.map(tipo => [tipo.extension, tipo.mimetype]),
+);
 
 const metadatos = z.object({
   nombre: z.string().trim().min(4).max(160),
@@ -76,9 +92,16 @@ thesisRouter.post(
       if (!req.file) return res.status(400).json({ ok: false, message: 'Falta el archivo del formato.' });
       const datos = metadatos.parse(req.body);
 
+      // Segundo corte, el que de verdad comprueba: los primeros bytes tienen
+      // que ser los del formato declarado. El primero (el `fileFilter`) solo
+      // pudo creerse la palabra del cliente, porque aún no había bytes.
+      const tipo = exigirTipoReal(req.file, FORMATOS_INSTITUCIONALES);
+
       await mkdir(CARPETA, { recursive: true });
-      const extension = path.extname(req.file.originalname) || '.pdf';
-      const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}${extension}`;
+      // La extensión sale del tipo reconocido, no del nombre que mandó el
+      // cliente: con `path.extname(originalname)` se podía dejar un `.html` o
+      // un `.svg` en esta carpeta.
+      const filename = nombreEnDisco(tipo);
       await writeFile(path.join(CARPETA, filename), req.file.buffer);
 
       const item = await ThesisFormatModel.create({
@@ -90,8 +113,9 @@ thesisRouter.post(
         version: datos.version,
         archivo: {
           filename,
-          originalName: req.file.originalname,
-          mimetype: req.file.mimetype,
+          originalName: nombreParaDescarga(req.file.originalname, `formato${tipo.extension}`),
+          // El reconocido, no el declarado: es lo que se devolverá al descargar.
+          mimetype: tipo.mimetype,
           size: req.file.size,
         },
         subidoPor: req.user?.id,
@@ -144,8 +168,22 @@ thesisRouter.get('/formatos/:id/archivo', requireRole('ADMIN', 'PROFESSOR', 'COO
       return res.status(410).json({ ok: false, message: 'El archivo de este formato ya no está en el servidor.' });
     }
 
-    res.setHeader('Content-Type', item.archivo.mimetype ?? 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${(item.archivo.originalName ?? 'formato').replace(/"/g, '')}"`);
+    /**
+     * El `Content-Type` se deriva de la extensión **con la que el servidor
+     * guardó** el archivo, no del campo `mimetype` de la ficha.
+     *
+     * La diferencia importa para los formatos subidos antes de que el filtro
+     * comprobara la firma: en aquellos, `mimetype` es lo que declaró el
+     * cliente. Derivarlo de la extensión los normaliza sin tener que migrar la
+     * colección, y deja el peor caso en `application/octet-stream`.
+     */
+    const extension = path.extname(item.archivo.filename).toLowerCase();
+    res.setHeader('Content-Type', MIMETYPE_POR_EXTENSION.get(extension) ?? 'application/octet-stream');
+    // `nosniff` para que el navegador no adivine otro tipo a partir del
+    // contenido, que es como un `attachment` acaba ejecutándose igualmente.
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    const nombre = nombreParaDescarga(item.archivo.originalName ?? undefined, `formato${extension}`);
+    res.setHeader('Content-Disposition', `attachment; filename="${nombre}"`);
     createReadStream(ruta).pipe(res);
   } catch (err) {
     next(err);

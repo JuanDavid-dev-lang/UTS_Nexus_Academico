@@ -47,8 +47,18 @@ flutter test
 ```bash
 python -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements.txt
-.venv\Scripts\python.exe -m uvicorn app.main:app --port 8100
+.venv\Scripts\python.exe -m uvicorn app.main:app --port 8100   # 127.0.0.1 por defecto
 .venv\Scripts\python.exe -m pytest tests/
+```
+Escuchar fuera de `127.0.0.1` exige `ML_SHARED_SECRET` (ver `.env.example`): el
+servicio se niega a arrancar sin él, porque `/train` promueve el modelo de
+riesgo y `/vision/*` acepta archivos.
+
+### Versión
+```bash
+node .github/scripts/subir-version.mjs patch     # o: minor | major | 1.4.2
+node .github/scripts/subir-version.mjs --check   # ¿los cuatro archivos coinciden?
+node .github/scripts/comprobar-version.mjs v1.0.1
 ```
 
 ### Arranque completo
@@ -94,11 +104,67 @@ El mismo patrón en reportes: `filtrosDeConsulta()` fuerza el `teacherId` del do
 - `GET /students` acepta `subjectId`, `groupId`, `period` y `q`. Para un docente los filtros se **intersectan** con su alcance, no lo reemplazan: pedir una materia ajena devuelve lista vacía, nunca los datos de otro.
 - `GET /students/search` es el directorio global (identidad mínima: cédula, nombre, programa) y existe para poder matricular a alguien que aún no es tuyo. Exige 3 caracteres y tope de 50. **No devuelve notas, asistencia ni riesgo** — si algún día hace falta más campo, revisa primero si no estás filtrando el expediente de un estudiante ajeno.
 - Los endpoints por id (`GET /students/:id`, `PATCH /students/:id`) comprueban el alcance con `professorOwnsStudent()`. Filtrar solo el listado deja la ficha accesible a quien copie un id.
+- **`POST /students/bulk` también comprueba el alcance**, y no es redundante con lo anterior: su upsert casa por **cédula**, no por id, así que era la puerta de atrás del `PATCH`. Bastaba mandar la cédula de cualquiera —y las entrega `GET /students/search`, que es el directorio global— para reescribirle nombre, programa y correo. `particionarLotePorAlcance()` (`domains/scope/`, puro y con pruebas) separa lo que crea de lo que modifica: **crear a quien no existe se permite siempre** (es el trabajo de la ruta), modificar a quien ya existe solo dentro del alcance. Las filas rechazadas vuelven en la respuesta; descartarlas en silencio sería una pérdida de datos con buena presentación.
+
+### Roles y alcance
+
+Cinco roles: `ADMIN`, `COORDINATOR`, `SECRETARY`, `PROFESSOR`, `STUDENT`
+(`shared/types.ts`). Un docente se acota por **matrícula**; coordinación y
+secretaría por **programa académico**; ADMIN no se acota.
+
+- **El alcance por programa vive en `domains/scope/program-scope.ts`** (puro, con
+  pruebas) y se carga una vez por petición en `middlewares/scope.ts`, que deja
+  `req.alcance`. Es global sobre `apiRouter`: una ruta que se olvidara de pedirlo
+  consultaría sin acotar y devolvería datos de otra carrera con un 200.
+- **Sin programas asignados el alcance es la institución entera.** Es lo que
+  estas cuentas veían antes de que el alcance existiera; cerrarlo a «nada» habría
+  dejado a las ya creadas mirando pantallas vacías tras actualizar. Se restringe
+  asignando programas desde `PATCH /usuarios/:id`, que queda en la auditoría.
+- **Coordinación se asigna por área, no por título.** Una carrera de las UTS es
+  una cadena propedéutica —el ciclo tecnológico continúa en el profesional sobre
+  la misma línea—, así que `AREAS` en `domains/catalog/uts.ts` agrupa los dos y
+  la pantalla marca la carrera entera con una casilla. **Se guardan los ids de
+  programa, no el área**: el área es cómo se elige, no cómo se guarda, así el
+  motor de alcance no cambia y una adscripción a un solo ciclo sigue siendo
+  representable (la interfaz la marca como «a medias»). Una prueba fija que
+  ningún programa del catálogo se quede sin área: uno huérfano no daría error,
+  sería una carrera que nadie puede coordinar.
+- **El programa de una materia manda; el del docente es respaldo.**
+  `Materia.programa` es el dato declarado; si falta —datos previos al campo— se
+  deduce de `Profesor.programas`. La API marca lo deducido (`programaDeducido`) y
+  el escritorio lo pinta con un asterisco: un dato aproximado que se lee como
+  declarado acaba en un acta.
+- **Secretaría = coordinación sin escritura.** No se implementa repitiendo el rol
+  en las sesenta llamadas de `requireRole`: `domains/scope/role-access.ts` decide
+  las dos cosas —`rolesEfectivos()` la hace valer como coordinación **solo en
+  lectura**, y `bloquearSoloLectura` (global, en `routes/index.ts`) corta
+  cualquier `POST`/`PATCH`/`PUT`/`DELETE` que no esté en una lista corta de
+  excepciones (sesión, bandeja propia, telemetría, sugerencia propia). El corte
+  es por método, no por ruta: marcar cuáles escriben deja fuera la que se añada
+  mañana, y una ruta de escritura sin marcar no falla, concede.
+- Exportar es **leer**: los exportables son `GET` a propósito, para que secretaría
+  pueda descargarlos.
+
+`GET /coordinacion/*` (materias con su docente, docentes, grupos, resumen y
+`export.xlsx`) es una sola pipeline —`coordination.service.ts`— rebanada tres
+veces: calcular cada corte por separado garantizaba que el promedio de una
+materia acabara sin coincidir con el del docente que la dicta. Los números salen
+de `computeAcademicRecords()`; aquí no se calcula ninguna nota.
+
+`POST|GET|PATCH|DELETE /usuarios` es **solo ADMIN**: quien asigna programas decide
+alcances, y un rol no puede mover su propio techo. Nadie se quita a sí mismo el
+rol de administración —es lo que impide dejar la instalación sin nadie que pueda
+deshacerlo. El alta va por `POST /usuarios` y **no** por `/auth/register`:
+aquella ruta firma los tokens de la cuenta recién creada —nació para el primer
+administrador—, así que crear personal desde ahí dejaba las credenciales de otra
+persona en la sesión de quien la crea. El formulario vive en el escritorio, en
+Configuración → «Cuentas del personal»; la gestión continua, en Personal.
 
 ### Cuentas, sesión y recuperación
 - **`POST /auth/register` es solo para ADMIN.** Acepta `role: 'ADMIN'` y la ficha de docente nace `APROBADO`, así que abierto era un generador público de administradores que además saltaba entero el diseño de `/registro`. Quien se da de alta por su cuenta pasa por `/registro`: interruptor de la administración, estado `PENDIENTE` y revisión humana.
 - **`POST /auth/refresh` rota el token** (RTR): cada canje quema el anterior sobre la misma sesión. Reutilizar uno ya rotado revoca **toda** la familia de sesiones del usuario, que es la única señal disponible de que alguien copió un token.
-- **El código de recuperación se envía por correo, nunca en la respuesta.** Solo vuelve en `devCode` fuera de producción y sin `SMTP_HOST`, para que una instalación local pueda recuperar una contraseña. Devolverlo siempre convertía `/recovery/request` en una toma de cuenta de un solo paso.
+- **El código de recuperación se envía por correo, nunca en la respuesta.** Solo vuelve en `devCode` con `ALLOW_DEV_RECOVERY_CODE=1`, fuera de producción y sin `SMTP_HOST`: las tres condiciones a la vez. Devolverlo siempre convierte `/recovery/request` en una toma de cuenta de un solo paso, porque basta conocer un correo del directorio. Antes bastaban las dos últimas condiciones, es decir, **se deducía de dos ausencias**: un despliegue que olvidara `NODE_ENV` y no tuviera SMTP lo devolvía sin que nadie lo hubiera decidido. Deducir un permiso a partir de lo que falta es lo contrario de conceder un permiso.
+- **`POST /auth/password` cambia la contraseña propia y lo puede hacer cualquier rol** (incluida secretaría: escribe sobre su cuenta y sobre nada más, por eso está en la lista blanca de `role-access.ts`). Exige la actual —con solo el token, un equipo desbloqueado sería una toma de cuenta en dos clics—, **revoca todas las sesiones** y devuelve un par nuevo: sin eso, cambiarse la contraseña echaba al propio usuario al inicio de sesión y se leía como una avería. Está en Configuración de los dos clientes.
 - Las contraseñas van acotadas a 128 caracteres en todas las rutas: bcrypt solo mira 72 bytes, y sin tope `bcrypt.compare` con una cadena de megabytes ocupa el único hilo del proceso.
 
 ### Listados: paginación y campos acotados
@@ -114,11 +180,16 @@ El mismo patrón en reportes: `filtrosDeConsulta()` fuerza el `teacherId` del do
 Dos trampas al escribir uno nuevo:
 - **`bulkWrite` no castea los ids.** `find()` los convierte a partir del esquema; la agregación y `bulkWrite` no. Un `studentId` en texto no casa con el ObjectId guardado, así que el filtro no encuentra nada y el upsert **crea un duplicado** en vez de actualizar.
 - **La auditoría también es una escritura por registro.** Agrupar solo el upsert deja el bucle donde estaba; `auditBatch()` la reduce a un `insertMany`.
+- **El alcance se comprueba antes de escribir, y de una sola consulta.** Un lote cuyo filtro es un dato del cuerpo —la cédula, el código de materia— no hereda ninguna de las comprobaciones que hace la ruta unitaria equivalente. Resolverlo fila a fila devolvería el bucle que `bulkWrite` vino a quitar: `estudiantesPorCodigo()` lo hace en una consulta y la decisión la toma una función pura.
 
 ### Importación de listados
 Un listado de estudiantes se puede pegar como texto, subir como CSV o **leer de un PDF o una foto**. Los dos últimos pasan por `POST /enrollments/import/scan`, que reenvía el archivo a `/vision/roster` del servicio ML y devuelve una **propuesta con confianza por fila** — nunca escribe. La escritura sigue siendo `POST /enrollments/bulk` con lo que el docente ya revisó, y en el escritorio la lectura cae en el mismo cuadro de texto que la lista pegada a mano para que pase por la misma revisión.
 
 Un PDF con capa de texto se lee tal cual (confianza 1.0, sin reconocimiento que pueda fallar); uno escaneado pide que lo manden como foto en vez de adivinar. **Separar proponer de escribir no es ceremonia**: una cédula mal reconocida no da error, crea un estudiante que no existe y lo matricula, y eso se descubre semanas después cuando alguien no aparece en el consolidado.
+
+**Un listado importado crea expedientes; no reescribe los que ya existen.** En `POST /enrollments/bulk` todo lo identitario —nombre, correo, programa— va en `$setOnInsert`, y la respuesta separa `creados` de `reutilizados`. El `$set` que había antes tenía dos problemas en uno: la cédula es la clave del upsert y el directorio global la entrega a cualquier docente, así que metiendo cédulas ajenas en el listado de un grupo propio se renombraba a estudiantes de otras carreras; y el caso honesto es peor, porque un nombre mal leído sobre una cédula correcta **no da error, renombra en silencio a una persona real** y eso aparece en un acta. Corregir el nombre de alguien que ya existe se hace por su ficha, que comprueba el alcance y queda en la auditoría.
+
+Los tres escáneres (`/enrollments/import/scan`, `/grades/import/scan`, `/attendance/scan`) **filtran el tipo de archivo por firma real**, no por el `mimetype` ni por la extensión que manda el cliente: los tipos aceptados viven en `shared/uploads.ts` y lo que pasa el filtro va a `opencv`, `pypdf` y `rapidocr`, que son parsers nativos. También es de ahí de donde sale si el archivo es una hoja de cálculo (se interpreta en el backend) o una imagen (va al servicio de visión): antes esa decisión la tomaba el nombre del archivo.
 
 ### Importación de calificaciones
 Mismo contrato de dos pasos que el listado y el escáner de asistencia: `POST /grades/import/scan` **propone** (Excel lo interpreta el backend con exceljs; PDF/foto van a `/vision/grades` del servicio ML) y `POST /grades/bulk` **escribe** tras la revisión en tabla del escritorio (`grades-import-dialog.tsx`). El corte y el componente se eligen una vez por lote; cada columna lleva su `label`, y como el `label` es parte de la clave única de Nota, repetirlo **sobrescribe** — por eso la respuesta separa `creadas` de `actualizadas` y el cliente lo avisa. La lógica pura (interpretar la matriz, cruzar con matrícula reutilizando el algoritmo de `sheet-match`) vive en `domains/grading/import-notas.ts`; el clamp 0–5 nunca recorta en silencio: una nota fuera de rango se marca para revisión (un «45» suele ser un 4.5 sin punto). Solo escritorio: el texto pegado y el CSV se parsean en cliente (`desktop/src/domain/grades/parse-grades.ts`).
@@ -126,8 +197,58 @@ Mismo contrato de dos pasos que el listado y el escáner de asistencia: `POST /g
 ### Reportes: catálogo de columnas, plantilla y vista previa
 `modules/reports/report-columns.ts` es la **única fuente de filas** de PDF, Excel y vista previa (`GET /reports/preview/attendance`): los tres consumen el mismo catálogo, así que no pueden divergir. La plantilla (`report-template.ts`, clave `report_template` en `ConfigModel`) parametriza membrete, logo, colores del documento y columnas visibles por tipo; la edita ADMIN desde la página de reportes del escritorio y una selección sin la cédula cae al catálogo completo. Los colores de la plantilla son contenido del documento, no UI — no pasan por los tokens del design system.
 
+**Toda celda de Excel sale por `agregarFila()`, nunca por `ws.addRow()` directamente.** Excel y LibreOffice ejecutan cualquier celda que empiece por `=`, `+`, `-`, `@`, tabulador o retorno de carro, y las columnas de estos informes son texto que escribe gente: el nombre de un estudiante llega por importación de listado o por OCR de una foto, y la observación de una asistencia son 500 caracteres libres. Quien abre el acta es coordinación o secretaría, así que **el que ejecuta no es el que escribió**. `celdaSegura()` antepone un apóstrofo —el escape que Excel entiende, invisible al abrir— y deja los números intactos, porque un `-2` numérico es una nota y convertirlo a texto rompería las sumas de la hoja. `shared/sanitize.ts` no cubría esto: sanea lo que se **guarda**, no lo que **sale** hacia un archivo.
+
 ### Buzón de sugerencias (`/feedback`)
 El docente escribe (escritorio y móvil), ADMIN revisa y cambia el estado; al resolver/descartar se avisa al autor vía `crearNotificacion()` con `dedupeKey`. No confundir con `risk-feedback` (realimentación del modelo ML). Un docente solo ve lo suyo.
+
+### Perfiles institucionales (`/instituciones`)
+
+Las universidades **no están en el código**: son documentos de `instituciones`
+(`models/institution.model.ts`) que ADMIN crea desde la pantalla «Perfiles
+institucionales» (`/instituciones`) del escritorio, y el selector de `/registro` las lee de
+`GET /registro/catalogo` (`instituciones`, solo las activas). Añadir una no
+toca ningún cliente ni exige redesplegar.
+
+- `domains/institutions/institution-profile.ts` es la lógica pura, con pruebas:
+  `normalizarNombre()` (sin tildes, minúsculas, sin puntuación) decide qué es un
+  duplicado; `buscarCoincidencias()` distingue `exacta` (nombre, sigla o alias
+  ya usados: bloquea con 409) de `posible` (parecido: solo advierte);
+  `validarConfiguracionAcademica()` exige pesos en (0,1] que sumen 1 y una
+  escala coherente.
+- `institutionId` es un slug estable e **inmutable** (`uts`, `uis`, `udes`…), **generado por el servidor** desde la sigla (`unab`, `unab-2`… si ya existe): es
+  lo que usará UniPlanner. `_id` es el vínculo interno desde `Profesor.institutionId`.
+- **Solo UTS nace con configuración**, y se deriva de `RUBRICA`
+  (`configuracionDesdeRubrica()`), no se copia: una prueba fija que coinciden.
+  UIS, UDES y las nuevas nacen con `configuracionAcademica: null` hasta que un
+  administrador las configure. No inventar ponderados.
+- `shared/institutions-bootstrap.ts` corre en cada arranque (y en el seed y la
+  E2E): crea los tres perfiles **solo si faltan** —lo editado manda— y vincula
+  a UTS a los docentes sin institución y sin solicitud (antes de los perfiles
+  todas las cuentas eran UTS).
+- El registro acepta `institutionId` (activa) **o** `institucionSolicitada`
+  (texto libre). Si el texto coincide exactamente con nombre, sigla o alias de
+  una activa se vincula solo; si no, queda en `GET /instituciones/solicitudes`
+  y ADMIN la asocia a una existente o crea el perfil desde ahí. Sin ninguno de
+  los dos se asume UTS: un móvil anterior a esta capacidad no manda el campo.
+- Borrar es lógico y solo sin docentes vinculados (409 si los hay: lo que
+  corresponde es desactivar). Una desactivada no se ofrece en el registro ni
+  acepta `institutionId` a mano, pero conserva docentes e historial.
+- **Toda cuenta que no sea ADMIN pertenece a una institución** (`Usuario.institutionId`,
+  la misma que `Profesor.institutionId` para docentes; se escriben juntas). ADMIN va
+  sin ella y ve todas. El alcance de coordinación y secretaría
+  (`domains/scope/program-scope.ts`, `institutionId` en `AlcanceDePrograma`) solo
+  deja entrar materias dictadas por docentes de su institución, tengan o no
+  programas asignados; sin programas y con institución el alcance es «su
+  institución entera», no total. Se asigna desde Personal (`POST|PATCH /usuarios`,
+  obligatoria salvo ADMIN) y el arranque vincula a UTS a las cuentas anteriores.
+- Un docente **nunca** edita su institución ni la configuración: `PATCH
+  /professors/me` no acepta el campo y todo `/instituciones` de escritura es
+  ADMIN. Coordinación y secretaría solo leen.
+- El motor de calificación sigue aplicando `RUBRICA` para todos; la
+  configuración por institución se guarda y valida, pero **todavía no
+  parametriza `domains/grading`**. Hacerlo es un cambio aparte (tipos
+  `CorteNumero = 1|2|3` y clientes que pintan tres cortes).
 
 ### Directores de trabajo de grado
 `esDirectorTrabajoGrado` en `Profesor` lo activa ADMIN/COORDINATOR desde la pantalla Docentes del escritorio (`PATCH /professors/:id`; nunca editable por `/me`). El middleware `requireDirector` consulta la ficha —no el token—, así que activar el flag surte efecto sin cerrar sesión. Los formatos oficiales (`/trabajos-grado/formatos`) se guardan en `backend/formatos/`, **fuera** de `uploads/` que es estático y público: se descargan solo por la ruta autenticada. El gate del menú en los dos clientes lee el flag del perfil (`sidebar.tsx` / `esDirectorProvider`).
@@ -319,6 +440,12 @@ sobre qué es un metadato. Ninguna era peor; el problema era que fueran tres.
 ### Servicio ML
 Sustituye los umbrales fijos de `domains/risk` por un modelo entrenado con explicación SHAP obligatoria. Arranca con modelo bootstrap derivado de las reglas; un candidato reentrenado solo se promueve **si gana en recall** (AUC desempata), salvo que sea el primer modelo con datos reales. Si el servicio cae, el backend usa el motor de reglas y lo declara en el campo `source` (`model` | `rules`). Config en `backend/.env`: `ML_BASE_URL=http://127.0.0.1:8100`, `ML_ENABLED=1`.
 
+**El servicio se autentica con un secreto compartido** (`ML_SHARED_SECRET`, cabecera `X-ML-Secret`). No lo tenía: nueve endpoints abiertos, entre ellos `POST /train`, que reentrena y **promueve** el modelo —es decir, decide qué estudiantes salen marcados en rojo en las tres aplicaciones— y los cuatro `/vision/*`, que reciben archivos. Lo único que lo acotaba era que `uvicorn` sin `--host` escucha en `127.0.0.1`: una convención, no un cierre, y un `--host 0.0.0.0` en un `docker run` lo abría entero sin que nada lo advirtiera.
+
+Ahora: sin secreto no exige nada mientras escuche solo en la loopback —para que un `git clone` arranque sin configurar— y **se niega a arrancar** si `ML_HOST` sale de ahí y no hay secreto. `/health` queda fuera: es la sonda con la que el backend decide si el servicio está vivo, y tiene que poder responder antes de compartir nada.
+
+Del lado del backend, las nueve llamadas pasan por `shared/ml-client.ts` (`mlFetch`). Están repartidas en seis módulos, y añadir la cabecera en cada uno garantiza que la que se añada mañana se olvide — y una llamada sin cabecera no falla de forma visible: funciona en local, funciona en las pruebas, y solo se cae el día del despliegue.
+
 ## Rendimiento de los clientes
 
 Tres reglas que son fáciles de deshacer sin querer y caras de diagnosticar después, porque ninguna la detecta `flutter analyze` ni el `tsc`.
@@ -360,7 +487,9 @@ En los dos casos el índice existe para no romper los sitios que ya importaban d
 - **Declara el significado, no el color.** `StatusPill`, `StatTile` y `RiskBadge` (móvil) reciben un `SemanticKind` y resuelven el par (texto, fondo) contra el tema activo. Pasarles colores sueltos rompe el modo oscuro.
 - **La escala tipográfica tiene cinco pasos** (36/30/24/16/13). Un tamaño fuera de ese ramp es un error, no una variante.
 - **En modo oscuro los semánticos van aclarados** (`#4ADE80`, `#FBBF24`, `#F87171`, `#38BDF8`), no con los hex canónicos de §4: esos están calibrados para texto sobre blanco y sobre `#33332A` caen a 2.4–4.0:1, por debajo del AA que exigen §4 regla 5 y §15.
-- **El lima `#CAD225` nunca es color de texto ni fondo de superficie grande** — solo botones, badges, selección y foco (§4 reglas 2 y 4).
+- **El lima `#CAD225` es el acento en los dos modos** y nunca es color de texto ni fondo de superficie grande — solo botones, badges, selección y foco (§4 reglas 2 y 4). En claro, cuando el acento tiene que *ser* texto se usa `--accent-strong` / `AppColors.accentStrong` (`#626D0F`), que es la misma rampa bajada hasta AA.
+- **En el móvil, los colores del tema se leen con `context.palette`** (`AppPalette` en `app_theme.dart`), no con `isDark ? XDark : X` repetido en cada pantalla: cada copia de ese ternario es un sitio donde se puede olvidar el caso oscuro, y olvidarlo no da error, da texto gris sobre fondo oliva.
+- **La superficie de marca (`surface-brand` / `BrandSurface`) es solo para lo que representa a la aplicación** — cabecera del panel, clase en curso, acceso. Nunca detrás de una tabla o una lista: el degradado cambia de tono a lo largo del bloque y cada fila acabaría sobre un fondo distinto.
 - Inter va empaquetada en los dos clientes (`@fontsource/inter` en escritorio, `.ttf` en `flutter_app/assets/fonts/`). No la sustituyas por una carga remota: el CSP de Tauri no tiene `font-src` y la app móvil se usa sin red fiable.
 - Los gráficos de escritorio leen los tokens en vivo y se repintan al cambiar de tema; no les pases colores fijos.
 
@@ -370,6 +499,11 @@ Leídas por `backend/src/shared/env.ts`. **Un nombre mal escrito no da error: ca
 
 - La variable es `JWT_ACCESS_SECRET`, **no** `JWT_SECRET`.
 - `MONGODB_URI` es obligatoria; sin ella el backend arranca pero no conecta a la base.
+- **`NODE_ENV` ya no es el interruptor de la seguridad.** Lo fue, y era un error de diseño: `validarProduccion()` empezaba con `if (!esProduccion) return`, o sea que el guardián que impide desplegar con los secretos de juguete **solo se activaba si ya estaba puesta la variable que él mismo tendría que verificar**. Un `pm2 start` sin `NODE_ENV` arrancaba sin un aviso con `JWT_ACCESS_SECRET='dev-access'`, que está escrito en este repositorio. Ahora los secretos de firma se validan **siempre que haya `MONGODB_URI` configurada** —la señal de que esto no es un clon recién hecho— y `NODE_ENV` solo decide lo que sí molestaría en local: CORS acotado y servidor de correo.
+- **`TRUST_PROXY`** activa `trust proxy`, que es lo que hace que el límite de intentos de login vea la IP real y no la del proxy. Sin declarar sigue a `NODE_ENV`, que es lo que hacía antes. No la actives sin un proxy delante: cualquiera podría inventarse su `X-Forwarded-For` y estrenar cupo en cada petición.
+- **El límite de intentos de login va siempre**, no solo en producción. Estaba dentro de un `if (esProduccion)` y esa es justo la condición que falta cuando alguien despliega sin declararla. Diez intentos cada quince minutos no estorban a nadie desarrollando.
+- **`ALLOW_DEV_RECOVERY_CODE`** devuelve el código de recuperación en la respuesta de `/auth/recovery/request`. Apagada por defecto y con dos condiciones más encima (fuera de producción, sin SMTP). Nunca en un servidor al que llegue nadie más.
+- **`ML_SHARED_SECRET`** tiene que valer lo mismo aquí y en el entorno del servicio de Python. Vacío solo mientras el servicio escuche en `127.0.0.1`.
 - `CLIENT_ORIGIN=*` para uso local: la app empaquetada de escritorio se sirve desde `http://tauri.localhost` (dev: `http://localhost:5183`). Si `CLIENT_ORIGIN` apunta a otro puerto, el login desde escritorio falla con un error de red que **no** menciona CORS.
 - El backend escucha en todas las interfaces (`0.0.0.0`) — necesario para que el móvil se conecte desde el teléfono.
 - `CAMPUS_UTC_OFFSET_MIN` (por defecto `-300`) es la zona del campus. Si el servidor corre en UTC y esto no se declara bien, **todas las clases y todos los recordatorios se desplazan varias horas sin ningún error visible**.
@@ -383,7 +517,7 @@ Los dos clientes se actualizan desde **GitHub Releases**; el proceso completo es
 
 - Escritorio: `tauri-plugin-updater` verifica la firma minisign contra `plugins.updater.pubkey` antes de instalar. La lógica vive en `desktop/src/core/platform/updater.ts` — como el resto de `core/platform`, es el único módulo que toca el plugin y degrada a "no hay nada" en el navegador.
 - Móvil: `flutter_app/lib/core/services/update_service.dart` consulta la API de Releases, descarga el APK y se lo pasa al instalador de Android. Solo Android; en otras plataformas responde que no hay actualizaciones.
-- **Publicar exige subir la versión en los dos archivos** (`tauri.conf.json` y `pubspec.yaml`, incluido el `+versionCode`) y empujar una etiqueta `v*`. Sin subir la versión el updater no ofrece nada.
+- **Publicar exige subir la versión en los cuatro archivos** (`desktop/package.json`, `tauri.conf.json`, `Cargo.toml` y `pubspec.yaml` con su `+versionCode`) y empujar una etiqueta `v*`. Sin subir la versión el updater no ofrece nada. **No los edites a mano**: `node .github/scripts/subir-version.mjs patch|minor|major|X.Y.Z` los actualiza todos, sube el `versionCode` y regenera los ficheros de bloqueo; `comprobar-version.mjs` lo verifica después y en CI. Ver la «Regla de subida de versión» más abajo.
 - La clave privada de firma **no está en el repositorio** y no debe estarlo: quien la tenga puede publicar actualizaciones falsas que las apps instaladas aceptarían como oficiales.
 
 **iOS no existe y no se puede compilar desde Windows** (hace falta macOS con Xcode, y el Apple Developer Program para distribuir). No empieces a añadir una carpeta `ios/`: el bloqueo es de herramientas, no de código.
@@ -393,8 +527,236 @@ Los dos clientes se actualizan desde **GitHub Releases**; el proceso completo es
 - `docs/AGENDA_Y_NOTIFICACIONES.md` — agenda, recordatorios, push de Android, sincronización y qué hay que configurar.
 - `docs/CIERRE_Y_ADMINISTRACION.md` — cierre de periodos, auditoría, centro de salud, patrones de inasistencia, telemetría, historial, migración v3 y suite E2E.
 - `docs/PUBLICAR_VERSION.md` — publicar una versión, secretos de CI y manejo de las claves de firma.
+- `docs/AUDITORIA_SEGURIDAD.md` — auditoría de entradas, formularios, subidas y sesión: qué falló, cómo se corrigió y **por qué existe cada defensa**. Léelo antes de quitar una comprobación que parezca redundante.
 - `desktop/README.md` — guía completa del cliente de escritorio v2.
 - `ml_service/README.md` — ciclo de entrenamiento, endpoints y variables del modelo.
 - `docs/ARQUITECTURA_V2.md` — auditoría de la v1 y arquitectura de la v2.
 - `DESIGN.md` — tokens de diseño, paleta, accesibilidad (fuente de los estilos del escritorio).
 - Swagger interactivo en `http://localhost:4000/docs` con el servidor arriba.
+---
+
+# Reglas de trabajo
+
+Las secciones anteriores describen **cómo está hecho** el sistema. Estas
+describen **cómo se trabaja sobre él**: qué hay que ejecutar antes de dar algo
+por terminado, dónde va una prueba nueva, y qué se rompe siempre que nadie
+mira. Están adaptadas de las de UniPlanner, que es el otro proyecto de esta
+misma persona; lo que allí eran reglas de Firestore y Flutter, aquí son de
+MongoDB y de tres clientes.
+
+## Estilo de respuesta — nivel «lite»
+
+- Sin muletillas, sin rodeos, sin relleno conversacional.
+- Se mantienen los artículos y las frases completas: no es telegrama.
+- Explicaciones y código directos, profesionales y **técnicamente exactos al
+  100 %**.
+
+```
+Normal: "Deberías envolver el objeto en useMemo, ya que se crea una referencia
+         nueva en cada render."
+Lite:   "Envuelve el objeto en useMemo. Se crea una referencia nueva en cada
+         render."
+```
+
+## Regla de verificación
+
+**Nada se da por terminado sin ejecutar lo que corresponda al código tocado.**
+No es ceremonia: los tres clientes y el backend fallan de maneras que no se ven
+leyendo el diff.
+
+| Tocaste | Ejecuta, en este orden |
+|---|---|
+| `backend/` | `npm run lint` · `npx tsc -p tsconfig.json --noEmit` · `npm test` |
+| `desktop/` | `npm run lint` · `npm run typecheck` · `npm test` |
+| `flutter_app/` | `flutter analyze` · `flutter test` |
+| `ml_service/` | `.venv/bin/python -m pytest tests/` |
+| `backend/.env` o variables nuevas | `npm run check:env` |
+
+El objetivo es **0 errores**. Los avisos preexistentes (`no-console`,
+`no-explicit-any`) no se arreglan de paso; los nuevos, sí.
+
+`npm test` en el backend cubre `src/domains/`: funciones puras, sin base ni
+servidor. `npm run smoke` sigue siendo la verificación de extremo a extremo y
+necesita el servidor arriba y sembrado.
+
+**Si cambias una variable de entorno**, actualiza en el mismo commit
+`backend/.env.example`, la lista `KNOWN` de `check-env.mjs` y la tabla de
+CLAUDE.md. Una clave que no esté en `KNOWN` salta como si fuera una errata, y un
+aviso que siempre aparece deja de leerse.
+
+## Regla de ubicación de las pruebas
+
+Cada cliente tiene su carpeta y **una prueba va donde vive el código que
+cubre**:
+
+| Carpeta | Cubre |
+|---|---|
+| `backend/tests/` | `backend/src/domains/` y los módulos puros de `shared/` |
+| `desktop/tests/unit/` | `desktop/src/domain/` y utilidades de `core/` |
+| `flutter_app/test/` | `flutter_app/lib/` |
+
+Las tres son planas a propósito: son de 15 a 30 archivos por cliente, y una
+jerarquía sobre eso añade navegación sin añadir información. **El nombre es la
+ubicación**: `professor-scope.test.ts` prueba `domains/scope/professor-scope.ts`,
+`router_test.dart` prueba el enrutador. Una prueba cuyo nombre no diga qué cubre
+está mal nombrada, no mal ubicada.
+
+Una prueba que cruza dos módulos va con el que **posee el comportamiento que se
+afirma**, no con el que solo lee. `student-follow-up-scope.test.ts` importa
+cosas de seguimiento y afirma sobre el alcance, así que es del alcance.
+
+**Antes de crear un archivo, mira si extender uno existente con un `describe`
+nuevo.** Varios archivos pequeños afirmando lo mismo son más difíciles de
+mantener que uno agrupado.
+
+**Qué merece una prueba.** La lógica de dominio; lo que puede corromper o
+perder datos (migraciones, escrituras masivas); los fallos que de verdad
+ocurrieron; y las garantías que se rompen en silencio — el alcance de un
+docente, el mapa de invalidación de `sync:update`, el orden de las ramas del
+enrutador móvil, el escape de fórmulas de los exportables. Ninguna de esas
+lanza una excepción al romperse: devuelven un 200 con los datos de otro, o una
+pantalla en blanco.
+
+**Qué no.** Pruebas que solo repiten una constante. Afirmar que una lista tiene
+exactamente tres entradas falla en cada ajuste de diseño sin que nada esté roto.
+
+## Regla de las hojas modales (móvil)
+
+Tres defectos aparecen en toda hoja inferior que nadie vigila. `showCompactSheet`
+(`core/widgets/compact.dart`) los tiene resueltos: **una hoja nueva pasa por
+ahí**, y si de verdad necesita `showModalBottomSheet` a pelo, revisa los tres.
+
+**1. `useSafeArea: true` va en la ruta.** Sin la bandera,
+`showModalBottomSheet` envuelve la hoja en `MediaQuery.removePadding`, que
+depende del `MediaQueryData` **entero**. El teclado anima `viewInsets` fotograma
+a fotograma, así que cada uno de esos fotogramas invalida la construcción y
+rehace el subárbol completo de la hoja. Y sin ella la hoja tampoco pinta bajo la
+barra de estado.
+
+**2. Nunca leas `MediaQuery.viewInsetsOf` en el `build` de un formulario.** Usa
+`KeyboardInset` (`core/widgets/keyboard_inset.dart`), que lee el inset en su
+propio `build` diminuto y recibe el contenido **ya construido**, de modo que el
+framework se salta ese subárbol en vez de rehacerlo.
+
+```dart
+// Mal: apunta la dependencia al formulario entero.
+Padding(
+  padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+  child: /* el formulario */,
+)
+
+// Bien.
+KeyboardInset(child: /* el formulario */)
+KeyboardInset(extra: 16, child: /* una barra de acciones fija abajo */)
+```
+
+Vale igual para un pie fijo dentro de una pantalla más alta: se envuelve **el
+pie**, no la pantalla.
+
+**3. Una hoja alta tiene que poder encoger.** `useSafeArea` le cuesta a la hoja
+el alto de la barra de estado, así que una `Column` cuyos hijos exijan un alto
+fijo se desborda en una pantalla corta. La parte que crece va en `Flexible`, no
+solo con un `maxHeight`.
+
+`test/keyboard_inset_test.dart` fija el punto 2 contando reconstrucciones, no
+píxeles: quitar `KeyboardInset` se ve idéntico en una captura y multiplica por
+sesenta el trabajo por segundo.
+
+## Regla de carga de la base de datos
+
+MongoDB Atlas cobra por operación y por transferencia, y las dos se multiplican
+por accidente. Aquí no aplica lo de `autoDispose` de UniPlanner — es al revés,
+**ningún provider de Riverpod es `autoDispose` a propósito**, para que cambiar
+de pestaña no vuelva a consultar. Lo que sí aplica es esto:
+
+**1. Una escritura por lote, no un viaje por fila.** `/grades/bulk`,
+`/attendance/scan/confirm`, `/students/bulk` y `/enrollments/bulk` usan
+`bulkWrite()` y `auditBatch()`. Volver al bucle de `findOneAndUpdate` convierte
+una planilla de 500 × 10 en quince mil idas y vueltas encadenadas a Atlas sobre
+una ventana que el docente ya cerró. **La auditoría también es una escritura por
+registro**: agrupar solo el upsert deja el bucle donde estaba.
+
+**2. `bulkWrite` no castea los ids.** `find()` los convierte a partir del
+esquema; la agregación y `bulkWrite`, no. Un `studentId` en texto no casa con el
+ObjectId guardado, así que el filtro no encuentra nada y el upsert **crea un
+duplicado** en vez de actualizar.
+
+**3. Un filtro de lote se resuelve en una consulta, no en una por fila.**
+`estudiantesPorCodigo()` existe por eso: comprobar el alcance fila a fila
+habría devuelto la escritura masiva al bucle que `bulkWrite` vino a quitar.
+
+**4. Todo listado se pagina.** `paginacionCon(porDefecto)` en
+`shared/validation.ts`. El valor por defecto de un endpoint es **el tope que ya
+devolvía**: bajarlo deja a los móviles ya instalados pidiendo la lista de
+siempre y recibiendo la décima parte, sin ningún error.
+
+**5. El conteo va en paralelo con la página**, no encadenado: son dos consultas
+independientes y encadenarlas duplica la espera sin ninguna razón.
+
+En los clientes el equivalente es que el estado de servidor ya está cacheado
+—TanStack Query con `staleTime` 30 s en escritorio, providers no `autoDispose`
+en móvil— así que **cambiar de pantalla no debe volver a consultar**. Si una
+pantalla nueva consulta al montarse cada vez, está saltándose la caché.
+
+## Regla de subida de versión
+
+**Nunca edites la versión a mano. Ejecuta el script:**
+
+```bash
+node .github/scripts/subir-version.mjs patch      # o: minor | major | 1.4.2
+node .github/scripts/subir-version.mjs --check    # ¿está todo alineado?
+```
+
+Actualiza los cuatro archivos que declaran la versión, sube el `versionCode` de
+Android y regenera los dos ficheros de bloqueo. Después,
+`comprobar-version.mjs` (que ya corría en CI) verifica que nada se quedó atrás.
+
+**Los cuatro archivos:**
+
+| Archivo | Qué declara |
+|---|---|
+| `desktop/package.json` | versión del paquete de escritorio |
+| `desktop/src-tauri/tauri.conf.json` | la que ve el updater de Tauri |
+| `desktop/src-tauri/Cargo.toml` | la que declara el ejecutable |
+| `flutter_app/pubspec.yaml` | versión visible **y** `+versionCode` |
+
+**El `versionCode` de Android siempre sube, aunque el número visible baje.** Es
+lo que compara el sistema para dejar instalar el APK encima del anterior;
+bajarlo deja a los teléfonos ya instalados sin poder actualizar y sin ningún
+error que lo explique.
+
+Existía solo el verificador y no el que sube, y el historial dice cómo acaba
+eso: `Cargo.toml` se quedó en 2.3.5 mientras el resto iba por 2.5.0 durante dos
+publicaciones, y hay un commit entero dedicado a sincronizar los ficheros de
+bloqueo a posteriori. Una release mal numerada no se corrige: se reemplaza.
+
+**¿Añades un archivo que nombre la versión?** Añádelo a `ARCHIVOS` en
+`subir-version.mjs` **y** a `fuentes` en `comprobar-version.mjs`. En una sola de
+las dos, o queda sin verificar o hace fallar la publicación después de que
+alguien ya subió la etiqueta.
+
+La **etapa** (`alfa`/`beta`/`estable`) vive aparte, en `desktop/src/core/version.ts`
+y `flutter_app/lib/core/version.dart`, y las dos tienen que coincidir: el
+workflow deriva de ahí el nombre de la release. Detalle en
+`docs/PUBLICAR_VERSION.md`.
+
+## Regla de integridad de la documentación
+
+**La documentación se mantiene al día con la realidad, en el mismo commit.**
+
+Cuando cambies lógica relevante, reorganices una pantalla, toques el modelo de
+datos, la paginación o el comportamiento de una plataforma:
+
+1. **Actualiza lo afectado en el momento**: `CLAUDE.md` y `AGENTS.md` (que son
+   el mismo documento para dos herramientas y no pueden divergir), `README.md`,
+   `DESIGN.md` y lo que corresponda de `docs/`.
+2. **No dejes una descripción obsoleta como si fuera verdad.** Una afirmación
+   sobre un archivo borrado, una arquitectura sustituida o un flujo que ya no
+   existe es peor que no tener documentación: se lee con la misma confianza y
+   manda al lector a un sitio que no está.
+3. **Mantén los conteos.** Si el número de pruebas cambia de forma apreciable,
+   actualiza la cifra donde esté escrita en vez de dejar una que ya no cuadra.
+
+`AGENTS.md` y `CLAUDE.md` solo se diferencian en la primera línea y en el nombre
+de la herramienta. Editar uno y no el otro es la forma más fácil de que las dos
+herramientas trabajen con reglas distintas sobre el mismo repositorio.

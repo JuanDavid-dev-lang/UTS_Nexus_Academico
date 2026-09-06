@@ -13,9 +13,10 @@ from __future__ import annotations
 import logging
 import os
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 
 from .bootstrap import generate
+from .security import exigir_secreto, validar_arranque
 from .model import RiskModel, rules_fallback
 from .rubri_intents import RubriIntentClassifier, VERSION as RUBRI_VERSION
 from .schemas import (
@@ -53,6 +54,7 @@ def load_model() -> None:
     quede inútil en una instalación nueva. Es preferible a exigir un paso manual
     que alguien olvidará.
     """
+    validar_arranque()
     global _model, _rubri
     try:
         _rubri = RubriIntentClassifier.load_or_train()
@@ -103,7 +105,7 @@ def health() -> HealthResponse:
     )
 
 
-@app.get("/metrics")
+@app.get("/metrics", dependencies=[Depends(exigir_secreto)])
 def metrics() -> dict:
     """Métricas del modelo vigente.
 
@@ -115,14 +117,14 @@ def metrics() -> dict:
     return {"ok": True, **_model.metrics.model_dump()}
 
 
-@app.get("/rubri/metrics")
+@app.get("/rubri/metrics", dependencies=[Depends(exigir_secreto)])
 def rubri_metrics() -> dict:
     if _rubri is None:
         raise HTTPException(status_code=503, detail="Clasificador Rubri no disponible.")
     return {"ok": True, **_rubri.metrics}
 
 
-@app.post("/rubri/intent", response_model=RubriIntentResponse)
+@app.post("/rubri/intent", response_model=RubriIntentResponse, dependencies=[Depends(exigir_secreto)])
 def rubri_intent(request: RubriIntentRequest) -> RubriIntentResponse:
     if _rubri is None:
         raise HTTPException(status_code=503, detail="Clasificador Rubri no disponible.")
@@ -142,7 +144,7 @@ def rubri_intent(request: RubriIntentRequest) -> RubriIntentResponse:
     )
 
 
-@app.post("/predict", response_model=PredictionResponse)
+@app.post("/predict", response_model=PredictionResponse, dependencies=[Depends(exigir_secreto)])
 def predict(request: PredictionRequest) -> PredictionResponse:
     if not request.students:
         return PredictionResponse(model_version="none", predictions=[])
@@ -158,7 +160,7 @@ def predict(request: PredictionRequest) -> PredictionResponse:
         return rules_fallback(request.students)
 
 
-@app.post("/train", response_model=TrainingResponse)
+@app.post("/train", response_model=TrainingResponse, dependencies=[Depends(exigir_secreto)])
 def train(request: TrainingRequest) -> TrainingResponse:
     """Entrena un candidato y lo promueve solo si mejora al vigente.
 
@@ -232,7 +234,7 @@ def train(request: TrainingRequest) -> TrainingResponse:
     )
 
 
-@app.post("/vision/roster")
+@app.post("/vision/roster", dependencies=[Depends(exigir_secreto)])
 async def leer_listado_estudiantes(file: UploadFile = File(...)) -> dict:
     """
     Interpreta un listado de estudiantes desde un PDF o una foto.
@@ -285,7 +287,7 @@ async def leer_listado_estudiantes(file: UploadFile = File(...)) -> dict:
     }
 
 
-@app.post("/vision/schedule")
+@app.post("/vision/schedule", dependencies=[Depends(exigir_secreto)])
 async def leer_horario(file: UploadFile = File(...)) -> dict:
     """
     Interpreta el reporte de horario de Academusoft («Horario Estudiante»).
@@ -335,7 +337,7 @@ async def leer_horario(file: UploadFile = File(...)) -> dict:
     }
 
 
-@app.post("/vision/grades")
+@app.post("/vision/grades", dependencies=[Depends(exigir_secreto)])
 async def leer_planilla_de_notas(file: UploadFile = File(...)) -> dict:
     """
     Interpreta una planilla de calificaciones desde un PDF o una foto.
@@ -384,7 +386,7 @@ async def leer_planilla_de_notas(file: UploadFile = File(...)) -> dict:
     }
 
 
-@app.post("/vision/attendance-sheet")
+@app.post("/vision/attendance-sheet", dependencies=[Depends(exigir_secreto)])
 async def leer_planilla_asistencia(file: UploadFile = File(...)) -> dict:
     """
     Interpreta la foto de una planilla de asistencia.
