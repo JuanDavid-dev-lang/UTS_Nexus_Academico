@@ -14,8 +14,8 @@ gasta batería»: se desinstala.
 
 | | Antes | Después |
 |---|---|---|
-| Recursos empaquetados en el móvil | 2,96 MB | 0,52 MB |
-| Recursos empaquetados en el escritorio | 1,36 MB | 0,11 MB |
+| Recursos empaquetados en el móvil | 2,96 MB | 0,54 MB |
+| Recursos empaquetados en el escritorio | 1,36 MB | 0,13 MB |
 | `desktop/dist` completo | 3,6 MB | 2,4 MB |
 | Mapa de bits residente por logo | 4,0 MiB | ~0,3 MiB |
 | Intentos de conexión en segundo plano | cada 5 s, indefinidamente | ninguno |
@@ -113,6 +113,56 @@ Y en el móvil se pasa `cacheWidth`/`cacheHeight` con
 Flutter guarda el mapa de bits del **archivo**, no el del tamaño al que se
 dibuja, así que el sprite de 384 px pintado a 40 dp seguía ocupando 512 KB.
 
+## R3b · Tres de los cuatro sprites tenían el fondo pegado
+
+Salió al convertirlos a WebP y no es de rendimiento, pero se arregló con las
+mismas herramientas y en el mismo sitio, así que queda aquí.
+
+`happy`, `sad` y `offline` eran PNG **opacos**: fondo pastel claro y sombra
+bajo los pies. Solo `neutral` venía recortado. Sobre blanco no se nota; sobre
+el `#1A1A16` del tema oscuro, tres de los cuatro estados de Rubri eran un
+rectángulo pálido y el cuarto no — y el estado lo elige el backend, así que la
+incoherencia aparecía sola al cambiar de emoción.
+
+`tools/recortar_sprites.py` lo resuelve en tres pasos, y cada uno hace falta:
+
+- **Inundación comparando con el vecino, no con un color fijo.** El fondo es un
+  degradado: un umbral global se queda corto en una esquina o se come al
+  personaje en la otra. Píxel a píxel el degradado avanza de uno en uno y el
+  salto al contorno negro es de más de cien. Se siembra solo desde las cuatro
+  esquinas porque en `happy` y en `sad` el dibujo toca el borde inferior.
+- **Un modelo del degradado para retirar la sombra.** La sombra no tiene
+  contorno: la inundación entra en ella pero deja un anillo donde la pendiente
+  se acentúa. Un ajuste polinómico robusto —descartando lo que se aparta más de
+  2,5 sigma, porque la inundación ya se tragó parte de la sombra y esos píxeles
+  tirarían del ajuste— predice el fondo con un residuo medio de 1 sobre 255, y
+  con eso el anillo se retira comparando contra el fondo predicho.
+- **Despejar el alfa y el color en el borde.** El contorno está suavizado contra
+  el fondo. Sin resolver `observado = alfa*trazo + (1-alfa)*fondo`, el recorte
+  deja una aureola clara — que es precisamente lo que más se ve sobre oscuro,
+  o sea lo contrario de lo que se venía a arreglar.
+
+Dos números que fijan los umbrales, por si hay que retocarlos:
+
+| | Medida |
+|---|---|
+| Tolerancia a la que la inundación se lleva al personaje entero | 32 (el fondo salta del 54 % al 95 %) |
+| Tolerancia a la que atraviesa los arcos translúcidos del wifi | 24 |
+| Residuo de la sombra frente al fondo predicho | mediana 16, p90 34 |
+| Residuo de los arcos del wifi | p10 48 |
+
+De ahí salen los dos valores: inundación a **10** y crecimiento contra el
+modelo a **40**, que separa sombra de arcos con margen por los dos lados.
+
+**Lo que no se toca son los rellenos claros que son dibujo.** El velo del
+sombrero es una malla blanca, el icono de wifi es gris translúcido y el brillo
+de los ojos es blanco. Los tres se ven bien sobre cualquier fondo, y el
+recorte los conserva opacos: lo que estaba mal era el rectángulo, no que el
+dibujo tenga partes claras. Un intento anterior de vaciar además las bolsas de
+fondo encerradas —las celdas de la malla— no tenía un umbral que las separara
+del blanco de los ojos, y se descartó: media malla transparente y media opaca
+se ve peor que la malla entera.
+
 ## R4 · El chat se rompía en la pregunta 11
 
 Salió buscando ancho de banda y resultó ser un defecto de funcionamiento.
@@ -190,7 +240,11 @@ Conviene dejarlo escrito para que nadie lo «arregle»:
 2. **Una imagen nueva va en WebP y dimensionada a lo que se dibuja.** Un PNG de
    cámara o de exportación de diseño ronda el megabyte.
 3. **`Image.asset` sin `cacheWidth` es un descuido**, no una variante.
-4. **Una hoja o una pantalla nueva no abre su propia conexión de tiempo real.**
+4. **Un sprite nuevo se mira sobre el fondo oscuro del tema antes de
+   commitearlo**, no solo sobre blanco. Es la comprobación que faltó la primera
+   vez y por eso tres de los cuatro estados de Rubri llegaron con el fondo
+   pegado.
+5. **Una hoja o una pantalla nueva no abre su propia conexión de tiempo real.**
    Hay una y la gestiona el ciclo de vida de la aplicación.
-5. **Una lista de datos va con `.builder`.** Con `children` no falla nada
+6. **Una lista de datos va con `.builder`.** Con `children` no falla nada
    visible: solo se construye diez veces más de lo que se ve.

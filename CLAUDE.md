@@ -591,7 +591,15 @@ En los dos casos el índice existe para no romper los sitios que ya importaban d
   Rubri eran PNG de ~190 KB cada uno, que es el formato equivocado para una
   ilustración con degradados (el PNG optimizado sale *más grande*). En WebP con
   calidad 92 el alfa se conserva exacto y el error de color es de ~2 sobre 255.
-  Los cinco archivos pasaron de 1,39 MB a 109 KB **en cada cliente**.
+  Los cinco archivos pasaron de 1,39 MB a 114 KB **en cada cliente**.
+- **Los cuatro sprites de Rubri van recortados, sin fondo ni sombra.** Tres
+  llegaron de diseño opacos, con un fondo pastel: en modo claro no se nota y en
+  oscuro eran un rectángulo pálido, mientras el cuarto —`neutral`, el único que
+  venía recortado— se veía bien. Como el estado lo elige el backend y los cuatro
+  salen del mismo componente, la incoherencia aparecía al cambiar de emoción.
+  `tools/recortar_sprites.py` hace el recorte y **se niega a tocar una imagen
+  que ya tenga transparencia**. Un sprite nuevo se mira sobre `#1A1A16` antes de
+  commitearlo; sobre blanco este fallo es invisible.
 - Los gráficos de escritorio leen los tokens en vivo y se repintan al cambiar de tema; no les pases colores fijos.
 
 ## Variables de entorno — trampas conocidas

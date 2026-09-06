@@ -105,6 +105,31 @@ Los componentes respetan reducción de movimiento. La animación es un balanceo
 leve; no altera la identidad del personaje. La emoción se selecciona mediante
 el valor semántico `neutral | happy | sad | offline` devuelto por el backend.
 
+### Los cuatro sprites van recortados, sin fondo y sin sombra
+
+Es un requisito, no una preferencia. `happy`, `sad` y `offline` llegaron de
+diseño **opacos**, con un fondo pastel claro y una sombra bajo los pies; solo
+`neutral` venía recortado. En modo claro no se notaba. En modo oscuro tres de
+los cuatro estados se veían como un rectángulo pálido y el cuarto no, y como el
+estado lo elige el backend y los cuatro salen del mismo componente, la
+incoherencia aparecía sola al cambiar de emoción.
+
+`tools/recortar_sprites.py` hace el recorte a partir del original opaco y
+escribe en los dos clientes. **No es idempotente y se niega a tocar una imagen
+que ya tenga transparencia**: el color de un píxel transparente no significa
+nada, así que volver a pasarlo sobre un sprite ya recortado arrancaría desde
+basura.
+
+Si diseño entrega un sprite nuevo:
+
+1. Pásalo por el script antes de commitearlo.
+2. Míralo sobre el fondo oscuro del tema (`#1A1A16`), no solo sobre blanco. Es
+   la comprobación que faltó la primera vez.
+3. **Las partes claras del dibujo se quedan opacas.** El velo del sombrero es
+   una malla blanca, el icono de wifi es gris y el brillo de los ojos es
+   blanco; los tres se ven bien sobre cualquier fondo. Lo que había que quitar
+   era el rectángulo, no todo lo que fuera claro.
+
 ## Agregar una intención
 
 1. Añadir frases variadas al dataset, sin datos personales.
