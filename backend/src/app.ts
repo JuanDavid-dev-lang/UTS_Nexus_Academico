@@ -2,11 +2,11 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import rateLimit from 'express-rate-limit';
 import compression from 'compression';
 import swaggerUi from 'swagger-ui-express';
 import path from 'node:path';
 import { apiRouter } from './routes/index.js';
+import { limiteLogin } from './middlewares/rate-limit.js';
 import { swaggerSpec } from './shared/swagger.js';
 import { errorHandler } from './shared/error.js';
 import { dbStatus } from './shared/db.js';
@@ -47,12 +47,23 @@ app.use(compression());
 
 app.use(express.json({ limit: '2mb' }));
 app.use(morgan(esProduccion ? 'combined' : 'dev'));
-app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 250 }));
+/**
+ * Los cupos de la API viven en `routes/index.ts`, **después de `identificar`**.
+ *
+ * Aquí no puede haber uno general: montado a este nivel corre antes de que se
+ * sepa quién llama, así que solo podría contar por IP — y contar por IP es
+ * justo el problema que había. Un campus entero sale a internet por una sola
+ * dirección, de modo que una facultad compartía el cupo mientras que un script
+ * en una máquina lo tenía entero para él.
+ *
+ * Lo único que se queda aquí es el del login, que cuenta por IP a propósito
+ * (ver `middlewares/rate-limit.ts`).
+ */
 
 /**
  * El login se limita aparte y mucho más fuerte que el resto de la API. En una
  * red local el riesgo de fuerza bruta era teórico; en internet es constante, y
- * el cupo general de 250 peticiones deja sitio de sobra para probar contraseñas.
+ * el cupo general deja sitio de sobra para probar contraseñas.
  *
  * **Va siempre, no solo en producción.** Estaba dentro de un `if (esProduccion)`
  * y esa condición es justo la que falta cuando alguien despliega sin declarar
@@ -61,17 +72,7 @@ app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 250 }));
  * —un docente que se equivoca dos veces ni lo nota— así que no había ninguna
  * razón para condicionarlo.
  */
-app.use(
-  '/api/v1/auth/login',
-  rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: 10,
-    standardHeaders: true,
-    legacyHeaders: false,
-    // Se cuenta por IP; un docente que se equivoca dos veces no se ve afectado.
-    message: { ok: false, message: 'Demasiados intentos. Espera unos minutos.' },
-  }),
-);
+app.use('/api/v1/auth/login', limiteLogin);
 app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/api/v1', apiRouter);

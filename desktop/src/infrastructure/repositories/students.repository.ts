@@ -8,6 +8,7 @@ import {
   scopeToQuery,
   studentResponse,
   studentsResponse,
+  studentsPaginaResponse,
 } from './academic-base';
 
 export const studentRepository: StudentRepository = {
@@ -17,6 +18,18 @@ export const studentRepository: StudentRepository = {
       query: scope ? { ...scopeToQuery(scope), q: scope.q } : undefined,
     });
     return data.items;
+  },
+
+  async listarPagina(scope, pagina) {
+    const data = await http.get('/students', {
+      schema: studentsPaginaResponse,
+      query: {
+        ...(scope ? { ...scopeToQuery(scope), q: scope.q } : {}),
+        page: pagina.page,
+        limit: pagina.limit,
+      },
+    });
+    return { items: data.items, total: data.total, hasMore: data.hasMore };
   },
 
   async search(q: string) {

@@ -506,3 +506,51 @@ class Group {
         period: _toStr(json['period']),
       );
 }
+
+/// Una página de un listado del backend.
+///
+/// El servidor devuelve `items` en la raíz —no dentro de un `data`— y a su lado
+/// `total`, `page`, `limit` y `hasMore`. Esa forma se eligió para no romper a
+/// los clientes que ya leían `items`, así que aquí se respeta tal cual.
+///
+/// `hasMore` viene del servidor y no se deduce de si la página vino llena:
+/// deducirlo obliga a una consulta de más para descubrir que no queda nada
+/// cuando el total es múltiplo exacto del tamaño de página.
+class PaginaDe<T> {
+  const PaginaDe({
+    required this.items,
+    required this.total,
+    required this.hasMore,
+  });
+
+  final List<T> items;
+
+  /// Cuántos hay en el servidor, no cuántos se descargaron.
+  final int total;
+
+  final bool hasMore;
+
+  static PaginaDe<T> desdeRespuesta<T>(
+    Object? data,
+    List<Map<String, dynamic>> Function(Object?) extraerItems,
+    T Function(Map<String, dynamic>) parsear,
+  ) {
+    final mapa = data is Map ? data : const {};
+    return PaginaDe(
+      items: extraerItems(data).map(parsear).toList(),
+      total: (mapa['total'] as num?)?.toInt() ?? 0,
+      // Un endpoint que todavía no pagine no manda el campo: se asume que lo
+      // que llegó es todo, que es lo que era antes de existir la paginación.
+      hasMore: mapa['hasMore'] == true,
+    );
+  }
+
+  PaginaDe<T> mas(PaginaDe<T> siguiente) => PaginaDe(
+        items: [...items, ...siguiente.items],
+        total: siguiente.total,
+        hasMore: siguiente.hasMore,
+      );
+
+  static PaginaDe<T> vacia<T>() =>
+      PaginaDe(items: const [], total: 0, hasMore: false);
+}

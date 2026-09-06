@@ -7,6 +7,7 @@ import {
   http,
   itemResponse,
   itemsResponse,
+  paginaResponse,
   okResponse,
 } from './academic-base';
 
@@ -23,6 +24,18 @@ export const feedbackRepository = {
       query: { estado: filtro?.estado, tipo: filtro?.tipo },
     });
     return data.items;
+  },
+
+  /** Una página de la bandeja. */
+  async listarPagina(
+    filtro: { estado?: EstadoFeedback; tipo?: TipoFeedback } | undefined,
+    pagina: { page: number; limit: number },
+  ): Promise<{ items: Feedback[]; total: number; hasMore: boolean }> {
+    const data = await http.get('/feedback', {
+      schema: paginaResponse(feedbackSchema),
+      query: { ...(filtro ?? {}), page: pagina.page, limit: pagina.limit },
+    });
+    return { items: data.items, total: data.total, hasMore: data.hasMore };
   },
 
   async create(input: FeedbackInput & { origen?: string; appVersion?: string }): Promise<Feedback> {

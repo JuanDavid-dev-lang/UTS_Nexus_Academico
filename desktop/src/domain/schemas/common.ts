@@ -49,6 +49,26 @@ export function itemResponse<T extends z.ZodTypeAny>(item: T) {
   return z.object({ ok: z.literal(true), item });
 }
 
+/**
+ * Listado paginado, tal como lo devuelve `respuestaPaginada()` del backend.
+ *
+ * `items` sigue en la raíz —no dentro de un `data`— porque así lo devuelve el
+ * servidor y así lo leen los clientes ya publicados. Los cuatro campos de
+ * paginación llevan valor por defecto para que este esquema también acepte la
+ * respuesta de un endpoint que todavía no pagine: sin eso, estrenar el esquema
+ * en una pantalla obligaría a tocar su ruta el mismo día.
+ */
+export function paginaResponse<T extends z.ZodTypeAny>(item: T) {
+  return z.object({
+    ok: z.literal(true),
+    items: z.array(item),
+    total: z.number().default(0),
+    page: z.number().default(1),
+    limit: z.number().default(0),
+    hasMore: z.boolean().default(false),
+  });
+}
+
 export const okResponse = z.object({ ok: z.literal(true) });
 
 /**

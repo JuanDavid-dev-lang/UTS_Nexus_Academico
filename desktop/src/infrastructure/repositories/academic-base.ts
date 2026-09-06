@@ -7,7 +7,10 @@
  */
 import { z } from 'zod';
 import { http, request } from '@/core/api/http-client';
-import { itemResponse, itemsResponse, okResponse } from '@/domain/schemas/common';
+import { itemResponse, itemsResponse, okResponse, paginaResponse } from '@/domain/schemas/common';
+
+// Se reexporta para los repositorios que solo importan de aquí.
+export { paginaResponse };
 import {
   attendanceSchema,
   attendanceSummarySchema,
@@ -60,6 +63,7 @@ import type {
 } from '@/domain/repositories/ports';
 
 export const studentsResponse = itemsResponse(studentSchema);
+export const studentsPaginaResponse = paginaResponse(studentSchema);
 export const studentResponse = itemResponse(studentSchema);
 export const subjectsResponse = itemsResponse(subjectSchema);
 export const subjectResponse = itemResponse(subjectSchema);

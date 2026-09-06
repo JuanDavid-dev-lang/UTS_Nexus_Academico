@@ -26,7 +26,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   useCreateStudent,
   useDeleteStudent,
-  useStudents,
+  useStudentsPaginados,
   useUpdateStudent,
 } from '@/features/students/hooks/use-students';
 import { useSubjects } from '@/features/subjects/hooks/use-subjects';
@@ -68,23 +68,24 @@ export default function StudentsPage() {
         a.code.localeCompare(b.code, undefined, { numeric: true }),
     );
   }, [subjects.data]);
-  const students = useStudents(subjectFilter ? { subjectId: subjectFilter } : undefined);
+  /**
+   * El término va al servidor, no a un filtro posterior.
+   *
+   * Se manda ya rebotado (`useDebounce`, 200 ms) para que escribir nueve letras
+   * sea una consulta y no nueve.
+   */
+  const students = useStudentsPaginados({
+    ...(subjectFilter ? { subjectId: subjectFilter } : {}),
+    ...(debouncedQuery.trim() ? { q: debouncedQuery.trim() } : {}),
+  });
   const createStudent = useCreateStudent();
   const updateStudent = useUpdateStudent();
   const deleteStudent = useDeleteStudent();
 
-  const filtered = useMemo(() => {
-    const term = debouncedQuery.trim().toLowerCase();
-    if (!term) return students.data ?? [];
-
-    return (students.data ?? []).filter(
-      (student) =>
-        student.fullName.toLowerCase().includes(term) ||
-        student.code.toLowerCase().includes(term) ||
-        student.email.toLowerCase().includes(term) ||
-        student.program.toLowerCase().includes(term),
-    );
-  }, [students.data, debouncedQuery]);
+  // Sin filtro en memoria: lo hace el backend (`?q=`) sobre la colección
+  // entera. Filtrar aquí solo alcanzaría a las páginas ya descargadas, así que
+  // el estudiante de la quinta dejaría de existir para la búsqueda.
+  const filtered = students.items;
 
   const columns = useMemo<Column<Student>[]>(() => {
     const base: Column<Student>[] = [
@@ -259,9 +260,11 @@ export default function StudentsPage() {
           : {})}
         title="Estudiantes"
         subtitle={
+          // `total` es el del servidor, no el de lo ya descargado: con
+          // paginación, contar lo cargado diría «50 estudiantes» sobre ochocientos.
           subjectFilter
-            ? `${students.data?.length ?? 0} matriculados en esta materia`
-            : `${students.data?.length ?? 0} estudiantes en tu alcance académico`
+            ? `${students.total} matriculados en esta materia`
+            : `${students.total} estudiantes en tu alcance académico`
         }
         actions={
           canWrite ? (
@@ -345,6 +348,9 @@ export default function StudentsPage() {
           onClearSearch={() => handleSearch('')}
           emptyTitle="Todavía no tienes estudiantes"
           emptyMessage="Crea el primero o pide que te asignen un grupo."
+          // Trae la página siguiente al acercarse al final, con el total del
+          // servidor en el pie para que se vea cuánto queda.
+          {...students.propsDeTabla}
         />
       )}
 

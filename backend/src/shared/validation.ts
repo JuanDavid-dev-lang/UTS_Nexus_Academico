@@ -79,6 +79,27 @@ export const passwordNueva = z
  */
 export const TOPE_LOTE = 500;
 
+/**
+ * Tope de **celdas** de una escritura bidimensional.
+ *
+ * `TOPE_LOTE` acota una lista; esto acota un producto, que es un caso distinto y
+ * mucho peor de dejar suelto. La confirmación de una planilla escaneada escribe
+ * una casilla por (estudiante × fecha), así que dos listas «razonables» por
+ * separado dan un número que no lo es: 200 filas y 1 900 fechas caben en los
+ * 2 MB del cuerpo y son 380 000 upserts, más otros tantos documentos de
+ * auditoría, en **una sola petición**.
+ *
+ * 5 000 es holgado para cualquier planilla real —un grupo son 60 estudiantes y
+ * un corte no llega a 30 clases, o sea 1 800 casillas— y deja el trabajo por
+ * petición en el mismo orden que `/grades/bulk`.
+ */
+export const TOPE_CELDAS = 5000;
+
+/**
+ * Fechas de una planilla. Un corte no tiene 60 clases; el resto es margen.
+ */
+export const TOPE_FECHAS = 60;
+
 // ── Paginación ──────────────────────────────────────────────────────────────
 
 /**

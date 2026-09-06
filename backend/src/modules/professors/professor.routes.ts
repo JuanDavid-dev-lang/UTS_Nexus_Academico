@@ -4,6 +4,7 @@ import * as campo from '../../shared/validation.js';
 import { identificar, requireRole } from '../../middlewares/auth.js';
 import { ProfessorModel } from '../../models/professor.model.js';
 import { UserModel } from '../../models/user.model.js';
+import { resolverIdInstitucion } from '../institutions/institution.service.js';
 import { emitToUser } from '../../shared/socket.js';
 import { auditChange } from '../../shared/audit.js';
 
@@ -123,11 +124,49 @@ professorRouter.get('/', requireRole('ADMIN', 'COORDINATOR'), async (req, res, n
       ];
     }
     if (req.query.director === 'true') filtro.esDirectorTrabajoGrado = true;
+    /**
+     * Acotar por institución.
+     *
+     * `Profesor.institutionId` está indexado y se escribe junto con el de la
+     * cuenta, así que basta con esto. Sin el filtro, un ADMIN veía a los
+     * docentes de todas las universidades mezclados y encontrar a alguien de
+     * una concreta pasaba por acertar su nombre — que con paginación de 30 es
+     * peor todavía.
+     *
+     * Se resuelve el slug antes de filtrar: uno desconocido tiene que dar 404,
+     * no una lista vacía que se lee como «esa universidad no tiene docentes».
+     */
+    if (req.query.institutionId) {
+      filtro.institutionId = await resolverIdInstitucion(String(req.query.institutionId));
+    }
     if (req.query.q) {
       // Regex escapado: la búsqueda es texto del usuario, no un patrón.
       const escapado = String(req.query.q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const patron = new RegExp(escapado, 'i');
-      filtro.$or = [{ nombres: patron }, { apellidos: patron }, { cedula: patron }];
+
+      /**
+       * El correo y el nombre de la cuenta viven en Usuario, no en la ficha.
+       *
+       * Sin esta consulta previa, buscar por correo no encontraba a nadie
+       * —el listado lo muestra, porque va poblado, pero no se podía filtrar por
+       * él— y el móvil lo suplía filtrando en memoria sobre la lista completa.
+       * Eso solo funciona mientras la lista sea *toda* la lista, así que había
+       * que resolverlo aquí antes de poder paginar.
+       *
+       * También hace buscable el `fullName` de la cuenta, que es lo único que
+       * tiene una ficha creada desde Personal sin `nombres`/`apellidos`.
+       */
+      const cuentas = await UserModel.find({ $or: [{ email: patron }, { fullName: patron }] })
+        .select('_id')
+        .limit(200)
+        .lean();
+
+      filtro.$or = [
+        { nombres: patron },
+        { apellidos: patron },
+        { cedula: patron },
+        ...(cuentas.length > 0 ? [{ userId: { $in: cuentas.map(c => c._id) } }] : []),
+      ];
     }
 
     const pagina = campo.paginacionCon(100).parse(req.query);

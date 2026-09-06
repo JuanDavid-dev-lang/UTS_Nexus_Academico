@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { retrasoEscalonado, useTandaNueva } from '@/shared/hooks/use-tanda-nueva';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
 import { cn } from '@/shared/lib/cn';
@@ -35,6 +36,26 @@ type SortState = { key: string; direction: 'asc' | 'desc' } | null;
  */
 const ROW_HEIGHT = 52;
 
+/**
+ * Cuántas filas antes del final se pide la página siguiente.
+ *
+ * Ocho es algo más de lo que cabe en el hueco visible por debajo del cursor
+ * mientras se desplaza a velocidad normal: da tiempo a que la petición vuelva
+ * antes de que el usuario llegue al vacío. Con un umbral de una o dos filas la
+ * lista se para en seco y **se siente** como un fallo aunque no lo sea.
+ */
+const FILAS_ANTES_DEL_FINAL = 8;
+
+/**
+ * Cuánto dura la entrada de las filas recién llegadas.
+ *
+ * La animación no es decoración: distingue «acaban de llegar filas» de «la
+ * lista siempre estuvo así». Sin ella, una tanda nueva aparece de golpe bajo el
+ * cursor y no hay forma de saber si el desplazamiento saltó o si el contenido
+ * cambió.
+ */
+const ENTRADA_MS = 420;
+
 export function DataTable<T>({
   rows,
   columns,
@@ -45,6 +66,10 @@ export function DataTable<T>({
   emptyMessage,
   onRowClick,
   maxHeight = 'calc(100vh - 320px)',
+  total,
+  hayMas = false,
+  cargandoMas = false,
+  onCargarMas,
 }: {
   rows: T[];
   columns: Column<T>[];
@@ -55,6 +80,14 @@ export function DataTable<T>({
   emptyMessage?: string;
   onRowClick?: (row: T) => void;
   maxHeight?: string;
+  /** Cuántos hay en total en el servidor, si se sabe. */
+  total?: number;
+  /** ¿Queda alguna página por pedir? */
+  hayMas?: boolean;
+  /** ¿Se está pidiendo ahora mismo? */
+  cargandoMas?: boolean;
+  /** Pide la página siguiente. Sin esto, la tabla no pagina y se comporta como antes. */
+  onCargarMas?: () => void;
 }) {
   const [sort, setSort] = useState<SortState>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -82,6 +115,31 @@ export function DataTable<T>({
     estimateSize: () => ROW_HEIGHT,
     overscan: 8,
   });
+
+  const virtualItems = virtualizer.getVirtualItems();
+
+  // Índice a partir del cual las filas acaban de llegar. El hook se encarga de
+  // limpiarlo pasada la animación, que es lo que impide que una fila remontada
+  // por el virtualizador se vuelva a animar en cada viaje del cursor.
+  const nuevasDesde = useTandaNueva(rows.length, ENTRADA_MS + 200);
+
+  /**
+   * Pide la página siguiente cuando el desplazamiento se acerca al final.
+   *
+   * Se decide con el último índice que el virtualizador tiene montado, no con
+   * un elemento centinela ni con un `IntersectionObserver`: el centinela tendría
+   * que vivir dentro del contenedor virtual, donde las posiciones las calcula el
+   * virtualizador y un nodo extra descuadra el alto total. El dato que hace
+   * falta ya lo tiene él.
+   *
+   * `cargandoMas` en la guarda es lo que impide que un desplazamiento rápido
+   * dispare tres peticiones solapadas para la misma página.
+   */
+  const ultimoVisible = virtualItems.at(-1)?.index ?? 0;
+  useEffect(() => {
+    if (!onCargarMas || !hayMas || cargandoMas) return;
+    if (ultimoVisible >= sortedRows.length - FILAS_ANTES_DEL_FINAL) onCargarMas();
+  }, [ultimoVisible, sortedRows.length, hayMas, cargandoMas, onCargarMas]);
 
   function toggleSort(key: string) {
     setSort((current) => {
@@ -161,7 +219,7 @@ export function DataTable<T>({
 
       <div ref={scrollRef} className="scrollbar-slim overflow-auto" style={{ maxHeight }}>
         <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
-          {virtualizer.getVirtualItems().map((virtualRow) => {
+          {virtualItems.map((virtualRow) => {
             const row = sortedRows[virtualRow.index];
             if (!row) return null;
 
@@ -178,11 +236,19 @@ export function DataTable<T>({
                   'transition-colors duration-200 ease-out hover:bg-primary-soft/60',
                   'focus-visible:outline-none focus-visible:bg-primary-soft',
                   onRowClick && 'cursor-pointer',
+                  // Entrada solo de la tanda recién llegada.
+                  nuevasDesde !== null && virtualRow.index >= nuevasDesde && 'fila-entra',
                 )}
                 style={{
                   height: virtualRow.size,
                   transform: `translateY(${virtualRow.start}px)`,
                   gridTemplateColumns: gridTemplate,
+                  // Escalonado dentro de la tanda, con tope: con cincuenta
+                  // filas nuevas, escalonarlas todas dejaría la última entrando
+                  // dos segundos después de la primera.
+                  ...(retrasoEscalonado(virtualRow.index, nuevasDesde)
+                    ? { animationDelay: retrasoEscalonado(virtualRow.index, nuevasDesde) }
+                    : {}),
                 }}
                 {...(onRowClick
                   ? {
@@ -214,8 +280,27 @@ export function DataTable<T>({
       </div>
 
       <div className="flex items-center justify-between border-t border-border bg-surface-alt/60 px-4 py-2 text-caption text-muted">
-        <span className="tabular">
-          {sortedRows.length} {sortedRows.length === 1 ? 'registro' : 'registros'}
+        <span className="tabular flex items-center gap-2">
+          {cargandoMas ? (
+            <>
+              <span
+                className="size-3 animate-spin rounded-full border-2 border-border border-t-primary"
+                aria-hidden
+              />
+              Cargando más…
+            </>
+          ) : (
+            <>
+              {/*
+                Decir «120 de 840» y no solo «120» es lo que evita la duda de si
+                la lista terminó o se quedó a medias. Cuando ya está todo, se
+                dice el total a secas: repetir «840 de 840» solo añade ruido.
+              */}
+              {typeof total === 'number' && hayMas
+                ? `${sortedRows.length} de ${total} ${total === 1 ? 'registro' : 'registros'}`
+                : `${sortedRows.length} ${sortedRows.length === 1 ? 'registro' : 'registros'}`}
+            </>
+          )}
         </span>
         {sort ? (
           <span>

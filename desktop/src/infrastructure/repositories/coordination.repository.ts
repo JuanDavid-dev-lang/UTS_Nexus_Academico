@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { http } from '@/core/api/http-client';
-import { itemsResponse } from '@/domain/schemas/common';
+import { itemsResponse, paginaResponse } from '@/domain/schemas/common';
 import {
   docenteCoordinacionSchema,
   grupoCoordinacionSchema,
@@ -96,6 +96,31 @@ export const usersRepository = {
       query: { role: filtro?.role || undefined, q: filtro?.q?.trim() || undefined },
     });
     return data.items;
+  },
+
+  /**
+   * Una página del personal. Es lo que usa la pantalla.
+   *
+   * El tope por defecto del backend son 200 cuentas, que sobraba mientras la
+   * instalación fuera una universidad. Con perfiles institucionales, todas las
+   * cuentas de todas las universidades viven en la misma colección y ese número
+   * deja de ser un techo teórico.
+   */
+  async listarPagina(
+    filtro: { role?: string; q?: string; institutionId?: string } | undefined,
+    pagina: { page: number; limit: number },
+  ): Promise<{ items: UsuarioPersonal[]; total: number; hasMore: boolean }> {
+    const data = await http.get('/usuarios', {
+      schema: paginaResponse(usuarioPersonalSchema),
+      query: {
+        role: filtro?.role || undefined,
+        q: filtro?.q?.trim() || undefined,
+        institutionId: filtro?.institutionId || undefined,
+        page: pagina.page,
+        limit: pagina.limit,
+      },
+    });
+    return { items: data.items, total: data.total, hasMore: data.hasMore };
   },
 
   /**

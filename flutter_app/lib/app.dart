@@ -36,6 +36,7 @@ import './features/grades/grades_page.dart';
 import './features/feedback/feedback_page.dart';
 import './features/thesis/thesis_formats_page.dart';
 import './features/admin/admin_supervision_page.dart';
+import './features/students/students_paginados_provider.dart';
 
 /// Navigator raíz. Lo necesita [UpdateGate]: el `builder` de `MaterialApp` se
 /// dibuja por encima del Navigator del router, así que desde su contexto no hay
@@ -268,6 +269,12 @@ class _UtsAppState extends ConsumerState<UtsApp> {
           case 'student':
             ref.invalidate(studentsProvider);
             ref.invalidate(filteredStudentsProvider);
+            // El directorio paginado es otro provider: sin esta línea el evento
+            // llega, no encuentra nada que invalidar y la pantalla se queda con
+            // la lista vieja. Es el fallo que no rompe nada visiblemente y que
+            // `desktop/tests/unit/sync-map.test.ts` existe para cazar del otro
+            // lado.
+            ref.invalidate(directorioEstudiantesProvider);
             ref.invalidate(dashboardProvider);
           case 'subject':
             ref.invalidate(subjectsProvider);
@@ -359,6 +366,7 @@ class _UtsAppState extends ConsumerState<UtsApp> {
             ref.invalidate(studentsProvider);
             // La matrícula es justo lo que define la lista por materia.
             ref.invalidate(filteredStudentsProvider);
+            ref.invalidate(directorioEstudiantesProvider);
             ref.invalidate(subjectRosterProvider);
             ref.invalidate(dashboardProvider);
           default:

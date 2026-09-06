@@ -7,6 +7,7 @@ import {
   http,
   itemResponse,
   itemsResponse,
+  paginaResponse,
   okResponse,
   profesorAdminSchema,
   solicitudSchema,
@@ -32,6 +33,24 @@ export const professorAdminRepository = {
       },
     });
     return data.items;
+  },
+
+  /**
+   * Una página del listado de docentes. La usa la pantalla de administración.
+   *
+   * Con varias universidades en la misma instalación, «todos los docentes» deja
+   * de ser una lista que quepa de una vez: el tope por defecto del backend son
+   * 100 y no avisa de lo que recorta más allá de `hasMore`.
+   */
+  async listarPagina(
+    filtro: { q?: string; programa?: string; director?: boolean; institutionId?: string } | undefined,
+    pagina: { page: number; limit: number },
+  ): Promise<{ items: ProfesorAdmin[]; total: number; hasMore: boolean }> {
+    const data = await http.get('/professors', {
+      schema: paginaResponse(profesorAdminSchema),
+      query: { ...(filtro ?? {}), page: pagina.page, limit: pagina.limit },
+    });
+    return { items: data.items, total: data.total, hasMore: data.hasMore };
   },
 
   async setDirector(id: string, esDirector: boolean): Promise<ProfesorAdmin> {

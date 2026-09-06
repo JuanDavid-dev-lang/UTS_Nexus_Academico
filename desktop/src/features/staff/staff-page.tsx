@@ -21,6 +21,9 @@ import { usersRepository } from '@/infrastructure/repositories/coordination.repo
 import { registroRepository } from '@/infrastructure/repositories/academic.repository';
 import { institutionsRepository } from '@/infrastructure/repositories/institutions.repository';
 import { queryKeys } from '@/core/api/query-keys';
+import { useListadoPaginado } from '@/shared/hooks/use-listado-paginado';
+import { retrasoEscalonado, useTandaNueva } from '@/shared/hooks/use-tanda-nueva';
+import { CargarMasAlLlegar } from '@/shared/ui/cargar-mas';
 import { useDebounce } from '@/shared/hooks/use-debounce';
 import { toast } from '@/state/toast.store';
 import { CUENTAS_PERSONAL_HASH } from '@/shared/lib/scroll-to-hash';
@@ -52,13 +55,18 @@ export default function StaffPage() {
   const queryClient = useQueryClient();
   const [q, setQ] = useState('');
   const [rolFiltro, setRolFiltro] = useState('');
+  const [institucionFiltro, setInstitucionFiltro] = useState('');
   const [editando, setEditando] = useState<UsuarioPersonal | null>(null);
   const [dandoBaja, setDandoBaja] = useState<UsuarioPersonal | null>(null);
   const busqueda = useDebounce(q, 300);
 
   const filtro = useMemo(
-    () => ({ q: busqueda.trim() || undefined, role: rolFiltro || undefined }),
-    [busqueda, rolFiltro],
+    () => ({
+      q: busqueda.trim() || undefined,
+      role: rolFiltro || undefined,
+      institutionId: institucionFiltro || undefined,
+    }),
+    [busqueda, rolFiltro, institucionFiltro],
   );
 
   const roles = useQuery({
@@ -67,10 +75,19 @@ export default function StaffPage() {
     staleTime: 10 * 60_000,
   });
 
-  const usuarios = useQuery({
+  /**
+   * Por páginas. El tope por defecto del backend son 200 cuentas, que sobraba
+   * mientras la instalación fuera una universidad; con perfiles institucionales
+   * todas viven en la misma colección y ese número deja de ser teórico.
+   *
+   * La búsqueda ya iba al servidor (`?q=`), así que paginar no esconde a nadie:
+   * es lo que había que comprobar antes de tocar nada.
+   */
+  const usuarios = useListadoPaginado({
     queryKey: queryKeys.users.list(filtro),
-    queryFn: () => usersRepository.list(filtro),
+    consultar: (pagina) => usersRepository.listarPagina(filtro, pagina),
   });
+  const nuevasDesde = useTandaNueva(usuarios.items.length);
 
   const catalogo = useQuery({
     queryKey: queryKeys.registro.catalogo(),
@@ -153,6 +170,33 @@ export default function StaffPage() {
               </NativeSelect>
             )}
           </Field>
+          {/*
+            Acota a una universidad. Con perfiles institucionales todas las
+            cuentas conviven en la misma colección, y sin este filtro encontrar a
+            alguien de una concreta pasaba por acertar su nombre — peor todavía
+            desde que el listado se pagina de 50 en 50.
+
+            Solo aparece si hay más de una: con una sola es un desplegable que no
+            filtra nada y ocupa el sitio del que sí.
+          */}
+          {(instituciones.data ?? []).length > 1 ? (
+            <Field label="Institución" className="w-56">
+              {(props) => (
+                <NativeSelect
+                  {...props}
+                  value={institucionFiltro}
+                  onChange={(event) => setInstitucionFiltro(event.target.value)}
+                >
+                  <option value="">Todas</option>
+                  {(instituciones.data ?? []).map((institucion) => (
+                    <option key={institucion.institutionId} value={institucion.institutionId}>
+                      {institucion.nombre}
+                    </option>
+                  ))}
+                </NativeSelect>
+              )}
+            </Field>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -177,7 +221,7 @@ export default function StaffPage() {
         <SkeletonList rows={6} />
       ) : usuarios.isError ? (
         <ErrorState error={usuarios.error} onRetry={() => void usuarios.refetch()} />
-      ) : usuarios.data.length === 0 ? (
+      ) : usuarios.items.length === 0 ? (
         <Card>
           <EmptyState
             title="Sin resultados"
@@ -186,12 +230,17 @@ export default function StaffPage() {
         </Card>
       ) : (
         <div className="flex flex-col gap-2">
-          {usuarios.data.map((usuario) => {
+          {usuarios.items.map((usuario, indice) => {
             const porPrograma = usuario.role === 'COORDINATOR' || usuario.role === 'SECRETARY';
             const sinAcotar = porPrograma && usuario.programas.length === 0;
 
             return (
-              <Card key={usuario.id}>
+              <Card
+                key={usuario.id}
+                // Solo la tanda recién llegada entra con animación.
+                className={nuevasDesde !== null && indice >= nuevasDesde ? 'animate-rise' : undefined}
+                style={{ animationDelay: retrasoEscalonado(indice, nuevasDesde) }}
+              >
                 <CardContent className="flex flex-wrap items-center gap-3 p-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -253,6 +302,14 @@ export default function StaffPage() {
               </Card>
             );
           })}
+          <CargarMasAlLlegar
+            {...usuarios.propsDeTabla}
+            mostrados={usuarios.items.length}
+            error={usuarios.error}
+            onReintentar={() => void usuarios.fetchNextPage()}
+            sustantivo="cuenta"
+            sustantivoPlural="cuentas"
+          />
         </div>
       )}
 

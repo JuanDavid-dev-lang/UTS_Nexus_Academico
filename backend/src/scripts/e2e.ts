@@ -891,6 +891,43 @@ async function ejecutar(puerto: number) {
     usuariosParaAdmin.status === 200 && (usuariosParaAdmin.json?.items ?? []).length > 0,
     `status ${usuariosParaAdmin.status}`);
 
+  // ── Acotar por institución ────────────────────────────────────────────────
+  // Con varias universidades en la misma instalación, un ADMIN las veía
+  // mezcladas y sin forma de separarlas. Estas tres comprobaciones fijan lo que
+  // el filtro tiene que hacer, y sobre todo lo que NO puede hacer: devolver
+  // vacío en silencio cuando el slug no existe.
+  const personalUts = await get('/usuarios?institutionId=uts', admin);
+  const personalTodo = await get('/usuarios', admin);
+  ok('El personal se puede acotar por institución',
+    personalUts.status === 200 && (personalUts.json?.items ?? []).length > 0,
+    `status ${personalUts.status}`);
+  ok('Acotar por institución devuelve como mucho lo mismo que sin acotar',
+    (personalUts.json?.total ?? 0) <= (personalTodo.json?.total ?? 0),
+    `${personalUts.json?.total} vs ${personalTodo.json?.total}`);
+  ok('Todas las cuentas devueltas son de esa institución',
+    (personalUts.json?.items ?? []).every(
+      (u: { role?: string; institucion?: { institutionId?: string } }) =>
+        u.role === 'ADMIN' || u.institucion?.institutionId === 'uts',
+    ),
+    'apareció una cuenta de otra institución');
+
+  const personalInventado = await get('/usuarios?institutionId=no-existe', admin);
+  ok('Una institución inexistente da 404, no una lista vacía',
+    personalInventado.status === 404,
+    `status ${personalInventado.status}`);
+
+  const docentesUts = await get('/professors?institutionId=uts', admin);
+  ok('Los docentes también se acotan por institución',
+    docentesUts.status === 200,
+    `status ${docentesUts.status}`);
+
+  // El correo vive en la cuenta, no en la ficha: sin la consulta previa que lo
+  // resuelve, buscar por correo no encontraba a nadie.
+  const docentePorCorreo = await get('/professors?q=uts.edu.co', admin);
+  ok('Los docentes se buscan también por el correo de su cuenta',
+    docentePorCorreo.status === 200 && (docentePorCorreo.json?.items ?? []).length > 0,
+    `status ${docentePorCorreo.status}, ${docentePorCorreo.json?.items?.length ?? 0} resultados`);
+
   // Alta desde Configuracion. Lo que hay que ver aqui es que la cuenta creada
   // pueda entrar: `POST /usuarios` no firma ningun token, asi que si la
   // contrasena no quedara bien guardada nada lo delataria hasta el primer login.

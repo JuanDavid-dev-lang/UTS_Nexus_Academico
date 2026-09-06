@@ -10,6 +10,7 @@ import {
 } from '../../shared/professor-scope.js';
 import { intersectar, particionarLotePorAlcance } from '../../domains/scope/professor-scope.js';
 import { dentroDelAlcanceDePrograma } from '../../domains/scope/program-scope.js';
+import { limiteLotes } from '../../middlewares/rate-limit.js';
 import {
   createStudent,
   estudiantesPorCodigo,
@@ -113,8 +114,18 @@ studentRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (
     if (allowedIds) filter._id = { $in: allowedIds };
 
     if (query.q) {
+      /**
+       * La búsqueda es del servidor, no del cliente.
+       *
+       * El escritorio filtraba en memoria sobre la lista ya descargada, y eso
+       * solo funciona mientras la lista sea *toda* la lista: en cuanto se
+       * pagina, el estudiante de la página cinco deja de existir para la
+       * búsqueda sin que nada lo indique. Por eso `email` y `programa` se
+       * añaden aquí — eran los dos campos que el filtro del cliente cubría y
+       * este no.
+       */
       const term = new RegExp(escapeRegex(query.q), 'i');
-      filter.$or = [{ fullName: term }, { code: term }];
+      filter.$or = [{ fullName: term }, { code: term }, { email: term }, { program: term }];
     }
 
     // El conteo va en paralelo con la página: son dos consultas independientes
@@ -193,7 +204,7 @@ studentRouter.post('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async 
   }
 });
 
-studentRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
+studentRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), limiteLotes, async (req, res, next) => {
   try {
     // El tope no es cosmético: sin él, el tamaño del lote lo decidía el límite
     // del cuerpo HTTP, que no tiene ninguna relación con lo que esta ruta puede

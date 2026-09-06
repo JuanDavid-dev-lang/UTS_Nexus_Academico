@@ -114,6 +114,39 @@ class AcademicRepository {
     );
   }
 
+  /// Una página del listado de estudiantes.
+  ///
+  /// El backend pagina desde hace tiempo, pero el móvil nunca se lo pedía: sin
+  /// `page` ni `limit` devuelve su tope por defecto, que en estudiantes son mil
+  /// documentos completos. Sobre el wifi de un aula y en un teléfono, esa es la
+  /// petición más pesada de la aplicación.
+  ///
+  /// **La búsqueda va en `q`, al servidor.** Filtrar en el teléfono sobre lo ya
+  /// descargado solo funciona mientras lo descargado sea todo: en cuanto hay
+  /// páginas, el estudiante de la quinta deja de existir para la búsqueda sin
+  /// que nada lo indique.
+  ///
+  /// Sin caché sin conexión a propósito: `_leerConCache` guarda una lista
+  /// completa bajo una clave, y aquí cada página es un trozo. Mezclarlas daría
+  /// una caché que a veces tiene la página tres y a veces no. La primera página
+  /// sí se sirve de la caché general por el método de arriba.
+  Future<PaginaDe<Student>> studentsPagina({
+    String? subjectId,
+    String? groupId,
+    String? q,
+    int page = 1,
+    int limit = 30,
+  }) async {
+    final response = await _api.get('/students', query: {
+      if (subjectId != null) 'subjectId': subjectId,
+      if (groupId != null) 'groupId': groupId,
+      if (q != null && q.trim().isNotEmpty) 'q': q.trim(),
+      'page': page,
+      'limit': limit,
+    });
+    return PaginaDe.desdeRespuesta(response.data, _items, Student.fromJson);
+  }
+
   /// Directorio global por nombre o cédula. Devuelve solo identidad, sin notas.
   Future<List<Student>> searchStudents(String term) async {
     if (term.trim().length < 3) return const [];
@@ -369,6 +402,29 @@ class AcademicRepository {
     return _items(response.data);
   }
 
+  /// Una página del listado administrativo de docentes.
+  ///
+  /// La pantalla de supervisión traía la lista entera y filtraba en memoria.
+  /// Con varias universidades en la misma instalación eso deja de caber, y el
+  /// filtro en memoria además esconde a quien esté más allá del tope sin
+  /// decirlo. La búsqueda va ahora en `q`, al servidor.
+  Future<PaginaDe<Map<String, dynamic>>> listProfessorsPagina({
+    String? query,
+    String? programa,
+    String? institutionId,
+    int page = 1,
+    int limit = 30,
+  }) async {
+    final response = await _api.get('/professors', query: {
+      if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
+      if (programa != null && programa.trim().isNotEmpty) 'programa': programa.trim(),
+      if (institutionId != null && institutionId.isNotEmpty) 'institutionId': institutionId,
+      'page': page,
+      'limit': limit,
+    });
+    return PaginaDe.desdeRespuesta(response.data, _items, (m) => m);
+  }
+
   /// Listado administrativo de cuentas/usuarios (solo ADMIN).
   Future<List<Map<String, dynamic>>> listUsers({String? role, String? query}) async {
     final response = await _api.get('/usuarios', query: {
@@ -376,5 +432,23 @@ class AcademicRepository {
       if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
     });
     return _items(response.data);
+  }
+
+  /// Una página del listado administrativo de cuentas. Ver `listProfessorsPagina`.
+  Future<PaginaDe<Map<String, dynamic>>> listUsersPagina({
+    String? role,
+    String? query,
+    String? institutionId,
+    int page = 1,
+    int limit = 30,
+  }) async {
+    final response = await _api.get('/usuarios', query: {
+      if (role != null && role.isNotEmpty) 'role': role,
+      if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
+      if (institutionId != null && institutionId.isNotEmpty) 'institutionId': institutionId,
+      'page': page,
+      'limit': limit,
+    });
+    return PaginaDe.desdeRespuesta(response.data, _items, (m) => m);
   }
 }

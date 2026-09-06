@@ -138,6 +138,41 @@ export async function escanearPatronesDeAsistencia(
   const auditoria: Parameters<typeof auditBatch>[0] = [];
   const vistos = new Map<string, Set<Patron>>();
 
+  /**
+   * Tres consultas para todos los casos, no dos por patrón detectado.
+   *
+   * Esto era un `findOne` más un `findOneAndUpdate` **dentro de un bucle
+   * anidado** (series × patrones): con dos mil estudiantes en el alcance y un
+   * patrón cada uno, cuatro mil viajes encadenados a Atlas por pasada. El
+   * archivo ya bateaba los nombres —«Nombres en dos consultas, no en dos por
+   * caso»— pero los casos seguían uno a uno.
+   *
+   * Va en tres fases porque el aviso necesita el `_id` del caso, y para los que
+   * se acaban de crear ese id no existe hasta después del `bulkWrite`. Es el
+   * mismo patrón de `/enrollments/bulk` y `/grades/bulk`.
+   */
+  type Pendiente = {
+    serie: (typeof series)[number];
+    deteccion: ReturnType<typeof detectarPatrones>[number];
+    clave: string;
+  };
+
+  /** Identidad de un caso: (estudiante, materia, periodo, patrón). Sin fecha. */
+  const claveDeCaso = (studentId: string, subjectId: string, period: string, patron: Patron) =>
+    `${studentId}::${subjectId}::${period}::${patron}`;
+
+  /**
+   * `bulkWrite` **no castea los ids**, a diferencia de `find()`.
+   *
+   * Las series traen los ids como texto (salen de una agregación y se
+   * normalizan con `String()`). Pasados así a `bulkWrite`, el filtro no casa
+   * con el ObjectId guardado: el upsert no encuentra nada y **crea un caso
+   * duplicado** en cada pasada del escáner en vez de actualizar el que ya
+   * había. No da error; llena la colección.
+   */
+  const aId = (valor: string | null) => (valor ? new Types.ObjectId(valor) : null);
+
+  const pendientes: Pendiente[] = [];
   for (const serie of series) {
     const detecciones = detectarPatrones(serie.clases);
     resultado.patronesDetectados += detecciones.length;
@@ -146,35 +181,92 @@ export async function escanearPatronesDeAsistencia(
     vistos.set(claveSerie, new Set(detecciones.map(d => d.patron)));
 
     for (const deteccion of detecciones) {
-      const filtroCaso = {
-        studentId: serie.studentId,
-        subjectId: serie.subjectId,
-        period: serie.period,
-        pattern: deteccion.patron,
-      };
+      pendientes.push({
+        serie,
+        deteccion,
+        clave: claveDeCaso(serie.studentId, serie.subjectId, serie.period, deteccion.patron),
+      });
+    }
+  }
 
-      const previo = await AttendanceCaseModel.findOne(filtroCaso).select('_id status').lean();
+  if (pendientes.length > 0) {
+    // ── Fase 1: qué casos ya existían y en qué estado ──────────────────────
+    const previos = await AttendanceCaseModel.find({
+      $or: pendientes.map(p => ({
+        studentId: p.serie.studentId,
+        subjectId: p.serie.subjectId,
+        period: p.serie.period,
+        pattern: p.deteccion.patron,
+      })),
+    })
+      .select('_id status studentId subjectId period pattern')
+      .lean();
+    const previoPorClave = new Map(
+      previos.map(caso => [
+        claveDeCaso(String(caso.studentId), String(caso.subjectId), String(caso.period), caso.pattern as Patron),
+        caso,
+      ]),
+    );
 
-      const caso = await AttendanceCaseModel.findOneAndUpdate(
-        filtroCaso,
-        {
-          $set: {
-            groupId: serie.groupId,
-            teacherId: serie.teacherId,
-            severity: deteccion.severidad,
-            evidence: deteccion.evidencia,
-            evidenceData: deteccion.datos,
-            lastSeenAt: ahora,
-            deletedAt: null,
-            // Un patrón que reaparece reabre el caso; no se queda "resuelto"
-            // mientras el problema sigue ocurriendo.
-            ...(previo?.status === 'RESUELTO' ? { status: 'ABIERTO', resolvedAt: null } : {}),
+    // ── Fase 2: una escritura para todos ───────────────────────────────────
+    await AttendanceCaseModel.bulkWrite(
+      pendientes.map(({ serie, deteccion, clave }) => {
+        const previo = previoPorClave.get(clave);
+        return {
+          updateOne: {
+            filter: {
+              studentId: aId(serie.studentId)!,
+              subjectId: aId(serie.subjectId)!,
+              period: serie.period,
+              pattern: deteccion.patron,
+            },
+            update: {
+              $set: {
+                groupId: aId(serie.groupId),
+                teacherId: aId(serie.teacherId),
+                severity: deteccion.severidad,
+                evidence: deteccion.evidencia,
+                evidenceData: deteccion.datos,
+                lastSeenAt: ahora,
+                deletedAt: null,
+                // Un patrón que reaparece reabre el caso; no se queda "resuelto"
+                // mientras el problema sigue ocurriendo.
+                ...(previo?.status === 'RESUELTO' ? { status: 'ABIERTO', resolvedAt: null } : {}),
+              },
+              $inc: { occurrences: 1 },
+              $setOnInsert: { detectedAt: ahora },
+            },
+            upsert: true,
           },
-          $inc: { occurrences: 1 },
-          $setOnInsert: { detectedAt: ahora },
-        },
-        { upsert: true, new: true, setDefaultsOnInsert: true },
-      );
+        };
+      }),
+      { ordered: false },
+    );
+
+    // ── Fase 3: releer para tener el `_id` de los recién creados ───────────
+    // `bulkWrite` devuelve recuentos, no documentos, y el aviso necesita el id.
+    const actuales = await AttendanceCaseModel.find({
+      $or: pendientes.map(p => ({
+        studentId: p.serie.studentId,
+        subjectId: p.serie.subjectId,
+        period: p.serie.period,
+        pattern: p.deteccion.patron,
+      })),
+    })
+      .select('_id studentId subjectId period pattern')
+      .lean();
+    const idPorClave = new Map(
+      actuales.map(caso => [
+        claveDeCaso(String(caso.studentId), String(caso.subjectId), String(caso.period), caso.pattern as Patron),
+        String(caso._id),
+      ]),
+    );
+
+    // ── Fase 4: recuentos, auditoría y avisos, ya sin tocar la base ────────
+    for (const { serie, deteccion, clave } of pendientes) {
+      const previo = previoPorClave.get(clave);
+      const casoId = idPorClave.get(clave);
+      if (!casoId) continue;
 
       if (previo) {
         resultado.casosActualizados += 1;
@@ -183,7 +275,7 @@ export async function escanearPatronesDeAsistencia(
         auditoria.push({
           action: 'attendance.pattern.open',
           entity: 'CasoAsistencia',
-          entityId: String(caso._id),
+          entityId: casoId,
           after: { patron: deteccion.patron, severidad: deteccion.severidad },
         });
       }
@@ -202,7 +294,7 @@ export async function escanearPatronesDeAsistencia(
           dedupeKey: claveDePatron(serie.studentId, serie.subjectId, serie.period, deteccion.patron),
           link: `/estudiantes?buscar=${encodeURIComponent(nombreEstudiante.get(serie.studentId) ?? '')}`,
           metadata: {
-            caseId: String(caso._id),
+            caseId: casoId,
             studentId: serie.studentId,
             subjectId: serie.subjectId,
             pattern: deteccion.patron,
@@ -215,7 +307,7 @@ export async function escanearPatronesDeAsistencia(
         emitToUser(serie.teacherId, 'sync:update', {
           entity: 'attendanceCase',
           action: previo ? 'update' : 'create',
-          id: String(caso._id),
+          id: casoId,
         });
       }
     }

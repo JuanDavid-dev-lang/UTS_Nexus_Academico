@@ -331,6 +331,43 @@
     }
   }
 
+  /* Entrada de una fila recién llegada en una tabla paginada.
+   *
+   * **No toca `transform` de la fila**, y esa es la restricción entera: la
+   * tabla está virtualizada y el virtualizador posiciona cada fila con un
+   * `transform: translateY(...)` en línea. Animar el transform aquí se lo
+   * pisaría y la fila entraría desde la posición equivocada, o saltaría al
+   * terminar.
+   *
+   * Así que la fila solo aparece, y el desplazamiento lo hacen sus celdas, que
+   * no llevan transform propio. El efecto que se ve es el mismo. */
+  .fila-entra {
+    animation: fila-entra 420ms var(--ease-out) both;
+  }
+
+  .fila-entra > * {
+    animation: fila-entra-celda 420ms var(--ease-out) both;
+    animation-delay: inherit;
+  }
+
+  @keyframes fila-entra {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes fila-entra-celda {
+    from {
+      transform: translateY(7px);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
   .drag-region {
     -webkit-app-region: drag;
   }

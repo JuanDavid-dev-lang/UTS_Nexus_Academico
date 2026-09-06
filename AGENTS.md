@@ -167,6 +167,67 @@ Configuración → «Cuentas del personal»; la gestión continua, en Personal.
 - **`POST /auth/password` cambia la contraseña propia y lo puede hacer cualquier rol** (incluida secretaría: escribe sobre su cuenta y sobre nada más, por eso está en la lista blanca de `role-access.ts`). Exige la actual —con solo el token, un equipo desbloqueado sería una toma de cuenta en dos clics—, **revoca todas las sesiones** y devuelve un par nuevo: sin eso, cambiarse la contraseña echaba al propio usuario al inicio de sesión y se leía como una avería. Está en Configuración de los dos clientes.
 - Las contraseñas van acotadas a 128 caracteres en todas las rutas: bcrypt solo mira 72 bytes, y sin tope `bcrypt.compare` con una cadena de megabytes ocupa el único hilo del proceso.
 
+### Listados: carga progresiva en los dos clientes
+
+El backend paginaba desde hace tiempo y **casi nadie se lo pedía**: las pantallas
+llamaban sin `page` ni `limit` y recibían el tope por defecto entero — mil
+documentos completos en Estudiantes, en cada montaje. El render nunca fue el
+problema (`DataTable` está virtualizada, el móvil usa `ListView.builder`); lo
+caro son los mil documentos saliendo de Atlas y cruzando el wifi del aula.
+
+- **Escritorio**: `useListadoPaginado` (`shared/hooks/`) sobre `useInfiniteQuery`.
+  Para una tabla, `DataTable` con `{...propsDeTabla}`; para una lista de
+  tarjetas, `CargarMasAlLlegar` (`shared/ui/`), que es un centinela con
+  `IntersectionObserver` — en `DataTable` no vale, porque el disparo tiene que
+  salir de su virtualizador. La marca de «esto acaba de llegar» la comparten los
+  dos con `useTandaNueva`. Página de 50.
+- **Móvil**: `PaginaDe<T>`, un `AsyncNotifier` que acumula, y `ListaProgresiva` +
+  `ElementoQueEntra` (`core/widgets/`). Página de 30.
+- **Paginan**: estudiantes, auditoría, personal, docentes y sugerencias en
+  escritorio; directorio y supervisión en móvil.
+
+**Acotar por institución.** `GET /usuarios` y `GET /professors` aceptan
+`?institutionId=` (slug o `_id`), y las tres pantallas administrativas —personal
+y docentes en escritorio, supervisión en móvil— llevan su selector. Sin él, un
+ADMIN veía las cuentas de todas las universidades mezcladas y encontrar a
+alguien de una concreta pasaba por acertar su nombre, que con paginación es
+peor. Dos detalles: el slug **se resuelve antes de filtrar**, para que uno
+desconocido dé 404 y no una lista vacía que se lee como «esa universidad no
+tiene a nadie»; y el selector **solo aparece con más de una institución**,
+porque con una sola es un desplegable que no filtra nada.
+- Los dos tamaños están elegidos para que la **primera** pantalla se llene de una
+  vez; bajarlos haría que la primera ya necesitara dos viajes.
+
+Cuatro cosas que hay que conservar:
+
+- **Paginar exige mover la búsqueda al servidor.** Las pantallas filtraban en
+  memoria, y eso solo funciona mientras lo descargado sea *todo*: con páginas, el
+  estudiante de la quinta deja de existir para la búsqueda y **nada lo indica**.
+  Por eso `GET /students?q=` cubre ahora también `email` y `program`, y
+  `GET /professors?q=` resuelve las cuentas que casan por correo o `fullName`
+  —viven en Usuario, no en la ficha— y las suma al `$or`.
+- **El disparo del escritorio sale del virtualizador**, no de un centinela: un
+  nodo extra dentro del contenedor virtual descuadra el alto total. Ocho filas de
+  margen — con el umbral en el final exacto la lista se para en seco y se siente
+  como un fallo.
+- **La animación de entrada no toca `transform` en el escritorio**: el
+  virtualizador ya lo usa para posicionar. La fila solo aparece y el
+  desplazamiento lo hacen sus celdas. Y se limpia con un temporizador, porque una
+  fila que sale de pantalla y vuelve **se remonta**: sin eso, cada viaje del
+  cursor volvería a animar lo mismo.
+- **El notifier del móvil no pasa por `AsyncLoading` al buscar.** Con
+  `AsyncLoading` la pantalla pinta el esqueleto sobre todo el `Column` —incluido
+  el buscador—, y al desmontarse el campo se lleva el texto escrito y el foco.
+
+Es un `AsyncNotifier` y no un `FutureProvider.family` sobre el término: una
+familia sin `autoDispose` deja una instancia viva por cada texto que alguien
+escriba, y con `autoDispose` se perdería el acumulado al cambiar de pestaña.
+
+**Al añadir un listado paginado, regístralo en el mapa de invalidación de los dos
+clientes.** El directorio paginado es otro provider que el que ya estaba: sin esa
+línea el evento `sync:update` llega, no encuentra nada que invalidar y la
+pantalla se queda con la lista vieja.
+
 ### Listados: paginación y campos acotados
 `shared/validation.ts` es la fuente única de los topes de texto (`nombre`, `linea`, `nota`, `parrafo`, `correo`, `url`) y de la paginación. Un `z.string()` sin `.max()` es una puerta abierta: el cuerpo admite 2 MB y lo que entra **se guarda**, así que después viaja en cada listado que lo incluya.
 
@@ -174,12 +235,32 @@ Configuración → «Cuentas del personal»; la gestión continua, en Personal.
 - **`items` se queda en la raíz.** Los clientes que ya leían `data.items` siguen funcionando; cambiar la forma habría obligado a publicar los tres a la vez.
 - **El valor por defecto de cada endpoint es el tope que ya devolvía** (1000 en estudiantes, notas y asistencia; 2000 en matrículas; 200 o 100 en el resto). Bajarlo a un número redondo habría dejado a los móviles ya instalados pidiendo la lista de siempre y recibiendo la décima parte, sin ningún error: la toma de asistencia perdería a medio salón y nadie sabría por qué. La paginación se pide; no se impone.
 
+### Límites de tasa (`middlewares/rate-limit.ts`)
+
+Tres capas que se acumulan, **todas contando por usuario cuando hay sesión y por
+IP cuando no**: `limiteGeneral` (600/15 min), `limiteEscritura` (120/15 min,
+solo métodos que modifican) y `limiteLotes` (20/15 min, las cuatro rutas masivas
+y los tres escáneres). Login aparte, por IP a propósito: quien prueba
+contraseñas todavía no es nadie y la clave saldría del correo que él mismo elige.
+
+- **Van en `routes/index.ts`, después de `identificar`.** En `app.ts` corren
+  antes de saber quién llama, así que un `keyGenerator` por usuario allí caería
+  siempre en la IP y el arreglo parecería hecho sin estarlo. Un campus entero
+  sale a internet por una sola dirección: contar por IP dejaba a una facultad
+  compartiendo el cupo de quien más pidiera, y a un script con las 250 para él.
+- **El corte de escritura es por método**, con `skip: req => esLectura(...)`, no
+  ruta por ruta: marcar cuáles escriben deja fuera la que se añada mañana, y una
+  ruta de escritura sin marcar no falla — concede.
+- **No sustituyen a los topes por petición.** Son dos defensas distintas: cuánto
+  cabe en una petición y cuántas peticiones caben en una ventana.
+
 ### Escrituras masivas
 `POST` de `/grades/bulk`, `/attendance/scan/confirm`, `/students/bulk` y `/enrollments/bulk` usan `bulkWrite()` y `auditBatch()`. **No volver al bucle de `findOneAndUpdate`**: una planilla llena de notas (500 filas × 10 columnas) eran unas quince mil idas y vueltas encadenadas a Atlas, es decir minutos de petición colgada sobre una ventana que el docente ya había cerrado.
 
 Dos trampas al escribir uno nuevo:
 - **`bulkWrite` no castea los ids.** `find()` los convierte a partir del esquema; la agregación y `bulkWrite` no. Un `studentId` en texto no casa con el ObjectId guardado, así que el filtro no encuentra nada y el upsert **crea un duplicado** en vez de actualizar.
 - **La auditoría también es una escritura por registro.** Agrupar solo el upsert deja el bucle donde estaba; `auditBatch()` la reduce a un `insertMany`.
+- **Un tope por lista no acota un producto.** En `/attendance/scan/confirm` las escrituras son (filas × fechas), y las tres listas estaban sin `.max()`: 200 filas por 1 900 fechas caben en los 2 MB del cuerpo y son 380 000 upserts más otros tantos de auditoría **en una petición**. `TOPE_CELDAS` (5 000, en `shared/validation.ts`) acota el producto además de cada lado, porque 500 filas y 60 fechas pasan sus topes propios y juntas dan 30 000.
 - **El alcance se comprueba antes de escribir, y de una sola consulta.** Un lote cuyo filtro es un dato del cuerpo —la cédula, el código de materia— no hereda ninguna de las comprobaciones que hace la ruta unitaria equivalente. Resolverlo fila a fila devolvería el bucle que `bulkWrite` vino a quitar: `estudiantesPorCodigo()` lo hace en una consulta y la decisión la toma una función pura.
 
 ### Importación de listados
@@ -528,6 +609,7 @@ Los dos clientes se actualizan desde **GitHub Releases**; el proceso completo es
 - `docs/CIERRE_Y_ADMINISTRACION.md` — cierre de periodos, auditoría, centro de salud, patrones de inasistencia, telemetría, historial, migración v3 y suite E2E.
 - `docs/PUBLICAR_VERSION.md` — publicar una versión, secretos de CI y manejo de las claves de firma.
 - `docs/AUDITORIA_SEGURIDAD.md` — auditoría de entradas, formularios, subidas y sesión: qué falló, cómo se corrigió y **por qué existe cada defensa**. Léelo antes de quitar una comprobación que parezca redundante.
+- `docs/AUDITORIA_RENDIMIENTO.md` — carga sobre la base: N+1, topes de escritura, límites de tasa y carga progresiva. De dónde salen los números (por qué 5 000 casillas, por qué el cupo va por usuario).
 - `desktop/README.md` — guía completa del cliente de escritorio v2.
 - `ml_service/README.md` — ciclo de entrenamiento, endpoints y variables del modelo.
 - `docs/ARQUITECTURA_V2.md` — auditoría de la v1 y arquitectura de la v2.

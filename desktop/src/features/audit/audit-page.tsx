@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useListadoPaginado } from '@/shared/hooks/use-listado-paginado';
 import { ShieldCheck } from 'lucide-react';
 import {
   Badge,
@@ -83,14 +84,21 @@ export default function AuditPage() {
       desde: desde || undefined,
       hasta: hasta || undefined,
       q: busqueda || undefined,
-      limit: 200,
     }),
     [entity, action, desde, hasta, busqueda],
   );
 
-  const listado = useQuery({
+  /**
+   * Por páginas, no los 200 más recientes.
+   *
+   * Antes traía un tope duro y, cuando había más, decía «acota el rango de
+   * fechas para ver los anteriores»: honesto, pero dejaba registros a los que
+   * no había forma de llegar si caían dentro del mismo rango. La auditoría solo
+   * crece, y con varias universidades en la misma instalación crece más rápido.
+   */
+  const listado = useListadoPaginado({
     queryKey: queryKeys.audit.list(filtro),
-    queryFn: () => auditRepository.list(filtro),
+    consultar: (pagina) => auditRepository.list({ ...filtro, ...pagina }),
   });
 
   const catalogo = useQuery({
@@ -253,7 +261,7 @@ export default function AuditPage() {
       ) : null}
 
       {listado.isSuccess ? (
-        listado.data.items.length === 0 ? (
+        listado.items.length === 0 ? (
           <EmptyState
             title="Sin registros"
             message="Ningún cambio coincide con estos filtros."
@@ -262,18 +270,13 @@ export default function AuditPage() {
           <Card>
             <CardContent className="p-0">
               <DataTable
-                rows={listado.data.items}
+                rows={listado.items}
                 columns={columnas}
                 getRowId={(fila) => fila._id}
                 onRowClick={(fila) => setAbierto(fila._id)}
                 emptyTitle="Sin registros"
+                {...listado.propsDeTabla}
               />
-              {listado.data.hasMore ? (
-                <p className="border-t border-border p-3 text-caption text-muted">
-                  Se muestran los {listado.data.items.length} más recientes de{' '}
-                  {listado.data.total}. Acota el rango de fechas para ver los anteriores.
-                </p>
-              ) : null}
             </CardContent>
           </Card>
         )

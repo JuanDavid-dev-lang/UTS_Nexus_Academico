@@ -15,7 +15,10 @@ export const queryKeys = {
 
   students: {
     all: ['students'] as const,
-    list: (scope?: Scope & { q?: string }) =>
+    // `paginado` distingue la consulta por páginas de la que trae el conjunto
+    // entero: son dos formas distintas de dato y compartir clave haría que una
+    // sobrescribiera la caché de la otra.
+    list: (scope?: Scope & { q?: string; paginado?: boolean }) =>
       scope ? (['students', 'list', scope] as const) : (['students', 'list'] as const),
     // El directorio global no se invalida con el resto: es una búsqueda, no una
     // vista del estado del docente.

@@ -18,6 +18,7 @@ import type { Matriculado } from '../../domains/attendance/sheet-match.js';
 import { exigirPeriodoAbierto } from '../../shared/period-guard.js';
 import { mlFetch } from '../../shared/ml-client.js';
 import { ENTRADA_DE_ESCANER, exigirTipoReal, filtroPorMimetype } from '../../shared/uploads.js';
+import { limiteLotes } from '../../middlewares/rate-limit.js';
 
 /**
  * Importación de calificaciones en dos pasos, con el mismo contrato que el
@@ -72,6 +73,7 @@ gradeScanRouter.post(
   '/import/scan',
   requireRole('ADMIN', 'PROFESSOR'),
   subirArchivo.single('file'),
+  limiteLotes,
   async (req, res, next) => {
     try {
       if (!req.file) {
@@ -200,7 +202,7 @@ const filaBulkSchema = z.object({
  * SOBRESCRIBE la nota anterior, y por eso la respuesta separa `creadas` de
  * `actualizadas` — el cliente debe decir cuántas pisó.
  */
-gradeScanRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR'), async (req, res, next) => {
+gradeScanRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR'), limiteLotes, async (req, res, next) => {
   try {
     const body = z
       .object({

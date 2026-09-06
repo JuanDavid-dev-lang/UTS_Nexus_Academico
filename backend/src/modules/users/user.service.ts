@@ -132,12 +132,26 @@ function escaparRegex(valor: string): string {
 }
 
 export async function listarUsuarios(
-  filtro: { role?: string; q?: string },
+  filtro: { role?: string; q?: string; institutionId?: Types.ObjectId },
   skip: number,
   limit: number,
 ): Promise<{ items: UsuarioDePersonal[]; total: number }> {
   const query: Record<string, unknown> = { deletedAt: null };
   if (filtro.role) query.role = filtro.role;
+  /**
+   * Acotar por institución.
+   *
+   * Con perfiles institucionales, todas las cuentas de todas las universidades
+   * viven en la misma colección, y un ADMIN las veía mezcladas sin forma de
+   * separarlas: encontrar a alguien de una universidad concreta pasaba por
+   * acertar su nombre. El campo está indexado en `Usuario`, así que el filtro
+   * no cuesta nada.
+   *
+   * ADMIN no tiene institución propia (`institutionId: null`), y por eso el
+   * filtro es opt-in: sin él se sigue viendo todo, que es lo que se espera de
+   * una cuenta de administración.
+   */
+  if (filtro.institutionId) query.institutionId = filtro.institutionId;
   if (filtro.q) {
     const patron = new RegExp(escaparRegex(filtro.q), 'i');
     query.$or = [{ fullName: patron }, { email: patron }];

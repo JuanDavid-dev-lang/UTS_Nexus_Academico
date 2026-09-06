@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { Types } from 'mongoose';
 import multer from 'multer';
 import { z } from 'zod';
 import { ScheduleModel } from '../../models/schedule.model.js';
@@ -316,64 +317,158 @@ scheduleRouter.post('/import/confirm', requireRole('ADMIN', 'PROFESSOR'), async 
     }).parse(req.body);
 
     const teacherId = req.user!.id;
-    let materiasCreadas = 0;
-    let franjasCreadas = 0;
-    let franjasActualizadas = 0;
 
-    for (const sesion of body.sesiones) {
-      const materiaPrevia = await SubjectModel.findOne({
-        code: sesion.codigo,
-        period: body.period,
-        professorId: teacherId,
-        deletedAt: null,
-      }).lean();
+    /**
+     * Cuatro consultas, no trescientas.
+     *
+     * Esto era un `for` sobre las sesiones —hasta 60— con un `findOne` de
+     * materia, un `create` condicional de materia, otro de grupo, un `exists`
+     * de franja y un `findOneAndUpdate`, todos **encadenados**: cada uno
+     * esperaba al anterior. Contra Atlas, con unos 30 ms de ida y vuelta, son
+     * cerca de nueve segundos con la petición colgada sobre una ventana que el
+     * docente ya cerró.
+     *
+     * Es el mismo problema que `/enrollments/bulk` ya había resuelto —«un grupo
+     * de 40 eran 80 viajes en serie»— y que aquí se había quedado sin arreglar.
+     *
+     * Van en dos fases porque la segunda depende de la primera: una franja
+     * necesita el `_id` de su materia, y para las que se acaban de crear ese id
+     * no existía antes del `bulkWrite`.
+     */
+    const codigos = [...new Set(body.sesiones.map(sesion => sesion.codigo))];
+    /**
+     * `bulkWrite` **no castea los ids**, a diferencia de `find()`.
+     *
+     * Con `teacherId` en texto, el filtro no casa con el ObjectId guardado: el
+     * upsert no encuentra nada y **crea un duplicado** en vez de actualizar. No
+     * da error; deja dos materias iguales y un horario con las clases
+     * repetidas. Aquí lo cazó el tipado, pero solo porque el esquema declara el
+     * campo — es la trampa documentada en CLAUDE.md.
+     */
+    const docenteId = new Types.ObjectId(teacherId);
 
-      const materia =
-        materiaPrevia ??
-        (await SubjectModel.create({
-          code: sesion.codigo,
-          name: sesion.nombre,
-          period: body.period,
-          professorId: teacherId,
-          credits: 0,
-        }));
-      if (!materiaPrevia) {
-        materiasCreadas += 1;
-        emitToUser(teacherId, 'sync:update', { entity: 'subject', action: 'create', id: String(materia._id) });
-        // El grupo nace con la materia, con el nombre del reporte (A194) o el
-        // código si el PDF no lo trajo: sin grupo no se puede matricular.
-        const grupo = await GroupModel.create({
-          name: sesion.grupo || sesion.codigo,
-          subjectId: materia._id,
-          professorId: teacherId,
-          period: body.period,
-        });
-        emitToUser(teacherId, 'sync:update', { entity: 'group', action: 'create', id: String(grupo.id) });
-      }
+    // ── Fase 1: materias ────────────────────────────────────────────────────
+    const materiasPrevias = await SubjectModel.find({
+      code: { $in: codigos },
+      period: body.period,
+      professorId: teacherId,
+      deletedAt: null,
+    })
+      .select('_id code')
+      .lean();
+    const yaExistian = new Set(materiasPrevias.map(materia => String(materia.code)));
 
-      const clave = {
-        subjectId: materia._id,
-        dayOfWeek: sesion.dia,
-        startTime: sesion.horaInicio,
-        teacherId,
-      };
-      const franjaPrevia = await ScheduleModel.exists(clave);
-      await ScheduleModel.findOneAndUpdate(
-        clave,
-        {
-          $set: {
-            endTime: sesion.horaFin,
-            durationMinutes: minutosDe(sesion.horaInicio, sesion.horaFin),
-            classroom: sesion.aula,
-            modality: /remot|virtual/i.test(sesion.aula) ? 'VIRTUAL' : 'PRESENTIAL',
-            deletedAt: null,
+    // Una entrada por código, no por sesión: una materia con tres franjas
+    // semanales aparece tres veces en el cuerpo y es una sola materia.
+    const nuevas = codigos.filter(codigo => !yaExistian.has(codigo));
+    if (nuevas.length > 0) {
+      await SubjectModel.bulkWrite(
+        nuevas.map(codigo => ({
+          updateOne: {
+            filter: { code: codigo, period: body.period, professorId: docenteId, deletedAt: null },
+            update: {
+              $setOnInsert: {
+                code: codigo,
+                name: body.sesiones.find(sesion => sesion.codigo === codigo)!.nombre,
+                period: body.period,
+                professorId: docenteId,
+                credits: 0,
+              },
+            },
+            upsert: true,
           },
-        },
-        { upsert: true, new: true, setDefaultsOnInsert: true },
+        })),
+        { ordered: false },
       );
-      if (franjaPrevia) franjasActualizadas += 1;
-      else franjasCreadas += 1;
     }
+
+    // Se releen para tener el `_id` de las recién creadas: `bulkWrite` no
+    // devuelve los documentos, solo el recuento.
+    const materias = await SubjectModel.find({
+      code: { $in: codigos },
+      period: body.period,
+      professorId: teacherId,
+      deletedAt: null,
+    })
+      .select('_id code')
+      .lean();
+    const idPorCodigo = new Map(materias.map(materia => [String(materia.code), materia._id]));
+    const materiasCreadas = materias.filter(materia => !yaExistian.has(String(materia.code))).length;
+
+    // ── Fase 2: grupos de las materias nuevas ───────────────────────────────
+    // El grupo nace con la materia, con el nombre del reporte (A194) o el
+    // código si el PDF no lo trajo: sin grupo no se puede matricular.
+    if (nuevas.length > 0) {
+      await GroupModel.bulkWrite(
+        nuevas.map(codigo => {
+          const sesion = body.sesiones.find(s => s.codigo === codigo)!;
+          const subjectId = idPorCodigo.get(codigo)!;
+          return {
+            updateOne: {
+              filter: { subjectId, professorId: docenteId, period: body.period, deletedAt: null },
+              update: {
+                $setOnInsert: {
+                  name: sesion.grupo || sesion.codigo,
+                  subjectId,
+                  professorId: docenteId,
+                  period: body.period,
+                },
+              },
+              upsert: true,
+            },
+          };
+        }),
+        { ordered: false },
+      );
+    }
+
+    // ── Fase 3: franjas ─────────────────────────────────────────────────────
+    const claves = body.sesiones.map(sesion => ({
+      subjectId: idPorCodigo.get(sesion.codigo)!,
+      dayOfWeek: sesion.dia,
+      startTime: sesion.horaInicio,
+      teacherId: docenteId,
+    }));
+
+    const franjasPrevias = await ScheduleModel.find({ $or: claves }).select('subjectId dayOfWeek startTime').lean();
+    const claveDeFranja = (subjectId: unknown, dia: number, hora: string) =>
+      `${String(subjectId)}|${dia}|${hora}`;
+    const existentes = new Set(
+      franjasPrevias.map(f => claveDeFranja(f.subjectId, Number(f.dayOfWeek), String(f.startTime))),
+    );
+
+    await ScheduleModel.bulkWrite(
+      body.sesiones.map((sesion, i) => ({
+        updateOne: {
+          filter: claves[i]!,
+          update: {
+            $set: {
+              endTime: sesion.horaFin,
+              durationMinutes: minutosDe(sesion.horaInicio, sesion.horaFin),
+              classroom: sesion.aula,
+              modality: /remot|virtual/i.test(sesion.aula) ? 'VIRTUAL' : 'PRESENTIAL',
+              deletedAt: null,
+            },
+          },
+          upsert: true,
+        },
+      })),
+      { ordered: false },
+    );
+
+    const franjasCreadas = body.sesiones.filter(
+      (sesion, i) => !existentes.has(claveDeFranja(claves[i]!.subjectId, sesion.dia, sesion.horaInicio)),
+    ).length;
+    const franjasActualizadas = body.sesiones.length - franjasCreadas;
+
+    // Los avisos van juntos y al final, no uno por sesión dentro del bucle:
+    // importar un horario de 20 franjas emitía 40 eventos de socket, y cada uno
+    // hace que el cliente invalide su caché y vuelva a consultar.
+    for (const codigo of nuevas) {
+      emitToUser(teacherId, 'sync:update', { entity: 'subject', action: 'create', id: String(idPorCodigo.get(codigo)) });
+    }
+    if (nuevas.length > 0) emitToUser(teacherId, 'sync:update', { entity: 'group', action: 'bulk', id: body.period });
+    emitToUser(teacherId, 'sync:update', { entity: 'schedule', action: 'bulk', id: body.period });
 
     await avisarCambioDeHorario(teacherId, req.user?.id, 'Se importó tu horario del semestre.');
     res.status(201).json({

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Bug, Lightbulb, Send, Trash2 } from 'lucide-react';
 import {
   Badge,
@@ -21,6 +21,9 @@ import {
 } from '@/shared/ui';
 import { feedbackRepository } from '@/infrastructure/repositories/academic.repository';
 import { queryKeys } from '@/core/api/query-keys';
+import { useListadoPaginado } from '@/shared/hooks/use-listado-paginado';
+import { retrasoEscalonado, useTandaNueva } from '@/shared/hooks/use-tanda-nueva';
+import { CargarMasAlLlegar } from '@/shared/ui/cargar-mas';
 import { useUserRole } from '@/state/session.store';
 import { toast } from '@/state/toast.store';
 import type {
@@ -62,10 +65,17 @@ export default function FeedbackPage() {
   const queryClient = useQueryClient();
   const invalidar = () => void queryClient.invalidateQueries({ queryKey: [...queryKeys.feedback.all] });
 
-  const bandeja = useQuery({
+  /**
+   * Por páginas. La bandeja solo crece —nadie borra sugerencias resueltas— y
+   * con varias universidades escribiendo en la misma instalación el tope por
+   * defecto de 200 se alcanza en un semestre.
+   */
+  const bandeja = useListadoPaginado({
     queryKey: [...queryKeys.feedback.all, 'list', filtroEstado || null],
-    queryFn: () => feedbackRepository.list(filtroEstado ? { estado: filtroEstado } : undefined),
+    consultar: (pagina) =>
+      feedbackRepository.listarPagina(filtroEstado ? { estado: filtroEstado } : undefined, pagina),
   });
+  const nuevasDesde = useTandaNueva(bandeja.items.length);
 
   const enviar = useMutation({
     mutationFn: () => feedbackRepository.create({ tipo, mensaje, origen: 'DESKTOP' }),
@@ -182,7 +192,7 @@ export default function FeedbackPage() {
         <SkeletonList rows={3} />
       ) : bandeja.isError ? (
         <ErrorState error={bandeja.error} onRetry={() => void bandeja.refetch()} />
-      ) : bandeja.data.length === 0 ? (
+      ) : bandeja.items.length === 0 ? (
         <Card>
           <EmptyState
             title="Nada por aquí"
@@ -195,8 +205,12 @@ export default function FeedbackPage() {
         </Card>
       ) : (
         <div className="flex flex-col gap-3">
-          {bandeja.data.map((item) => (
-            <Card key={item._id}>
+          {bandeja.items.map((item, indice) => (
+            <Card
+              key={item._id}
+              className={nuevasDesde !== null && indice >= nuevasDesde ? 'animate-rise' : undefined}
+              style={{ animationDelay: retrasoEscalonado(indice, nuevasDesde) }}
+            >
               <CardContent className="flex flex-col gap-2 p-4">
                 <div className="flex flex-wrap items-center gap-2">
                   {item.tipo === 'ERROR' ? (
@@ -238,6 +252,14 @@ export default function FeedbackPage() {
               </CardContent>
             </Card>
           ))}
+          <CargarMasAlLlegar
+            {...bandeja.propsDeTabla}
+            mostrados={bandeja.items.length}
+            error={bandeja.error}
+            onReintentar={() => void bandeja.fetchNextPage()}
+            sustantivo="mensaje"
+            sustantivoPlural="mensajes"
+          />
         </div>
       )}
 

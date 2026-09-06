@@ -34,23 +34,33 @@ import { coordinationRouter } from '../modules/coordination/coordination.routes.
 import { userRouter } from '../modules/users/user.routes.js';
 import { institutionRouter } from '../modules/institutions/institution.routes.js';
 import { identificar, bloquearSoloLectura } from '../middlewares/auth.js';
+import { limiteEscritura, limiteGeneral } from '../middlewares/rate-limit.js';
 import { cargarAlcance } from '../middlewares/scope.js';
 
 export const apiRouter = Router();
 
 /**
- * Tres pasos antes de cualquier módulo, en este orden y no en otro:
+ * Cinco pasos antes de cualquier módulo, en este orden y no en otro:
  *
  * 1. `identificar` — dice quién llama. No corta nada; los módulos lo repiten
  *    porque también se montan sueltos en las pruebas.
- * 2. `bloquearSoloLectura` — cierra la escritura a los perfiles de consulta
+ * 2. `limiteGeneral` — cupo de peticiones. **Va después de `identificar`** y no
+ *    en `app.ts`, que es donde estaba: allí corre antes de saber quién llama,
+ *    así que solo podía contar por IP, y un campus entero comparte una.
+ * 3. `limiteEscritura` — cupo aparte y mucho más corto para lo que modifica
+ *    algo. Es lo único que impide que un bucle de reintentos —o un script—
+ *    escriba cientos de miles de documentos: los topes por petición acotan
+ *    cuánto cabe en una, pero no cuántas caben en una ventana.
+ * 4. `bloquearSoloLectura` — cierra la escritura a los perfiles de consulta
  *    (secretaría). Va aquí, y no en cada módulo, porque marcar ruta por ruta
  *    cuál escribe deja abierta la que se añada mañana.
- * 3. `cargarAlcance` — deja en `req.alcance` los programas de coordinación o
+ * 5. `cargarAlcance` — deja en `req.alcance` los programas de coordinación o
  *    secretaría. Global por la misma razón: una ruta que se olvidara de pedirlo
  *    consultaría sin acotar y devolvería datos de otra carrera con un 200.
  */
 apiRouter.use(identificar);
+apiRouter.use(limiteGeneral);
+apiRouter.use(limiteEscritura);
 apiRouter.use(bloquearSoloLectura);
 apiRouter.use(cargarAlcance);
 

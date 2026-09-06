@@ -9,6 +9,8 @@ import '../../core/widgets/compact.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
 import '../../core/widgets/debounced_search_field.dart';
+import '../../core/widgets/lista_progresiva.dart';
+import 'students_paginados_provider.dart';
 import './widgets/student_timeline_sheet.dart';
 import 'roster_import_sheet.dart';
 
@@ -36,7 +38,7 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final students = ref.watch(filteredStudentsProvider);
+    final students = ref.watch(directorioEstudiantesProvider);
     final subjects = ref.watch(subjectsProvider).valueOrNull ?? const <Subject>[];
     final subjectFilter = ref.watch(studentSubjectFilterProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -45,9 +47,11 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
     return Scaffold(
       appBar: CompactHeader(
         titulo: 'Directorio',
+        // El total del servidor, no el de lo descargado: con paginación,
+        // contar lo cargado diría «30» sobre ochocientos.
         contexto: students.valueOrNull == null
             ? null
-            : '${students.valueOrNull!.length}',
+            : '${students.valueOrNull!.total}',
         acciones: [
           IconButton(
             icon: const Icon(Icons.upload_file_outlined),
@@ -65,20 +69,16 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
         error: (error, _) => StateView.error(
           ApiError.from(error).message,
           action: FilledButton(
-            onPressed: () => ref.invalidate(filteredStudentsProvider),
+            onPressed: () => ref.invalidate(directorioEstudiantesProvider),
             child: const Text('Reintentar'),
           ),
         ),
-        data: (items) {
-          final term = _query.trim().toLowerCase();
-          final filtered = term.isEmpty
-              ? items
-              : items
-                  .where((s) =>
-                      s.fullName.toLowerCase().contains(term) ||
-                      s.code.toLowerCase().contains(term) ||
-                      s.program.toLowerCase().contains(term))
-                  .toList();
+        data: (estado) {
+          // Sin filtro en memoria: lo hace el backend sobre la colección
+          // entera. Filtrar aquí solo alcanzaría a las páginas ya descargadas,
+          // así que el estudiante de la quinta dejaría de existir al buscar.
+          final filtered = estado.items;
+          final term = _query.trim();
 
           return Column(
             children: [
@@ -110,7 +110,14 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
                   children: [
                     DebouncedSearchField(
                       hintText: 'Buscar por nombre, cédula o programa…',
-                      onChanged: (value) => setState(() => _query = value),
+                      onChanged: (value) {
+                        setState(() => _query = value);
+                        // El término ya viene reposado por el propio campo, así
+                        // que escribir nueve letras es una consulta y no nueve.
+                        ref
+                            .read(directorioEstudiantesProvider.notifier)
+                            .buscar(value);
+                      },
                     ),
                     if (subjects.isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.gapSm),
@@ -136,18 +143,24 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
                             ),
                           ),
                         ],
-                        onChanged: (value) =>
-                            ref
-                                    .read(studentSubjectFilterProvider.notifier)
-                                    .state =
-                                value,
+                        onChanged: (value) {
+                          ref.read(studentSubjectFilterProvider.notifier).state =
+                              value;
+                          ref
+                              .read(directorioEstudiantesProvider.notifier)
+                              .filtrarPorMateria(value);
+                        },
                       ),
                     ],
                     const SizedBox(height: AppSpacing.gapSm),
                     Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        '${filtered.length} de ${items.length} estudiantes',
+                        // «30 de 840» y no solo «30»: es lo que evita la duda
+                        // de si la lista terminó o se quedó a medias.
+                        estado.hayMas
+                            ? '${filtered.length} de ${estado.total} estudiantes'
+                            : '${filtered.length} estudiantes',
                         style: AppType.caption.copyWith(color: muted),
                       ),
                     ),
@@ -157,18 +170,32 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
               const SizedBox(height: AppSpacing.gapSm),
               Expanded(
                 child: filtered.isEmpty
-                    ? StateView.empty(
-                        term.isEmpty
-                            ? 'Todavía no hay estudiantes registrados.'
-                            : 'Sin coincidencias para "$_query".',
-                      )
-                    : ListView.separated(
+                    ? (estado.cargandoMas
+                        // Buscar no manda la pantalla a `AsyncLoading` —eso se
+                        // llevaría el buscador y con él el foco y el texto—,
+                        // así que el esqueleto de la búsqueda se pinta aquí.
+                        ? const Padding(
+                            padding: AppSpacing.listPadding,
+                            child: SkeletonRows(filas: 6),
+                          )
+                        : StateView.empty(
+                            term.isEmpty
+                                ? 'Todavía no hay estudiantes registrados.'
+                                : 'Sin coincidencias para "$_query".',
+                          ))
+                    : ListaProgresiva<Student>(
+                        items: filtered,
                         padding: AppSpacing.listPadding,
-                        itemCount: filtered.length,
-                        separatorBuilder: (_, __) =>
+                        hayMas: estado.hayMas,
+                        cargandoMas: estado.cargandoMas,
+                        errorAlCargarMas: estado.errorAlCargarMas,
+                        onCargarMas: () => ref
+                            .read(directorioEstudiantesProvider.notifier)
+                            .cargarMas(),
+                        separador: (_, __) =>
                             const SizedBox(height: AppSpacing.gapSm),
-                        itemBuilder: (_, index) =>
-                            _StudentTile(student: filtered[index]),
+                        constructor: (_, student, __) =>
+                            _StudentTile(student: student),
                       ),
               ),
             ],
@@ -188,6 +215,7 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
         onImported: (count) {
           AppToast.success(context, '$count estudiantes importados');
           ref.invalidate(studentsProvider);
+          ref.invalidate(directorioEstudiantesProvider);
         },
       ),
     );

@@ -83,6 +83,15 @@ export interface StudentRepository {
    * con el ámbito del docente, así que pedir una materia ajena no devuelve nada.
    */
   list(scope?: Scope & { q?: string }): Promise<Student[]>;
+  /**
+   * Una página del listado. Es lo que usan las pantallas; `list()` se queda
+   * para lo que necesita el conjunto completo de una vez (un exportable, un
+   * selector que ya viene acotado por materia).
+   */
+  listarPagina(
+    scope: (Scope & { q?: string }) | undefined,
+    pagina: { page: number; limit: number },
+  ): Promise<{ items: Student[]; total: number; hasMore: boolean }>;
   /** Directorio global por nombre o cédula, para matricular en una materia nueva. */
   search(q: string): Promise<StudentDirectoryEntry[]>;
   create(input: StudentInput): Promise<Student>;

@@ -51,13 +51,22 @@ userRouter.get('/', async (req, res, next) => {
       .object({
         role: z.enum(ROLES as [string, ...string[]]).optional(),
         q: z.string().trim().max(120).optional(),
+        /** Slug (`uts`) o `_id`. Acota el listado a una universidad. */
+        institutionId: z.string().trim().min(1).max(40).optional(),
       })
       .merge(campo.paginacionCon(200))
       .parse(req.query);
 
+    // Se resuelve aquí y no en el servicio: un slug desconocido tiene que dar
+    // 404, no una lista vacía que se lee como «esa universidad no tiene a
+    // nadie».
+    const institutionId = query.institutionId
+      ? await resolverIdInstitucion(query.institutionId)
+      : undefined;
+
     const { skip, limit } = campo.saltoYTope(query);
     const { items, total } = await listarUsuarios(
-      { role: query.role, q: query.q },
+      { role: query.role, q: query.q, ...(institutionId ? { institutionId } : {}) },
       skip,
       limit,
     );

@@ -20,6 +20,10 @@ import {
   registroRepository,
 } from '@/infrastructure/repositories/academic.repository';
 import { queryKeys } from '@/core/api/query-keys';
+import { institutionsRepository } from '@/infrastructure/repositories/institutions.repository';
+import { useListadoPaginado } from '@/shared/hooks/use-listado-paginado';
+import { retrasoEscalonado, useTandaNueva } from '@/shared/hooks/use-tanda-nueva';
+import { CargarMasAlLlegar } from '@/shared/ui/cargar-mas';
 import { useDebounce } from '@/shared/hooks/use-debounce';
 import { toast } from '@/state/toast.store';
 import type { ProfesorAdmin } from '@/domain/schemas/academic';
@@ -34,6 +38,7 @@ import type { ProfesorAdmin } from '@/domain/schemas/academic';
 export default function ProfessorsPage() {
   const [q, setQ] = useState('');
   const [programa, setPrograma] = useState('');
+  const [institucion, setInstitucion] = useState('');
   const debouncedQ = useDebounce(q, 300);
   const queryClient = useQueryClient();
 
@@ -46,14 +51,33 @@ export default function ProfessorsPage() {
     () => ({
       ...(debouncedQ.trim() ? { q: debouncedQ.trim() } : {}),
       ...(programa ? { programa } : {}),
+      ...(institucion ? { institutionId: institucion } : {}),
     }),
-    [debouncedQ, programa],
+    [debouncedQ, programa, institucion],
   );
 
-  const docentes = useQuery({
-    queryKey: queryKeys.professors.list(filtro),
-    queryFn: () => professorAdminRepository.list(filtro),
+  /**
+   * Instituciones activas, para acotar el listado a una universidad.
+   *
+   * Cambian poquísimo —se crean desde el panel y se quedan— así que se cachean
+   * diez minutos: es un desplegable, no un dato vivo.
+   */
+  const instituciones = useQuery({
+    queryKey: queryKeys.institutions.activas(),
+    queryFn: () => institutionsRepository.activas(),
+    staleTime: 10 * 60_000,
   });
+
+  /**
+   * Por páginas. «Todos los docentes» deja de ser una lista que quepa de una vez
+   * en cuanto conviven varias universidades en la misma instalación, y el tope
+   * por defecto del backend son 100: recortaba sin más aviso que `hasMore`.
+   */
+  const docentes = useListadoPaginado({
+    queryKey: queryKeys.professors.list(filtro),
+    consultar: (pagina) => professorAdminRepository.listarPagina(filtro, pagina),
+  });
+  const nuevasDesde = useTandaNueva(docentes.items.length);
 
   const cambiarDirector = useMutation({
     mutationFn: ({ id, esDirector }: { id: string; esDirector: boolean }) =>
@@ -92,7 +116,7 @@ export default function ProfessorsPage() {
               {...props}
               value={q}
               onChange={(event) => setQ(event.target.value)}
-              placeholder="Nombre, apellido o cédula"
+              placeholder="Nombre, apellido, cédula o correo"
             />
           )}
         </Field>
@@ -108,13 +132,35 @@ export default function ProfessorsPage() {
             </NativeSelect>
           )}
         </Field>
+        {/*
+          Solo si hay más de una: con una sola universidad es un desplegable que
+          no filtra nada y le quita sitio a los que sí.
+        */}
+        {(instituciones.data ?? []).length > 1 ? (
+          <Field label="Institución" className="w-56">
+            {(props) => (
+              <NativeSelect
+                {...props}
+                value={institucion}
+                onChange={(event) => setInstitucion(event.target.value)}
+              >
+                <option value="">Todas</option>
+                {(instituciones.data ?? []).map((item) => (
+                  <option key={item.institutionId} value={item.institutionId}>
+                    {item.nombre}
+                  </option>
+                ))}
+              </NativeSelect>
+            )}
+          </Field>
+        ) : null}
       </div>
 
       {docentes.isPending ? (
         <SkeletonList rows={5} />
       ) : docentes.isError ? (
         <ErrorState error={docentes.error} onRetry={() => void docentes.refetch()} />
-      ) : docentes.data.length === 0 ? (
+      ) : docentes.items.length === 0 ? (
         <Card>
           <EmptyState
             title="Sin resultados"
@@ -123,8 +169,12 @@ export default function ProfessorsPage() {
         </Card>
       ) : (
         <div className="flex flex-col gap-2">
-          {docentes.data.map((docente) => (
-            <Card key={docente._id}>
+          {docentes.items.map((docente, indice) => (
+            <Card
+              key={docente._id}
+              className={nuevasDesde !== null && indice >= nuevasDesde ? 'animate-rise' : undefined}
+              style={{ animationDelay: retrasoEscalonado(indice, nuevasDesde) }}
+            >
               <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-body font-semibold text-text">{nombreDe(docente)}</p>
@@ -156,6 +206,14 @@ export default function ProfessorsPage() {
               </CardContent>
             </Card>
           ))}
+          <CargarMasAlLlegar
+            {...docentes.propsDeTabla}
+            mostrados={docentes.items.length}
+            error={docentes.error}
+            onReintentar={() => void docentes.fetchNextPage()}
+            sustantivo="docente"
+            sustantivoPlural="docentes"
+          />
         </div>
       )}
     </PageContainer>

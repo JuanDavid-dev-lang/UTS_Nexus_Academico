@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
+import * as campo from '../../shared/validation.js';
 import { Types } from 'mongoose';
 import { AttendanceModel } from '../../models/attendance.model.js';
 import { GroupModel } from '../../models/group.model.js';
@@ -13,6 +14,7 @@ import { cruzarConMatricula, ordenarPorApellido } from '../../domains/attendance
 import { exigirPeriodoAbierto } from '../../shared/period-guard.js';
 import { mlFetch } from '../../shared/ml-client.js';
 import { ENTRADA_DE_ESCANER, exigirTipoReal, filtroPorMimetype } from '../../shared/uploads.js';
+import { limiteLotes } from '../../middlewares/rate-limit.js';
 
 /**
  * Importación de asistencia a partir de la foto de una planilla.
@@ -56,6 +58,7 @@ attendanceScanRouter.post(
   '/scan',
   requireRole('ADMIN', 'PROFESSOR'),
   upload.single('file'),
+  limiteLotes,
   async (req, res, next) => {
     try {
       if (!req.file) return res.status(400).json({ ok: false, message: 'Falta la foto de la planilla.' });
@@ -165,25 +168,61 @@ attendanceScanRouter.post(
   },
 );
 
-const confirmacion = z.object({
-  groupId: z.string().min(1),
-  // Una fecha por columna de la planilla. El docente las confirma o corrige:
-  // adivinar la fecha de una clase a partir de la foto y guardarla mal es
-  // exactamente el error que este flujo tiene que evitar.
-  fechas: z.array(z.coerce.date()).min(1),
-  durationMinutes: z.number().int().min(30).max(300).default(90),
-  filas: z
-    .array(
-      z.object({
-        studentId: z.string().min(1),
-        // Un valor por fecha, en el mismo orden que `fechas`.
-        presentes: z.array(z.boolean()),
-      }),
-    )
-    .min(1),
-});
+/**
+ * Confirmación de una planilla revisada.
+ *
+ * **Los topes son el punto entero de este esquema.** Las tres listas estaban
+ * con `.min(1)` y sin `.max()`, y aquí el número de escrituras no es el largo de
+ * una lista: es el **producto** de dos. Con 200 filas y 1 900 fechas el cuerpo
+ * ocupa 1,96 MB —pasa el límite de Express— y son 380 000 upserts de Asistencia
+ * más 380 000 documentos de auditoría, porque `auditBatch` escribe uno por
+ * casilla. En una sola petición, desde una sesión de docente cualquiera.
+ *
+ * Dos listas con topes sensatos por separado siguen dando un producto absurdo,
+ * así que hace falta acotar el producto además de cada lado. Los tres números
+ * viven en `shared/validation.ts` con el porqué.
+ */
+const confirmacion = z
+  .object({
+    groupId: z.string().min(1),
+    // Una fecha por columna de la planilla. El docente las confirma o corrige:
+    // adivinar la fecha de una clase a partir de la foto y guardarla mal es
+    // exactamente el error que este flujo tiene que evitar.
+    fechas: z.array(z.coerce.date()).min(1).max(campo.TOPE_FECHAS),
+    durationMinutes: z.number().int().min(30).max(300).default(90),
+    filas: z
+      .array(
+        z.object({
+          studentId: z.string().min(1),
+          // Un valor por fecha, en el mismo orden que `fechas`.
+          presentes: z.array(z.boolean()).max(campo.TOPE_FECHAS),
+        }),
+      )
+      .min(1)
+      .max(campo.TOPE_LOTE),
+  })
+  /**
+   * Cada fila trae exactamente un valor por fecha.
+   *
+   * Sin esto, una fila más corta dejaba `presentes[i] === undefined`, el
+   * `as boolean` de más abajo lo dejaba pasar y Mongoose lo casteaba a `false`:
+   * una falta que nadie marcó, sobre un estudiante que quizá sí fue. No da
+   * error en ninguna parte; aparece semanas después como un porcentaje que no
+   * cuadra.
+   */
+  .refine(
+    datos => datos.filas.every(fila => fila.presentes.length === datos.fechas.length),
+    datos => ({
+      message: `Cada fila debe traer exactamente ${datos.fechas.length} valores, uno por fecha.`,
+      path: ['filas'],
+    }),
+  )
+  .refine(datos => datos.filas.length * datos.fechas.length <= campo.TOPE_CELDAS, {
+    message: `La planilla supera las ${campo.TOPE_CELDAS} casillas (estudiantes × fechas). Divídela en varias importaciones.`,
+    path: ['filas'],
+  });
 
-attendanceScanRouter.post('/scan/confirm', requireRole('ADMIN', 'PROFESSOR'), async (req, res, next) => {
+attendanceScanRouter.post('/scan/confirm', requireRole('ADMIN', 'PROFESSOR'), limiteLotes, async (req, res, next) => {
   try {
     const body = confirmacion.parse(req.body);
 

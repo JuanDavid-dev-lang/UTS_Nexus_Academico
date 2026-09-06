@@ -15,6 +15,7 @@ import { exigirPeriodoAbierto } from '../../shared/period-guard.js';
 import { assertUniqueStudentEmails } from '../students/student.service.js';
 import { mlFetch } from '../../shared/ml-client.js';
 import { ENTRADA_DE_ESCANER, exigirTipoReal, filtroPorMimetype } from '../../shared/uploads.js';
+import { limiteLotes } from '../../middlewares/rate-limit.js';
 
 export const enrollmentRouter = Router();
 enrollmentRouter.use(identificar);
@@ -136,6 +137,7 @@ enrollmentRouter.post(
   '/import/scan',
   requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'),
   subirArchivo.single('file'),
+  limiteLotes,
   async (req, res, next) => {
     try {
       if (!req.file) {
@@ -239,7 +241,7 @@ enrollmentRouter.post(
   }
 );
 
-enrollmentRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
+enrollmentRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), limiteLotes, async (req, res, next) => {
   try {
     const body = z.object({
       groupId: z.string(),

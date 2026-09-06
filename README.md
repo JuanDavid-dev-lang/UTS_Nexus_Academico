@@ -1253,11 +1253,11 @@ almacén seguro.
 
 | Capa | Comando | Pruebas | Cobertura principal |
 |---|---|---|---|
-| Backend puro | `cd backend && npm test` | 406 | Notas, asistencia, riesgo, agenda, alcance, importación, reportes, subidas y escape de fórmulas |
+| Backend puro | `cd backend && npm test` | 414 | Notas, asistencia, riesgo, agenda, alcance, importación, reportes, subidas y escape de fórmulas |
 | Backend E2E | servidor arriba + `npm run smoke` | — | Login y flujo REST contra MongoDB |
-| Escritorio | `cd desktop && npm test` | 140 | Parsers, permisos, navegación, caché y errores |
+| Escritorio | `cd desktop && npm test` | 154 | Parsers, permisos, navegación, caché y errores |
 | Escritorio tipos | `npm run typecheck` | — | Contratos TypeScript |
-| Móvil | `cd flutter_app && flutter test` | 103 | Red, tema, navegación, caché, tiempo del campus y coste de reconstrucción |
+| Móvil | `cd flutter_app && flutter test` | 111 | Red, tema, navegación, caché, tiempo del campus y coste de reconstrucción |
 | Móvil estático | `flutter analyze` | — | Lints y tipos Dart |
 | ML | `cd ml_service && python -m pytest tests/` | — | Riesgo, Rubri, OCR, lectura de archivos y autenticación del servicio |
 
