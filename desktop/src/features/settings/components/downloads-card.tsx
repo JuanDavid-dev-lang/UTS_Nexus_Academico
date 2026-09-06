@@ -26,13 +26,18 @@ const CAMPOS = [
     ayuda: 'El instalador que termina en -setup.exe',
   },
   {
+    clave: 'linux' as const,
+    etiqueta: 'Linux',
+    ayuda: 'La AppImage, que corre en cualquier distribución',
+  },
+  {
     clave: 'android' as const,
     etiqueta: 'Android',
     ayuda: 'El paquete que termina en .apk',
   },
 ];
 
-const VACIO: EnlacesDescarga = { windows: '', android: '' };
+const VACIO: EnlacesDescarga = { windows: '', linux: '', android: '' };
 
 /**
  * A dónde apuntan los botones de la página pública de descargas.

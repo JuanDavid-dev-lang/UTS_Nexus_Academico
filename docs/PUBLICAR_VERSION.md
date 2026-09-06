@@ -180,10 +180,16 @@ qué distribución usa quien lo pulsa, y la AppImage es la única de las tres qu
 todas. Quien prefiera el paquete nativo lo encuentra en la publicación de GitHub, que es
 donde sí puede elegir con conocimiento.
 
-**Añadir el botón de Linux a la página es un paso manual**, porque el HTML vive en otro
-repositorio (`utsnexus.github.io`). El workflow ya sube el archivo a
-`DROPBOX_RUTA_LINUX`; lo que falta es el `<a>` que apunte a su enlace compartido. Hasta
-que se añada, quien use Linux tiene que ir al Release.
+El botón de Linux **ya está en la página**, con `data-descarga="linux"` como los otros
+dos. Le falta una sola cosa: apunta a la publicación de GitHub y no a Dropbox, porque un
+enlace compartido de Dropbox no existe hasta que el archivo se sube por primera vez. En
+cuanto el trabajo `dropbox` publique la primera AppImage, su enlace sale en el resumen
+del workflow («Enlaces de la página») y hay que pegarlo en el `href` de esa tarjeta en
+`index.html`. Es la única vez: a partir de ahí el archivo se sobrescribe y el enlace ya
+no cambia.
+
+Mientras tanto la página funciona: el botón lleva a la publicación, donde además se
+puede elegir entre AppImage, `.deb` y `.rpm`.
 
 Consecuencia que conviene tener presente: el **nombre** del archivo se queda con el de
 la primera subida (`…2.3.3…`) aunque dentro vaya una versión posterior. Quien lo

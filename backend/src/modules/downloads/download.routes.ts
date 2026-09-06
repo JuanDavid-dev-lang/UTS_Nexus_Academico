@@ -53,8 +53,16 @@ const enlace = z
     return HOSTS_PERMITIDOS.includes(url.hostname);
   }, `El enlace tiene que ser https y estar en: ${HOSTS_PERMITIDOS.join(', ')}.`);
 
+/**
+ * `linux` llega con defecto porque se añadió después.
+ *
+ * Un escritorio anterior a la 1.1.0 manda solo `windows` y `android`; sin el
+ * defecto, `parse` lo rechazaría con un 400 y guardar los enlaces desde una
+ * versión instalada dejaría de funcionar sin que el mensaje dijera por qué.
+ */
 const cuerpo = z.object({
   windows: enlace,
+  linux: enlace.default(''),
   android: enlace,
 });
 
@@ -72,6 +80,7 @@ type Enlaces = z.infer<typeof cuerpo>;
  */
 const POR_DEFECTO: Enlaces = {
   windows: '',
+  linux: '',
   android: '',
 };
 
@@ -83,6 +92,7 @@ async function leer(): Promise<Enlaces> {
   const valores = guardado.success ? guardado.data : {};
   return {
     windows: valores.windows || POR_DEFECTO.windows,
+    linux: valores.linux || POR_DEFECTO.linux,
     android: valores.android || POR_DEFECTO.android,
   };
 }

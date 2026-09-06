@@ -37,6 +37,10 @@ export const enlaceDescarga = z
 
 export const enlacesDescargaSchema = z.object({
   windows: enlaceDescarga,
+  // Con defecto porque el servidor lo añadió después: un backend anterior a la
+  // 1.1.0 responde sin el campo, y sin esto la tarjeta de ajustes se caería al
+  // validar la respuesta en vez de enseñar Linux vacío.
+  linux: enlaceDescarga.default(''),
   android: enlaceDescarga,
 });
 export type EnlacesDescarga = z.infer<typeof enlacesDescargaSchema>;

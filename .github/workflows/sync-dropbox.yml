@@ -1,15 +1,33 @@
+# Repone en Dropbox los instaladores de una release YA publicada.
+#
+# El workflow `release.yml` ya sube los tres archivos al terminar cada
+# publicación, así que esto no forma parte del camino normal. Existe para dos
+# casos: reponer una subida que falló —Dropbox caído, credenciales sin poner
+# todavía— y devolver la página de descargas a una versión anterior sin tener
+# que editar el HTML, que es lo que hay que poder hacer deprisa cuando una
+# versión sale mal.
+#
+# Las rutas de destino son las mismas que las de `release.yml`, y tienen que
+# seguir siéndolo: son los archivos a los que apuntan los botones de la página.
+
 name: Sincronizar Dropbox
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Release que se copiará a Apps/UTSNEXUS
+        description: Release que se copiará a Apps/UTSNEXUS (por ejemplo v1.1.0)
         required: true
-        default: v2.6.1
 
 permissions:
   contents: read
+
+env:
+  # Copiadas de `release.yml`. Si cambian allí, cambian aquí: escribir en otra
+  # ruta no da error, deja los botones de la página sirviendo lo de siempre.
+  DROPBOX_RUTA_WINDOWS: '/UTS-Nexus-Academico-Windows.exe'
+  DROPBOX_RUTA_ANDROID: '/UTS-Nexus-Academico-Android.apk'
+  DROPBOX_RUTA_LINUX: '/UTS-Nexus-Academico-Linux.AppImage'
 
 jobs:
   sync:
@@ -23,9 +41,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
         run: |
+          set -euo pipefail
           mkdir -p artefactos
           gh release download "$TAG" --repo "${{ github.repository }}" \
-            --pattern '*-setup.exe' --pattern '*.apk' --dir artefactos
+            --pattern '*-setup.exe' --pattern '*.apk' --pattern '*.AppImage' \
+            --dir artefactos
 
       - name: Subir Windows a Dropbox
         id: windows
@@ -34,9 +54,33 @@ jobs:
           DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
           DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
         run: |
+          set -euo pipefail
           archivo=$(find artefactos -name '*-setup.exe' -print -quit)
-          bash .github/scripts/subir-a-dropbox.sh \
-            "$archivo" '/UTS-Nexus-Academico-Windows.exe'
+          if [ -z "$archivo" ]; then
+            echo "::error::La release ${{ inputs.tag }} no trae ningún -setup.exe."
+            exit 1
+          fi
+          bash .github/scripts/subir-a-dropbox.sh "$archivo" "$DROPBOX_RUTA_WINDOWS"
+
+      # La AppImage y no el .deb ni el .rpm, por lo mismo que en `release.yml`:
+      # el botón de una página no puede preguntar qué distribución usa quien lo
+      # pulsa, y la AppImage es la única que corre en todas.
+      - name: Subir Linux a Dropbox
+        id: linux
+        env:
+          DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
+          DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
+          DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
+        run: |
+          set -euo pipefail
+          archivo=$(find artefactos -name '*.AppImage' -print -quit)
+          if [ -z "$archivo" ]; then
+            # Las releases anteriores a la 1.1.0 no traen Linux, y reponer una
+            # de ellas es un uso legítimo de este workflow. Se avisa y sigue.
+            echo "::warning::La release ${{ inputs.tag }} no trae ninguna .AppImage; Linux se queda como estaba."
+            exit 0
+          fi
+          bash .github/scripts/subir-a-dropbox.sh "$archivo" "$DROPBOX_RUTA_LINUX"
 
       - name: Subir Android a Dropbox
         id: android
@@ -45,11 +89,20 @@ jobs:
           DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
           DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
         run: |
+          set -euo pipefail
           archivo=$(find artefactos -name '*.apk' -print -quit)
-          bash .github/scripts/subir-a-dropbox.sh \
-            "$archivo" '/UTS-Nexus-Academico-Android.apk'
+          if [ -z "$archivo" ]; then
+            echo "::error::La release ${{ inputs.tag }} no trae ningún .apk."
+            exit 1
+          fi
+          bash .github/scripts/subir-a-dropbox.sh "$archivo" "$DROPBOX_RUTA_ANDROID"
 
-      - name: Mostrar enlaces para la página
+      - name: Enlaces de la página
         run: |
-          echo "WINDOWS=${{ steps.windows.outputs.url }}"
-          echo "ANDROID=${{ steps.android.outputs.url }}"
+          {
+            echo '### Archivos de la página de descargas'
+            echo ''
+            echo "- Windows: ${{ steps.windows.outputs.url }}"
+            echo "- Linux:   ${{ steps.linux.outputs.url }}"
+            echo "- Android: ${{ steps.android.outputs.url }}"
+          } >> "$GITHUB_STEP_SUMMARY"
