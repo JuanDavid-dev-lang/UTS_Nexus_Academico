@@ -170,7 +170,35 @@ UNIPLANNER_SOLO_VERIFICADOS=0
 ```
 
 La cuenta de servicio es **del proyecto de UniPlanner**, no de este, y necesita
-lectura y escritura en Firestore (`roles/datastore.user`).
+lectura y escritura en Firestore (`roles/datastore.user`). No hace falta más:
+el puente no toca autenticación, ni Storage, ni ninguna otra colección.
+
+### Cómo se ponen las credenciales
+
+```bash
+cd backend
+npm run configurar:uniplanner -- ~/Descargas/uniplanner-xxxx.json
+npm run check:env
+```
+
+El script lee el JSON de la cuenta de servicio y escribe las tres variables en
+`backend/.env`, **sin imprimir la clave**. Existe por una razón concreta: la
+clave privada lleva saltos de línea y en un `.env` tienen que ir escapados como
+`\n` y entre comillas. Pegarla a mano es el error habitual, y su síntoma no es
+un fallo al arrancar: es una firma que Google rechaza, una línea en el log que
+nadie mira y un canal que no manda nada.
+
+Cuando termines, **borra el JSON descargado**: es una credencial con acceso de
+escritura a la base de datos de la app del estudiante.
+
+### En producción
+
+`deploy/docker-compose.yml` pasa las variables en una **lista explícita**: lo
+que no esté ahí no llega al contenedor por mucho que viva en `deploy/.env`. Las
+cuatro ya están declaradas, con valor por defecto vacío —son opcionales de
+verdad—, así que basta con añadirlas a `deploy/.env`. Si algún día se añade otra
+variable del puente, hay que declararla también ahí: olvidarlo no rompe el
+arranque, solo deja el canal apagado en producción y encendido en local.
 
 ### La clave de cada universidad no es configuración
 

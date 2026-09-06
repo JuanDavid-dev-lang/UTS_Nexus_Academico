@@ -140,6 +140,40 @@ jobs:
             echo 'FIN_DEL_MENSAJE'
           } >> "$GITHUB_OUTPUT"
 
+      # ── El token, antes de compilar ────────────────────────────────────
+      #
+      # `tauri-action` no descubre que el token no sirve hasta que va a crear la
+      # release, y para entonces el `.exe` ya está compilado. La primera
+      # publicación de la 1.2.0 murió exactamente ahí —«Bad credentials»— tras
+      # seis minutos de compilación, con todo lo demás correcto.
+      #
+      # Un token caduca sin avisar a nadie y sin que cambie una línea del
+      # repositorio, así que no basta con que funcionara la vez anterior.
+      # Comprobarlo cuesta una llamada y ahorra la compilación entera.
+      - name: Comprobar el acceso al repositorio de publicaciones
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          set -uo pipefail
+          destino='${{ env.REPO_RELEASES_OWNER }}/${{ env.REPO_RELEASES_NAME }}'
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::Falta el secreto RELEASES_TOKEN. Sin él no se puede publicar en $destino."
+            exit 1
+          fi
+
+          # Se pregunta por el permiso de escritura, no solo por que el token
+          # abra: uno de solo lectura pasaría la primera comprobación y fallaría
+          # igual de tarde, que es justo lo que esto viene a evitar.
+          permiso=$(gh api "repos/$destino" --jq '.permissions.push // false' 2>/dev/null || echo 'sin-acceso')
+
+          case "$permiso" in
+            true)  echo "RELEASES_TOKEN puede escribir en $destino." ;;
+            false) echo "::error::RELEASES_TOKEN llega a $destino pero no puede escribir. Necesita permiso de contenidos con escritura."; exit 1 ;;
+            *)     echo "::error::RELEASES_TOKEN no sirve para $destino: caducado, revocado o sin acceso. Renuévalo en Settings → Secrets and variables → Actions."; exit 1 ;;
+          esac
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -559,6 +593,29 @@ jobs:
           path: artefactos
           merge-multiple: true
 
+      # ── Orden: Android, Windows y Linux ────────────────────────────────
+      #
+      # El APK va primero porque es el que más gente descarga y el que más tarda
+      # en subir (unos 65 MB frente a 4 del .exe): si algo va a fallar por
+      # tamaño o por tiempo de espera, conviene saberlo antes de haber
+      # sobrescrito los otros dos. Linux va al final por lo mismo al revés — la
+      # AppImage son 79 MB y es el archivo más nuevo de los tres, así que es el
+      # que menos gente echaría de menos si un día hubiera que reintentar.
+      - name: Sobrescribir el APK
+        id: android
+        env:
+          DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
+          DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
+          DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
+        run: |
+          set -euo pipefail
+          apk=$(find artefactos -name '*.apk' -print -quit)
+          if [ -z "$apk" ]; then
+            echo "::error::No llegó ningún .apk desde el trabajo de Android."
+            exit 1
+          fi
+          bash .github/scripts/subir-a-dropbox.sh "$apk" "$DROPBOX_RUTA_ANDROID"
+
       - name: Sobrescribir el instalador de Windows
         id: windows
         env:
@@ -595,21 +652,6 @@ jobs:
           fi
           bash .github/scripts/subir-a-dropbox.sh "$appimage" "$DROPBOX_RUTA_LINUX"
 
-      - name: Sobrescribir el APK
-        id: android
-        env:
-          DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
-          DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
-          DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
-        run: |
-          set -euo pipefail
-          apk=$(find artefactos -name '*.apk' -print -quit)
-          if [ -z "$apk" ]; then
-            echo "::error::No llegó ningún .apk desde el trabajo de Android."
-            exit 1
-          fi
-          bash .github/scripts/subir-a-dropbox.sh "$apk" "$DROPBOX_RUTA_ANDROID"
-
       # Los enlaces son públicos —están escritos en el HTML de la página—, así
       # que dejarlos en el resumen no filtra nada y ahorra tener que buscarlos
       # el día que haya que cambiar el botón.
@@ -618,7 +660,7 @@ jobs:
           {
             echo '### Archivos de la página de descargas'
             echo ''
+            echo "- Android: ${{ steps.android.outputs.url }}"
             echo "- Windows: ${{ steps.windows.outputs.url }}"
             echo "- Linux:   ${{ steps.linux.outputs.url }}"
-            echo "- Android: ${{ steps.android.outputs.url }}"
           } >> "$GITHUB_STEP_SUMMARY"

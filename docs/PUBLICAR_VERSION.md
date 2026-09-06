@@ -299,6 +299,25 @@ numeración canónica `1.0.0`:
 4. Para publicar la versión definitiva cuando corresponda, se crea y empuja
    el tag `v1.0.0`.
 
+### Si la publicación falla
+
+Los fallos se reparten en dos grupos, y la diferencia importa:
+
+- **Antes de que exista la release** (token inválido, versión descuadrada, pruebas en
+  rojo): no se publicó nada y `latest.json` sigue apuntando a la versión anterior.
+  Nadie se entera y no hay nada que limpiar. Se corrige la causa y se vuelve a lanzar.
+- **Con la release ya creada** (falla `linux`, `android` o `manifiesto`): la release
+  existe y puede quedar sin `latest.json`, y entonces los clientes reciben un 404 al
+  buscar actualizaciones. **La recuperación no obliga a republicar**: se vuelve a
+  lanzar solo el trabajo que falló desde la pestaña Actions. `manifiesto` compone el
+  manifiesto leyendo los assets ya publicados, así que es idempotente por diseño.
+
+Un caso concreto que ya se dio: **`RELEASES_TOKEN` caducado**. El síntoma es
+`Bad credentials` y el arreglo es renovarlo en *Settings → Secrets and variables →
+Actions* con permiso de contenidos de escritura sobre el repositorio de instaladores.
+Que funcionara en la publicación anterior no demuestra nada: un token caduca sin que
+cambie una línea del repositorio.
+
 > ⚠️ **Desde el puente, publicar una etiqueta vieja degrada a todo el mundo.**
 > Los clientes instalan lo que esté publicado, así que empujar por error un `v*`
 > antiguo —o rehacer una release anterior— reparte esa versión como si fuera la
@@ -396,7 +415,17 @@ desktop (Windows) ──┬── linux ────┐
 3. **`android`** compila el APK firmado y lo adjunta también.
 4. **`manifiesto`** compone `latest.json` con lo que hay publicado, lo sube, y publica el
    espejo en este repositorio.
-5. **`dropbox`** sobrescribe los tres archivos de los botones de la página.
+5. **`dropbox`** sobrescribe los tres archivos de los botones de la página, en este
+   orden: **Android, Windows y Linux**. El APK va primero porque es el más pesado
+   (unos 65 MB frente a 4 del `.exe`), así que si algo falla por tamaño o por tiempo
+   de espera se sabe antes de haber sobrescrito los otros dos.
+
+**Lo primero que hace el trabajo de Windows es comprobar `RELEASES_TOKEN`**, antes de
+instalar nada y antes de compilar. No es ceremonia: `tauri-action` no descubre que el
+token no sirve hasta que va a crear la release, y para entonces ya se gastaron seis
+minutos de compilación. La primera publicación de la 1.2.0 murió exactamente así, con
+«Bad credentials». Se comprueba el permiso de **escritura**, no solo que el token abra:
+uno de solo lectura pasaría una comprobación ingenua y fallaría igual de tarde.
 
 Antes de compilar corre `typecheck`, los tests del escritorio, `flutter analyze` y
 `flutter test`: una versión que no pasa sus pruebas no llega a publicarse.
