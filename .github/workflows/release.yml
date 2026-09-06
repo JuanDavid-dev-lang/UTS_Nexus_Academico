@@ -277,6 +277,15 @@ jobs:
     # empieza a retirarse el 17 de septiembre de 2026, con fallos programados
     # antes de desaparecer del todo. Un contenedor lo fija nosotros y no GitHub.
     container: ubuntu:22.04
+    # Dentro de un contenedor, GitHub ejecuta cada `run` con `sh -e`, no con
+    # bash: la imagen base podría no traer bash, así que no lo da por hecho.
+    # `ubuntu:22.04` sí lo trae, y sin declararlo el primer `set -euo pipefail`
+    # muere con «Illegal option -o pipefail» —dash no conoce `pipefail`— antes
+    # incluso del checkout. El resto de los trabajos corren en el runner, donde
+    # bash ya es el predeterminado; este es el único que necesita decirlo.
+    defaults:
+      run:
+        shell: bash
     steps:
       # `actions/checkout` necesita git, y la imagen base de Ubuntu no lo trae.
       # Sin esto el checkout cae a la API y descarga un tarball sin historia,
