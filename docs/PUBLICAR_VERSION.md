@@ -1,9 +1,34 @@
 # Publicar una versión
 
-Los dos clientes se actualizan solos desde **GitHub Releases**. El escritorio verifica
-la firma antes de instalar; el móvil descarga el APK y se lo entrega al instalador de
-Android. Esta guía cubre lo que hay que configurar una vez y lo que hay que hacer en
-cada publicación.
+Los clientes se actualizan solos desde **GitHub Releases**. El escritorio —Windows y
+Linux— verifica la firma antes de instalar; el móvil descarga el APK y se lo entrega al
+instalador de Android. Esta guía cubre lo que hay que configurar una vez y lo que hay
+que hacer en cada publicación.
+
+## Qué plataformas hay
+
+**El registro vive en [`.github/scripts/plataformas.mjs`](../.github/scripts/plataformas.mjs)
+y es el único sitio donde se declara.** `node .github/scripts/plataformas.mjs` imprime
+la matriz con la versión de cada una; CI la ejecuta en cada push.
+
+| Plataforma | Estado | Formatos | Se actualiza con |
+|---|---|---|---|
+| Windows | soportada | NSIS, MSI | actualizador de Tauri |
+| Linux | soportada | AppImage, `.deb`, `.rpm` | actualizador de Tauri |
+| Android | soportada | APK | API de Releases + instalador del sistema |
+| macOS | planificada | `.app`, `.dmg` | actualizador de Tauri |
+| iOS | planificada | `.ipa` | App Store |
+
+El registro es lo que leen `subir-version.mjs` (qué archivos reescribir),
+`comprobar-version.mjs` (qué comprobar) y `componer-manifiesto.mjs` (qué claves exigir
+en `latest.json`). Ninguno lleva lista propia, que es como estuvo hasta ahora: la misma
+lista copiada en dos scripts que podían discrepar.
+
+**Añadir macOS o iOS** es cambiar su `estado` a `soportada`, declarar sus archivos de
+versión y sus claves de manifiesto, y añadir su trabajo a `release.yml`. Ningún script
+se toca. Lo que las bloquea hoy está escrito en el propio registro, en el campo
+`bloqueo`, y es de herramientas: un Mac con Xcode para compilar y firmar, y el Apple
+Developer Program para distribuir en iOS.
 
 ## Dos repositorios, y por qué
 
@@ -29,8 +54,45 @@ Las versiones **2.3.3 y anteriores** llevan grabada dentro del binario la direcc
 cambiársela a un `.exe` ya instalado. Solo se salía reinstalando a mano.
 
 Por eso el workflow publica **la misma release en los dos sitios**. El `latest.json` del
-espejo se copia tal cual del repositorio de instaladores: apunta a sus assets y conserva
-su firma, así que no se firma nada dos veces ni se abre una segunda cadena de confianza.
+espejo es el mismo archivo que se subió al repositorio de instaladores: apunta a sus
+assets y conserva sus firmas, así que no se firma nada dos veces ni se abre una segunda
+cadena de confianza.
+
+### El manifiesto tiene un dueño, y no es `tauri-action`
+
+`latest.json` lo compone el trabajo `manifiesto` con
+[`.github/scripts/componer-manifiesto.mjs`](../.github/scripts/componer-manifiesto.mjs),
+a partir de los assets **ya publicados** en la release.
+
+Antes lo generaba `tauri-action` con `includeUpdaterJson`, y con una sola plataforma
+funcionaba. Con dos deja de funcionar: **`tauri-action` no fusiona un manifiesto
+existente**. Borra el asset y sube el suyo, armado solo con lo que compiló ese trabajo.
+Windows y Linux compilan en trabajos distintos, así que el segundo en terminar dejaría
+al primero sin actualizaciones.
+
+Y ese fallo no se ve. El manifiesto existe, la release está completa, los instaladores
+están ahí. Lo único que cambia es que a la mitad de los equipos el botón de actualizar
+les responde «ya tienes la última versión», y lo seguirá haciendo en la publicación
+siguiente. Nadie abre un `latest.json` a mirar qué claves trae.
+
+El script empareja cada archivo con su `.sig`, deduce la clave por la extensión y
+**falla si falta alguna**. Su `--autoprueba` corre en `verificar.yml`, en cada push.
+
+Las claves que produce, y por qué son siete y no dos: el actualizador de Tauri busca
+`{os}-{arch}-{formato}` y cae a `{os}-{arch}` cuando no logra averiguar en qué formato
+está instalada la app.
+
+| Clave | Apunta a |
+|---|---|
+| `windows-x86_64-nsis`, `windows-x86_64` | `…-setup.exe` |
+| `windows-x86_64-msi` | `….msi` |
+| `linux-x86_64-appimage`, `linux-x86_64` | `….AppImage` |
+| `linux-x86_64-deb` | `….deb` |
+| `linux-x86_64-rpm` | `….rpm` |
+
+El alias corto de Linux apunta a la **AppImage** a propósito: si el actualizador no sabe
+cómo está instalada la app, lo que se le ofrezca tiene que funcionar en el sitio donde
+esté, y la AppImage es la única de las tres que corre en cualquier distribución.
 
 El espejo se puede retirar el día que no quede nadie con una versión anterior a la 2.3.4
 instalada. Antes, no: quitarlo vuelve a dejar sin salida a quien no se haya actualizado.
@@ -106,11 +168,22 @@ instalada**. Si se pierde, los usuarios tienen que desinstalar y reinstalar.
 
 ### 1.3 Dropbox: dar acceso al workflow
 
-La página de descargas (`utsnexus.github.io`) no manda a la gente al Release: sus dos
+La página de descargas (`utsnexus.github.io`) no manda a la gente al Release: sus
 botones llevan escrito un archivo concreto de Dropbox. Un enlace de Dropbox apunta a un
 archivo, no a «la última versión», así que el workflow escribe el instalador recién
 compilado **encima** de ese mismo archivo. El enlace no cambia y lo que entrega es lo
 nuevo.
+
+Son tres: Windows (`.exe`), Linux (`.AppImage`) y Android (`.apk`). El de Linux es la
+AppImage y no el `.deb` ni el `.rpm` porque un botón de una página no puede preguntar
+qué distribución usa quien lo pulsa, y la AppImage es la única de las tres que corre en
+todas. Quien prefiera el paquete nativo lo encuentra en la publicación de GitHub, que es
+donde sí puede elegir con conocimiento.
+
+**Añadir el botón de Linux a la página es un paso manual**, porque el HTML vive en otro
+repositorio (`utsnexus.github.io`). El workflow ya sube el archivo a
+`DROPBOX_RUTA_LINUX`; lo que falta es el `<a>` que apunte a su enlace compartido. Hasta
+que se añada, quien use Linux tiene que ir al Release.
 
 Consecuencia que conviene tener presente: el **nombre** del archivo se queda con el de
 la primera subida (`…2.3.3…`) aunque dentro vaya una versión posterior. Quien lo
@@ -309,15 +382,40 @@ git tag vX.Y.Z
 git push origin main --tags
 ```
 
-El workflow `.github/workflows/release.yml` se dispara con cualquier etiqueta `v*` y:
+El workflow `.github/workflows/release.yml` se dispara con cualquier etiqueta `v*`:
 
-1. Compila el escritorio en Windows, lo firma y crea el Release con `latest.json`.
-2. Escribe ese `.exe` encima del archivo de Dropbox del botón de Windows.
-3. Compila el APK de release firmado y lo adjunta al mismo Release.
-4. Escribe ese `.apk` encima del archivo de Dropbox del botón de Android.
+```
+desktop (Windows) ──┬── linux ────┐
+                    └── android ──┴── manifiesto ── espejo ── dropbox
+```
+
+1. **`desktop`** compila el escritorio en Windows, lo firma y **crea** el Release en el
+   repositorio de instaladores. No genera el manifiesto.
+2. **`linux`** compila la AppImage, el `.deb` y el `.rpm`, firma lo que haga falta y los
+   adjunta a esa misma Release.
+3. **`android`** compila el APK firmado y lo adjunta también.
+4. **`manifiesto`** compone `latest.json` con lo que hay publicado, lo sube, y publica el
+   espejo en este repositorio.
+5. **`dropbox`** sobrescribe los tres archivos de los botones de la página.
 
 Antes de compilar corre `typecheck`, los tests del escritorio, `flutter analyze` y
 `flutter test`: una versión que no pasa sus pruebas no llega a publicarse.
+
+**El trabajo de Linux usa `npm run desktop:build`, no `tauri build`.** El script encadena
+`desktop/scripts/sanear-appimage.mjs`, que quita de la AppImage `libwayland-client.so.0`
+y la vuelve a empaquetar. Sin ese paso la AppImage se compila, se firma y se publica sin
+un solo error, y **abre con la ventana en blanco** en cualquier equipo cuyo wayland sea
+más nuevo que el de la imagen de compilación. Por eso el contenedor instala
+`squashfs-tools` y por eso el script falla si no lo encuentra, en vez de dejar pasar una
+AppImage sin sanear. El diagnóstico completo está en `CLAUDE.md`.
+
+**El trabajo de Linux compila dentro de un contenedor `ubuntu:22.04`, no en el runner.**
+La versión de glibc con la que se enlaza decide en qué distribuciones arranca el binario,
+y esa decisión no se puede deshacer después: con la 2.35 de 22.04 corre en Debian 12 y 13,
+Ubuntu 22.04+, Mint 21+, Fedora 36+, RHEL y Rocky 9, openSUSE Leap 15.5+ y Arch. Con la de
+un sistema más nuevo, en varias de ellas ni arranca, y el error no menciona glibc. El
+contenedor además deja la publicación al margen de la retirada de la imagen `ubuntu-22.04`
+de GitHub, que empezó el 17 de septiembre de 2026.
 
 Los pasos de Dropbox **fallan en rojo** si algo va mal en vez de avisar y seguir. Un
 release publicado con Dropbox sin actualizar deja la página repartiendo la versión
@@ -325,8 +423,15 @@ anterior en silencio, que es peor que un workflow en rojo.
 
 ### 3.3 Comprobar
 
-- El Release tiene `latest.json`, el `.msi`/`.exe` con su `.sig`, y el `.apk`.
-- El workflow terminó en verde, incluidos los dos pasos de Dropbox.
+- El Release tiene `latest.json`, el `.exe` y el `.msi` con sus `.sig`, la `.AppImage`,
+  el `.deb` y el `.rpm` con los suyos, y el `.apk`.
+- `latest.json` trae las **siete** claves de la tabla de arriba. El trabajo `manifiesto`
+  falla si falta alguna, así que en verde ya está comprobado — pero es lo primero que hay
+  que mirar si alguien reporta que su plataforma no se actualiza.
+- El workflow terminó en verde, incluidos los tres pasos de Dropbox.
+- **Abrir la AppImage descargada en un equipo con Linux** y comprobar que se ve la
+  pantalla de acceso, no una ventana vacía. Es la única comprobación de esta lista que no
+  puede hacer CI, y es la que se saltó una vez: la publicación sale verde igual.
 - Entrar a la página de descargas y bajar el `.exe`: el instalador tiene que ofrecer la
   versión nueva (el nombre del archivo dirá la vieja, es lo esperado; ver 1.3).
 - Abrir el escritorio → **Configuración → Actualizaciones** → debe ofrecer la nueva.
@@ -344,6 +449,13 @@ distinto; vacío es lo normal y significa «usá el que trae escrito la página�
 Si hay versión nueva, muestra el número y las notas; al pulsar *Instalar y reiniciar*
 descarga, verifica la firma, instala y reinicia la app sola.
 
+En Linux **no es lo mismo según el formato**, y la tarjeta lo avisa antes de pulsar: la
+AppImage se reemplaza a sí misma sin pedir nada, mientras que el `.deb` y el `.rpm`
+instalan en `/usr` y el sistema levanta un diálogo de administrador. Avisar después no
+serviría: para entonces el diálogo ya está en pantalla y la pregunta es si esto es de
+fiar. Quien lo cancela se queda sin actualizar convencido de que la actualización está
+rota.
+
 **Móvil.** `Ajustes → Actualizaciones` hace lo mismo, pero la instalación la ejecuta
 Android: la primera vez pedirá permiso para instalar apps desde esta aplicación. Sin
 esa autorización explícita del usuario no se instala nada — es una decisión del sistema
@@ -354,19 +466,26 @@ falla en silencio dentro de la tarjeta si no hay red.
 
 ---
 
-## 5. iOS
+## 5. Las plataformas que faltan
 
-**No hay versión de iOS y no se puede construir desde este equipo.** Tres motivos, en
-orden de dureza:
+Están declaradas como `planificada` en `.github/scripts/plataformas.mjs`, con lo que las
+bloquea escrito en el propio registro. No es código: es que hace falta una máquina.
+
+**macOS.** El escritorio ya está preparado —`bundle.targets` incluye `app` y `dmg`, y el
+actualizador de Tauri funciona igual—, pero compilar y firmar un `.app` exige macOS con
+Xcode. Sin un Mac no hay forma soportada de producirlo. El día que lo haya, el trabajo
+nuevo en `release.yml` es casi copia del de Linux y las claves del manifiesto ya están
+declaradas (`darwin-aarch64`).
+
+**iOS.** Tres motivos, en orden de dureza:
 
 1. `flutter_app/` no tiene carpeta `ios/`; habría que generarla con
    `flutter create --platforms=ios .`.
-2. Compilar y firmar un `.ipa` exige **macOS con Xcode**. No hay forma soportada de
-   hacerlo desde Windows.
+2. Compilar y firmar un `.ipa` exige **macOS con Xcode**.
 3. Distribuirlo exige el **Apple Developer Program** (99 USD/año), incluso para reparto
    interno.
 
-El código Dart es portable: si algún día hay un Mac, el trabajo es de configuración y
-firma, no de reescritura. El sistema de actualización sí habría que rehacerlo, porque
-iOS no permite instalar paquetes fuera de la App Store — allí las actualizaciones las
-gestiona la tienda.
+El código Dart es portable: el trabajo es de configuración y firma, no de reescritura.
+Lo que sí habría que rehacer es el sistema de actualización, porque iOS no permite
+instalar paquetes fuera de la App Store — allí las actualizaciones las gestiona la
+tienda, y por eso el registro declara `App Store` como su mecanismo y no el propio.

@@ -9,6 +9,12 @@
  * mientras el resto iba por 2.5.0 durante dos publicaciones, y hay un commit
  * entero dedicado a «sincronizar package-lock.json y Cargo.lock».
  *
+ * Qué archivos toca **no se decide aquí**: sale de `plataformas.mjs`, que es el
+ * registro de plataformas del producto. Antes esta lista vivía copiada aquí y
+ * en `comprobar-version.mjs`, y los dos avisaban por escrito de que añadir un
+ * archivo a una y no a la otra rompe la publicación. Ahora hay un solo sitio,
+ * así que no hay nada que sincronizar.
+ *
  * Un número de versión mal puesto no rompe nada visiblemente: la aplicación
  * arranca igual. Lo que rompe es la única pregunta que importa cuando algo
  * falla en una sala de cómputo —«¿qué versión tiene este equipo?»— y para
@@ -28,6 +34,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
+import { archivosDeVersion, CLIENTES } from './plataformas.mjs';
 
 const raiz = process.cwd();
 const ruta = archivo => join(raiz, archivo);
@@ -36,17 +43,13 @@ const leer = archivo => readFileSync(ruta(archivo), 'utf8');
 /**
  * Archivos que declaran la versión, con el patrón que la encuentra.
  *
- * Es la misma lista que comprueba `comprobar-version.mjs`, y tiene que
- * seguirlo siendo: si aquí se añade uno y allí no, el nuevo se queda sin
- * verificar; si se añade allí y no aquí, la publicación falla en CI después de
- * que alguien ya haya subido la etiqueta.
+ * Sale del registro de plataformas, ya deduplicado: Windows y Linux comparten
+ * el cliente de escritorio, así que sus tres archivos son los mismos tres.
  */
-const ARCHIVOS = [
-  ['desktop/package.json', /("version":\s*")([^"]+)(")/],
-  ['desktop/src-tauri/tauri.conf.json', /("version":\s*")([^"]+)(")/],
-  ['desktop/src-tauri/Cargo.toml', /^(version = ")([^"]+)(")/m],
-  ['flutter_app/pubspec.yaml', /^(version:\s*)([0-9]+\.[0-9]+\.[0-9]+)(\+\d+)/m],
-];
+const ARCHIVOS = archivosDeVersion();
+
+/** Dónde vive el `versionCode` de Android, y qué patrón lo encuentra. */
+const [CODIGO_ARCHIVO, CODIGO_PATRON] = CLIENTES.movil.codigoDeVersionEn;
 
 const rojo = t => `\x1b[31m${t}\x1b[0m`;
 const verde = t => `\x1b[32m${t}\x1b[0m`;
@@ -91,7 +94,7 @@ if (argumento === '--check') {
   for (const [archivo, version] of valores) {
     console.log(`  ${distintas.length === 1 ? verde('✓') : rojo('✗')} ${version.padEnd(10)} ${tenue(archivo)}`);
   }
-  const codigo = leer('flutter_app/pubspec.yaml').match(/^version:\s*[^+]+\+(\d+)/m)?.[1];
+  const codigo = leer(CODIGO_ARCHIVO).match(CODIGO_PATRON)?.[2];
   console.log(`  ${verde('✓')} ${String(codigo).padEnd(10)} ${tenue('versionCode de Android')}`);
   if (distintas.length > 1) {
     console.error(rojo('\n  Los archivos no dicen lo mismo. Corrige con:  node .github/scripts/subir-version.mjs <versión>\n'));
@@ -122,11 +125,11 @@ for (const [archivo, patron] of ARCHIVOS) {
 }
 
 // El versionCode sube SIEMPRE, sin mirar si la versión visible subió o bajó.
-const pubspec = leer('flutter_app/pubspec.yaml');
-const codigoActual = Number(pubspec.match(/^version:\s*[^+]+\+(\d+)/m)[1]);
+const pubspec = leer(CODIGO_ARCHIVO);
+const codigoActual = Number(pubspec.match(CODIGO_PATRON)[2]);
 writeFileSync(
-  ruta('flutter_app/pubspec.yaml'),
-  pubspec.replace(/^(version:\s*[^+]+\+)(\d+)/m, (_, antes) => `${antes}${codigoActual + 1}`),
+  ruta(CODIGO_ARCHIVO),
+  pubspec.replace(CODIGO_PATRON, (_, antes) => `${antes}${codigoActual + 1}`),
 );
 console.log(`  ${verde('✓')} versionCode de Android: ${codigoActual} → ${codigoActual + 1}`);
 

@@ -401,6 +401,29 @@ arbitrario; ni un token en `localStorage`. Móvil: `flutter_secure_storage`
 (Android Keystore) con migración desde las preferencias planas que además borra
 el origen.
 
+**El respaldo de Linux, y por qué existe con lo que cuesta.** En Windows y macOS
+el llavero es parte del sistema y siempre responde. En Linux es un paquete que
+puede no estar instalado —XFCE mínimo, i3, varios Debian de escritorio—, y ahí
+la garantía anterior no se cumple porque no hay dónde cumplirla: guardar la
+sesión falla y la aplicación no se puede usar. `almacen_linux` guarda entonces
+en `~/.local/state`, modo `0600`, cifrado con XChaCha20-Poly1305.
+
+Lo que ese respaldo protege, dicho sin adornos: la clave se **deriva de la
+máquina y del usuario**, así que quien ya ejecuta código como este usuario puede
+derivarla igual. Su defensa real frente a un atacante local son los permisos del
+archivo, la misma que protege una clave SSH. Lo que sí gana es que el contenido
+no sea legible fuera de esa máquina: una copia de seguridad, un directorio
+sincronizado a la nube o un disco que se manda a reparar no entregan un JWT a
+quien lo mire.
+
+Por eso el llavero se intenta **siempre primero**, se cae al archivo solo cuando
+no hay alternativa, y la pantalla de Configuración dice cuál de los dos está en
+uso (`secure_store_backend`). Presentar los dos como equivalentes sería vender
+una garantía que en esa máquina no se está dando, y esa pantalla existe
+precisamente para lo contrario. La lista blanca de claves se comprueba también
+en el camino del respaldo: si solo la comprobara `Entry`, un fallo del llavero
+la volvería opcional justo en la ruta que se usa cuando algo va mal.
+
 **Red del móvil.** `cleartextTrafficPermitted="false"`, con excepción solo para
 `localhost`, `127.0.0.1` y `10.0.2.2`.
 

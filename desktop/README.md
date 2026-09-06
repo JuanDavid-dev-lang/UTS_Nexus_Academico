@@ -76,8 +76,20 @@ npm run desktop:dev      # ventana nativa con recarga en caliente
 npm run desktop:build    # instalador en src-tauri/target/release/bundle/
 ```
 
-`desktop:build` genera instalador NSIS y MSI en Windows, `.dmg` en macOS y
-`.deb`/AppImage en Linux.
+`desktop:build` empaqueta para el sistema donde se ejecuta —Tauri no compila
+cruzado—: NSIS y MSI en Windows, AppImage + `.deb` + `.rpm` en Linux, `.dmg` en
+macOS. Lo específico de Linux vive en `src-tauri/tauri.linux.conf.json`, que
+Tauri fusiona sobre `tauri.conf.json` cuando el objetivo es Linux; las
+dependencias de compilación por distribución están en el README de la raíz.
+
+**`desktop:build` encadena `scripts/sanear-appimage.mjs`, y por eso no se usa
+`tauri build` a secas.** Ese script quita de la AppImage `libwayland-client.so.0`
+y la vuelve a empaquetar. Sin él la AppImage se construye, se firma y se publica
+sin un solo error, y **abre con la ventana en blanco** en cualquier equipo cuyo
+wayland sea más nuevo que el de la máquina de compilación: la librería
+empaquetada tapa a la del sistema, el EGL de Mesa no puede inicializar la
+plataforma wayland contra una versión más vieja y `WebKitWebProcess` aborta. En
+Windows y macOS el script no hace nada. El porqué completo está en `CLAUDE.md`.
 
 ---
 
@@ -160,7 +172,18 @@ sola.
 
 **Los tokens nunca tocan el disco en texto plano.** Se guardan en DPAPI
 (Windows), Keychain (macOS) o Secret Service (Linux), accesibles solo mediante
-tres comandos con lista blanca de claves.
+comandos con lista blanca de claves.
+
+En Linux hay un caso que Windows y macOS no tienen: el Secret Service
+(gnome-keyring, KWallet) es un paquete que **puede no estar instalado** —XFCE
+mínimo, i3, varios Debian de escritorio—, y sin respaldo eso significa que no se
+puede guardar la sesión, es decir, que la aplicación no sirve. `almacen_linux`
+es ese respaldo: archivo en `~/.local/state`, modo `0600`, cifrado con
+XChaCha20-Poly1305. Se intenta **siempre el llavero primero** y la lectura mira
+los dos sitios, así que instalar o quitar gnome-keyring no cierra la sesión de
+nadie. Configuración dice cuál de los dos está en uso, porque el respaldo
+protege menos —su clave se deriva de la máquina, así que la defensa real es el
+`0600`— y esa pantalla existe para no afirmar cosas que no se han comprobado.
 
 **La renovación de sesión es de un solo vuelo.** Diez peticiones que reciben 401
 simultáneamente disparan **una** renovación, no diez. Está cubierto por pruebas
@@ -202,11 +225,18 @@ además del color. Esa insignia decide si un docente interviene con un estudiant
 
 ### Artefactos generados
 
-| Artefacto | Tamaño |
-|---|---|
-| `uts-nexus-desktop.exe` | 4,7 MB |
-| Instalador NSIS (`*_x64-setup.exe`) | 2,1 MB |
-| Instalador MSI (`*_x64_en-US.msi`) | 2,7 MB |
+| Artefacto | Sistema | Tamaño |
+|---|---|---|
+| `uts-nexus-desktop.exe` | Windows | 4,7 MB |
+| Instalador NSIS (`*_x64-setup.exe`) | Windows | 2,1 MB |
+| Instalador MSI (`*_x64_en-US.msi`) | Windows | 2,7 MB |
+| `*.deb` | Linux | unos pocos MB |
+| `*.rpm` | Linux | unos pocos MB |
+| `*.AppImage` | Linux | bastante más |
 
 Se generan en `src-tauri/target/release/bundle/`. La compilación completa en
 frío toma ~9 minutos (LTO activado); las siguientes son incrementales.
+
+La diferencia de tamaño en Linux no es descuido: el `.deb` y el `.rpm` usan el
+WebKit del sistema y la AppImage lo lleva dentro, que es justamente lo que la
+hace funcionar en cualquier distribución.

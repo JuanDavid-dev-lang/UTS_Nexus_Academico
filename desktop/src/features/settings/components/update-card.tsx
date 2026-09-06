@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, Download, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Check, Download, Info, RefreshCw } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -19,7 +19,8 @@ function formatBytes(bytes: number): string {
 }
 
 export function UpdateCard() {
-  const { status, update, progress, error, installed, check, install } = useAppUpdate();
+  const { status, update, progress, error, installed, avisoDeInstalacion, check, install } =
+    useAppUpdate();
 
   const percent =
     progress && progress.total ? Math.min(100, Math.round((progress.downloaded / progress.total) * 100)) : null;
@@ -69,6 +70,16 @@ export function UpdateCard() {
             <p className="text-caption text-muted">
               La app se reiniciará sola al terminar de instalar.
             </p>
+            {/* Solo aparece cuando hay algo que no es obvio: en Linux instalada
+                como .deb o .rpm, el sistema pedirá la contraseña de
+                administrador. Sin este aviso ese diálogo se lee como un fallo
+                de la aplicación y se cancela. */}
+            {avisoDeInstalacion && (
+              <p className="flex items-start gap-2 text-caption text-muted">
+                <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                {avisoDeInstalacion}
+              </p>
+            )}
           </div>
         )}
 

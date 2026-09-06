@@ -345,6 +345,7 @@ UTS_Nexus_Academico/
 ├── abrir_android.bat              # Lanzador de la app móvil
 ├── iniciar.ps1                    # Arranque automático — Windows
 ├── iniciar.sh                     # Arranque automático — Linux / macOS
+├── abrir_escritorio.sh            # Lanzador del escritorio — Linux / macOS
 ├── docker-compose.yml             # Despliegue con Docker
 └── README.txt                     # Guía de arranque en texto plano
 ```
@@ -373,15 +374,61 @@ cambia cuál es la instalación que te toca:
 
 1. Entra a la **página de descargas** ([utsnexus.github.io](https://utsnexus.github.io))
    o al [último Release](https://github.com/JuanDavid-dev-lang/UTS_Nexus_Academico/releases/latest).
-2. **Windows**: descarga el `…-setup.exe` y ejecútalo.
-   **Android**: descarga el `.apk`; el teléfono pedirá permiso para instalar
-   desde el navegador, y esa autorización la exige el sistema, no la app.
+2. Descarga el archivo de tu sistema:
+
+   | Sistema | Archivo | Cómo se instala |
+   |---|---|---|
+   | Windows | `…-setup.exe` | Doble clic. |
+   | Debian, Ubuntu, Mint | `….deb` | `sudo apt install ./UTS*.deb` |
+   | Fedora, openSUSE, RHEL, Rocky | `….rpm` | `sudo dnf install ./UTS*.rpm` |
+   | Cualquier otra distribución | `….AppImage` | `chmod +x UTS*.AppImage` y ejecútalo. |
+   | Android | `….apk` | El teléfono pedirá permiso para instalar desde el navegador; esa autorización la exige el sistema, no la app. |
+
 3. Abre e inicia sesión. **No hay que escribir ninguna dirección de servidor.**
 
-A partir de ahí las dos apps **se actualizan solas** desde GitHub Releases:
+A partir de ahí las tres apps **se actualizan solas** desde GitHub Releases:
 `Configuración → Actualizaciones` en el escritorio y `Ajustes → Actualizaciones`
 en el móvil. El escritorio verifica la firma antes de instalar; el móvil entrega
 el APK al instalador de Android.
+
+#### Linux: qué formato elegir, y dos cosas que conviene saber
+
+**El `.deb` y el `.rpm` son unos pocos megabytes; la AppImage es bastante más
+grande.** No es descuido: los paquetes nativos usan el WebKit que ya tiene el
+sistema, y la AppImage lo lleva dentro. Eso es exactamente lo que la hace
+funcionar en cualquier distribución, incluidas las que no aparecen en la tabla.
+
+Si tu distribución está en la tabla, el paquete nativo es mejor: pesa menos,
+aparece en el menú de aplicaciones sin hacer nada y lo gestiona tu gestor de
+paquetes. La AppImage es la respuesta a «mi distribución no está ahí».
+
+- **Actualizar un `.deb` o un `.rpm` pide la contraseña de administrador**,
+  porque instalan en `/usr`. La AppImage no la pide: se reemplaza a sí misma.
+  La app avisa de esto en la pantalla de Actualizaciones antes de empezar.
+- **La AppImage necesita FUSE 2**, que varias distribuciones ya no instalan por
+  omisión. Si al ejecutarla dice `libfuse.so.2`:
+
+  ```bash
+  sudo apt install libfuse2t64     # Ubuntu 24.04+ (en 22.04: libfuse2)
+  sudo dnf install fuse            # Fedora
+  ```
+
+  Y si no puedes instalar nada, se ejecuta igual sin FUSE:
+  `./UTS*.AppImage --appimage-extract-and-run`. En ese modo la actualización
+  automática no puede reemplazar el archivo —no hay uno solo que reemplazar— y
+  la app lo dice en vez de fallar en silencio.
+
+> **¿Ventana en blanco al abrir?** No debería pasar: la causa que lo provocaba
+> —una librería de wayland que la AppImage se llevaba dentro y tapaba a la del
+> sistema— está corregida en el empaquetado desde la 1.1.0. Si te ocurre con una
+> AppImage anterior, descarga la última. Con tarjeta NVIDIA y driver propietario
+> hay un caso distinto que la app detecta y evita sola; si aun así pasa,
+> arráncala con `WEBKIT_DISABLE_COMPOSITING_MODE=1 uts-nexus-academico`.
+
+> **¿Un aviso de que no hay llavero del sistema?** Significa que este equipo no
+> tiene gnome-keyring ni KWallet, así que la sesión se guarda cifrada en un
+> archivo privado de tu carpeta personal en vez de en el llavero. La app
+> funciona igual; instalar `gnome-keyring` mejora la protección.
 
 > El archivo que baja la página de descargas lleva en el nombre una versión
 > anterior a la que trae dentro: el enlace de Dropbox apunta a un archivo fijo
@@ -498,17 +545,58 @@ winget install --id Microsoft.VisualStudio.2022.BuildTools -e --override `
   "--wait --passive --norestart --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.Windows11SDK.22621 --includeRecommended"
 ```
 
-Lo compilado queda en `desktop/src-tauri/target/release/`:
+Lo compilado queda en `desktop/src-tauri/target/release/`, y depende del sistema
+donde se compile: **Tauri no compila cruzado**. Windows produce los instaladores
+de Windows y Linux los de Linux; no hay forma de sacar un `.exe` desde Linux ni
+al revés.
 
-| Artefacto | Para qué |
-|-----------|----------|
-| `bundle/nsis/…_x64-setup.exe` | Instalación normal (recomendado) |
-| `bundle/msi/…_x64_en-US.msi` | Despliegue por política de dominio |
-| `uts-nexus-desktop.exe` | Ejecutar sin instalar (portable) |
+| Artefacto | Sistema | Para qué |
+|-----------|---------|----------|
+| `bundle/nsis/…_x64-setup.exe` | Windows | Instalación normal (recomendado) |
+| `bundle/msi/…_x64_en-US.msi` | Windows | Despliegue por política de dominio |
+| `bundle/appimage/….AppImage` | Linux | Cualquier distribución, sin instalar |
+| `bundle/deb/….deb` | Linux | Debian, Ubuntu, Mint |
+| `bundle/rpm/….rpm` | Linux | Fedora, openSUSE, RHEL, Rocky |
+| `uts-nexus-academico` / `.exe` | ambos | Ejecutar sin instalar (portable) |
 
-La versión del nombre sale de `desktop/src-tauri/tauri.conf.json`. También está
-`abrir_escritorio.bat`: doble clic, abre el ejecutable si existe y lo compila si
-no.
+**Para compilar en Linux** hacen falta las bibliotecas de desarrollo de WebKitGTK
+y GTK, que no vienen instaladas:
+
+```bash
+# Debian, Ubuntu, Mint
+sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
+                 librsvg2-dev libxdo-dev libssl-dev libdbus-1-dev \
+                 patchelf desktop-file-utils squashfs-tools build-essential
+
+# Fedora
+sudo dnf install webkit2gtk4.1-devel gtk3-devel libappindicator-gtk3-devel \
+                 librsvg2-devel libxdo-devel openssl-devel dbus-devel \
+                 patchelf desktop-file-utils squashfs-tools gcc gcc-c++ make
+
+# Arch
+sudo pacman -S webkit2gtk-4.1 gtk3 libappindicator-gtk3 librsvg xdotool \
+               openssl dbus patchelf squashfs-tools base-devel
+```
+
+Dos de esas no son evidentes. `libdbus-1-dev` / `dbus-devel` lo pide `keyring`,
+que en Linux habla con el llavero del sistema por D-Bus; sin él la compilación
+falla en el *build script* con un mensaje que no nombra a `keyring`. Y
+`squashfs-tools` lo pide el saneado de la AppImage, que vuelve a empaquetarla
+sin las librerías que tienen que venir del sistema — sin ese paso la AppImage
+compila y firma sin un solo error, y **abre con la ventana en blanco**.
+
+> **Lo que se publica se compila contra glibc 2.35** (contenedor `ubuntu:22.04`
+> en CI), y eso es lo que hace que el binario arranque en Debian 12, RHEL 9 y
+> Mint 21 además de en lo moderno. Compilando en un sistema más nuevo el binario
+> deja de arrancar en esas distribuciones, con un error que no menciona glibc.
+> Para uso local da igual; para publicar, no.
+
+La versión del nombre sale de `desktop/src-tauri/tauri.conf.json`. También están
+los lanzadores: `abrir_escritorio.bat` en Windows y `abrir_escritorio.sh` en
+Linux y macOS — abren el ejecutable si existe y lo compilan si no, y recompilan
+si el código cambió después de la última vez. Ese último detalle es el que
+importa: abrir un binario viejo no da ningún error, solo muestra una versión
+anterior del programa.
 
 > Guía completa del cliente: [`desktop/README.md`](desktop/README.md)
 
@@ -875,6 +963,21 @@ uno completo.
 | `POST` | `/notifications/risks/scan` | Disparar escaneo de riesgo manual |
 | `PATCH` | `/notifications/:id/read` | Marcar como leída |
 
+### UniPlanner (app del estudiante)
+
+Canal de una sola dirección: aquí solo se escribe hacia allá. Ninguna ruta
+acepta la nota ni las faltas en el cuerpo — el servidor las lee de su propia
+base. Apagado si no hay credenciales. Ver [`docs/UNIPLANNER.md`](docs/UNIPLANNER.md).
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `GET` | `/uniplanner/estado` | Si el puente está configurado |
+| `GET` | `/uniplanner/enlaces` | Quién de una materia tiene la app, y su semáforo de faltas |
+| `POST` | `/uniplanner/avisos/inasistencia` | Avisar de faltas: a quien se nombre, o a los que estén en riesgo |
+| `POST` | `/uniplanner/avisos/nota` | Publicar la nota de un corte, con su escala |
+| `POST` | `/uniplanner/avisos/carga` | Mandar el horario del semestre (ADMIN/COORDINATOR) |
+| `POST` | `/uniplanner/avisos/entrega` | Mandar un trabajo con su fecha límite |
+
 ### Reportes
 | Método | Ruta | Descripción |
 |--------|------|-------------|
@@ -1124,7 +1227,8 @@ npm run migrate:v3 -- --aplicar   # …y escribirlo de verdad (por defecto simul
 # Desde /desktop
 npm run dev              # Interfaz en el navegador (no requiere Rust)
 npm run desktop:dev      # Ventana nativa con recarga en caliente
-npm run desktop:build    # Ejecutable + instaladores NSIS y MSI
+npm run desktop:build    # Empaqueta para el sistema donde se ejecuta:
+                         #   Windows → NSIS y MSI · Linux → AppImage, deb y rpm
 npm run typecheck        # Verificación de tipos
 npm run lint             # ESLint
 npm test                 # Pruebas unitarias (Vitest)
@@ -1177,6 +1281,7 @@ docker compose up --build   # Levantar backend en contenedor
 | [`docs/RUBRI.md`](docs/RUBRI.md) | Arquitectura segura, clasificador NLP, métricas, privacidad y sprites de Rubri |
 | [`docs/PUBLICAR_VERSION.md`](docs/PUBLICAR_VERSION.md) | Publicar una versión, secretos de CI y claves de firma |
 | [`docs/DESPLIEGUE_AWS.md`](docs/DESPLIEGUE_AWS.md) | Puesta en producción con Docker y Caddy |
+| [`docs/UNIPLANNER.md`](docs/UNIPLANNER.md) | Puente con la app del estudiante: qué se le puede mandar, el semáforo y qué no cierra |
 
 **Auditorías** — qué falló, cómo se corrigió y por qué existe cada defensa
 
@@ -1291,7 +1396,11 @@ tardar varios minutos la primera vez.
 | Coordinación ve toda la institución | Cuenta sin carreras asignadas | Asígnalas en **Personal**: sin ninguna, el alcance es la institución completa a propósito |
 | Coordinación no ve una materia suya | La materia no declara programa | Márcaselo en Materias; mientras tanto se deduce de la adscripción del docente, y la pantalla lo señala con `*` |
 | «Tu perfil es de consulta» al guardar | La cuenta es de secretaría | Es lo esperado: secretaría ve y exporta, no modifica |
-| El `.exe` no ofrece la versión nueva | No se subió el número | Hay que subirlo en los cinco archivos y empujar la etiqueta — [`docs/PUBLICAR_VERSION.md`](docs/PUBLICAR_VERSION.md) §3.1 |
+| La app no ofrece la versión nueva | No se subió el número | `node .github/scripts/subir-version.mjs patch` y empujar la etiqueta — [`docs/PUBLICAR_VERSION.md`](docs/PUBLICAR_VERSION.md) §3.1 |
+| Solo una plataforma deja de recibir actualizaciones | Su clave falta en `latest.json` | Lo detecta `componer-manifiesto.mjs` en la publicación; si ya pasó, se corrige republicando la etiqueta |
+| La AppImage no abre: `libfuse.so.2` | La distribución ya no instala FUSE 2 | `sudo apt install libfuse2t64` / `sudo dnf install fuse`, o ejecutarla con `--appimage-extract-and-run` |
+| Ventana en blanco con la AppImage | Llevaba dentro `libwayland-client.so.0`, que tiene que ser la del sistema | Corregido en el empaquetado (`desktop/scripts/sanear-appimage.mjs`); descarga una AppImage 1.1.0 o posterior |
+| Ventana en blanco con NVIDIA propietario | WebKitGTK y su renderizador DMABUF | La app lo evita sola; si persiste, `WEBKIT_DISABLE_COMPOSITING_MODE=1` |
 | Las apps actualizadas fallan contra el servidor | El release no actualiza EC2 | Entra a la instancia: `git pull && docker compose up -d --build` |
 | `npm install` falla con «Missing: yaml» | Node 22 (npm 10) | El lockfile lo mantiene npm 11: usa Node 24 |
 
@@ -1321,7 +1430,7 @@ una importación.
 | Componente | Estado |
 |-----------|--------|
 | Backend (Node.js / TypeScript) | ✅ Operativo · **335 pruebas** |
-| App de escritorio (Tauri 2 + React 19) | ✅ Operativa · **124 pruebas** |
+| App de escritorio (Tauri 2 + React 19) | ✅ Operativa en Windows y Linux · **170 pruebas** |
 | App móvil (Flutter / Android) | ✅ Operativa · **89 pruebas** |
 | Servicio de ML (`ml_service/`) | ✅ Operativo · **54 pruebas** — ver [`ml_service/README.md`](ml_service/README.md) |
 | App de escritorio v1 (PySide6) | 🪦 Muerta · sin lanzador, solo referencia histórica |

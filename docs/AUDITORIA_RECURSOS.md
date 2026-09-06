@@ -232,8 +232,36 @@ Conviene dejarlo escrito para que nadie lo «arregle»:
   planillas, 512 en el avatar), así que no hay ningún caso en que se descodifique
   una imagen de 12 MP en memoria.
 
+## R7 · Linux: la AppImage pesa lo que pesa, y es a cambio de algo
+
+Los tres paquetes de Linux salen del mismo binario y no ocupan lo mismo. El
+`.deb` y el `.rpm` son unos pocos megabytes; la AppImage es bastante más grande,
+porque **lleva WebKitGTK dentro** en vez de usar el del sistema.
+
+No es un descuido que haya que corregir: es exactamente lo que la hace funcionar
+en cualquier distribución, incluidas las que no tienen `webkit2gtk-4.1`
+empaquetado. Quien está en Debian, Ubuntu, Fedora o openSUSE instala el paquete
+nativo y no paga ese coste; la AppImage es la respuesta a «mi distribución no
+está en la lista», y ahí la alternativa no es un archivo más pequeño, es ningún
+archivo.
+
+Lo que sí se acota:
+
+- **`bundleMediaFramework: false`**, declarado explícitamente en
+  `tauri.linux.conf.json`. Empaqueta GStreamer y son 15–35 MB más para una
+  aplicación que no reproduce audio ni vídeo. Está escrito aunque sea el valor
+  por omisión, porque activarlo es una línea y nadie recordaría por qué no
+  estaba.
+- **El `.rpm` se comprime con zstd al nivel 19** en vez del gzip por omisión.
+  Descomprimir zstd es más rápido que gzip además de dejar el archivo más
+  pequeño, así que no hay contrapartida en la instalación.
+- **El perfil de release de Rust** (`lto`, `opt-level = "s"`, `strip`,
+  `panic = "abort"`) ya estaba y aplica igual a los tres.
+
 ## Qué vigilar de aquí en adelante
 
+0. **`bundleMediaFramework` se queda en `false`.** Activarlo mete GStreamer en
+   la AppImage y son 15–35 MB para una aplicación que no reproduce nada.
 1. **Una fuente nueva o actualizada pasa por `subconjuntar_fuentes.py`.** Bajar
    las Inter oficiales y copiarlas encima devuelve el megabyte sin que nada
    falle.

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+
+  "productName": "UTS Nexus Academico",
+  "mainBinaryName": "uts-nexus-academico",
+
+  "bundle": {
+    "targets": ["deb", "rpm", "appimage"],
+    "linux": {
+      "deb": {
+        "section": "education",
+        "priority": "optional",
+        "desktopTemplate": "uts-nexus.desktop.hbs"
+      },
+      "rpm": {
+        "release": "1",
+        "compression": { "type": "zstd", "level": 19 },
+        "desktopTemplate": "uts-nexus.desktop.hbs"
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      }
+    }
+  }
+}

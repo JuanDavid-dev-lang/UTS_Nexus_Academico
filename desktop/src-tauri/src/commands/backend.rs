@@ -102,6 +102,12 @@ pub async fn backend_ensure_running(
         let mut command = Command::new("node");
         command.arg(&server).current_dir(working_dir);
 
+        // Dentro de una AppImage, `node` heredaría el `LD_LIBRARY_PATH` que
+        // apunta a las librerías empaquetadas y cargaría la `libssl` de la
+        // imagen en vez de la suya. Revienta con un error de símbolo que no
+        // menciona la AppImage, así que quien lo lea buscará el fallo en Node.
+        crate::entorno::limpiar_para_hijo(&mut command);
+
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;

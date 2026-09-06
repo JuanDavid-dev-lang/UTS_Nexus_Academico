@@ -109,6 +109,20 @@ function explicarFallo(causa: unknown): string {
   if (/signature|pubkey|verify/.test(texto)) {
     return `La firma de la actualización no se pudo verificar, así que no se instaló. (${detalle})`;
   }
+  // Linux con .deb o .rpm: la instalación escribe en /usr, así que el sistema
+  // levanta un diálogo de administrador. Cancelarlo —o no tener ningún agente
+  // de polkit, que es el caso de varios entornos ligeros— llega hasta aquí como
+  // un fallo de permisos o un proceso que terminó mal. Sin esta rama el mensaje
+  // es el crudo del sistema, que no dice ni qué pasó ni qué hacer.
+  if (/pkexec|polkit|permission denied|not authorized|exit (code )?12[67]/.test(texto)) {
+    return `La instalación necesita autorización de administrador y no se concedió. Vuelve a intentarlo y acepta el diálogo del sistema; si no aparece ninguno, instala la nueva versión con el gestor de paquetes. (${detalle})`;
+  }
+  // AppImage ejecutada tras extraerla a mano (`--appimage-extract-and-run`, la
+  // salida de las distribuciones sin FUSE 2): no hay un solo archivo que
+  // reemplazar, así que el actualizador no tiene dónde escribir.
+  if (/appimage/.test(texto)) {
+    return `Esta copia se está ejecutando extraída, no como una AppImage, así que no hay ningún archivo que reemplazar. Descarga la nueva versión desde la página de descargas. (${detalle})`;
+  }
   return detalle || 'No se pudo consultar el servidor de actualizaciones.';
 }
 

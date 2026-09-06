@@ -21,6 +21,7 @@ import { useSession } from '@/state/session.store';
 import { useSync } from '@/state/sync.store';
 import { useTheme, type ThemePreference } from '@/state/theme.store';
 import { platform } from '@/core/platform/tauri';
+import { explicarAlmacen, type AlmacenDeCredenciales } from '@/core/platform/paquete';
 import { normalizeServerUrl, env } from '@/core/config/env';
 import { toast } from '@/state/toast.store';
 import { modKeyLabel } from '@/shared/hooks/use-hotkeys';
@@ -60,6 +61,27 @@ export default function SettingsPage() {
   const [serverDraft, setServerDraft] = useState(serverUrl);
   const [checking, setChecking] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
+
+  /**
+   * Dónde guarda este equipo los tokens.
+   *
+   * Se pregunta una vez: no cambia mientras el proceso viva. El valor inicial es
+   * `llavero` porque es lo que ocurre en Windows, macOS y cualquier Linux con
+   * escritorio completo — arrancar en `archivo` haría parpadear una advertencia
+   * en la inmensa mayoría de los equipos, que no la merecen.
+   */
+  const [almacen, setAlmacen] = useState<AlmacenDeCredenciales>('llavero');
+
+  useEffect(() => {
+    let vivo = true;
+    void platform.secureStore
+      .backend()
+      .then((valor) => vivo && setAlmacen(valor))
+      .catch(() => {});
+    return () => {
+      vivo = false;
+    };
+  }, []);
 
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -261,10 +283,16 @@ export default function SettingsPage() {
           <CardDescription>Cómo se protegen tus credenciales</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-2 text-body text-muted">
+          {/* Esta frase decía siempre «el almacén del sistema operativo», y en
+              Linux eso puede ser falso: el llavero es un paquete que puede no
+              estar instalado, y entonces se usa un respaldo cifrado en disco que
+              protege menos. Se pregunta dónde están de verdad, porque una
+              pantalla que existe para explicar cómo se protegen las credenciales
+              es el peor sitio donde afirmar algo que no se ha comprobado. */}
           <p>
-            Tus tokens de sesión se guardan en el almacén de credenciales del sistema operativo
-            {platform.isDesktop ? '' : ' (en modo navegador se usa almacenamiento temporal)'}, nunca
-            en texto plano.
+            {platform.isDesktop
+              ? explicarAlmacen(almacen)
+              : 'En modo navegador la sesión se guarda en almacenamiento temporal de la pestaña y se borra al cerrarla.'}
           </p>
           <p>
             La sesión se renueva automáticamente. Si el token de refresco expira, se te pedirá

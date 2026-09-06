@@ -77,5 +77,45 @@ pub fn reveal_in_file_manager(path: String) -> Result<(), String> {
             .ok_or_else(|| "Ruta inválida.".to_string())?
     };
 
+    // En Linux hay que lanzar `xdg-open` a mano en vez de dejárselo a `opener`.
+    // No es por gusto: `opener` no deja tocar el entorno del proceso que crea, y
+    // dentro de una AppImage ese entorno lleva el `LD_LIBRARY_PATH` de la
+    // imagen. El gestor de archivos arranca con las librerías equivocadas y no
+    // abre nada, o abre y se cae — y el usuario solo ve que el botón «abrir
+    // carpeta» no hace nada.
+    //
+    // Si `xdg-open` no está instalado se cae a `opener`, que sabe probar otros
+    // caminos: fuera de una AppImage su entorno es correcto de todas formas.
+    #[cfg(target_os = "linux")]
+    {
+        let mut comando = std::process::Command::new("xdg-open");
+        comando.arg(&directory);
+        crate::entorno::limpiar_para_hijo(&mut comando);
+
+        if comando.spawn().is_ok() {
+            return Ok(());
+        }
+    }
+
     opener::open(directory).map_err(|err| format!("No se pudo abrir la carpeta: {err}"))
+}
+
+/// En qué formato está instalada la aplicación.
+///
+/// Lo pregunta Configuración para poder avisar de lo que va a pasar al
+/// actualizar, que en Linux **no es lo mismo según el formato**: una AppImage se
+/// reemplaza a sí misma sin permisos, mientras que un `.deb` o un `.rpm`
+/// instalan en `/usr` y el sistema pide autorización de administrador. Quien no
+/// lo espera lee ese diálogo de contraseña como un fallo de la aplicación y
+/// cancela.
+///
+/// El dato lo da la propia biblioteca de Tauri —la misma función que usa el
+/// actualizador para elegir qué descargar—, así que no puede discrepar de lo que
+/// el actualizador acabe haciendo. Deducirlo aquí por nuestra cuenta sí podría.
+#[tauri::command]
+pub fn installed_package_format() -> String {
+    match tauri::utils::platform::bundle_type() {
+        Some(tipo) => format!("{tipo:?}").to_lowercase(),
+        None => "desconocido".into(),
+    }
 }

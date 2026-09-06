@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Name={{name}}
+{{#if comment}}Comment={{comment}}{{/if}}
+Exec={{exec}}
+Icon={{icon}}
+Categories={{categories}}
+Terminal=false
+StartupNotify=true
+# Sale del nombre del binario porque GTK toma el WM_CLASS de argv[0]. Sin esta
+# línea, GNOME y KDE no atan la ventana a su lanzador: sale un segundo icono
+# genérico en la barra y «anclar al panel» ancla el que no abre nada.
+StartupWMClass=uts-nexus-academico
+# Para encontrarlo en el menú sin recordar cómo se llama.
+Keywords=UTS;notas;calificaciones;asistencia;academico;académico;docente;universidad;

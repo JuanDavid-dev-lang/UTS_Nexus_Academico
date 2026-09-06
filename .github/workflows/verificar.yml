@@ -25,6 +25,41 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ── Coherencia de versiones y plataformas ──────────────────────────────
+  #
+  # Va aquí y no solo en `release.yml` por lo mismo que las pruebas de Flutter:
+  # descubrir un descuadre durante una publicación es descubrirlo tarde. Una
+  # release mal numerada no se corrige, se reemplaza.
+  #
+  # La autoprueba del manifiesto cubre un fallo que no se ve en ninguna parte:
+  # si una extensión deja de casar con su clave, `latest.json` sale sin esa
+  # plataforma y el actualizador de quien la tenga instalada responde «ya tienes
+  # la última versión» para siempre.
+  plataformas:
+    name: Versiones y plataformas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Matriz de plataformas
+        run: node .github/scripts/plataformas.mjs
+
+      - name: Coherencia de la versión
+        run: node .github/scripts/comprobar-version.mjs
+
+      - name: Autoprueba del manifiesto del actualizador
+        run: node .github/scripts/componer-manifiesto.mjs --autoprueba
+
+      # Si la lista de exclusión de la AppImage se vacía en una edición
+      # descuidada, el saneado deja de hacer nada y la AppImage vuelve a abrir
+      # con la ventana en blanco — sin ningún error en la publicación.
+      - name: Autoprueba del saneado de la AppImage
+        run: node desktop/scripts/sanear-appimage.mjs --autoprueba
+
   backend:
     name: Backend
     runs-on: ubuntu-latest

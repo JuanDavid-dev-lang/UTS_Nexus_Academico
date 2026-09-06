@@ -7,6 +7,11 @@
  * gracefully instead of throwing.
  */
 import { invoke } from '@tauri-apps/api/core';
+import {
+  normalizarFormato,
+  type AlmacenDeCredenciales,
+  type FormatoDePaquete,
+} from './paquete';
 
 /** True when running inside the Tauri shell rather than a bare browser tab. */
 export const isDesktop: boolean =
@@ -51,6 +56,22 @@ export const platform = {
     async remove(key: string): Promise<void> {
       if (!isDesktop) return browserFallback.remove(key);
       await call<void>('secure_store_delete', { key });
+    },
+
+    /**
+     * Dónde acaban de verdad los tokens en este equipo.
+     *
+     * En Linux el llavero del sistema es un paquete que puede no estar
+     * instalado, y entonces se usa un respaldo cifrado en disco que protege
+     * menos. Configuración lo dice, así que hay que poder preguntarlo. En modo
+     * navegador la respuesta es `archivo` porque el respaldo de desarrollo es
+     * `sessionStorage`: llamarlo llavero sería mentir en la única pantalla que
+     * existe para no mentir sobre esto.
+     */
+    async backend(): Promise<AlmacenDeCredenciales> {
+      if (!isDesktop) return 'archivo';
+      const valor = await call<string>('secure_store_backend');
+      return valor === 'llavero' ? 'llavero' : 'archivo';
     },
   },
 
@@ -107,5 +128,17 @@ export const platform = {
       if (!isDesktop) return;
       await call<void>('reveal_in_file_manager', { path });
     },
+  },
+
+  /**
+   * En qué formato está instalada la aplicación.
+   *
+   * Importa en Linux, donde actualizar un `.deb` o un `.rpm` levanta un diálogo
+   * de administrador y una AppImage no. En el navegador no hay paquete: la
+   * respuesta es `desconocido`, que es lo que de verdad ocurre.
+   */
+  async formatoDePaquete(): Promise<FormatoDePaquete> {
+    if (!isDesktop) return 'desconocido';
+    return normalizarFormato(await call<string>('installed_package_format'));
   },
 };

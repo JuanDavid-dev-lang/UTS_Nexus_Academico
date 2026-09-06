@@ -1,9 +1,24 @@
-# Publishes a release that both clients can update themselves from.
+# Publica una release de la que los tres clientes se actualizan solos.
 #
-# The desktop job runs first because `tauri-action` is what creates the GitHub
-# Release and the signed `latest.json` manifest that the Tauri updater reads.
-# The Android job then attaches its APK to that same release, which is where the
-# mobile client looks for it.
+# El trabajo de Windows va primero porque `tauri-action` es lo que CREA la
+# release en el repositorio de instaladores. Linux y Android se cuelgan de ella:
+# adjuntan sus paquetes a la misma publicación, que es donde los busca cada
+# cliente.
+#
+# El manifiesto `latest.json` **no** lo hace `tauri-action`, y esto es lo menos
+# obvio de este archivo. Con una sola plataforma funcionaba; con dos deja de
+# funcionar, porque `tauri-action` no fusiona un manifiesto existente: borra el
+# asset y sube el suyo, armado solo con lo que compiló ese trabajo. El segundo
+# en terminar dejaría al primero sin actualizaciones, y ese fallo no se ve en
+# ninguna parte —la release está completa, los instaladores están ahí— hasta que
+# alguien pulsa «Buscar actualizaciones» y le contestan que ya tiene la última.
+#
+# Por eso el manifiesto tiene un dueño: el trabajo `manifiesto`, el último de la
+# cadena, que lo compone a partir de los assets ya publicados y falla si falta
+# alguno.
+#
+#   desktop (Windows) ──┬── linux ────┐
+#                       └── android ──┴── manifiesto ── espejo ── dropbox
 #
 # The release does NOT live in this repository. This one is private; the one
 # named below is public and holds nothing but the installers. An updater has to
@@ -28,9 +43,11 @@
 # que apuntan los botones de la página de descargas. La página no consulta el
 # release: si esa subida falla, la página sigue repartiendo la versión anterior.
 #
-# Before tagging, bump BOTH versions so the clients see a newer release:
-#   desktop/src-tauri/tauri.conf.json  ->  "version"
-#   flutter_app/pubspec.yaml           ->  "version"
+# Antes de etiquetar, sube la versión con el script — no a mano:
+#   node .github/scripts/subir-version.mjs patch
+#
+# Qué archivos toca y qué plataformas existen sale de `.github/scripts/plataformas.mjs`,
+# que es el registro único. Añadir macOS o iOS se hace ahí y aquí, en ningún otro sitio.
 
 name: Release
 
@@ -63,11 +80,25 @@ env:
   # físicamente dentro de Dropbox/Apps/UTSNEXUS/.
   DROPBOX_RUTA_WINDOWS: '/UTS-Nexus-Academico-Windows.exe'
   DROPBOX_RUTA_ANDROID: '/UTS-Nexus-Academico-Android.apk'
+  # La AppImage y no el .deb ni el .rpm: es el único de los tres que corre en
+  # cualquier distribución, y un botón de una página de descargas no puede
+  # preguntar cuál usa quien lo pulsa. Quien quiera el paquete nativo lo tiene
+  # en la publicación de GitHub, que es donde se elige con conocimiento.
+  DROPBOX_RUTA_LINUX: '/UTS-Nexus-Academico-Linux.AppImage'
 
 jobs:
   desktop:
     name: Escritorio (Windows)
     runs-on: windows-latest
+    # El cuerpo de la etiqueta y el nombre de la release los necesitan los
+    # trabajos de más abajo. Se leen una vez, aquí, y viajan como salidas: dos
+    # trabajos leyendo la misma anotación de git pueden discrepar si uno hace
+    # checkout superficial, y entonces la release y su espejo salen con textos
+    # distintos.
+    outputs:
+      cuerpo: ${{ steps.etiqueta.outputs.cuerpo }}
+      nombre: ${{ steps.version.outputs.nombre }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       # Historia completa: el cuerpo de la release sale de la anotación de la
       # etiqueta, y con un checkout superficial esa anotación no se descarga.
@@ -165,55 +196,177 @@ jobs:
           releaseCommitish: main
           releaseDraft: false
           prerelease: false
-          # Genera y sube `latest.json`, el manifiesto que consulta el updater.
-          includeUpdaterJson: true
+          # El manifiesto NO lo genera aquí. Lo compone el trabajo `manifiesto`
+          # a partir de los assets de todas las plataformas: `tauri-action` no
+          # fusiona un `latest.json` existente, así que dejarlo activado en dos
+          # trabajos hace que el segundo borre las claves del primero. Está
+          # explicado entero en la cabecera de este archivo.
+          includeUpdaterJson: false
 
-      # ── Espejo de la publicación en este mismo repositorio ─────────────────
+      # Los paquetes se guardan como artefactos para los dos trabajos que vienen
+      # después: el espejo y Dropbox. Antes la subida a Dropbox era un paso de
+      # ESTE trabajo, y eso costó un release entero: `android` declara
+      # `needs: desktop`, así que un fallo al subir a Dropbox —con el `.exe` ya
+      # publicado y firmado— dejaba el trabajo en rojo y Android **ni se
+      # ejecutaba**. La publicación se quedaba sin APK por un problema que no
+      # tenía nada que ver con Android.
       #
-      # Las versiones 2.3.3 y anteriores llevan grabada dentro del binario la
-      # dirección de ESTE repositorio como servidor de actualizaciones. Cuando
-      # era privado, eso era un 404 y esas instalaciones quedaban muertas: no
-      # hay forma de cambiarle la dirección a un `.exe` ya instalado.
-      #
-      # Ahora que es público, publicar aquí el mismo manifiesto las devuelve a
-      # la vida. El `latest.json` se copia tal cual del repositorio de
-      # instaladores, así que apunta a sus assets y conserva su firma: no se
-      # firma nada dos veces ni se abre una segunda cadena de confianza.
-      #
-      # Esto se puede quitar el día que no quede nadie con una versión anterior
-      # a la 2.3.4 instalada. Antes no.
-      - name: Traer el manifiesto recién publicado
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl -fsSL -o latest.json \
-            "https://github.com/${{ env.REPO_RELEASES_OWNER }}/${{ env.REPO_RELEASES_NAME }}/releases/download/${{ github.ref_name }}/latest.json"
-
-      - name: Publicar el espejo aquí
-        uses: softprops/action-gh-release@v2
+      # Van también los `.sig`: el espejo los necesita para que una instalación
+      # antigua que mire a este repositorio pueda verificar lo que descarga.
+      - name: Guardar los paquetes de Windows
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ github.ref_name }}
-          name: UTS Nexus Académico ${{ steps.version.outputs.nombre }}
-          body: ${{ steps.etiqueta.outputs.cuerpo }}
-          files: |
-            latest.json
+          name: instalador-windows
+          path: |
             desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
             desktop/src-tauri/target/release/bundle/nsis/*-setup.exe.sig
             desktop/src-tauri/target/release/bundle/msi/*.msi
             desktop/src-tauri/target/release/bundle/msi/*.msi.sig
+          if-no-files-found: error
+          retention-days: 1
 
-      # El instalador se guarda como artefacto para el trabajo de Dropbox, que
-      # corre aparte. Antes la subida a Dropbox era un paso de ESTE trabajo, y
-      # eso tenía una consecuencia que costó un release entero: `android`
-      # declara `needs: desktop`, así que un fallo al subir a Dropbox —cuando
-      # el `.exe` ya estaba publicado y firmado— dejaba el trabajo en rojo y
-      # Android **ni se ejecutaba**. La publicación se quedaba sin APK por un
-      # problema que no tenía nada que ver con Android.
-      - name: Guardar el instalador para el trabajo de Dropbox
+  linux:
+    name: Escritorio (Linux)
+    runs-on: ubuntu-24.04
+    needs: desktop
+    # ── Por qué un contenedor de 22.04 sobre un runner de 24.04 ─────────────
+    #
+    # Lo que se compila aquí arranca —o no— en función de la versión de glibc
+    # con la que se enlazó, y esa decisión **no se puede deshacer después**: un
+    # binario compilado contra glibc 2.39 ni se ejecuta en Debian 12, y el error
+    # que da no menciona glibc ni sugiere nada. Compilando contra la 2.35 de
+    # Ubuntu 22.04 corre en Debian 12 y 13, Ubuntu 22.04+, Mint 21+, Fedora 36+,
+    # RHEL y Rocky 9, openSUSE Leap 15.5+ y Arch. Hacia atrás no hay nada que
+    # perder; hacia adelante, todo.
+    #
+    # Y va en contenedor en vez de en el runner `ubuntu-22.04` porque esa imagen
+    # empieza a retirarse el 17 de septiembre de 2026, con fallos programados
+    # antes de desaparecer del todo. Un contenedor lo fija nosotros y no GitHub.
+    container: ubuntu:22.04
+    steps:
+      # `actions/checkout` necesita git, y la imagen base de Ubuntu no lo trae.
+      # Sin esto el checkout cae a la API y descarga un tarball sin historia,
+      # que aquí da igual, pero el resto de dependencias no son opcionales.
+      - name: Dependencias de compilación
+        run: |
+          set -euo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            git curl wget file ca-certificates build-essential pkg-config \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
+            librsvg2-dev libxdo-dev libssl-dev \
+            libdbus-1-dev \
+            patchelf desktop-file-utils squashfs-tools
+          # Dos que no son obvias:
+          #   libdbus-1-dev  lo pide `keyring`: en Linux habla con el Secret
+          #                  Service por D-Bus. Sin él la compilación falla en
+          #                  el build script y el mensaje no nombra a keyring.
+          #   squashfs-tools lo pide `sanear-appimage.mjs` para volver a
+          #                  empaquetar la AppImage sin las librerías que tienen
+          #                  que venir del sistema. Sin él ese paso falla a
+          #                  propósito, en vez de publicar una AppImage que abre
+          #                  con la ventana en blanco.
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+          # Clave propia: este trabajo compila para un objetivo distinto que el
+          # de Windows y comparten `workspaces`. Sin separarlas, una caché
+          # invalida a la otra en cada publicación y las dos compilan de cero.
+          key: linux-22.04
+
+      - name: Instalar dependencias
+        working-directory: desktop
+        run: npm ci
+
+      # `desktop:build`, no `tauri build` a secas: el script encadena el saneado
+      # de la AppImage, que es lo que la hace arrancar en un equipo cuyo wayland
+      # sea más nuevo que el de esta imagen. Saltárselo produce una AppImage que
+      # compila, firma y publica sin un solo error, y abre con la ventana en
+      # blanco en la mitad de los equipos.
+      - name: Compilar y firmar los tres paquetes
+        working-directory: desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Las herramientas de `linuxdeploy` que empaquetan la AppImage son
+          # ellas mismas AppImages, y dentro de un contenedor no hay FUSE para
+          # montarlas. Con esto se extraen y se ejecutan, que es la salida
+          # soportada. Sin esto el paso falla con «failed to run linuxdeploy» y
+          # nada que indique que el problema es FUSE.
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        run: npm run desktop:build
+
+      # ── Firmar lo que el empaquetador no haya firmado ───────────────────
+      #
+      # El actualizador rechaza cualquier paquete sin firma válida, así que un
+      # `.deb` sin `.sig` no es «un paquete al que le falta un archivo»: es un
+      # formato que no se puede actualizar. Qué firma el empaquetador por su
+      # cuenta ha cambiado entre versiones de Tauri, y este paso es idempotente
+      # —solo toca lo que llega sin firmar—, así que da igual en cuál estemos.
+      - name: Firmar los paquetes que falten
+        working-directory: desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          raiz=src-tauri/target/release/bundle
+          encontrados=0
+          while IFS= read -r paquete; do
+            encontrados=$((encontrados + 1))
+            if [ -f "$paquete.sig" ]; then
+              echo "· ya firmado: $(basename "$paquete")"
+            else
+              echo "· firmando:   $(basename "$paquete")"
+              npm run --silent tauri -- signer sign "$paquete"
+            fi
+          done < <(find "$raiz" -type f \( -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' \))
+
+          # Tres paquetes, ni uno menos. Publicar dos de tres deja sin
+          # actualizaciones a la familia de distribuciones que falte, y eso no
+          # se nota hasta que alguien pulsa el botón.
+          if [ "$encontrados" -ne 3 ]; then
+            echo "::error::Se esperaban 3 paquetes (AppImage, deb, rpm) y se encontraron $encontrados."
+            exit 1
+          fi
+
+      - name: Adjuntar los paquetes a la release
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: ${{ env.REPO_RELEASES_OWNER }}/${{ env.REPO_RELEASES_NAME }}
+          token: ${{ secrets.RELEASES_TOKEN }}
+          tag_name: ${{ github.ref_name }}
+          files: |
+            desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+            desktop/src-tauri/target/release/bundle/appimage/*.AppImage.sig
+            desktop/src-tauri/target/release/bundle/deb/*.deb
+            desktop/src-tauri/target/release/bundle/deb/*.deb.sig
+            desktop/src-tauri/target/release/bundle/rpm/*.rpm
+            desktop/src-tauri/target/release/bundle/rpm/*.rpm.sig
+
+      - name: Guardar los paquetes de Linux
         uses: actions/upload-artifact@v4
         with:
-          name: instalador-windows
-          path: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+          name: instalador-linux
+          path: |
+            desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+            desktop/src-tauri/target/release/bundle/appimage/*.AppImage.sig
+            desktop/src-tauri/target/release/bundle/deb/*.deb
+            desktop/src-tauri/target/release/bundle/deb/*.deb.sig
+            desktop/src-tauri/target/release/bundle/rpm/*.rpm
+            desktop/src-tauri/target/release/bundle/rpm/*.rpm.sig
           if-no-files-found: error
           retention-days: 1
 
@@ -305,10 +458,85 @@ jobs:
         working-directory: flutter_app/android
         run: rm -f upload-keystore.jks key.properties
 
+  manifiesto:
+    name: Manifiesto y espejo
+    runs-on: ubuntu-latest
+    needs: [desktop, linux, android]
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── El manifiesto ───────────────────────────────────────────────────
+      #
+      # Se compone de los assets ya publicados, no de lo que compiló ningún
+      # trabajo. Es lo que garantiza que las claves de Windows y las de Linux
+      # convivan: quien las escribe ve la release entera, no su propia mitad.
+      - name: Componer latest.json
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          # Por variable de entorno y no interpolado dentro del `run`: el cuerpo
+          # es texto libre escrito en la anotación de una etiqueta, y una
+          # comilla o un acento grave ahí dentro se lo come el shell. Con
+          # `${{ }}` en medio del script eso deja de ser una errata y pasa a ser
+          # ejecución de lo que ponga la etiqueta.
+          NOTAS: ${{ needs.desktop.outputs.cuerpo }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${{ env.REPO_RELEASES_OWNER }}/${{ env.REPO_RELEASES_NAME }}/releases/tags/${{ github.ref_name }}" \
+            --jq '.assets | map({name, browser_download_url})' > assets.json
+
+          printf '%s' "$NOTAS" > notas.txt
+
+          node .github/scripts/componer-manifiesto.mjs \
+            --version "${{ needs.desktop.outputs.version }}" \
+            --assets assets.json \
+            --notas-archivo notas.txt \
+            --salida latest.json
+
+      - name: Publicar el manifiesto
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: ${{ env.REPO_RELEASES_OWNER }}/${{ env.REPO_RELEASES_NAME }}
+          token: ${{ secrets.RELEASES_TOKEN }}
+          tag_name: ${{ github.ref_name }}
+          files: latest.json
+
+      # ── Espejo de la publicación en este mismo repositorio ──────────────
+      #
+      # Las versiones 2.3.3 y anteriores llevan grabada dentro del binario la
+      # dirección de ESTE repositorio como servidor de actualizaciones. Cuando
+      # era privado, eso era un 404 y esas instalaciones quedaban muertas: no
+      # hay forma de cambiarle la dirección a un `.exe` ya instalado.
+      #
+      # Ahora que es público, publicar aquí el mismo manifiesto las devuelve a
+      # la vida. Es el mismo archivo que se acaba de subir al repositorio de
+      # instaladores, así que apunta a sus assets y conserva sus firmas: no se
+      # firma nada dos veces ni se abre una segunda cadena de confianza.
+      #
+      # El espejo va **después** del manifiesto y no dentro del trabajo de
+      # Windows, que es donde estaba: desde ahí solo veía los paquetes de
+      # Windows y publicaría un manifiesto sin Linux.
+      #
+      # Esto se puede quitar el día que no quede nadie con una versión anterior
+      # a la 2.3.4 instalada. Antes no.
+      - uses: actions/download-artifact@v4
+        with:
+          path: artefactos
+          merge-multiple: true
+
+      - name: Publicar el espejo aquí
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: UTS Nexus Académico ${{ needs.desktop.outputs.nombre }}
+          body: ${{ needs.desktop.outputs.cuerpo }}
+          files: |
+            latest.json
+            artefactos/*
+
   dropbox:
     name: Página de descargas (Dropbox)
     runs-on: ubuntu-latest
-    needs: [desktop, android]
+    needs: [desktop, linux, android, manifiesto]
     steps:
       - uses: actions/checkout@v4
 
@@ -348,6 +576,25 @@ jobs:
           fi
           bash .github/scripts/subir-a-dropbox.sh "$instalador" "$DROPBOX_RUTA_WINDOWS"
 
+      # La AppImage, no el .deb ni el .rpm: un botón de una página no puede
+      # preguntar qué distribución usa quien lo pulsa, y la AppImage es la única
+      # de las tres que corre en todas. Quien prefiera el paquete nativo lo
+      # encuentra en la publicación de GitHub, donde sí puede elegir.
+      - name: Sobrescribir la AppImage de Linux
+        id: linux
+        env:
+          DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
+          DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
+          DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
+        run: |
+          set -euo pipefail
+          appimage=$(find artefactos -name '*.AppImage' -print -quit)
+          if [ -z "$appimage" ]; then
+            echo "::error::No llegó ninguna .AppImage desde el trabajo de Linux."
+            exit 1
+          fi
+          bash .github/scripts/subir-a-dropbox.sh "$appimage" "$DROPBOX_RUTA_LINUX"
+
       - name: Sobrescribir el APK
         id: android
         env:
@@ -372,5 +619,6 @@ jobs:
             echo '### Archivos de la página de descargas'
             echo ''
             echo "- Windows: ${{ steps.windows.outputs.url }}"
+            echo "- Linux:   ${{ steps.linux.outputs.url }}"
             echo "- Android: ${{ steps.android.outputs.url }}"
           } >> "$GITHUB_STEP_SUMMARY"

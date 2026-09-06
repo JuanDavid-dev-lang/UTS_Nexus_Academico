@@ -6,7 +6,8 @@ import {
   type DownloadProgress,
   type UpdateInfo,
 } from '@/core/platform/updater';
-import { isDesktop } from '@/core/platform/tauri';
+import { isDesktop, platform } from '@/core/platform/tauri';
+import { avisoDeInstalacion, type FormatoDePaquete } from '@/core/platform/paquete';
 
 /**
  * Un fallo al comprobar o instalar.
@@ -42,12 +43,20 @@ export function useAppUpdate() {
   const [progress, setProgress] = useState<DownloadProgress | null>(null);
   const [error, setError] = useState<FalloDeActualizacion | null>(null);
   const [installed, setInstalled] = useState<string>('');
+  const [formato, setFormato] = useState<FormatoDePaquete>('desconocido');
 
   useEffect(() => {
     let active = true;
     currentVersion()
       .then((version) => active && setInstalled(version))
       .catch(() => active && setInstalled('desconocida'));
+    // El formato se pregunta una vez y no vuelve a cambiar mientras el proceso
+    // viva: nadie reinstala la aplicación con ella abierta. Un fallo aquí deja
+    // `desconocido`, que es un aviso más flojo pero nunca uno equivocado.
+    platform
+      .formatoDePaquete()
+      .then((valor) => active && setFormato(valor))
+      .catch(() => {});
     return () => {
       active = false;
     };
@@ -100,5 +109,19 @@ export function useAppUpdate() {
     void check(false);
   }, [check]);
 
-  return { status, update, progress, error, installed, check, install };
+  return {
+    status,
+    update,
+    progress,
+    error,
+    installed,
+    formato,
+    // Lo que va a pasar al instalar, cuando no es lo obvio. En Linux con .deb o
+    // .rpm el sistema pedirá la contraseña de administrador, y avisarlo después
+    // no sirve: para entonces el diálogo ya está en pantalla y la pregunta es si
+    // esto es de fiar.
+    avisoDeInstalacion: avisoDeInstalacion(formato),
+    check,
+    install,
+  };
 }

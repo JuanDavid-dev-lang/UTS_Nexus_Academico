@@ -29,7 +29,9 @@ npm run lint             # eslint
 ```bash
 npm run dev              # UI en navegador (puerto 5183), NO requiere Rust
 npm run desktop:dev      # ventana nativa con HMR (requiere Rust + VS Build Tools)
-npm run desktop:build    # .exe + instaladores NSIS/MSI
+npm run desktop:build    # empaqueta para el sistema donde se ejecuta:
+                         #   Windows → .exe + instaladores NSIS/MSI
+                         #   Linux   → .AppImage + .deb + .rpm
 npm test                 # Vitest (tests en tests/unit/)
 npx vitest run tests/unit/errors.test.ts   # un solo archivo de test
 npm run typecheck        # tsc --noEmit
@@ -90,6 +92,34 @@ Tres capas, no cuatro. `domains/` (puro, con tests) → `modules/<capacidad>/` �
 **Regla: un `.routes.ts` no importa un Modelo.** Si necesita datos, se los pide a su servicio. Es verificable con un grep y no es orden por el orden: mientras HTTP, negocio y Mongoose viven en el mismo handler, la única forma de probar el alcance de un docente es levantar servidor y base — es decir, no se prueba. `reports/` es el ejemplo a copiar; los demás módulos se van migrando cuando toque tocarlos.
 
 No se usa Clean Architecture completa a propósito. Lo que Clean protege —el dominio— ya está aislado en `domains/` y fijado por tests; añadir entidades, casos de uso y puertos por encima serían un centenar de archivos que no responden ninguna pregunta que hoy no se pueda responder.
+
+### Puente con UniPlanner (`modules/uniplanner/`)
+
+UniPlanner es la app del estudiante; Nexus escribe en su buzón y **nada vuelve**
+—no hay ninguna ruta que traiga datos suyos, y esa ausencia es la garantía—.
+
+Tres cosas que no son negociables:
+
+- **Informa, nunca aplica.** Un aviso de faltas abre la pantalla de asistencia
+  del estudiante y **no le marca ninguna**. Una nota se guarda en su simulador
+  solo cuando él lo confirma.
+- **El cliente dice a quién, el servidor decide qué.** Ninguna ruta acepta la
+  nota ni las faltas en el cuerpo: salen de `computeAcademicRecords()`. Si el
+  número viniera del cliente, esto sería «escribir en la app de otra persona».
+- **`domains/uniplanner/link-id.ts` normaliza igual que UniPlanner.** El nombre
+  del documento de enlace se deriva de (institución, código), así que si una
+  parte normaliza y la otra no, el enlace existe, es válido y no se encuentra:
+  no llega ni un aviso y no hay ningún error. La clave de institución es la del
+  perfil (`Institucion.institutionId`, con guiones y hasta 40) y una prueba fija
+  que **todo id que emite el panel lo acepta UniPlanner**: los dos patrones
+  fueron incompatibles y eso dejaba sin enlazar a la segunda universidad que
+  compartiera sigla.
+
+Se habla con Firestore por **REST**, no con `firebase-admin`: mismo camino que
+`shared/push.ts` con FCM, firmando la aserción con `jsonwebtoken`. Sin las
+credenciales el canal es un no-op declarado y la lista de clase sigue igual.
+
+Detalle completo en `docs/UNIPLANNER.md`.
 
 ### Quién ve qué (`domains/scope/`)
 
@@ -518,6 +548,117 @@ sobre qué es un metadato. Ninguna era peor; el problema era que fueran tres.
 ### Escritorio v2 — capas
 `domain/` (esquemas Zod + puertos, sin React) → `infrastructure/` (adaptadores HTTP de los puertos) → `features/` (una pantalla por capacidad) → `shared/` (design system según `DESIGN.md`). Estado de servidor con TanStack Query, estado de cliente con Zustand. Tokens en `keyring` (Rust) vía `src-tauri/src/commands/`. `desktop_python/` (PySide6) está **muerto**: su lanzador se eliminó y no recibe cambios. No añadir nada ahí ni tomarlo como referencia.
 
+### Escritorio en Linux
+
+El mismo código de `desktop/` produce el `.exe` de Windows y los tres paquetes
+de Linux: **AppImage, `.deb` y `.rpm`**. Lo que cambia está en
+`tauri.linux.conf.json` —Tauri fusiona `tauri.<plataforma>.conf.json` sobre la
+configuración base—, así que Windows no se entera de nada de esto.
+
+Cuatro cosas que hay ahí y que no son opcionales:
+
+- **El `productName` de Linux va sin tilde** (`UTS Nexus Academico`). El nombre
+  del paquete `.deb` se deriva de él y un nombre Debian válido es
+  `[a-z0-9][a-z0-9+.-]+`. Cambiar el `productName` base no es alternativa: en
+  Windows decide la carpeta de instalación, y renombrarla instalaría una segunda
+  copia a quien ya la tiene. El título de la ventana sale de `app.windows[0].title`
+  y conserva la tilde.
+- **`bundle.targets` se declara entero** en el archivo de Linux. El merge de
+  Tauri reemplaza arrays completos, no los concatena: añadir `rpm` solo al array
+  base no lo activa.
+- **Las dependencias del `.rpm` van por soname**
+  (`libwebkit2gtk-4.1.so.0()(64bit)`), no por nombre de paquete. Fedora lo llama
+  `webkit2gtk4.1` y openSUSE `libwebkit2gtk-4_1-0`; el soname es el mismo y es lo
+  que `rpm` sabe resolver.
+- **`uts-nexus.desktop.hbs`** lo comparten deb y rpm. Lleva `StartupWMClass`
+  porque sin él GNOME y KDE no atan la ventana abierta a su lanzador: sale un
+  segundo icono genérico en la barra y «anclar al panel» ancla el que no abre
+  nada.
+
+Y tres correcciones en Rust que solo Linux necesita. Ninguna falla de forma
+visible, que es por lo que hay que conservarlas:
+
+- **`entorno::preparar_render_grafico()`** (llamado desde `run()`, **antes** de
+  que se inicialice GTK). Con el driver propietario de NVIDIA, WebKitGTK pinta
+  la ventana en blanco por su renderizador DMABUF. Se detecta el driver
+  (`/sys/module/nvidia`) en vez de apagarlo siempre, porque apagarlo cuesta la
+  ruta acelerada a todos los demás. Una variable puesta a mano manda sobre la
+  detección. **Esto sale del problema documentado de NVIDIA, no de un fallo
+  reproducido aquí**: no hay ningún equipo con esa tarjeta a mano para
+  comprobarlo, y conviene saberlo antes de dar por hecho que cubre un caso
+  nuevo — de hecho no cubría el de la AppImage, que era otro (ver abajo).
+- **`entorno::limpiar_para_hijo()`** en todo proceso que la app lance (`node`,
+  `xdg-open`). Dentro de una AppImage, `AppRun` exporta `LD_LIBRARY_PATH` y
+  compañía apuntando a las librerías empaquetadas; el hijo las hereda, carga la
+  `libssl` de la imagen en vez de la suya y revienta con un error de símbolo que
+  no menciona la palabra AppImage. Quien lo lea buscará el fallo en Node.
+- **`almacen_linux`**, respaldo del llavero. En Linux el Secret Service
+  (gnome-keyring, KWallet) es un paquete que puede no estar instalado, y sin él
+  guardar la sesión falla: la aplicación no se puede usar. El orden es siempre
+  llavero primero y archivo cifrado (`~/.local/state`, modo `0600`,
+  XChaCha20-Poly1305 con clave derivada de la máquina) después; la lectura mira
+  los dos sitios, así que instalar o quitar gnome-keyring no cierra la sesión.
+  **Lo que protege está dicho en la app**: Configuración lo pregunta con
+  `secure_store_backend()` y la tarjeta de Seguridad cuenta cuál de los dos está
+  en uso. El respaldo protege menos que el llavero —su clave es derivable de la
+  máquina, así que la defensa real es el `0600`— y esa pantalla existe
+  precisamente para no afirmar cosas que no se han comprobado.
+
+`reveal_in_file_manager` lanza `xdg-open` a mano en Linux en vez de dejárselo a
+`opener`: `opener` no deja tocar el entorno del hijo, y ese es justo el problema.
+
+### La AppImage se sanea después de construirla
+
+**`desktop/scripts/sanear-appimage.mjs` corre encadenado a `npm run desktop:build`,
+y no es opcional.** Sin él la AppImage abre con **la ventana en blanco**: el marco
+se dibuja y dentro no hay nada.
+
+Lo que pasa es que el empaquetador de Tauri mete dentro `libwayland-client.so.0`.
+Esa librería habla el protocolo del compositor que ya está corriendo en la
+máquina, así que tiene que ser **la del sistema**. La AppImage se construye en
+Ubuntu 22.04 (wayland 1.20) y en un equipo con wayland 1.25 la suya tapa a la
+del host; el EGL de Mesa no puede inicializar la plataforma wayland contra una
+biblioteca de cliente más vieja, devuelve `EGL_BAD_PARAMETER`, y
+`WebKitWebProcess` —que no tiene plan B— **aborta**. En el registro del sistema
+queda el volcado; en pantalla, nada.
+
+Tres cosas que conviene no volver a investigar desde cero:
+
+- **No es la tarjeta gráfica.** Se reprodujo en una Intel HD 630 con Mesa,
+  sin NVIDIA por ningún lado, así que la detección de NVIDIA de
+  `preparar_render_grafico()` no lo tapa ni podía taparlo.
+- **No lo arregla ninguna variable de entorno.** Se probaron las tres que
+  siempre se citan —`WEBKIT_DISABLE_DMABUF_RENDERER`,
+  `WEBKIT_DISABLE_COMPOSITING_MODE` y `LIBGL_ALWAYS_SOFTWARE`— y ninguna cambió
+  nada. El aborto ocurre al crear el display EGL, antes de que esas opciones
+  lleguen a importar.
+- **No es una corazonada sobre qué quitar.** `libwayland-client.so.0` está en la
+  **excludelist oficial de AppImage**, la lista de librerías que un paquete
+  portable no debe llevar nunca, y es la única de las 165 empaquetadas que la
+  incumple. El script conserva además una lista de `VIGILADAS` que **no borra**:
+  si el empaquetador empezara a meter otra de esa lista, avisa en vez de que se
+  descubra cuando alguien reporte una ventana en blanco.
+
+El reempaquetado **no descarga ninguna herramienta**: reutiliza el runtime que
+la propia AppImage ya lleva delante del squashfs (`--appimage-offset`) y vuelve
+a comprimir con `mksquashfs`. Por eso el contenedor de CI instala
+`squashfs-tools`, y por eso el script **falla** si no lo encuentra en vez de
+dejar pasar la AppImage sin sanear: publicar una que abre en blanco es peor que
+no publicar ninguna, y el síntoma no apunta a este paso por ningún lado.
+
+El `.deb` y el `.rpm` **no tienen este problema y no se tocan**: usan el WebKit
+y el wayland del propio sistema, así que no puede haber desajuste. Es una razón
+más para no dejar solo la AppImage.
+
+**Formatos y actualización no son lo mismo en Linux.** Una AppImage se reemplaza
+a sí misma sin permisos; un `.deb` o un `.rpm` instalan en `/usr` y el sistema
+pide la contraseña de administrador. `core/platform/paquete.ts` traduce el
+formato instalado —que da `installed_package_format`, la misma función de Tauri
+que usa el actualizador para elegir qué descargar— a ese aviso, y la tarjeta de
+Actualizaciones lo enseña **antes** de pulsar. Avisar después no sirve: para
+entonces el diálogo del sistema ya está en pantalla y la pregunta es si esto es
+de fiar.
+
 ### Servicio ML
 Sustituye los umbrales fijos de `domains/risk` por un modelo entrenado con explicación SHAP obligatoria. Arranca con modelo bootstrap derivado de las reglas; un candidato reentrenado solo se promueve **si gana en recall** (AUC desempata), salvo que sea el primer modelo con datos reales. Si el servicio cae, el backend usa el motor de reglas y lo declara en el campo `source` (`model` | `rules`). Config en `backend/.env`: `ML_BASE_URL=http://127.0.0.1:8100`, `ML_ENABLED=1`.
 
@@ -618,18 +759,44 @@ Leídas por `backend/src/shared/env.ts`. **Un nombre mal escrito no da error: ca
 - `CAMPUS_UTC_OFFSET_MIN` (por defecto `-300`) es la zona del campus. Si el servidor corre en UTC y esto no se declara bien, **todas las clases y todos los recordatorios se desplazan varias horas sin ningún error visible**.
 - `CLASS_REMINDER_INTERVAL_MIN` va a `1` por defecto: un aviso de «empieza en 15 minutos» comprobado cada cuarto de hora no es un aviso. Con varias instancias, activarlo en una sola.
 - **El push a Android está apagado por defecto.** Sin `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL` y `FCM_PRIVATE_KEY` no se envía nada con la app cerrada y queda anotado en el log. Los recordatorios de clase siguen llegando: los programa el teléfono como alarmas locales.
+- **El puente con UniPlanner está apagado por defecto.** Sin `UNIPLANNER_PROJECT_ID`, `UNIPLANNER_CLIENT_EMAIL` y `UNIPLANNER_PRIVATE_KEY` no se lee ningún enlace ni se escribe ningún aviso, y queda anotado en el log. **La clave de cada universidad no es una variable**: sale de `Institucion.institutionId`, que es el identificador que ese modelo ya declara como «el que usará UniPlanner»; en el entorno, el despliegue entero quedaría atado a una sola. `UNIPLANNER_SOLO_VERIFICADOS=1` deja el canal mudo hoy, porque todavía no hay proceso que confirme una matrícula.
 - **Correo saliente y aviso de versiones están apagados por defecto.** Sin `SMTP_HOST` no se envía nada y queda anotado en el log; con `RELEASE_CHECK_INTERVAL_H=0` no se consulta GitHub. Las dos degradan en silencio a propósito: una instalación local no debería necesitar servidor de correo para arrancar. Para activarlos: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `SMTP_SECURE` y `RELEASE_CHECK_INTERVAL_H` (horas), `RELEASES_REPO`.
+
+## Plataformas
+
+**El registro está en `.github/scripts/plataformas.mjs`, y es el único sitio
+donde se declara qué plataformas existen.** Para cada una: estado, cliente,
+formatos, claves del manifiesto del actualizador, dónde declara su versión y
+—para las que aún no salen— qué las bloquea. `node .github/scripts/plataformas.mjs`
+imprime la matriz; CI la ejecuta en cada push.
+
+| Plataforma | Estado | Formatos | Se actualiza con |
+|---|---|---|---|
+| Windows | soportada | NSIS, MSI | actualizador de Tauri |
+| Linux | soportada | AppImage, deb, rpm | actualizador de Tauri |
+| Android | soportada | APK | API de Releases + instalador del sistema |
+| macOS | planificada | app, dmg | actualizador de Tauri |
+| iOS | planificada | ipa | App Store (el actualizador propio no aplica) |
+
+macOS e iOS están **bloqueadas por herramientas, no por código**: compilar y
+firmar exige un Mac con Xcode, y distribuir en iOS además el Apple Developer
+Program. No empieces a añadir una carpeta `ios/`.
+
+Añadir una plataforma es cambiar su `estado` en el registro, declarar sus
+archivos de versión y sus claves de manifiesto, y añadir su trabajo al workflow.
+Ningún script se toca: `subir-version.mjs`, `comprobar-version.mjs` y
+`componer-manifiesto.mjs` leen todos de ahí.
 
 ## Actualizaciones automáticas
 
-Los dos clientes se actualizan desde **GitHub Releases**; el proceso completo está en `docs/PUBLICAR_VERSION.md`.
+Los tres clientes se actualizan desde **GitHub Releases**; el proceso completo está en `docs/PUBLICAR_VERSION.md`.
 
-- Escritorio: `tauri-plugin-updater` verifica la firma minisign contra `plugins.updater.pubkey` antes de instalar. La lógica vive en `desktop/src/core/platform/updater.ts` — como el resto de `core/platform`, es el único módulo que toca el plugin y degrada a "no hay nada" en el navegador.
-- Móvil: `flutter_app/lib/core/services/update_service.dart` consulta la API de Releases, descarga el APK y se lo pasa al instalador de Android. Solo Android; en otras plataformas responde que no hay actualizaciones.
-- **Publicar exige subir la versión en los cuatro archivos** (`desktop/package.json`, `tauri.conf.json`, `Cargo.toml` y `pubspec.yaml` con su `+versionCode`) y empujar una etiqueta `v*`. Sin subir la versión el updater no ofrece nada. **No los edites a mano**: `node .github/scripts/subir-version.mjs patch|minor|major|X.Y.Z` los actualiza todos, sube el `versionCode` y regenera los ficheros de bloqueo; `comprobar-version.mjs` lo verifica después y en CI. Ver la «Regla de subida de versión» más abajo.
+- Escritorio: `tauri-plugin-updater` verifica la firma minisign contra `plugins.updater.pubkey` antes de instalar. La lógica vive en `desktop/src/core/platform/updater.ts` — como el resto de `core/platform`, es el único módulo que toca el plugin y degrada a "no hay nada" en el navegador. En Linux funciona con los tres formatos; el `.deb` y el `.rpm` piden autorización de administrador y la app lo avisa antes.
+- Móvil: `flutter_app/lib/features/settings/data/update_service.dart` consulta la API de Releases, descarga el APK y se lo pasa al instalador de Android. Solo Android; en otras plataformas responde que no hay actualizaciones.
+- **`latest.json` tiene un dueño y no es `tauri-action`.** Lo compone el trabajo `manifiesto` de `release.yml` con `.github/scripts/componer-manifiesto.mjs`, a partir de los assets ya publicados. La razón es concreta: `tauri-action` **no fusiona** un manifiesto existente —borra el asset y sube el suyo, armado solo con lo que compiló ese trabajo—, así que con Windows y Linux en trabajos distintos el segundo dejaba al primero sin actualizaciones. Ese fallo no se ve: la release está completa y lo único que cambia es que el botón contesta «ya tienes la última versión» para siempre. El script falla si falta alguna clave, y su `--autoprueba` corre en CI.
+- El actualizador busca `{os}-{arch}-{formato}` y cae a `{os}-{arch}`. Por eso el manifiesto lleva `linux-x86_64-appimage`, `-deb` y `-rpm`, y el alias corto `linux-x86_64` apunta a la **AppImage**: si el actualizador no logra averiguar cómo está instalada la app, lo que se le ofrezca tiene que funcionar en el sitio donde esté.
+- **Publicar exige subir la versión y empujar una etiqueta `v*`.** Sin subirla el updater no ofrece nada. **No edites los archivos a mano**: `node .github/scripts/subir-version.mjs patch|minor|major|X.Y.Z` los actualiza todos, sube el `versionCode` y regenera los ficheros de bloqueo; `comprobar-version.mjs` lo verifica después y en CI. Ver la «Regla de subida de versión» más abajo.
 - La clave privada de firma **no está en el repositorio** y no debe estarlo: quien la tenga puede publicar actualizaciones falsas que las apps instaladas aceptarían como oficiales.
-
-**iOS no existe y no se puede compilar desde Windows** (hace falta macOS con Xcode, y el Apple Developer Program para distribuir). No empieces a añadir una carpeta `ios/`: el bloqueo es de herramientas, no de código.
 
 ## Documentación de referencia
 
@@ -639,6 +806,7 @@ Los dos clientes se actualizan desde **GitHub Releases**; el proceso completo es
 - `docs/AUDITORIA_SEGURIDAD.md` — auditoría de entradas, formularios, subidas y sesión: qué falló, cómo se corrigió y **por qué existe cada defensa**. Léelo antes de quitar una comprobación que parezca redundante.
 - `docs/AUDITORIA_RENDIMIENTO.md` — carga sobre la base: N+1, topes de escritura, límites de tasa y carga progresiva. De dónde salen los números (por qué 5 000 casillas, por qué el cupo va por usuario).
 - `docs/AUDITORIA_RECURSOS.md` — lo que las aplicaciones gastan en el equipo donde se instalan: memoria, almacenamiento, batería. Por qué las fuentes van recortadas, por qué las imágenes son WebP y por qué el socket se suelta en segundo plano.
+- `docs/UNIPLANNER.md` — puente con la app del estudiante: cómo se encuentra a alguien, qué se le puede mandar, el semáforo y por qué el riesgo de suplantación no se cierra desde aquí.
 - `desktop/README.md` — guía completa del cliente de escritorio v2.
 - `ml_service/README.md` — ciclo de entrenamiento, endpoints y variables del modelo.
 - `docs/ARQUITECTURA_V2.md` — auditoría de la v1 y arquitectura de la v2.
@@ -679,6 +847,7 @@ leyendo el diff.
 |---|---|
 | `backend/` | `npm run lint` · `npx tsc -p tsconfig.json --noEmit` · `npm test` |
 | `desktop/` | `npm run lint` · `npm run typecheck` · `npm test` |
+| `desktop/src-tauri/` | lo anterior, **más** `cargo build --release` en `desktop/` y abrir el binario: el código de Linux va detrás de `#[cfg(target_os = "linux")]` y `tsc` no lo mira |
 | `flutter_app/` | `flutter analyze` · `flutter test` |
 | `ml_service/` | `.venv/bin/python -m pytest tests/` |
 | `backend/.env` o variables nuevas | `npm run check:env` |
@@ -818,11 +987,12 @@ node .github/scripts/subir-version.mjs patch      # o: minor | major | 1.4.2
 node .github/scripts/subir-version.mjs --check    # ¿está todo alineado?
 ```
 
-Actualiza los cuatro archivos que declaran la versión, sube el `versionCode` de
+Actualiza los archivos que declaran la versión, sube el `versionCode` de
 Android y regenera los dos ficheros de bloqueo. Después,
 `comprobar-version.mjs` (que ya corría en CI) verifica que nada se quedó atrás.
 
-**Los cuatro archivos:**
+**Cuáles son esos archivos lo dice `.github/scripts/plataformas.mjs`**, no cada
+script por su cuenta. Hoy son estos cuatro:
 
 | Archivo | Qué declara |
 |---|---|
@@ -841,10 +1011,13 @@ eso: `Cargo.toml` se quedó en 2.3.5 mientras el resto iba por 2.5.0 durante dos
 publicaciones, y hay un commit entero dedicado a sincronizar los ficheros de
 bloqueo a posteriori. Una release mal numerada no se corrige: se reemplaza.
 
-**¿Añades un archivo que nombre la versión?** Añádelo a `ARCHIVOS` en
-`subir-version.mjs` **y** a `fuentes` en `comprobar-version.mjs`. En una sola de
-las dos, o queda sin verificar o hace fallar la publicación después de que
-alguien ya subió la etiqueta.
+**¿Añades un archivo que nombre la versión?** Va en `versionEn` del cliente que
+corresponda, en `.github/scripts/plataformas.mjs`, y en ningún otro sitio.
+
+Esa lista estuvo copiada en los dos scripts, y los dos avisaban por escrito de
+que añadir un archivo a uno y no al otro deja el nuevo sin verificar o hace
+fallar la publicación con la etiqueta ya empujada. Una advertencia repetida en
+dos sitios es la confesión de que el dato tendría que estar en uno.
 
 La **etapa** (`alfa`/`beta`/`estable`) vive aparte, en `desktop/src/core/version.ts`
 y `flutter_app/lib/core/version.dart`, y las dos tienen que coincidir: el
