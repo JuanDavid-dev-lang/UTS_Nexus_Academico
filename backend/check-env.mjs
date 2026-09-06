@@ -230,6 +230,55 @@ if (!mlSecret && !mlLocal) {
   );
 }
 
+// ── Puente con UniPlanner ───────────────────────────────────────────────────
+//
+// Se informa aunque esté apagado, y esa es la gracia: «no hay insignias en la
+// lista de clase» y «el puente no está configurado» se ven igual desde fuera,
+// y sin esta línea la única forma de distinguirlos era leer el log de arranque.
+const upProyecto = env.UNIPLANNER_PROJECT_ID;
+const upCorreo = env.UNIPLANNER_CLIENT_EMAIL;
+const upClave = env.UNIPLANNER_PRIVATE_KEY;
+const upCompleto = Boolean(upProyecto && upCorreo && upClave);
+const upParcial = !upCompleto && Boolean(upProyecto || upCorreo || upClave);
+
+console.log(
+  `  ${upCompleto ? green('✓') : upParcial ? red('✗') : green('✓')} Puente UniPlanner    ${
+    upCompleto
+      ? `${upProyecto} · ${upCorreo}`
+      : upParcial
+        ? red('incompleto')
+        : dim('apagado (sin credenciales)')
+  }`,
+);
+
+if (upParcial) {
+  const faltan = [
+    !upProyecto && 'UNIPLANNER_PROJECT_ID',
+    !upCorreo && 'UNIPLANNER_CLIENT_EMAIL',
+    !upClave && 'UNIPLANNER_PRIVATE_KEY',
+  ].filter(Boolean);
+  problems.push(
+    `El puente con UniPlanner tiene unas credenciales y otras no: falta ${faltan.join(', ')}.\n` +
+      '    A medias no funciona, y el fallo no se ve al arrancar: la lista de clase\n' +
+      '    aparece sin insignias, igual que si estuviera apagado a propósito.\n' +
+      '    Ponlas con:  npm run configurar:uniplanner -- <ruta-al-json>',
+  );
+} else if (upCompleto && upClave && !upClave.includes('BEGIN PRIVATE KEY')) {
+  problems.push(
+    'UNIPLANNER_PRIVATE_KEY no parece una clave privada. Si la pegaste a mano,\n' +
+      '    tiene que ir entre comillas y con los saltos escapados como \\n. Usa\n' +
+      '    `npm run configurar:uniplanner` y evítate el problema: el síntoma de\n' +
+      '    pegarla mal no es un error al arrancar, es una firma que Google rechaza.',
+  );
+}
+
+if (upCompleto && ['1', 'true', 'yes'].includes((env.UNIPLANNER_SOLO_VERIFICADOS ?? '0').toLowerCase())) {
+  warnings.push(
+    'UNIPLANNER_SOLO_VERIFICADOS está encendida y todavía no hay ningún proceso\n' +
+      '    que confirme una matrícula, así que no se enviará ni un aviso.',
+  );
+}
+
 // ── Claves desconocidas: casi siempre son erratas ───────────────────────────
 // La lista tiene que cubrir TODO lo que lee `shared/env.ts`. Incompleta, este
 // aviso convierte una configuración correcta en una advertencia falsa, y una

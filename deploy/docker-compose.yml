@@ -56,6 +56,16 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
+      # Puente con UniPlanner. Opcionales de verdad: sin ellas el canal queda
+      # apagado y se anota en el log, así que van con valor por defecto vacío y
+      # no con `:?`. Pero tienen que estar **en esta lista**: `environment` es
+      # explícita, y una variable que solo viva en `deploy/.env` no llega al
+      # contenedor. Ese olvido no rompe nada al arrancar — el puente
+      # simplemente no funciona en producción y sí en local.
+      UNIPLANNER_PROJECT_ID: ${UNIPLANNER_PROJECT_ID:-}
+      UNIPLANNER_CLIENT_EMAIL: ${UNIPLANNER_CLIENT_EMAIL:-}
+      UNIPLANNER_PRIVATE_KEY: ${UNIPLANNER_PRIVATE_KEY:-}
+      UNIPLANNER_SOLO_VERIFICADOS: ${UNIPLANNER_SOLO_VERIFICADOS:-0}
     volumes:
       - uploads:/app/uploads
       # Formatos oficiales de trabajo de grado. Sin volumen, reconstruir la

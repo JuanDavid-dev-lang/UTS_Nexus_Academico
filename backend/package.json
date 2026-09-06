@@ -15,6 +15,7 @@
     "smoke": "tsx src/scripts/smoke.ts",
     "test:e2e": "tsx src/scripts/e2e.ts",
     "check:env": "node check-env.mjs",
+    "configurar:uniplanner": "node configurar-uniplanner.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint ."

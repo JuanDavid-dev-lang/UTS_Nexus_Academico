@@ -4,7 +4,16 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'node_modules/**', 'coverage/**', 'check-env.mjs'],
+    // Los `.mjs` de la raíz son utilidades de línea de comandos para la
+    // persona que instala, no parte de la aplicación: corren en Node a secas,
+    // sin el `tsconfig` ni los globales que la configuración de abajo asume.
+    ignores: [
+      'dist/**',
+      'node_modules/**',
+      'coverage/**',
+      'check-env.mjs',
+      'configurar-uniplanner.mjs',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
