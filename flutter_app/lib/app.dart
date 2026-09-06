@@ -172,9 +172,23 @@ class _UtsAppState extends ConsumerState<UtsApp> {
   /// Evita que dos eventos seguidos disparen dos reprogramaciones solapadas.
   bool _reprogramando = false;
 
+  /// Suelta el socket mientras la aplicación no está en pantalla.
+  ///
+  /// Vive aquí, en la raíz, y no en cada pantalla: es una sola conexión y el
+  /// ciclo de vida es de la aplicación entera. Lo que tiene que llegar con la
+  /// app cerrada llega por push y por las alarmas locales, así que un socket
+  /// abierto en segundo plano no adelanta ningún aviso — solo despierta la
+  /// radio.
+  AppLifecycleListener? _ciclo;
+
   @override
   void initState() {
     super.initState();
+
+    _ciclo = AppLifecycleListener(
+      onPause: RealtimeService.instance.pausar,
+      onResume: RealtimeService.instance.reanudar,
+    );
 
     // Al tocar una notificación —incluida la que abrió la app desde cero— se
     // navega a lo que apuntaba. `rutaPendiente` cubre el arranque en frío: en
@@ -192,6 +206,12 @@ class _UtsAppState extends ConsumerState<UtsApp> {
         if (mounted) router.go(pendiente);
       });
     }
+  }
+
+  @override
+  void dispose() {
+    _ciclo?.dispose();
+    super.dispose();
   }
 
   /// Vuelve a programar las alarmas del teléfono con la agenda vigente.

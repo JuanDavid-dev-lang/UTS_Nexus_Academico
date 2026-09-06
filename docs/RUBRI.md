@@ -93,12 +93,12 @@ de UTS Nexus sigue funcionando.
 
 Escritorio:
 
-- `desktop/src/assets/rubri/*.png`
+- `desktop/src/assets/rubri/*.webp`
 - `desktop/src/shared/ui/rubri.tsx`
 
 Móvil:
 
-- `flutter_app/assets/rubri/*.png`
+- `flutter_app/assets/rubri/*.webp`
 - `flutter_app/lib/core/widgets/rubri.dart`
 
 Los componentes respetan reducción de movimiento. La animación es un balanceo

@@ -1178,6 +1178,14 @@ docker compose up --build   # Levantar backend en contenedor
 | [`docs/PUBLICAR_VERSION.md`](docs/PUBLICAR_VERSION.md) | Publicar una versión, secretos de CI y claves de firma |
 | [`docs/DESPLIEGUE_AWS.md`](docs/DESPLIEGUE_AWS.md) | Puesta en producción con Docker y Caddy |
 
+**Auditorías** — qué falló, cómo se corrigió y por qué existe cada defensa
+
+| Documento | Contenido |
+|-----------|-----------|
+| [`docs/AUDITORIA_SEGURIDAD.md`](docs/AUDITORIA_SEGURIDAD.md) | Entradas, formularios, subidas y sesión |
+| [`docs/AUDITORIA_RENDIMIENTO.md`](docs/AUDITORIA_RENDIMIENTO.md) | Carga sobre MongoDB Atlas: N+1, topes de escritura, límites de tasa y paginación |
+| [`docs/AUDITORIA_RECURSOS.md`](docs/AUDITORIA_RECURSOS.md) | Lo que gastan las aplicaciones en el equipo: memoria, almacenamiento y batería |
+
 **Histórico** — explican *por qué* las cosas están como están, no cómo están hoy
 
 | Documento | Contenido |

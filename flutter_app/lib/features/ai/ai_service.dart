@@ -61,6 +61,25 @@ final aiStatusProvider = FutureProvider<AiStatus>((ref) async {
   }
 });
 
+/// Turnos de conversación que se envían con cada pregunta.
+///
+/// Es el tope que valida el backend (`history` en `ai.routes.ts`). Mandar el
+/// historial entero no era una ineficiencia: en la pregunta 11 pasaba de 20
+/// mensajes, Zod lo rechazaba y **el chat dejaba de responder** con un error de
+/// validación que no mencionaba el historial. El servicio solo usa los últimos
+/// seis turnos de todas formas.
+const int kTopeHistorial = 20;
+
+/// Recorta el historial a lo que el backend acepta, conservando los mensajes
+/// **más recientes**.
+///
+/// Se queda con el final y no con el principio porque lo que da contexto a la
+/// pregunta que se está haciendo es lo último que se dijo, no cómo empezó la
+/// conversación hace media hora.
+List<T> historialParaEnviar<T>(List<T> mensajes) => mensajes.length > kTopeHistorial
+    ? mensajes.sublist(mensajes.length - kTopeHistorial)
+    : List<T>.unmodifiable(mensajes);
+
 /// Estado del chat: lista de mensajes + si está esperando respuesta.
 class ChatState {
   final List<ChatMessage> messages;
@@ -83,8 +102,10 @@ class ChatController extends StateNotifier<ChatState> {
     if (trimmed.isEmpty || state.sending) return;
 
     final userMsg = ChatMessage(role: 'user', content: trimmed);
-    // Historial previo (sin el mensaje que acabamos de agregar) para el backend.
-    final history = state.messages.map((m) => m.toApi()).toList();
+    // Historial previo (sin el mensaje que acabamos de agregar) para el backend,
+    // recortado al tope que el backend valida.
+    final history =
+        historialParaEnviar(state.messages).map((m) => m.toApi()).toList();
 
     state = state.copyWith(
       messages: [...state.messages, userMsg],

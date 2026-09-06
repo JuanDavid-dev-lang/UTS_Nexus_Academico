@@ -529,13 +529,17 @@ Del lado del backend, las nueve llamadas pasan por `shared/ml-client.ts` (`mlFet
 
 ## Rendimiento de los clientes
 
-Tres reglas que son fáciles de deshacer sin querer y caras de diagnosticar después, porque ninguna la detecta `flutter analyze` ni el `tsc`.
+Cinco reglas que son fáciles de deshacer sin querer y caras de diagnosticar después, porque ninguna la detecta `flutter analyze` ni el `tsc`.
 
 **`MediaQuery.sizeOf` / `viewInsetsOf`, nunca `MediaQuery.of`.** `of` suscribe al `MediaQueryData` entero, y el teclado anima `viewInsets` **fotograma a fotograma**: un `MediaQuery.of` para leer un ancho reconstruye ese widget sesenta veces por segundo mientras el teclado sube. Estaba en `app_scaffold.dart` —que envuelve todas las pantallas— y dentro de cada burbuja del chat, que es la pantalla donde el teclado más se abre.
 
 **Cambiar de pestaña no debe rehacer la pestaña.** El móvil usa `StatefulShellRoute.indexedStack` (`app.dart`), con una rama por destino. `rutasDeRama` en `app_scaffold.dart` es el contrato: **la rama N atiende a `rutasDeRama[N]`**, y `test/router_test.dart` lo fija porque descuadrar el orden compila igual y manda cada pestaña a la pantalla equivocada. Para navegar entre pestañas se usa `goBranch`, no `context.go`: `go` reinicia la rama y `goBranch` vuelve donde se dejó.
 
 **Un `setState` de página por pulsación de tecla es un error, no un detalle.** Reconstruye cabecera, filtros y lista, y además refiltra la lista completa: escribir nueve letras son nueve pasadas sobre mil registros, ocho de las cuales nadie ve. Los buscadores usan `DebouncedSearchField` (`core/widgets/`); lo que solo habilita un botón o pinta unas iniciales usa `ValueListenableBuilder` sobre el controlador. Y las listas largas van con `ListView.builder` o `SliverList.builder`: `ListView(children: [...])` construye **todos** sus hijos aunque se vean ocho.
+
+**El socket se suelta al pasar a segundo plano.** `AppLifecycleListener` en la raíz (`app.dart`) llama a `RealtimeService.pausar()` / `reanudar()`. Sin eso, y con la reconexión sin acotar que trae `socket_io_client` por defecto —cada 5 s, para siempre—, un teléfono en el bolsillo con el wifi del campus caído intentaba abrir un socket doce veces por minuto **indefinidamente**. No adelanta ningún aviso: lo que tiene que llegar con la aplicación cerrada llega por push del servidor y por las alarmas locales, y el socket solo refresca lo que alguien está mirando. Las opciones ahora declaran `reconnectionDelayMax` de 30 s; el escritorio ya lo tenía en 10 s y además corre enchufado.
+
+**Una imagen se descodifica al tamaño al que se dibuja, no al del archivo.** `Image.asset` sin `cacheWidth` guarda en la caché de Flutter el mapa de bits completo: un sprite de 384 px pintado a 40 dp ocupaba 512 KB, y el logo de 1024×1024 que había antes eran **4 MiB** para pintarse a 96 dp. Se pasa `cacheWidth`/`cacheHeight` con `MediaQuery.devicePixelRatioOf(context)` — que además es el accesor estrecho que pide la primera regla.
 
 En el escritorio esto no aparece porque TanStack Query ya guarda el estado de servidor (`staleTime` 30 s, `gcTime` 5 min, `refetchOnWindowFocus: false` en `app/providers.tsx`), así que cambiar de pantalla no vuelve a consultar. En el móvil el equivalente es que **ningún provider de Riverpod es `autoDispose`**: los datos sobreviven al cambio de pestaña a propósito.
 
@@ -572,6 +576,22 @@ En los dos casos el índice existe para no romper los sitios que ya importaban d
 - **En el móvil, los colores del tema se leen con `context.palette`** (`AppPalette` en `app_theme.dart`), no con `isDark ? XDark : X` repetido en cada pantalla: cada copia de ese ternario es un sitio donde se puede olvidar el caso oscuro, y olvidarlo no da error, da texto gris sobre fondo oliva.
 - **La superficie de marca (`surface-brand` / `BrandSurface`) es solo para lo que representa a la aplicación** — cabecera del panel, clase en curso, acceso. Nunca detrás de una tabla o una lista: el degradado cambia de tono a lo largo del bloque y cada fila acabaría sobre un fondo distinto.
 - Inter va empaquetada en los dos clientes (`@fontsource/inter` en escritorio, `.ttf` en `flutter_app/assets/fonts/`). No la sustituyas por una carga remota: el CSP de Tauri no tiene `font-src` y la app móvil se usa sin red fiable.
+- **Las Inter del móvil van recortadas a latín y hay que mantenerlas así.** Flutter
+  **no** subconjunta fuentes de texto —`--tree-shake-icons` solo actúa sobre las
+  de iconos—, así que un `.ttf` oficial viaja entero: 2 852 glifos por peso,
+  con griego, cirílico y alfabeto fonético, para una aplicación que es solo en
+  español. Eran 1,63 MB del APK; recortadas son 424 KB.
+  `flutter_app/tool/subconjuntar_fuentes.py` lo hace y es idempotente, así que
+  se pasa sin comprobar nada; `--check` avisa si alguien dejó caer una fuente
+  completa. Conserva `tnum` a propósito: `FontFeature.tabularFigures()` se usa
+  en las horas de la agenda y en las columnas de notas, y sin ella los dígitos
+  cambian de ancho y una columna de promedios deja de estar alineada.
+- **Los mapas de bits van en WebP, dimensionados a lo que se dibuja.** El logo
+  era un PNG de 1024×1024 y 628 KB para pintarse a 96 dp; los cuatro sprites de
+  Rubri eran PNG de ~190 KB cada uno, que es el formato equivocado para una
+  ilustración con degradados (el PNG optimizado sale *más grande*). En WebP con
+  calidad 92 el alfa se conserva exacto y el error de color es de ~2 sobre 255.
+  Los cinco archivos pasaron de 1,39 MB a 109 KB **en cada cliente**.
 - Los gráficos de escritorio leen los tokens en vivo y se repintan al cambiar de tema; no les pases colores fijos.
 
 ## Variables de entorno — trampas conocidas
@@ -610,6 +630,7 @@ Los dos clientes se actualizan desde **GitHub Releases**; el proceso completo es
 - `docs/PUBLICAR_VERSION.md` — publicar una versión, secretos de CI y manejo de las claves de firma.
 - `docs/AUDITORIA_SEGURIDAD.md` — auditoría de entradas, formularios, subidas y sesión: qué falló, cómo se corrigió y **por qué existe cada defensa**. Léelo antes de quitar una comprobación que parezca redundante.
 - `docs/AUDITORIA_RENDIMIENTO.md` — carga sobre la base: N+1, topes de escritura, límites de tasa y carga progresiva. De dónde salen los números (por qué 5 000 casillas, por qué el cupo va por usuario).
+- `docs/AUDITORIA_RECURSOS.md` — lo que las aplicaciones gastan en el equipo donde se instalan: memoria, almacenamiento, batería. Por qué las fuentes van recortadas, por qué las imágenes son WebP y por qué el socket se suelta en segundo plano.
 - `desktop/README.md` — guía completa del cliente de escritorio v2.
 - `ml_service/README.md` — ciclo de entrenamiento, endpoints y variables del modelo.
 - `docs/ARQUITECTURA_V2.md` — auditoría de la v1 y arquitectura de la v2.

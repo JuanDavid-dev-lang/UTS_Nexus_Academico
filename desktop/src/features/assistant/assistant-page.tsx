@@ -18,6 +18,7 @@ import {
 import { queryKeys } from '@/core/api/query-keys';
 import { assistantRepository } from '@/infrastructure/repositories/insights.repository';
 import { subjectRepository } from '@/infrastructure/repositories/subjects.repository';
+import { historialParaEnviar } from '@/domain/assistant/historial';
 import { toast } from '@/state/toast.store';
 import { cn } from '@/shared/lib/cn';
 import type { ChatMessage, QuickQueryType } from '@/domain/schemas/insights';
@@ -82,7 +83,8 @@ export default function AssistantPage() {
   });
 
   const chat = useMutation({
-    mutationFn: (message: string) => assistantRepository.chat({ message, history: messages, context }),
+    mutationFn: (message: string) =>
+      assistantRepository.chat({ message, history: historialParaEnviar(messages), context }),
 
     onSuccess(response) {
       setMessages((current) => [...current, { role: 'assistant', content: response.answer }]);

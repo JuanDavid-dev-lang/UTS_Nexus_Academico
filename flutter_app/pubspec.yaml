@@ -46,7 +46,7 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/logo.png
+    - assets/logo.webp
     - assets/rubri/
 
   # Inter (DESIGN.md §5). Se empaqueta en vez de descargarse en caliente: la app

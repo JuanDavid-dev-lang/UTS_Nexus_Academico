@@ -221,7 +221,12 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
       final suffix = subjectCode == null ? '' : '-$subjectCode';
       final fileName = 'UTS-$kind-$period$suffix.$extension';
 
-      final directory = await getApplicationDocumentsDirectory();
+      // Directorio temporal, no el de documentos. `share_plus` copia el archivo
+      // a su propia carpeta de caché antes de compartirlo, así que esta copia
+      // solo tiene que sobrevivir a la llamada; dejarla en documentos la
+      // convertía en un archivo permanente que ni el sistema ni «Borrar caché»
+      // liberan nunca.
+      final directory = await getTemporaryDirectory();
       final file = File('${directory.path}/$fileName');
       await file.writeAsBytes(bytes);
 

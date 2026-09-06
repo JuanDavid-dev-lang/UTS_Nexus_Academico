@@ -252,16 +252,45 @@ class _GradesPageState extends ConsumerState<GradesPage> {
                     ref.invalidate(consolidatedProvider(_subjectId));
                     await ref.read(consolidatedProvider(_subjectId).future);
                   },
-                  child: ListView(
+                  // `.builder` y no `ListView(children: [...])`: el segundo
+                  // construye una fila por estudiante aunque en pantalla quepan
+                  // ocho, y un grupo grande son cien. El encabezado y la
+                  // leyenda entran como primer y último elemento.
+                  child: ListView.builder(
                     padding: AppSpacing.listPadding,
-                    children: [
-                      _Summary(rows: items),
-                      const SizedBox(height: 14),
-                      // En la semana de cierre "qué me falta" pesa más que
-                      // "cuánto sacó cada uno".
-                      _PendingBanner(subjectId: _subjectId),
-                      for (final row in filtered) ...[
-                        _GradeRow(
+                    itemCount: filtered.length + 2,
+                    itemBuilder: (_, indice) {
+                      if (indice == 0) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _Summary(rows: items),
+                            const SizedBox(height: 14),
+                            // En la semana de cierre "qué me falta" pesa más
+                            // que "cuánto sacó cada uno".
+                            _PendingBanner(subjectId: _subjectId),
+                          ],
+                        );
+                      }
+                      if (indice == filtered.length + 1) {
+                        return Padding(
+                          padding: const EdgeInsets.only(top: AppSpacing.gapSm),
+                          // La leyenda decía «en cursiva» y la fila marca los
+                          // cortes incompletos con un asterisco: la cursiva se
+                          // perdió cuando los cortes pasaron a la línea de
+                          // metadatos, donde no se distingue de la redonda. El
+                          // texto se quedó describiendo la versión anterior.
+                          child: Text(
+                            'Un asterisco (*) junto a un corte significa que le faltan '
+                            'componentes por calificar.',
+                            style: AppType.caption.copyWith(color: muted),
+                          ),
+                        );
+                      }
+                      final row = filtered[indice - 1];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _GradeRow(
                           row: row,
                           // Tocar la fila abre de qué notas sale cada promedio,
                           // que es donde se corrige la que está mal digitada.
@@ -271,20 +300,8 @@ class _GradesPageState extends ConsumerState<GradesPage> {
                             fullName: row.fullName,
                           ),
                         ),
-                        const SizedBox(height: 10),
-                      ],
-                      const SizedBox(height: AppSpacing.gapSm),
-                      // La leyenda decía «en cursiva» y la fila marca los
-                      // cortes incompletos con un asterisco: la cursiva se
-                      // perdió cuando los cortes pasaron a la línea de
-                      // metadatos, donde no se distingue de la redonda. El
-                      // texto se quedó describiendo la versión anterior.
-                      Text(
-                        'Un asterisco (*) junto a un corte significa que le faltan '
-                        'componentes por calificar.',
-                        style: AppType.caption.copyWith(color: muted),
-                      ),
-                    ],
+                      );
+                    },
                   ),
                 );
               },

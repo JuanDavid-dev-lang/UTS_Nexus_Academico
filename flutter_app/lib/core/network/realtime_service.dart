@@ -37,6 +37,11 @@ class RealtimeService {
   /// Evita encadenar renovaciones cuando el refresh token también está muerto.
   bool _refreshAttempted = false;
 
+  /// La conexión está suspendida porque la aplicación pasó a segundo plano.
+  /// Se distingue de "desconectado" a propósito: `reanudar()` solo reconecta lo
+  /// que él mismo cerró, así que volver a primer plano sin sesión no abre nada.
+  bool _enPausa = false;
+
   Stream<Map<String, dynamic>> get events => _events.stream;
   Stream<Map<String, dynamic>> get notifications => _notifications.stream;
   Stream<RealtimeStatus> get status => _status.stream;
@@ -57,6 +62,7 @@ class RealtimeService {
 
   void connect({required String token}) {
     _token = token;
+    _enPausa = false;
     _socket?.dispose();
     _publicar(RealtimeStatus.connecting);
 
@@ -68,6 +74,13 @@ class RealtimeService {
           // El backend valida el JWT en el handshake (auth.token) y agrupa por salas.
           .setAuth({'token': token})
           .setExtraHeaders({'Authorization': 'Bearer $token'})
+          // Sin declararlas, `socket_io_client` reintenta cada 5 s para
+          // siempre. Con el wifi del campus caído —que no es un caso raro— eso
+          // es despertar la radio doce veces por minuto sin que nada vaya a
+          // conectar. El techo de 30 s deja la reconexión rápida cuando la red
+          // vuelve enseguida y barata cuando no vuelve en toda la clase.
+          .setReconnectionDelay(1000)
+          .setReconnectionDelayMax(30000)
           .build(),
     );
 
@@ -104,6 +117,37 @@ class RealtimeService {
     });
   }
 
+  /// Suelta la conexión mientras la aplicación no está en pantalla.
+  ///
+  /// El socket solo sirve para refrescar lo que alguien está mirando: lo que
+  /// tiene que llegar con la aplicación cerrada llega por push del servidor y
+  /// por las alarmas locales de los recordatorios. Mantenerlo abierto en
+  /// segundo plano no adelanta nada y cuesta un `ping` cada veinticinco
+  /// segundos —o un intento de reconexión cada treinta, que es peor— con el
+  /// teléfono en el bolsillo.
+  ///
+  /// Guarda el token: `reanudar()` tiene que poder volver sin pasar por la
+  /// sesión, porque cerrar sesión es [dispose] y esto no lo es.
+  void pausar() {
+    if (_socket == null || _enPausa) return;
+    _enPausa = true;
+    _socket?.dispose();
+    _socket = null;
+    _publicar(RealtimeStatus.disconnected);
+  }
+
+  /// Vuelve a conectar al regresar a primer plano.
+  ///
+  /// No hace nada si no había conexión que pausar: sin sesión iniciada no hay
+  /// token, y conectar aquí abriría un socket que el backend rechazaría.
+  void reanudar() {
+    if (!_enPausa) return;
+    _enPausa = false;
+    final token = _token;
+    if (token == null) return;
+    connect(token: token);
+  }
+
   /// Reconecta con el token vigente tras una renovación.
   ///
   /// Rehace la conexión en vez de mutar la opción: el token viaja en el
@@ -122,6 +166,7 @@ class RealtimeService {
     _socket = null;
     _token = null;
     _refreshAttempted = false;
+    _enPausa = false;
     _publicar(RealtimeStatus.disconnected);
   }
 }

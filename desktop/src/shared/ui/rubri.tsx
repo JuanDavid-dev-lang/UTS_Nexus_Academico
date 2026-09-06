@@ -1,8 +1,8 @@
 import { motion, useReducedMotion } from 'framer-motion';
-import happy from '@/assets/rubri/happy.png';
-import neutral from '@/assets/rubri/neutral.png';
-import offline from '@/assets/rubri/offline.png';
-import sad from '@/assets/rubri/sad.png';
+import happy from '@/assets/rubri/happy.webp';
+import neutral from '@/assets/rubri/neutral.webp';
+import offline from '@/assets/rubri/offline.webp';
+import sad from '@/assets/rubri/sad.webp';
 import { cn } from '@/shared/lib/cn';
 
 export type RubriEmotion = 'neutral' | 'happy' | 'sad' | 'offline';

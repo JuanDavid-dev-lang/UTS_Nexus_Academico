@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -129,7 +130,12 @@ class UpdateService {
     // renumeraba —al pasar de 2.14.0 a Pre-release 0.1.0 no había ninguna
     // actualización que aceptar—, y de ahí solo se salía reinstalando a mano.
     // Lo que decide qué se instala es lo que publica quien publica.
-    if (compareVersions(latest, installed) == 0) return null;
+    if (compareVersions(latest, installed) == 0) {
+      // Al día: cualquier APK que quede en el temporal ya se instaló o se
+      // abandonó, y en ninguno de los dos casos sirve para nada.
+      unawaited(limpiarDescargas());
+      return null;
+    }
 
     final assets = (data['assets'] as List?) ?? const [];
     final apk = assets.cast<Map?>().firstWhere(
@@ -147,6 +153,34 @@ class UpdateService {
     );
   }
 
+  /// Borra los APK que quedaron de actualizaciones anteriores.
+  ///
+  /// El instalador del sistema sigue leyendo el archivo después de que
+  /// `OpenFilex.open` vuelve, así que borrarlo ahí cancelaría la instalación:
+  /// se limpia en la siguiente comprobación, cuando ya no puede haber ninguna
+  /// en curso. Antes solo se borraba el de la misma versión justo antes de
+  /// descargarlo, de modo que un APK de unos cincuenta megas se quedaba
+  /// ocupando el teléfono hasta la actualización siguiente — que podían ser
+  /// meses.
+  Future<void> limpiarDescargas() async {
+    if (!isSupported) return;
+    try {
+      final directory = await getTemporaryDirectory();
+      await for (final entrada in directory.list()) {
+        final nombre = entrada.path.split(Platform.pathSeparator).last;
+        if (entrada is File &&
+            nombre.startsWith('uts-nexus-') &&
+            nombre.endsWith('.apk')) {
+          await entrada.delete();
+        }
+      }
+    } catch (_) {
+      // Sin permiso o con el archivo en uso no se borra y ya está: el sistema
+      // purga el directorio temporal por su cuenta bajo presión de
+      // almacenamiento. Fallar aquí impediría comprobar actualizaciones.
+    }
+  }
+
   /// Descarga el APK y se lo entrega al instalador del sistema.
   ///
   /// El sistema pedirá permiso para instalar desde esta app la primera vez; sin
@@ -155,9 +189,10 @@ class UpdateService {
     AppRelease release, {
     void Function(int received, int total)? onProgress,
   }) async {
+    await limpiarDescargas();
+
     final directory = await getTemporaryDirectory();
     final file = File('${directory.path}/uts-nexus-${release.version}.apk');
-    if (await file.exists()) await file.delete();
 
     try {
       await _dio.download(

@@ -115,8 +115,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 children: [
                   const SizedBox(height: 8),
                   Image.asset(
-                    'assets/logo.png',
+                    'assets/logo.webp',
                     height: 96,
+                    // Ídem: se descodifica a los 96 dp a los que se dibuja.
+                    cacheHeight:
+                        (96 * MediaQuery.devicePixelRatioOf(context)).round(),
                     errorBuilder: (_, __, ___) => Icon(
                       Icons.school_outlined,
                       size: 72,

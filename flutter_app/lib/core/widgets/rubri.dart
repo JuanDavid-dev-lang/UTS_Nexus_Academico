@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 enum RubriEmotion { neutral, happy, sad, offline }
 
 const _sprites = <RubriEmotion, String>{
-  RubriEmotion.neutral: 'assets/rubri/neutral.png',
-  RubriEmotion.happy: 'assets/rubri/happy.png',
-  RubriEmotion.sad: 'assets/rubri/sad.png',
-  RubriEmotion.offline: 'assets/rubri/offline.png',
+  RubriEmotion.neutral: 'assets/rubri/neutral.webp',
+  RubriEmotion.happy: 'assets/rubri/happy.webp',
+  RubriEmotion.sad: 'assets/rubri/sad.webp',
+  RubriEmotion.offline: 'assets/rubri/offline.webp',
 };
 
 const _labels = <RubriEmotion, String>{
@@ -88,6 +88,11 @@ class _RubriState extends State<Rubri> with SingleTickerProviderStateMixin {
         width: widget.size,
         height: widget.size,
         fit: BoxFit.contain,
+        // Descodifica al tamaño al que se dibuja, no al del archivo. Sin esto,
+        // el sprite de 384 px ocupa 384x342x4 = 512 KB de mapa de bits aunque
+        // se pinte a 40 dp — y la caché de imágenes de Flutter lo conserva.
+        // La miniatura de una respuesta del asistente baja así a ~50 KB.
+        cacheWidth: (widget.size * MediaQuery.devicePixelRatioOf(context)).round(),
         excludeFromSemantics: true,
       ),
     );

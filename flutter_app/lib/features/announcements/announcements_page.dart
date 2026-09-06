@@ -68,19 +68,34 @@ class AnnouncementsPage extends ConsumerWidget {
 
           return RefreshIndicator(
             onRefresh: () async => ref.invalidate(avisosProvider),
-            child: ListView(
-              padding: AppSpacing.pagePadding,
-              children: [
-                if (listado.sinLeer > 0) ...[
-                  StatusPill('${listado.sinLeer} sin leer', kind: SemanticKind.info),
-                  const SizedBox(height: 12),
-                ],
-                for (final aviso in listado.items)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _Tarjeta(aviso: aviso, muted: muted, ref: ref),
-                  ),
-              ],
+            // `.builder`: cada aviso es una tarjeta con estado propio, y con
+            // `children` se construyen todas aunque en pantalla quepan tres.
+            // El contador de no leídos entra como primer elemento cuando lo hay.
+            child: Builder(
+              builder: (_) {
+                final conCabecera = listado.sinLeer > 0;
+                return ListView.builder(
+                  padding: AppSpacing.pagePadding,
+                  itemCount: listado.items.length + (conCabecera ? 1 : 0),
+                  itemBuilder: (_, indice) {
+                    if (conCabecera && indice == 0) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: StatusPill(
+                          '${listado.sinLeer} sin leer',
+                          kind: SemanticKind.info,
+                        ),
+                      );
+                    }
+                    final aviso =
+                        listado.items[indice - (conCabecera ? 1 : 0)];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _Tarjeta(aviso: aviso, muted: muted, ref: ref),
+                    );
+                  },
+                );
+              },
             ),
           );
         },

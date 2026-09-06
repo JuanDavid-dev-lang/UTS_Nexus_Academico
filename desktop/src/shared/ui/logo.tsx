@@ -1,4 +1,4 @@
-import logoUrl from '@/assets/logo.png';
+import logoUrl from '@/assets/logo.webp';
 import { cn } from '@/shared/lib/cn';
 
 /**
