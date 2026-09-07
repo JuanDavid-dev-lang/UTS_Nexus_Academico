@@ -11,6 +11,8 @@
 #
 #  Lo que hace, sin pedir la contraseña de administrador:
 #
+#    · si no encuentra la aplicación en el equipo, la descarga (la última
+#      versión publicada, unos 80 MB)
 #    · copia la AppImage a ~/.local/share/uts-nexus-academico/
 #    · le da permiso de ejecución
 #    · saca el icono de dentro de la propia AppImage
@@ -168,16 +170,94 @@ elegir_accion() {
   esac
 }
 
-# ── Encontrar la AppImage ─────────────────────────────────────────────────
-# Primero al lado del script y en Descargas, que es donde acaba el 99 % de las
-# veces. Solo si no aparece se abre el selector de archivos: pedirlo siempre
-# convierte un doble clic en tres.
-buscar_appimage() {
+# ── Conseguir la AppImage ─────────────────────────────────────────────────
+# Este archivo es lo que se descarga desde la página, así que tiene que poder
+# traerse la aplicación él solo: pedirle a alguien que además busque y baje un
+# segundo archivo de 80 MB es la mitad de un instalador.
+#
+# El orden es: lo que ya esté en el equipo, después la descarga, y el selector
+# de archivos solo como último recurso. Al revés, quien ya la tiene descargada
+# la bajaría otra vez.
+
+REPO_RELEASES='JuanDavid-dev-lang/UTS_Nexus_Releases'
+# Respaldo si la API de GitHub no responde: el archivo de Dropbox que el
+# publicador de versiones sobrescribe en su sitio, el mismo que enlaza la
+# página. No caduca al salir una versión nueva.
+RESPALDO='https://www.dropbox.com/scl/fi/rdx81u2hlplteru4ixhq6/UTS-Nexus-Academico-Linux.AppImage?rlkey=32kwf13t7n6bbzw2f2roq208y&dl=1'
+
+descargador() {
+  if command -v curl >/dev/null 2>&1; then echo 'curl'
+  elif command -v wget >/dev/null 2>&1; then echo 'wget'
+  fi
+}
+
+# La dirección de la AppImage de la última versión publicada.
+url_ultima_appimage() {
+  local api="https://api.github.com/repos/$REPO_RELEASES/releases/latest" json=''
+  case "$(descargador)" in
+    curl) json="$(curl -fsSL --max-time 20 "$api" 2>/dev/null)" ;;
+    wget) json="$(wget -qO- --timeout=20 "$api" 2>/dev/null)" ;;
+  esac
+
+  # `grep` y `sed` y no `jq`: jq no viene instalado de serie en ninguna de las
+  # distribuciones a las que va esto, y no vale la pena pedirlo por un campo.
+  local url
+  url="$(printf '%s' "$json" |
+         grep -o '"browser_download_url"[^,]*\.AppImage"' |
+         head -1 | sed 's/.*"\(https[^"]*\)"$/\1/')"
+
+  [ -n "$url" ] && echo "$url" || echo "$RESPALDO"
+}
+
+descargar_appimage() {
+  local destino="$1" url
+  url="$(url_ultima_appimage)"
+
+  case "$(descargador)" in
+    curl) curl -fL --retry 2 --connect-timeout 20 -o "$destino" "$url" >/dev/null 2>&1 ;;
+    wget) wget -q --tries=3 --timeout=20 -O "$destino" "$url" >/dev/null 2>&1 ;;
+    *)    return 1 ;;
+  esac
+}
+
+# Descarga con una barra que late. No se puede dar el porcentaje sin analizar
+# la salida de curl, y una barra parada durante ochenta megas se lee como que
+# el instalador se colgó.
+descargar_con_ventana() {
+  local destino="$1"
+
+  if [ "$IU" = 'zenity' ]; then
+    local marca; marca="$(mktemp)"
+    ( descargar_appimage "$destino"; echo "$?" > "$marca" ) |
+      zenity --progress --pulsate --auto-close --no-cancel --width=420 \
+             --title="$APP_NOMBRE" --text='Descargando la aplicación (unos 80 MB)…' 2>/dev/null
+    local estado; estado="$(cat "$marca" 2>/dev/null)"
+    rm -f "$marca"
+    [ "${estado:-1}" = '0' ]
+  else
+    printf 'Descargando la aplicación (unos 80 MB)…\n' >&2
+    descargar_appimage "$destino"
+  fi
+}
+
+conseguir_appimage() {
   local candidato
   for candidato in "$AQUI"/*.AppImage "$HOME"/Descargas/*UTS*.AppImage \
                    "$HOME"/Downloads/*UTS*.AppImage; do
     [ -f "$candidato" ] && { echo "$candidato"; return 0; }
   done
+
+  if [ -n "$(descargador)" ] &&
+     pregunta 'No encontré la aplicación en este equipo.\n\n¿La descargo ahora? Son unos 80 MB y se baja la última versión publicada.'; then
+    local temporal="${TMPDIR:-/tmp}/$APP_ID-descarga.AppImage"
+    if descargar_con_ventana "$temporal" && [ -s "$temporal" ]; then
+      echo "$temporal"
+      return 0
+    fi
+    rm -f "$temporal"
+    msg_error 'No se pudo descargar. Comprobá tu conexión, o descargá la AppImage a mano y volvé a abrir este instalador.'
+    return 1
+  fi
 
   case "$IU" in
     zenity)
@@ -300,6 +380,13 @@ instalar() {
     estado="${PIPESTATUS[0]}"
   fi
 
+  # La descarga temporal ya está copiada en su sitio: dejarla sería olvidar
+  # ochenta megas en /tmp de alguien. Solo se borra la que bajó este script,
+  # nunca un archivo que el usuario tuviera guardado.
+  case "$appimage" in
+    "${TMPDIR:-/tmp}/$APP_ID-descarga.AppImage") rm -f "$appimage" ;;
+  esac
+
   if [ "${estado:-1}" != '0' ]; then
     msg_error 'No se pudo completar la instalación.'
     return 1
@@ -372,7 +459,7 @@ instalado='no'
 
 case "$(elegir_accion "$instalado")" in
   instalar|reinstalar)
-    appimage="$(buscar_appimage)" || { msg_info 'Cancelado.'; exit 0; }
+    appimage="$(conseguir_appimage)" || { msg_info 'Cancelado.'; exit 0; }
     [ -z "$appimage" ] && { msg_error 'No elegiste ningún archivo.'; exit 1; }
     instalar "$appimage"
     ;;

@@ -667,7 +667,11 @@ de ejecución y no aparece en el menú de aplicaciones. Quien no vive en un
 terminal la abre una vez y no vuelve a encontrarla — y es el formato que se
 ofrece por defecto en la página y en el actualizador.
 
-El script es la ventana que le falta. Dibuja con **zenity**, cae a **kdialog**
+El script es la ventana que le falta, y **es lo que enlaza la página de
+descargas** en vez del archivo suelto: si no encuentra la aplicación en el
+equipo, se baja la última publicada de GitHub Releases —con Dropbox de
+respaldo si la API no responde— y la instala. Pedirle a alguien que además
+busque y descargue un segundo archivo de 80 MB es la mitad de un instalador. Dibuja con **zenity**, cae a **kdialog**
 en KDE y a preguntas escritas si no hay ninguno de los dos: un instalador que
 no arranca porque falta un paquete de diálogos es peor que uno feo. Instala,
 reinstala y desinstala; se adjunta a cada release junto a los tres paquetes.
