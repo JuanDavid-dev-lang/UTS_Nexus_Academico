@@ -286,10 +286,36 @@ export function validarProduccion(): void {
   }
 }
 
+/**
+ * Orígenes de la aplicación de escritorio empaquetada. **No dependen del
+ * despliegue**: los fija Tauri, y cambian según el sistema operativo.
+ *
+ *   Windows y Android → `http://tauri.localhost`
+ *   Linux, macOS e iOS → `tauri://localhost`
+ *
+ * Van siempre en la lista y no en `CLIENT_ORIGIN` porque configurarlos a mano
+ * significa acertar los tres, y el que falte no da un error que lo diga: el
+ * navegador incrustado corta la petición antes de enviarla y la aplicación
+ * enseña «error de red». Eso es exactamente lo que pasó — la instalación
+ * declaraba las dos formas `http(s)://tauri.localhost` y no `tauri://localhost`,
+ * así que **la versión de Linux no podía iniciar sesión** mientras la de
+ * Windows funcionaba con el mismo servidor.
+ *
+ * No abre nada: CORS protege al navegador de una página web, y ninguna página
+ * puede presentarse con estos orígenes. Un cliente nativo, además, manda la
+ * cabecera `Origin` que quiera.
+ */
+const ORIGENES_APP_ESCRITORIO = [
+  'http://tauri.localhost',
+  'https://tauri.localhost',
+  'tauri://localhost',
+] as const;
+
 /** Orígenes permitidos por CORS, ya separados. `*` solo sobrevive fuera de producción. */
 export function origenesPermitidos(): string[] | '*' {
   if (env.CLIENT_ORIGIN === '*') return '*';
-  return env.CLIENT_ORIGIN.split(',')
+  const declarados = env.CLIENT_ORIGIN.split(',')
     .map(origen => origen.trim())
     .filter(Boolean);
+  return [...new Set([...declarados, ...ORIGENES_APP_ESCRITORIO])];
 }

@@ -1,4 +1,4 @@
-# ==========================================================================
+﻿# ==========================================================================
 #  UTS Nexus Académico — Arranque end-to-end (Windows / PowerShell)
 #
 #  Instala dependencias, compila, siembra datos de demo, levanta el backend

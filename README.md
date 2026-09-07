@@ -784,8 +784,13 @@ al valor por defecto.
 > ### CORS y la app de escritorio
 >
 > `CLIENT_ORIGIN` controla qué origen acepta el backend. La app empaquetada **no
-> se sirve desde `localhost`**: en Windows su origen es `http://tauri.localhost`,
-> y el servidor de desarrollo usa `http://localhost:5183`.
+> se sirve desde `localhost`**, y su origen **cambia según el sistema operativo**:
+> `http://tauri.localhost` en Windows y Android, `tauri://localhost` en Linux,
+> macOS e iOS. El servidor de desarrollo usa `http://localhost:5183`.
+>
+> Esos tres orígenes **no hay que declararlos**: los añade el backend siempre
+> (`ORIGENES_APP_ESCRITORIO` en `shared/env.ts`). Se escribían a mano, faltaba el
+> de Linux, y la app de Linux no podía iniciar sesión mientras la de Windows sí.
 >
 > Si `CLIENT_ORIGIN` apunta a un puerto concreto (por ejemplo `5173`), el login
 > desde el escritorio fallará con un error de red que **no** dice «CORS» — dirá

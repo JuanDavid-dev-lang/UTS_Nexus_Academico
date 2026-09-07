@@ -129,14 +129,37 @@ en internet eso se intenta constantemente.
 
 ## Operación
 
+### Desde tu equipo, sin entrar a mano
+
+```powershell
+cd deploy
+
+.\conectar.ps1                # abre una sesión SSH en el servidor
+.\conectar.ps1 -Actualizar    # trae el código nuevo, reconstruye y comprueba /health
+.\conectar.ps1 -Registros     # los últimos 80 registros del backend
+```
+
+Usa `~\.ssh\nexus-ec2.pem` salvo que se le pase `-Clave`, y **prueba las dos
+cuentas posibles** (`ec2-user` y `ubuntu`) antes de rendirse: equivocarse de
+usuario responde `Permission denied (publickey)`, que es el mismo mensaje que da
+una clave mala, y sin esto se pierde media hora buscando en el sitio
+equivocado. También corrige los permisos de la clave si Windows los dejó
+abiertos, porque OpenSSH la rechaza y su mensaje no dice cómo arreglarlo.
+
+### En la instancia
+
 ```bash
 cd ~/UTS_Nexus_Academico/deploy
 
+./actualizar.sh                       # lo mismo que -Actualizar, ya estando dentro
 docker compose logs -f backend        # registros en vivo
 docker compose ps                     # estado y salud de los contenedores
 docker compose restart backend        # reiniciar uno
-git pull && docker compose up -d --build   # desplegar una versión nueva
 ```
+
+`actualizar.sh` **no toca `deploy/.env`**: los secretos los generó `instalar.sh`
+una sola vez. Si hay que cambiar una variable se edita ese archivo y se vuelve a
+lanzar el script.
 
 El certificado se renueva solo. El volumen `caddy_data` guarda los certificados
 emitidos: **no lo borres** sin motivo, porque Let's Encrypt limita cuántas veces

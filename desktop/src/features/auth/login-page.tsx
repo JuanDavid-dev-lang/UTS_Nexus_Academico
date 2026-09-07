@@ -5,7 +5,6 @@ import { Server, ShieldCheck } from 'lucide-react';
 import { Logo } from '@/shared/ui/logo';
 import { Button } from '@/shared/ui/button';
 import { Field, Input } from '@/shared/ui/field';
-import { Badge } from '@/shared/ui/badge';
 import { useSession } from '@/state/session.store';
 import { toast } from '@/state/toast.store';
 import { toAppError } from '@/core/api/errors';
@@ -17,15 +16,16 @@ import { normalizeServerUrl } from '@/core/config/env';
  * Login screen.
  *
  * Two deliberate changes from v1: no credentials are pre-filled (they were
- * hard-coded in the source), and the server field is tucked behind a toggle so
- * the common case - just log in - is two fields and one button.
+ * hard-coded in the source), and the server address is not shown at all while
+ * it works - the common case is two fields and one button. The probe still
+ * runs, because "the server is not running" is a different problem from "wrong
+ * password"; what changed is that it only speaks when it has bad news.
  */
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [submitting, setSubmitting] = useState(false);
-  const [showServer, setShowServer] = useState(false);
   const [serverStatus, setServerStatus] = useState<'checking' | 'online' | 'offline'>('checking');
 
   const serverUrl = useSession((state) => state.serverUrl);
@@ -182,30 +182,32 @@ export default function LoginPage() {
             </Link>
           </p>
 
-          <div className="mt-6 border-t border-border pt-4">
-            <button
-              type="button"
-              onClick={() => setShowServer((value) => !value)}
-              className="flex w-full items-center gap-2 text-caption font-medium text-muted transition-colors hover:text-text"
-            >
-              <Server className="size-3.5" aria-hidden />
-              Servidor
-              <span className="flex-1 truncate text-left font-mono opacity-70">{serverUrl}</span>
-              {serverStatus === 'online' ? (
-                <Badge tone="success">En línea</Badge>
-              ) : serverStatus === 'offline' ? (
-                <Badge tone="danger">Sin conexión</Badge>
-              ) : (
-                <Badge>Verificando…</Badge>
-              )}
-            </button>
+          {/*
+            La fila «Servidor · URL · En línea» ya no está. Cuando todo funciona
+            no dice nada que el docente necesite hacer, y la dirección del
+            servidor se cambia en Configuración.
 
-            {showServer ? (
+            Lo que queda es la salida de emergencia, y solo cuando hace falta:
+            si el servidor no responde no se puede iniciar sesión, y sin sesión
+            no se llega a Configuración. Sin este campo, una dirección mal
+            puesta dejaría la aplicación sin ninguna forma de arreglarse desde
+            dentro.
+          */}
+          {serverStatus === 'offline' ? (
+            <div className="mt-6 border-t border-border pt-4">
+              <p className="flex items-start gap-2 rounded-lg bg-warning-soft px-3 py-2 text-caption text-warning">
+                <Server className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                <span>
+                  No hay respuesta de <span className="font-mono">{serverUrl}</span>. Comprueba
+                  tu conexión, o escribe abajo otra dirección.
+                </span>
+              </p>
+
               <div className="mt-3 flex gap-2">
                 <Input
                   value={serverDraft}
                   onChange={(event) => setServerDraft(event.target.value)}
-                  placeholder="http://127.0.0.1:4000"
+                  placeholder="https://servidor.uts.edu.co"
                   aria-label="Dirección del servidor"
                   className="font-mono text-caption"
                 />
@@ -213,16 +215,8 @@ export default function LoginPage() {
                   Guardar
                 </Button>
               </div>
-            ) : null}
-
-            {serverStatus === 'offline' ? (
-              <p className="mt-3 rounded-lg bg-warning-soft px-3 py-2 text-caption text-warning">
-                No hay respuesta del servidor. Verifica que el backend esté compilado
-                (<code className="font-mono">npm run build</code> en <code className="font-mono">backend/</code>)
-                y que Node esté instalado.
-              </p>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </motion.div>
       </main>
     </div>

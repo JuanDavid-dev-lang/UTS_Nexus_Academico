@@ -105,8 +105,11 @@ DOMINIO=$DOMINIO
 MONGODB_URI=$MONGO
 JWT_ACCESS_SECRET=$ACCESO
 JWT_REFRESH_SECRET=$REFRESCO
-# Orígenes autorizados. tauri.localhost es la app de escritorio empaquetada.
-CLIENT_ORIGIN=https://$DOMINIO,http://tauri.localhost,https://tauri.localhost
+# Orígenes autorizados. Los de la app de escritorio los añade el backend por su
+# cuenta (ver ORIGENES_APP_ESCRITORIO en src/shared/env.ts): son tres y cambian
+# según el sistema operativo, así que escribirlos aquí era pedir que alguien se
+# dejara uno. Faltaba justo el de Linux, y la app de Linux no podía entrar.
+CLIENT_ORIGIN=https://$DOMINIO
 RISK_SCAN_INTERVAL_MIN=60
 EOF
   echo "Secretos generados en deploy/.env (permisos 600)."

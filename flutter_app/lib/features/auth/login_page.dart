@@ -198,17 +198,30 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     child: const Text('¿Olvidaste tu contraseña?'),
                   ),
 
-                  const SizedBox(height: 16),
-                  const Divider(),
-                  const SizedBox(height: 8),
-
-                  _ConnectionBanner(
-                    state: connection,
-                    onRetry: () =>
-                        ref.read(connectionControllerProvider.notifier).discover(),
-                    onManual: () =>
-                        setState(() => _showManualServer = !_showManualServer),
-                  ),
+                  // El estado de la conexión solo se enseña cuando hay algo que
+                  // hacer al respecto. Mientras comprueba, y cuando encuentra el
+                  // servidor, la pantalla no dice nada: «servidor encontrado» es
+                  // ruido debajo de un formulario que ya se puede rellenar.
+                  //
+                  // La búsqueda SÍ se enseña, con su barra de progreso: barrer la
+                  // red tarda unos segundos y sin esa señal la pantalla parece
+                  // colgada. Y los dos fallos se quedan, porque llevan los
+                  // botones de reintentar y de escribir la dirección a mano —
+                  // sin ellos, una red donde el barrido no llega deja la
+                  // aplicación sin forma de arreglarse desde dentro.
+                  if (_muestraConexion(connection.phase)) ...[
+                    const SizedBox(height: 16),
+                    const Divider(),
+                    const SizedBox(height: 8),
+                    _ConnectionBanner(
+                      state: connection,
+                      onRetry: () => ref
+                          .read(connectionControllerProvider.notifier)
+                          .discover(),
+                      onManual: () =>
+                          setState(() => _showManualServer = !_showManualServer),
+                    ),
+                  ],
 
                   if (_showManualServer) ...[
                     const SizedBox(height: 12),
@@ -238,6 +251,20 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     );
   }
 }
+
+/// Qué fases de la conexión se enseñan en el acceso.
+///
+/// Se decide con un `switch` sobre el enum y no con una lista de fases
+/// ocultas: si mañana se añade una fase, esto deja de compilar y hay que
+/// decidir qué hacer con ella. Con una lista, la fase nueva se colaría o se
+/// quedaría muda sin que nadie lo notara.
+bool _muestraConexion(ConnectionPhase fase) => switch (fase) {
+      ConnectionPhase.checking => false,
+      ConnectionPhase.connected => false,
+      ConnectionPhase.discovering => true,
+      ConnectionPhase.degraded => true,
+      ConnectionPhase.notFound => true,
+    };
 
 /// Estado de la conexión, en lenguaje de usuario.
 class _ConnectionBanner extends StatelessWidget {

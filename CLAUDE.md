@@ -762,7 +762,20 @@ Leídas por `backend/src/shared/env.ts`. **Un nombre mal escrito no da error: ca
 - **El límite de intentos de login va siempre**, no solo en producción. Estaba dentro de un `if (esProduccion)` y esa es justo la condición que falta cuando alguien despliega sin declararla. Diez intentos cada quince minutos no estorban a nadie desarrollando.
 - **`ALLOW_DEV_RECOVERY_CODE`** devuelve el código de recuperación en la respuesta de `/auth/recovery/request`. Apagada por defecto y con dos condiciones más encima (fuera de producción, sin SMTP). Nunca en un servidor al que llegue nadie más.
 - **`ML_SHARED_SECRET`** tiene que valer lo mismo aquí y en el entorno del servicio de Python. Vacío solo mientras el servicio escuche en `127.0.0.1`.
-- `CLIENT_ORIGIN=*` para uso local: la app empaquetada de escritorio se sirve desde `http://tauri.localhost` (dev: `http://localhost:5183`). Si `CLIENT_ORIGIN` apunta a otro puerto, el login desde escritorio falla con un error de red que **no** menciona CORS.
+- **`CLIENT_ORIGIN` no lleva los orígenes de la app de escritorio: los añade el backend.**
+  Son tres y los fija Tauri, no el despliegue — `http://tauri.localhost` en Windows y
+  Android, `tauri://localhost` en Linux, macOS e iOS. Estaban escritos a mano en
+  `deploy/instalar.sh`, faltaba el de Linux, y **la versión de Linux no podía iniciar
+  sesión** mientras la de Windows funcionaba contra el mismo servidor. Ese fallo no
+  aparece en ningún registro: el navegador incrustado corta la petición antes de
+  enviarla, así que el servidor no ve nada y la app enseña «error de red», que es lo
+  mismo que enseña si el servidor está apagado. Viven en `ORIGENES_APP_ESCRITORIO`
+  (`shared/env.ts`) y `tests/cors-origins.test.ts` fija que estén los tres. No abre
+  nada: CORS protege al navegador de una página web, y ninguna página puede
+  presentarse con esos orígenes.
+- `CLIENT_ORIGIN=*` para uso local. En producción es obligatoria y lleva el dominio del
+  servidor; el de desarrollo del escritorio es `http://localhost:5183`. Si apunta a otro
+  puerto, el login falla con un error de red que **no** menciona CORS.
 - El backend escucha en todas las interfaces (`0.0.0.0`) — necesario para que el móvil se conecte desde el teléfono.
 - `CAMPUS_UTC_OFFSET_MIN` (por defecto `-300`) es la zona del campus. Si el servidor corre en UTC y esto no se declara bien, **todas las clases y todos los recordatorios se desplazan varias horas sin ningún error visible**.
 - `CLASS_REMINDER_INTERVAL_MIN` va a `1` por defecto: un aviso de «empieza en 15 minutos» comprobado cada cuarto de hora no es un aviso. Con varias instancias, activarlo en una sola.
