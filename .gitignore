@@ -39,3 +39,7 @@ flutter_app/android/*.keystore
 !*.key.pub
 deploy/.env
 deploy/.env.*
+
+# HTML intermedio del conversor a PDF: se regenera con tools/documento-a-pdf.py
+# y el PDF final no vive en el repositorio.
+docs/*.html
