@@ -658,6 +658,46 @@ es un fallo nuevo, es esa AppImage sin sanear. Se arregla con
 `node scripts/sanear-appimage.mjs`, que es idempotente y se puede ejecutar
 suelto. En la publicación no ocurre: allí la clave está.
 
+### La AppImage se instala con `desktop/linux/instalar-uts-nexus.sh`
+
+El `.deb` y el `.rpm` los instala el centro de software del sistema, con su
+ventana y su botón de desinstalar. La AppImage **no se instala en ninguna
+parte**: se descarga, se queda en Descargas, hay que acordarse de darle permiso
+de ejecución y no aparece en el menú de aplicaciones. Quien no vive en un
+terminal la abre una vez y no vuelve a encontrarla — y es el formato que se
+ofrece por defecto en la página y en el actualizador.
+
+El script es la ventana que le falta. Dibuja con **zenity**, cae a **kdialog**
+en KDE y a preguntas escritas si no hay ninguno de los dos: un instalador que
+no arranca porque falta un paquete de diálogos es peor que uno feo. Instala,
+reinstala y desinstala; se adjunta a cada release junto a los tres paquetes.
+
+Cuatro decisiones que conviene no deshacer:
+
+- **Todo en el directorio del usuario**, sin `sudo`. Instalar en `/usr` pide la
+  contraseña de administrador, y una AppImage no la necesita para nada. Va a
+  `~/.local/share/uts-nexus-academico/`, con su `.desktop` en
+  `~/.local/share/applications/` y un enlace en `~/.local/bin`.
+- **El icono se saca de dentro de la propia AppImage**, no de un archivo
+  aparte: así es siempre el de la versión que se está instalando. Si la
+  extracción falla no se aborta nada — queda el icono genérico, que es un
+  defecto de aspecto y no de funcionamiento.
+- **Los datos del usuario se preguntan aparte y por defecto se conservan.**
+  Desinstalar para instalar una versión nueva y perder de paso la sesión
+  guardada es una sorpresa cara. La sesión que esté en el llavero del sistema
+  **se dice**, no se borra: un script no debería hurgar en gnome-keyring ni en
+  KWallet.
+- **Ninguna pregunta se lee de `/dev/tty` a secas.** Sin terminal de control
+  —lanzado desde el gestor de archivos, o con la entrada redirigida— ese
+  dispositivo no se puede abrir, `read` falla y con `set -u` la variable sin
+  asignar mata el script. Eso abortaba la desinstalación **después** de haber
+  borrado la aplicación. `leer_respuesta()` intenta abrirlo y cae a la entrada
+  estándar.
+
+`StartupWMClass` tiene que seguir siendo `uts-nexus-academico`, el nombre del
+binario: es lo mismo que fija `uts-nexus.desktop.hbs` y por lo mismo — sin él,
+GNOME y KDE no atan la ventana abierta a su lanzador.
+
 **Formatos y actualización no son lo mismo en Linux.** Una AppImage se reemplaza
 a sí misma sin permisos; un `.deb` o un `.rpm` instalan en `/usr` y el sistema
 pide la contraseña de administrador. `core/platform/paquete.ts` traduce el

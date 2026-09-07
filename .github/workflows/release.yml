@@ -398,6 +398,7 @@ jobs:
             desktop/src-tauri/target/release/bundle/deb/*.deb.sig
             desktop/src-tauri/target/release/bundle/rpm/*.rpm
             desktop/src-tauri/target/release/bundle/rpm/*.rpm.sig
+            desktop/linux/instalar-uts-nexus.sh
 
       - name: Guardar los paquetes de Linux
         uses: actions/upload-artifact@v4
