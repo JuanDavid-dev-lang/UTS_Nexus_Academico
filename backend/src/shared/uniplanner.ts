@@ -416,11 +416,17 @@ export type ResultadoEnvio =
  * el buzón se lee ordenado por ese campo y **Firestore deja fuera de una
  * consulta ordenada todo documento que no lo tenga**: un aviso sin `sentAt` se
  * escribiría sin error y no lo vería nadie nunca.
+ *
+ * Con `id`, el aviso tiene nombre fijo y **se escribe una sola vez**: si ya
+ * existe, Firestore contesta 409 y eso cuenta como enviado. Es para los avisos
+ * que dos procesos pueden disparar a la vez por el mismo hecho (la
+ * verificación de un enlace).
  */
 export async function escribirAviso(
   uid: string,
   institutionId: string,
   aviso: Aviso,
+  id?: string,
 ): Promise<ResultadoEnvio> {
   if (!configurado()) {
     avisarUnaVez();
@@ -444,7 +450,9 @@ export async function escribirAviso(
     payload: aviso.payload,
   };
 
-  const url = `${urlBase()}/users/${encodeURIComponent(uid)}/${COLECCION_BUZON}`;
+  const url =
+    `${urlBase()}/users/${encodeURIComponent(uid)}/${COLECCION_BUZON}` +
+    (id ? `?documentId=${encodeURIComponent(id)}` : '');
 
   try {
     const respuesta = await fetch(url, {
@@ -454,6 +462,7 @@ export async function escribirAviso(
       signal: AbortSignal.timeout(15_000),
     });
 
+    if (id && respuesta.status === 409) return { ok: true, id };
     if (!respuesta.ok) {
       console.warn(
         `[uniplanner] el buzón rechazó el aviso (${respuesta.status}): ${(await respuesta.text().catch(() => '')).slice(0, 200)}`,

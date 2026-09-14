@@ -351,7 +351,7 @@ semana?».
 ## 8. Pruebas
 
 ```bash
-cd backend && npm test        # 521 pruebas · dominio puro, sin base ni servidor
+cd backend && npm test        # 522 pruebas · dominio puro, sin base ni servidor
 cd desktop && npm test        # 92 pruebas
 cd flutter_app && flutter test  # 53 pruebas
 ```

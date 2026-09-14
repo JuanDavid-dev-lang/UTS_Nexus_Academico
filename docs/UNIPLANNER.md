@@ -468,10 +468,34 @@ Dos entradas. El scheduler (`startUniplannerLinkVerifier`, cada minuto) lee
 **solo lo nuevo**: UniPlanner sella `verificationRequestedAt` con la hora del
 servidor al enlazar y al corregir el nombre, y Nexus guarda un cursor sobre ese
 campo (`ConfigModel`, `uniplanner_verificacion_cursor`). Y al matricular (una o
-en lote, `enrollment.routes.ts`) se vuelven a comprobar los enlaces de esos
-estudiantes: quien se enlazó antes de que su docente cargara el curso pasa a
-verificado en ese momento. Nexus escribe `verified`, `verifiedAt`,
-`verificationStatus` y `verificationCheckedAt`; la app solo los lee.
+en lote, `enrollment.routes.ts`), al importar fichas (`POST /students/bulk`) y al
+corregir el nombre en la ficha (`PATCH /students/:id`) se vuelven a comprobar
+los enlaces de esos estudiantes: quien se enlazó antes de que su docente cargara
+el curso, o con un nombre que la ficha tenía mal, pasa a verificado en ese
+momento. Nexus escribe `verified`, `verifiedAt`, `verificationStatus` y
+`verificationCheckedAt`; la app solo los lee, **en vivo** (escucha el documento
+del enlace), así que el cambio aparece sin salir de la pantalla.
+
+**La universidad sale de la matrícula.** Un estudiante registrado en Nexus sin
+matricular en ninguna materia no pertenece todavía a ninguna universidad, y su
+enlace queda `not_matched` hasta que lo matriculan. Es lo que vio la primera
+prueba real (septiembre de 2026): una ficha creada a mano, sin matrícula.
+
+**Aviso de verificado.** Al pasar a verificado —solo o a mano desde «Vínculos»—
+Nexus le escribe un aviso `notice` en su buzón (`avisoDeEnlaceVerificado`,
+`domains/uniplanner/message.ts`): la verificación puede llegar horas después de
+enlazarse, cuando la persona ya no está mirando. Va con id fijo por enlace
+(`enlace-verificado-<linkId>`, `?documentId=` en la escritura y un 409 cuenta
+como enviado), porque el cursor y una matrícula pueden verificar el mismo enlace
+a la vez. Aparece en el centro de notificaciones de UniPlanner; como el resto de
+avisos de Nexus, no hay push al teléfono con la app cerrada.
+
+**Si Nexus no contesta.** Pasados diez minutos sin respuesta la app deja de
+decir «Verificando…» y dice «Pendiente»: la comprobación tarda menos de un
+minuto, así que diez sin respuesta es que el puente no está funcionando. Fue lo
+que pasó en producción hasta configurar `UNIPLANNER_*` en `deploy/.env`: el
+backend corría sin credenciales, el puente era un no-op declarado en el log y la
+tarjeta prometía una comprobación que nadie estaba haciendo.
 
 **Revisión manual.** Sigue en «Vínculos UniPlanner» para las excepciones —un
 nombre que la universidad tiene mal escrito, un cambio de cuenta—: la pantalla

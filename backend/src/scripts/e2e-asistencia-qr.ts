@@ -157,6 +157,15 @@ globalThis.fetch = (async (input: string | URL | Request, init: RequestInit = {}
     store.set(ruta, nuevo);
     return json(200, { name: `${ROOT}/${ruta}`, fields: nuevo });
   }
+  if (metodo === 'POST' && !ruta.includes(':')) {
+    // Crear un documento en una colección (el buzón). Con `documentId`, como
+    // Firestore: si ya existe, 409 y no se toca.
+    const id = url.searchParams.get('documentId') ?? `auto-${store.size}`;
+    const clave = `${ruta}/${id}`;
+    if (store.has(clave)) return json(409, { error: 'ALREADY_EXISTS' });
+    store.set(clave, cuerpo.fields ?? {});
+    return json(200, { name: `${ROOT}/${clave}`, fields: cuerpo.fields ?? {} });
+  }
   return json(500, { error: `no simulado: ${metodo} ${ruta}` });
 }) as typeof fetch;
 
@@ -201,6 +210,7 @@ const svc = await import('../modules/attendance-qr/attendance-qr.service.js');
 const { componerQr, ventanaDe } = await import('../domains/attendance/qr-session.js');
 const { normalizarFechaDeClase, diaDeCampus } = await import('../domains/attendance/class-date.js');
 const { invalidarCachePeriodos } = await import('../shared/period-guard.js');
+const puente = await import('../shared/uniplanner.js');
 
 await mongoose.connect(process.env.MONGODB_URI!);
 await mongoose.connection.dropDatabase();
@@ -703,6 +713,16 @@ try {
   assert.deepEqual(estadoDe('1098765433'), { verificado: false, estado: 'not_matched' });
   paso('documento, nombre y universidad de un estudiante registrado: verificado solo; si no casan, no');
 
+  const avisosDe = (uid: string) =>
+    [...store.entries()].filter(([k]) => k.startsWith(`users/${uid}/institutional_inbox/`)).map(([, v]) => v);
+  assert.equal(avisosDe('uid-juan').length, 1);
+  assert.equal(avisosDe('uid-juan')[0].type?.stringValue, 'notice');
+  assert.equal(avisosDe('uid-otro').length, 0);
+  // Verificarlo otra vez —otro proceso, o a mano— no le deja un segundo aviso.
+  await puente.escribirAviso('uid-juan', 'uts', { type: 'notice', message: 'x' }, 'enlace-verificado-uts__1098765432');
+  assert.equal(avisosDe('uid-juan').length, 1);
+  paso('al quedar verificado le llega un aviso a su buzón, y uno solo');
+
   // Una pasada sin nada nuevo no reescribe nada.
   const escriturasVerificacion = llamadas.filter((l) => l.startsWith('PATCH institution_links')).length;
   await verificacion.verificarEnlacesPedidos();
@@ -721,6 +741,21 @@ try {
   await verificacion.verificarEnlacesDeEstudiantes([String(lucia._id)]);
   assert.deepEqual(estadoDe('1098765434'), { verificado: true, estado: 'verified' });
   paso('quien se enlazó antes de estar matriculado queda verificado al matricularlo');
+  assert.equal(avisosDe('uid-lucia').length, 1);
+
+  // El registro tenía mal el nombre: corregirlo en la ficha lo verifica.
+  const pedro = await StudentModel.create({ code: '1098765435', fullName: 'PEDRO ROJAS', program: 'Sistemas' });
+  await EnrollmentModel.create({
+    studentId: pedro._id, groupId: grupo._id, subjectId: materia._id, professorId: docente._id, period: periodo,
+  });
+  await new Promise((r) => setTimeout(r, 20));
+  pedirVerificacion('1098765435', 'uid-pedro', 'PEDRO ANTONIO ROJAS');
+  await verificacion.verificarEnlacesPedidos();
+  assert.equal(estadoDe('1098765435').estado, 'not_matched');
+  await StudentModel.updateOne({ _id: pedro._id }, { $set: { fullName: 'ROJAS PEDRO ANTONIO' } });
+  await verificacion.verificarEnlacesDeEstudiantes([String(pedro._id)]);
+  assert.deepEqual(estadoDe('1098765435'), { verificado: true, estado: 'verified' });
+  paso('corregir el nombre en la ficha verifica el enlace que no coincidía');
 
   // ── Periodo en cierre ──────────────────────────────────────────────────────
   await AcademicPeriodModel.updateOne({ period: periodo }, { $set: { state: 'CLOSING' } }, { upsert: true });

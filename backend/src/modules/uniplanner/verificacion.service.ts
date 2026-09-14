@@ -20,6 +20,11 @@
  *
  * La verificación manual de «Vínculos UniPlanner» sigue ahí para las
  * excepciones, y un enlace verificado a mano nunca se desverifica desde aquí.
+ *
+ * Al quedar verificado se le escribe un aviso en su buzón
+ * (`avisarEnlaceVerificado`): la verificación puede llegar horas después de
+ * enlazarse, cuando el docente carga el curso, y para entonces la persona ya no
+ * está mirando la pantalla del enlace.
  */
 import { Types } from 'mongoose';
 import { ConfigModel } from '../../models/config.model.js';
@@ -33,6 +38,7 @@ import * as puente from '../../shared/uniplanner.js';
 import { partesDelEnlace } from '../../domains/uniplanner/link-admin.js';
 import { idDeEnlace } from '../../domains/uniplanner/link-id.js';
 import { decidirVerificacion, type EstadoVerificacion } from '../../domains/uniplanner/link-verification.js';
+import { avisoDeEnlaceVerificado, idDelAvisoDeVerificacion } from '../../domains/uniplanner/message.js';
 
 const CLAVE_CURSOR = 'uniplanner_verificacion_cursor';
 
@@ -79,7 +85,23 @@ async function institucionesDe(studentIds: Types.ObjectId[]): Promise<Map<string
   return resultado;
 }
 
-type Candidato = { id: string; nombre: string; verified: boolean; estadoVerificacion: EstadoVerificacion | null };
+type Candidato = {
+  id: string;
+  uid: string;
+  nombre: string;
+  verified: boolean;
+  estadoVerificacion: EstadoVerificacion | null;
+};
+
+/**
+ * Le dice a la persona, en su buzón, que su enlace quedó verificado. Un fallo
+ * no deshace la verificación: el enlace ya está bien, solo falta el aviso.
+ */
+export async function avisarEnlaceVerificado(uid: string, institucion: string, linkId: string): Promise<boolean> {
+  if (!uid) return false;
+  const envio = await puente.escribirAviso(uid, institucion, avisoDeEnlaceVerificado(), idDelAvisoDeVerificacion(linkId));
+  return envio.ok;
+}
 
 /**
  * Decide una tanda de enlaces y escribe lo que corresponda.
@@ -120,8 +142,12 @@ async function decidirYEscribir(candidatos: Candidato[], siempre: boolean) {
     if (!siempre && estado === candidato.estadoVerificacion) continue;
     if (!siempre && estado === 'not_matched') continue;
     if (await puente.escribirVerificacion(candidato.id, estado)) {
-      if (estado === 'verified') verificados++;
-      else sinCoincidencia++;
+      if (estado === 'verified') {
+        verificados++;
+        await avisarEnlaceVerificado(candidato.uid, p.institucion, candidato.id);
+      } else {
+        sinCoincidencia++;
+      }
     }
   }
 
@@ -153,7 +179,7 @@ export async function verificarEnlacesPedidos(): Promise<{ revisados: number; ve
     (e) => !(cursor.desde && e.pedidoEn.toISOString() === cursor.desde && vistos.has(e.id)),
   );
   const resultado = await decidirYEscribir(
-    nuevos.map((e) => ({ id: e.id, nombre: e.nombre, verified: e.verified, estadoVerificacion: e.estadoVerificacion })),
+    nuevos.map((e) => ({ id: e.id, uid: e.uid, nombre: e.nombre, verified: e.verified, estadoVerificacion: e.estadoVerificacion })),
     true,
   );
 
@@ -185,8 +211,19 @@ export async function verificarEnlacesDeEstudiantes(studentIds: string[]): Promi
   );
   const enlaces = await puente.buscarEnlaces(linkIds);
   const { verificados } = await decidirYEscribir(
-    [...enlaces].map(([id, e]) => ({ id, nombre: e.nombre, verified: e.verified, estadoVerificacion: e.estadoVerificacion })),
+    [...enlaces].map(([id, e]) => ({ id, uid: e.uid, nombre: e.nombre, verified: e.verified, estadoVerificacion: e.estadoVerificacion })),
     false,
   );
   return { verificados };
+}
+
+/**
+ * `verificarEnlacesDeEstudiantes` sin esperar a UniPlanner. La matrícula, el
+ * lote de fichas o el cambio de nombre ya se guardaron; que Firestore tarde o
+ * falle no puede convertir esa respuesta en un error.
+ */
+export function reverificarEnSegundoPlano(studentIds: string[]): void {
+  void verificarEnlacesDeEstudiantes(studentIds).catch((err) =>
+    console.warn('[uniplanner] no se pudo volver a verificar:', err instanceof Error ? err.message : err),
+  );
 }

@@ -197,10 +197,16 @@ nada. La lista de siempre no cambia: quien no tiene la app se marca a mano.
   mayúsculas), y Nexus lo verifica cuando casan con un estudiante matriculado en
   esa universidad con ese nombre —todas las palabras, en cualquier orden, sin
   tildes—. Scheduler cada minuto por cursor sobre `verificationRequestedAt`
-  (solo lo nuevo) y re-comprobación al matricular. Un solo estado de fallo
-  (`not_matched`) para no revelar qué documentos existen. **Comprueba datos, no
-  identidad**: quien conozca el nombre y el documento de un compañero puede
-  escribirlos; por eso siguen las demás capas.
+  (solo lo nuevo) y re-comprobación al matricular, al importar fichas y al
+  corregir el nombre en la ficha. **La universidad sale de la matrícula**: un
+  estudiante registrado sin matricular no tiene ninguna y queda `not_matched`
+  hasta que lo matriculan. Un solo estado de fallo (`not_matched`) para no
+  revelar qué documentos existen. Al quedar verificado —solo o a mano— le llega
+  un aviso `notice` a su buzón, con id fijo por enlace
+  (`idDelAvisoDeVerificacion`): el cursor y una matrícula pueden verificarlo a
+  la vez y el aviso es uno. **Comprueba datos, no identidad**: quien conozca el
+  nombre y el documento de un compañero puede escribirlos; por eso siguen las
+  demás capas.
 - **El enlace lo gestiona la institución, no el docente** (pantalla «Vínculos
   UniPlanner», `modules/uniplanner/vinculos.service.ts`): es uno por estudiante
   con su universidad y vale para todas sus materias, así que verificarlo,

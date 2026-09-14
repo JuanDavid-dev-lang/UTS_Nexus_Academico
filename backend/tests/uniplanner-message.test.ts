@@ -20,12 +20,14 @@ import {
 import {
   CARGA,
   avisoDeCargaAcademica,
+  avisoDeEnlaceVerificado,
   avisoDeEntrega,
   avisoDeInasistencia,
   avisoDeNota,
   cupoConsumido,
   esFechaReal,
   faltasPermitidas,
+  idDelAvisoDeVerificacion,
   nivelDeInasistencia,
 } from '../src/domains/uniplanner/message.js';
 
@@ -137,6 +139,21 @@ describe('semáforo de inasistencias', () => {
 
 describe('avisos que se escriben en el buzón', () => {
   const ahora = new Date('2026-09-06T12:00:00Z');
+
+  it('el aviso de enlace verificado lo entiende cualquier versión de la app y se escribe una vez', () => {
+    const aviso = avisoDeEnlaceVerificado(ahora);
+    // `notice` es el tipo que toda instalación sabe pintar, también las de antes
+    // de la verificación automática.
+    expect(aviso.type).toBe('notice');
+    expect(aviso.message).toMatch(/verificó tu enlace/);
+    expect(aviso.expiresAt!.getTime()).toBeGreaterThan(ahora.getTime());
+    // El cursor y una matrícula pueden verificar el mismo enlace a la vez: con
+    // un id fijo por enlace, la persona recibe un solo aviso.
+    expect(idDelAvisoDeVerificacion('uts__1098765432')).toBe(idDelAvisoDeVerificacion('uts__1098765432'));
+    expect(idDelAvisoDeVerificacion('uts__1098765432')).not.toBe(idDelAvisoDeVerificacion('uts__1098765433'));
+    // Firestore no admite «/» en un id ni uno que empiece y acabe en «__».
+    expect(idDelAvisoDeVerificacion('uts__1098765432')).not.toMatch(/\/|^__.*__$/);
+  });
 
   it('el aviso de faltas lleva el cupo, no solo las faltas', () => {
     const aviso = avisoDeInasistencia({

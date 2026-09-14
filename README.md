@@ -1468,12 +1468,12 @@ una importación.
 
 | Componente | Estado |
 |-----------|--------|
-| Backend (Node.js / TypeScript) | ✅ Operativo · **521 pruebas** |
+| Backend (Node.js / TypeScript) | ✅ Operativo · **522 pruebas** |
 | App de escritorio (Tauri 2 + React 19) | ✅ Operativa en Windows y Linux · **171 pruebas** |
 | App móvil (Flutter / Android) | ✅ Operativa · **118 pruebas** |
 | Servicio de ML (`ml_service/`) | ✅ Operativo · **54 pruebas** — ver [`ml_service/README.md`](ml_service/README.md) |
 | App de escritorio v1 (PySide6) | 🪦 Muerta · sin lanzador, solo referencia histórica |
-| Pruebas E2E | ✅ `npm run test:e2e` · **164 comprobaciones** sobre una base aislada · `npm run test:e2e:qr` · **40** de la asistencia por QR |
+| Pruebas E2E | ✅ `npm run test:e2e` · **164 comprobaciones** sobre una base aislada · `npm run test:e2e:qr` · **42** de la asistencia por QR |
 
 Las pruebas de `npm test` cubren **lógica pura**: cálculo de notas, riesgo,
 agenda, alcance por docente y por programa, quién puede escribir, filtros,

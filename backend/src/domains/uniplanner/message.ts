@@ -336,3 +336,37 @@ export function avisoDeEntrega(datos: DatosEntrega): Aviso {
     },
   };
 }
+
+/** Cuánto se queda en el buzón el aviso de «tu enlace quedó verificado». */
+export const VERIFICADO_DIAS_VIGENCIA = 30;
+
+/**
+ * Aviso de que el enlace quedó verificado, por la comprobación automática o a
+ * mano desde «Vínculos UniPlanner».
+ *
+ * Existe porque la verificación puede llegar horas después de enlazarse —cuando
+ * el docente carga el curso— y para entonces la persona ya no está mirando la
+ * pantalla del enlace. Es un `notice`: lo entiende cualquier versión de la app,
+ * también las anteriores a la verificación automática.
+ */
+export function avisoDeEnlaceVerificado(ahora = new Date()): Aviso {
+  return {
+    type: 'notice',
+    message:
+      'Tu universidad verificó tu enlace: tu documento y tu nombre coinciden con su registro. ' +
+      'Los avisos de tus docentes llegan a esta bandeja.',
+    expiresAt: enDias(VERIFICADO_DIAS_VIGENCIA, ahora),
+  };
+}
+
+/**
+ * Id del aviso de verificación: uno por enlace.
+ *
+ * Fijo a propósito. La comprobación por cursor y la de una matrícula nueva
+ * pueden verificar el mismo enlace a la vez, y a mano se puede volver a pulsar
+ * «verificar»; con un id por aviso, la persona recibiría el mismo mensaje dos
+ * veces.
+ */
+export function idDelAvisoDeVerificacion(linkId: string): string {
+  return `enlace-verificado-${linkId}`;
+}

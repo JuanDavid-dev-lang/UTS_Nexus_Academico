@@ -21,6 +21,7 @@ import {
   updateStudent,
   upsertStudents,
 } from './student.service.js';
+import { reverificarEnSegundoPlano } from '../uniplanner/verificacion.service.js';
 
 export const studentRouter = Router();
 
@@ -242,6 +243,9 @@ studentRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), li
     // un `findOneAndUpdate` por fila. Importar un listado de 300 estudiantes
     // eran 300 viajes encadenados a la base; ahora son dos.
     const items = await upsertStudents(permitidas);
+    // Un nombre corregido en el lote puede ser justo lo que le faltaba al
+    // enlace de UniPlanner de alguien ya matriculado para casar.
+    reverificarEnSegundoPlano(items.map(item => String(item._id)));
 
     emitSync('sync:update', { entity: 'student', action: 'bulk', id: String(items.length) });
     // `rechazadas` va siempre, aunque esté vacía: un cliente que la lea no tiene
@@ -272,6 +276,9 @@ studentRouter.patch('/:id', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), as
 
     const item = await updateStudent(String(req.params.id), body);
     if (!item) return res.status(404).json({ ok: false, message: 'Not found' });
+    // Corregir el nombre en la ficha es la otra mitad de un «no coincide»: el
+    // estudiante lo escribió bien y el registro estaba mal.
+    if (body.fullName) reverificarEnSegundoPlano([String(item.id)]);
     emitSync('sync:update', { entity: 'student', action: 'update', id: item.id });
     res.json({ ok: true, item });
   } catch (err) {

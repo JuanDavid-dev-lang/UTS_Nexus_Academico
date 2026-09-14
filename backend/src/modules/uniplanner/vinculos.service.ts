@@ -36,6 +36,7 @@ import {
   type TipoSolicitud,
 } from '../../domains/uniplanner/link-admin.js';
 import type { AlcanceDePrograma } from '../../domains/scope/program-scope.js';
+import { avisarEnlaceVerificado } from './verificacion.service.js';
 
 export class ErrorDeVinculo extends Error {
   constructor(
@@ -307,6 +308,9 @@ export async function cambiarVinculo(
   if (!escrito) throw new ErrorDeVinculo(424, 'No se pudo escribir en UniPlanner. Revisa la conexión del servidor.');
 
   const titular = typeof enlace.datos.uid === 'string' ? enlace.datos.uid : '';
+  if (accion === 'verificar' && enlace.datos.verified !== true) {
+    await avisarEnlaceVerificado(titular, partes.institucion, linkId);
+  }
   if (accion === 'desbloquear' || accion === 'liberar') await soltarVinculosQr([titular], estudiante?.id ?? null);
   if ((accion === 'desbloquear' || accion === 'liberar') && titular) {
     const solicitud = await puente.leerDocumento(`link_requests/${encodeURIComponent(titular)}`);

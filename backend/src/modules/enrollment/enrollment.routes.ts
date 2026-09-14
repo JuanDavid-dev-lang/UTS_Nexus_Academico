@@ -16,7 +16,7 @@ import { assertUniqueStudentEmails } from '../students/student.service.js';
 import { mlFetch } from '../../shared/ml-client.js';
 import { ENTRADA_DE_ESCANER, exigirTipoReal, filtroPorMimetype } from '../../shared/uploads.js';
 import { limiteLotes } from '../../middlewares/rate-limit.js';
-import { verificarEnlacesDeEstudiantes } from '../uniplanner/verificacion.service.js';
+import { reverificarEnSegundoPlano } from '../uniplanner/verificacion.service.js';
 
 /**
  * Tras matricular, se vuelve a comprobar el enlace de UniPlanner de esos
@@ -24,11 +24,7 @@ import { verificarEnlacesDeEstudiantes } from '../uniplanner/verificacion.servic
  * sin verificar, y ahora sí casa. Sin esperar: la respuesta no depende de otro
  * proyecto, y un fallo allí no deshace la matrícula.
  */
-function reverificarEnlaces(studentIds: string[]) {
-  void verificarEnlacesDeEstudiantes(studentIds).catch(err =>
-    console.warn('[uniplanner] no se pudo reverificar tras matricular:', err instanceof Error ? err.message : err),
-  );
-}
+const reverificarEnlaces = reverificarEnSegundoPlano;
 
 export const enrollmentRouter = Router();
 enrollmentRouter.use(identificar);

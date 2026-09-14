@@ -162,6 +162,31 @@ docker compose restart backend        # reiniciar uno
 una sola vez. Si hay que cambiar una variable se edita ese archivo y se vuelve a
 lanzar el script.
 
+### Puente con UniPlanner
+
+`instalar.sh` **no** pide las credenciales de UniPlanner: son opcionales y sin
+ellas el backend arranca igual. Por eso es fácil desplegar sin ellas y no
+notarlo. Lo delata una línea del arranque:
+
+```
+Asistencia por QR desactivada: el puente con UniPlanner no está configurado.
+```
+
+Con esa línea no funciona nada del puente: ni avisos, ni asistencia por QR, ni
+la verificación de enlaces. Los estudiantes ven su enlace en «Verificando…» y
+después en «Pendiente», porque nadie contesta. Así estuvo producción hasta el
+14 de septiembre de 2026.
+
+Se arregla añadiendo a `deploy/.env` las tres variables de la cuenta de
+servicio —`UNIPLANNER_PROJECT_ID`, `UNIPLANNER_CLIENT_EMAIL` y
+`UNIPLANNER_PRIVATE_KEY`, esta entre comillas y con los `\n` literales— y
+recreando el contenedor, sin reconstruir la imagen:
+
+```bash
+docker compose --env-file .env up -d backend
+docker compose logs --tail=40 backend   # ya no debe salir la línea de arriba
+```
+
 El certificado se renueva solo. El volumen `caddy_data` guarda los certificados
 emitidos: **no lo borres** sin motivo, porque Let's Encrypt limita cuántas veces
 se puede pedir uno nuevo para el mismo nombre en una semana.
