@@ -54,9 +54,13 @@ export function useEnlacesUniPlanner(
 function anunciar(envio: EnvioUniPlanner): void {
   if (envio.enviados === 0) {
     const primero = envio.resultados.find((r) => !r.enviado)?.motivo;
+    // Sin motivo no se puede afirmar nada del enlace. Antes se decía «ninguno
+    // tiene UniPlanner enlazado» también cuando el servidor no devolvía a
+    // nadie —un estudiante sin notas ni asistencia todavía—, con el enlace
+    // verificado y la insignia de UniPlanner a la vista en la misma fila.
     toast.warning(
       'No se envió ningún aviso',
-      primero ? MOTIVOS[primero] : 'Ninguno de los seleccionados tiene UniPlanner enlazado.',
+      primero ? MOTIVOS[primero] : 'No había ningún estudiante con datos que avisar.',
     );
     return;
   }

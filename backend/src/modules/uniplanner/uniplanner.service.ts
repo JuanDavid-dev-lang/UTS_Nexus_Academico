@@ -107,6 +107,28 @@ export type EstadoEnlace = {
 
 type EstudianteBasico = { id: string; code: string; fullName: string };
 
+/**
+ * Los estudiantes nombrados que la pipeline académica no devolvió.
+ *
+ * `computeAcademicRecords` solo conoce a quien tiene notas o asistencia. Un
+ * estudiante recién matriculado, sin ninguna de las dos, desaparecía del
+ * envío sin dejar rastro: el resumen salía vacío y el escritorio lo contaba
+ * como «ninguno tiene UniPlanner enlazado» aunque su enlace estuviera
+ * verificado. Vuelven con `aviso: null`, que `repartir` convierte en
+ * `sin-datos` —lo que de verdad pasó—, y solo si están matriculados en la
+ * materia (y con el docente, si lo hay): un id cualquiera no devuelve nombres.
+ */
+async function nombradosSinRegistro(
+  filtro: { subjectId: string; period?: string; teacherId?: string; studentIds?: string[] },
+  registros: AcademicRecord[],
+): Promise<{ estudiante: EstudianteBasico; aviso: null }[]> {
+  const conRegistro = new Set(registros.map((registro) => registro.studentId));
+  const faltan = (filtro.studentIds ?? []).filter((id) => Types.ObjectId.isValid(id) && !conRegistro.has(id));
+  if (faltan.length === 0) return [];
+  const estudiantes = await estudiantesDe({ ...filtro, studentIds: faltan });
+  return estudiantes.map((estudiante) => ({ estudiante, aviso: null }));
+}
+
 /** Los estudiantes de una materia, acotados al docente si lo hay. */
 async function estudiantesDe(filtro: {
   subjectId: string;
@@ -327,19 +349,22 @@ export async function avisarInasistencias(
     return umbral === 'ROJO' ? nivel === 'ROJO' : nivel !== 'VERDE';
   });
 
-  const destinatarios = elegidos.slice(0, TOPE_LOTE).map((registro: AcademicRecord) => ({
-    estudiante: { id: registro.studentId, code: registro.code, fullName: registro.fullName },
-    aviso: avisoDeInasistencia({
-      materiaCodigo: materia?.code ?? undefined,
-      materiaNombre: materia?.name ?? 'tu materia',
-      docente,
-      corte: filtro.corte,
-      clasesAusente: registro.riesgo.clasesAusente,
-      totalClases: registro.riesgo.clasesTotales,
-      porcentajeAsistencia: registro.riesgo.porcentajeAsistencia,
-      mensaje: filtro.mensaje,
-    }),
-  }));
+  const destinatarios = [
+    ...elegidos.map((registro: AcademicRecord) => ({
+      estudiante: { id: registro.studentId, code: registro.code, fullName: registro.fullName },
+      aviso: avisoDeInasistencia({
+        materiaCodigo: materia?.code ?? undefined,
+        materiaNombre: materia?.name ?? 'tu materia',
+        docente,
+        corte: filtro.corte,
+        clasesAusente: registro.riesgo.clasesAusente,
+        totalClases: registro.riesgo.clasesTotales,
+        porcentajeAsistencia: registro.riesgo.porcentajeAsistencia,
+        mensaje: filtro.mensaje,
+      }),
+    })),
+    ...(await nombradosSinRegistro(filtro, registros)),
+  ].slice(0, TOPE_LOTE);
 
   const resultados = await repartir(await claveInstitucional(filtro.subjectId), destinatarios);
   await registrarEnvio('inasistencia', filtro.subjectId, resultados, actor);
@@ -374,7 +399,7 @@ export async function avisarNotas(
   });
   const docente = await nombreDelDocente(filtro.teacherId ?? null);
 
-  const destinatarios = registros.slice(0, TOPE_LOTE).map((registro) => {
+  const conNota = registros.map((registro) => {
     const nota = registro.cortes[filtro.corte - 1];
     return {
       estudiante: { id: registro.studentId, code: registro.code, fullName: registro.fullName },
@@ -405,6 +430,7 @@ export async function avisarNotas(
           : null,
     };
   });
+  const destinatarios = [...conNota, ...(await nombradosSinRegistro(filtro, registros))].slice(0, TOPE_LOTE);
 
   const resultados = await repartir(await claveInstitucional(filtro.subjectId), destinatarios);
   await registrarEnvio('nota', filtro.subjectId, resultados, actor);
