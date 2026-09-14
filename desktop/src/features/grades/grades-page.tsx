@@ -32,7 +32,7 @@ import {
 import { GradesImportDialog } from '@/features/grades/components/grades-import-dialog';
 import { PendingGradesCard } from '@/features/grades/components/pending-grades-card';
 import { StudentBreakdownDialog } from '@/features/grades/components/student-breakdown-dialog';
-import { useSubjects } from '@/features/subjects/hooks/use-subjects';
+import { useGroups, useSubjects } from '@/features/subjects/hooks/use-subjects';
 import { useCurrentUser, useUserRole } from '@/state/session.store';
 import { can } from '@/core/auth/permissions';
 import { currentPeriod, formatGrade, recentPeriods } from '@/shared/lib/format';
@@ -64,8 +64,23 @@ export default function GradesPage() {
   const canWrite = can(role, 'grades.write');
 
   const subjects = useSubjects();
-  const consolidated = useConsolidated({ period, subjectId: subjectId || undefined }, true);
-  const enrolled = useEnrolledStudents({ subjectId, period });
+  const groups = useGroups();
+  // Cada grupo de la materia (A194, A193…) es un salón distinto: el
+  // consolidado se puede ver de uno solo o de todos juntos.
+  const [groupId, setGroupId] = useState('');
+  const gruposDeMateria = useMemo(
+    () =>
+      (groups.data ?? [])
+        .filter((group) => group.subjectId === subjectId && (!group.period || group.period === period))
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })),
+    [groups.data, subjectId, period],
+  );
+  const grupoElegido = gruposDeMateria.some((group) => group._id === groupId) ? groupId : '';
+  const consolidated = useConsolidated(
+    { period, subjectId: subjectId || undefined, groupId: grupoElegido || undefined },
+    true,
+  );
+  const enrolled = useEnrolledStudents({ subjectId, period, groupId: grupoElegido || undefined });
 
   // Default to the first subject of the selected period so the page is useful
   // immediately instead of showing an empty selector.
@@ -271,7 +286,10 @@ export default function GradesPage() {
             <NativeSelect
               {...props}
               value={subjectId}
-              onChange={(event) => setSubjectId(event.target.value)}
+              onChange={(event) => {
+                setSubjectId(event.target.value);
+                setGroupId('');
+              }}
               disabled={periodSubjects.length === 0}
             >
               <option value="">Todas las materias</option>
@@ -283,6 +301,21 @@ export default function GradesPage() {
             </NativeSelect>
           )}
         </Field>
+
+        {gruposDeMateria.length > 1 ? (
+          <Field label="Grupo" className="w-40">
+            {(props) => (
+              <NativeSelect {...props} value={grupoElegido} onChange={(event) => setGroupId(event.target.value)}>
+                <option value="">Todos los grupos</option>
+                {gruposDeMateria.map((group) => (
+                  <option key={group._id} value={group._id}>
+                    {group.name}
+                  </option>
+                ))}
+              </NativeSelect>
+            )}
+          </Field>
+        ) : null}
       </div>
 
       {/*

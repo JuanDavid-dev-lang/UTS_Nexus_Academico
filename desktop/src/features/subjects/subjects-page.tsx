@@ -46,7 +46,9 @@ export default function SubjectsPage() {
   const [deleting, setDeleting] = useState<Subject | null>(null);
   const [rosterFor, setRosterFor] = useState<Subject | null>(null);
   const [values, setValues] = useState<SubjectInput>(EMPTY);
-  const [errors, setErrors] = useState<Partial<Record<keyof SubjectInput, string>>>({});
+  const [errors, setErrors] = useState<Partial<Record<keyof SubjectInput | 'grupo', string>>>({});
+  /** El primer grupo, al crear: la etiqueta de la universidad (A194). */
+  const [grupo, setGrupo] = useState('');
 
   const user = useCurrentUser();
   const role = useUserRole();
@@ -56,10 +58,11 @@ export default function SubjectsPage() {
   const subjects = useSubjects();
   const createSubject = useCreateSubject();
   // El primer grupo nace con la materia: sin ningún grupo no se puede
-  // matricular a nadie, y hasta ahora no había ningún sitio donde crear uno —
-  // la importación de listas moría en «esta materia no tiene grupos». Se llama
-  // como el código de la materia, que es como la UTS nombra los grupos: B191
-  // no es «la materia y su grupo A», es el grupo en sí.
+  // matricular a nadie. Se pide su nombre —la etiqueta que da la universidad,
+  // A194, A193, B212— y **no** se copia el código de la materia: PIS701 es la
+  // materia y A194 uno de sus grupos. Copiarlo dejaba dos grupos de la misma
+  // materia sin forma de distinguirse, y el QR de asistencia enseñaba el
+  // código de la materia donde el estudiante esperaba ver su grupo.
   const createGroup = useCreateGroup({ avisar: false });
   const updateSubject = useUpdateSubject();
   const deleteSubject = useDeleteSubject();
@@ -76,6 +79,7 @@ export default function SubjectsPage() {
           }
         : EMPTY,
     );
+    setGrupo('');
     setErrors({});
   }, [formOpen, editing]);
 
@@ -110,13 +114,22 @@ export default function SubjectsPage() {
     event.preventDefault();
 
     const parsed = subjectInputSchema.safeParse(values);
-    if (!parsed.success) {
-      const fieldErrors = parsed.error.flatten().fieldErrors;
+    const nombreGrupo = grupo.trim().toUpperCase();
+    const errorGrupo = editing
+      ? undefined
+      : !nombreGrupo
+        ? 'Escribe el grupo (por ejemplo A194)'
+        : nombreGrupo.replace(/\s+/g, '') === values.code.trim().toUpperCase().replace(/\s+/g, '')
+          ? 'El grupo no es el código de la materia: usa la etiqueta del grupo (por ejemplo A194)'
+          : undefined;
+    if (!parsed.success || errorGrupo) {
+      const fieldErrors = parsed.success ? {} : parsed.error.flatten().fieldErrors;
       setErrors({
         name: fieldErrors.name?.[0],
         code: fieldErrors.code?.[0],
         period: fieldErrors.period?.[0],
         credits: fieldErrors.credits?.[0],
+        grupo: errorGrupo,
       });
       return;
     }
@@ -135,7 +148,7 @@ export default function SubjectsPage() {
       {
         onSuccess(subject) {
           setFormOpen(false);
-          createGroup.mutate({ name: subject.code, subjectId: subject._id, period: subject.period });
+          createGroup.mutate({ name: nombreGrupo, subjectId: subject._id, period: subject.period });
         },
       },
     );
@@ -304,17 +317,36 @@ export default function SubjectsPage() {
               )}
             </Field>
 
-            <div className="grid grid-cols-3 gap-4">
-              <Field label="Código" error={errors.code} required>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <Field label="Código de la materia" error={errors.code} required>
                 {(props) => (
                   <Input
                     {...props}
                     value={values.code}
                     onChange={(event) => setValues({ ...values, code: event.target.value })}
-                    placeholder="ED-201"
+                    placeholder="PIS701"
                   />
                 )}
               </Field>
+
+              {editing ? null : (
+                <Field
+                  label="Grupo"
+                  error={errors.grupo}
+                  required
+                  hint="Otros grupos se añaden desde la lista de estudiantes."
+                >
+                  {(props) => (
+                    <Input
+                      {...props}
+                      value={grupo}
+                      onChange={(event) => setGrupo(event.target.value.toUpperCase())}
+                      placeholder="A194"
+                      maxLength={20}
+                    />
+                  )}
+                </Field>
+              )}
 
               <Field label="Periodo" error={errors.period} required>
                 {(props) => (

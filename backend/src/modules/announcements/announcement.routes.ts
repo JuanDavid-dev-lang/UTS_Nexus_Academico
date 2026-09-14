@@ -8,6 +8,7 @@ import { auditChange } from '../../shared/audit.js';
 import { emitSync } from '../../shared/socket.js';
 import { FACULTADES, NIVELES, PROGRAMAS, SEDES } from '../../domains/catalog/uts.js';
 import { notificarAviso } from './announcement-notify.service.js';
+import { esRolPorPrograma } from '../../shared/types.js';
 
 /**
  * Avisos institucionales.
@@ -50,11 +51,26 @@ function alcanceDe(ficha: { sede?: string | null; facultad?: string | null; prog
 announcementRouter.get('/', requireRole(...CON_SESION), async (req, res, next) => {
   try {
     // La administración ve todo, incluidos los programados y los caducados:
-    // necesita poder revisar lo que publicó, no solo lo vigente.
-    const esGestor = req.user?.role === 'ADMIN' || req.user?.role === 'COORDINATOR';
+    // necesita poder revisar lo que publicó, no solo lo vigente. Coordinación
+    // no publica —escribir avisos es de ADMIN—, así que ve lo vigente para sus
+    // carreras, sin la sede ni la facultad de una ficha docente que no tiene.
+    const esGestor = req.user?.role === 'ADMIN';
 
     let filtro: Record<string, unknown> = { deletedAt: null };
-    if (!esGestor) {
+    if (esRolPorPrograma(req.user?.role)) {
+      const ahora = new Date();
+      const programas = req.alcance?.programas ?? [];
+      filtro = {
+        deletedAt: null,
+        publicadoEn: { $lte: ahora },
+        $and: [
+          { $or: [{ expiraEn: null }, { expiraEn: { $gt: ahora } }] },
+          ...(programas.length > 0
+            ? [{ $or: [{ programas: { $size: 0 } }, { programas: { $in: programas } }] }]
+            : []),
+        ],
+      };
+    } else if (!esGestor) {
       const ficha = await ProfessorModel.findOne({ userId: req.user?.id, deletedAt: null })
         .select('sede facultad programas')
         .lean();
@@ -238,7 +254,10 @@ announcementRouter.patch('/:id', requireRole('ADMIN'), async (req, res, next) =>
 });
 
 /** Marca como leído para quien pregunta. Idempotente. */
-announcementRouter.post('/:id/leido', requireRole(...CON_SESION), async (req, res, next) => {
+// SECRETARY explícita: marcar un aviso como leído escribe sobre su propia
+// bandeja (está en la lista blanca de `role-access.ts`), pero `rolesEfectivos`
+// solo la hace valer como coordinación al leer.
+announcementRouter.post('/:id/leido', requireRole(...CON_SESION, 'SECRETARY'), async (req, res, next) => {
   try {
     const item = await AnnouncementModel.findOneAndUpdate(
       { _id: req.params.id, deletedAt: null },

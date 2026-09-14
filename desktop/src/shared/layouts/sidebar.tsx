@@ -27,6 +27,7 @@ import {
   UserCog,
   Users,
   UsersRound,
+  Smartphone,
 } from 'lucide-react';
 import { cn } from '@/shared/lib/cn';
 import { Logo } from '@/shared/ui/logo';
@@ -117,8 +118,11 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/coordinacion', label: 'Coordinación', icon: Building2, capability: 'coordination.read' },
       { to: '/personal', label: 'Personal', icon: UsersRound, capability: 'staff.manage' },
       { to: '/instituciones', label: 'Perfiles institucionales', icon: Landmark, capability: 'institutions.read' },
+      { to: '/vinculos-uniplanner', label: 'Vínculos UniPlanner', icon: Smartphone, capability: 'uniplanner.links.read' },
       { to: '/docentes', label: 'Docentes', icon: UserCog, capability: 'professors.manage' },
-      { to: '/periodos', label: 'Periodos', icon: CalendarRange, capability: 'periods.close' },
+      // Por `coordination.read` y no por `periods.close`: coordinación y
+      // secretaría consultan el estado y el acta aunque no cierren nada.
+      { to: '/periodos', label: 'Periodos', icon: CalendarRange, capability: 'coordination.read' },
       { to: '/auditoria', label: 'Auditoría', icon: ScrollText, capability: 'audit.read' },
       { to: '/estado-sistema', label: 'Estado del sistema', icon: Activity, capability: 'system.health' },
     ],

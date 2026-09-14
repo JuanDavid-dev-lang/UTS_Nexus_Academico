@@ -6,6 +6,7 @@
  * Las clases se siguen editando en `/schedules` y las entregas en `/activities`:
  * un mismo dato con dos endpoints de escritura es un desfase esperando fecha.
  */
+import { dentroDelAlcanceDePrograma, type AlcanceDePrograma } from '../../domains/scope/program-scope.js';
 import { Router } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
@@ -92,7 +93,7 @@ agendaRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR', 'STUDENT'
       .filter((valor): valor is TipoAgenda => (TIPOS as string[]).includes(valor));
 
     const items = await construirAgenda(
-      { userId: req.user!.id, role: req.user!.role },
+      { userId: req.user!.id, role: req.user!.role, programa: req.alcance },
       {
         desde,
         hasta,
@@ -119,7 +120,7 @@ agendaRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR', 'STUDENT'
 
 agendaRouter.get('/resumen', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR', 'STUDENT'), async (req, res, next) => {
   try {
-    const resumen = await resumenAgenda({ userId: req.user!.id, role: req.user!.role });
+    const resumen = await resumenAgenda({ userId: req.user!.id, role: req.user!.role, programa: req.alcance });
     res.json({ ok: true, campusOffsetMinutes: env.CAMPUS_UTC_OFFSET_MIN, ...resumen });
   } catch (err) {
     next(err);
@@ -166,12 +167,17 @@ const cuerpoEvento = z.object({
   period: z.string().max(16).default(''),
 });
 
-/** Un docente solo cuelga eventos de sus materias y sus grupos. */
+/** Un docente solo cuelga eventos de sus materias y sus grupos; coordinación, de sus carreras. */
 async function validarAlcance(
   usuario: { id: string; role: string } | undefined,
   subjectId?: string,
   groupId?: string,
+  alcance?: AlcanceDePrograma,
 ): Promise<string | null> {
+  if (alcance && !alcance.total) {
+    if (subjectId && !dentroDelAlcanceDePrograma(alcance, 'subjectIds', subjectId)) return 'Subject not in scope';
+    if (groupId && !dentroDelAlcanceDePrograma(alcance, 'groupIds', groupId)) return 'Group not in scope';
+  }
   if (usuario?.role !== 'PROFESSOR') return null;
   if (!subjectId && !groupId) return null;
   const scope = await getProfessorScope(usuario.id);
@@ -189,9 +195,19 @@ agendaRouter.get('/events', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), as
       deletedAt: null,
       startAt: { $gte: desde, $lt: hasta },
     };
-    if (req.user?.role === 'PROFESSOR') filtro.teacherId = req.user.id;
     if (query.subjectId) filtro.subjectId = query.subjectId;
     if (query.groupId) filtro.groupId = query.groupId;
+    if (req.user?.role === 'PROFESSOR') filtro.teacherId = req.user.id;
+    // ADMIN y coordinación: los suyos, los institucionales y los de sus
+    // materias, nunca los recordatorios personales de un docente.
+    if (req.user?.role !== 'PROFESSOR') {
+      const materias = req.alcance && !req.alcance.total ? { subjectId: { $in: req.alcance.subjectIds } } : {};
+      filtro.$or = [
+        { teacherId: req.user!.id },
+        { visibility: 'INSTITUTIONAL' },
+        { type: { $ne: 'REMINDER' }, ...materias },
+      ];
+    }
 
     const items = await CalendarEventModel.find(filtro).sort({ startAt: 1 }).limit(500).lean();
     res.json({ ok: true, items });
@@ -203,7 +219,7 @@ agendaRouter.get('/events', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), as
 agendaRouter.post('/events', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
     const body = cuerpoEvento.parse(req.body);
-    const problema = await validarAlcance(req.user, body.subjectId, body.groupId);
+    const problema = await validarAlcance(req.user, body.subjectId, body.groupId, req.alcance);
     if (problema) return res.status(403).json({ ok: false, message: problema });
 
     if (body.endAt && body.endAt.getTime() <= body.startAt.getTime()) {
@@ -230,13 +246,14 @@ agendaRouter.post('/events', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), a
 agendaRouter.patch('/events/:id', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
     const body = cuerpoEvento.partial().parse(req.body);
-    const problema = await validarAlcance(req.user, body.subjectId, body.groupId);
+    const problema = await validarAlcance(req.user, body.subjectId, body.groupId, req.alcance);
     if (problema) return res.status(403).json({ ok: false, message: problema });
 
     const filtro: Record<string, unknown> = { _id: req.params.id, deletedAt: null };
-    // Un docente solo edita los suyos. Filtrar solo el listado dejaría el
-    // evento ajeno editable a quien copie un id.
-    if (req.user?.role === 'PROFESSOR') filtro.teacherId = req.user.id;
+    // Salvo ADMIN, cada uno edita los suyos. Filtrar solo el listado dejaría el
+    // evento ajeno editable a quien copie un id; y coordinación tampoco
+    // reescribe el parcial ni el recordatorio de un docente.
+    if (req.user?.role !== 'ADMIN') filtro.teacherId = req.user!.id;
     if (req.user?.role !== 'ADMIN') filtro.visibility = { $ne: 'INSTITUTIONAL' };
 
     const cambios: Record<string, unknown> = { ...body, updatedBy: req.user!.id };
@@ -259,7 +276,7 @@ agendaRouter.patch('/events/:id', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR
 agendaRouter.delete('/events/:id', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
     const filtro: Record<string, unknown> = { _id: req.params.id, deletedAt: null };
-    if (req.user?.role === 'PROFESSOR') filtro.teacherId = req.user.id;
+    if (req.user?.role !== 'ADMIN') filtro.teacherId = req.user!.id;
     if (req.user?.role !== 'ADMIN') filtro.visibility = { $ne: 'INSTITUTIONAL' };
 
     // Baja lógica, como el resto del sistema: un parcial borrado por error se

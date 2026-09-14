@@ -185,8 +185,8 @@ studentRouter.get('/:id', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), asyn
  * dos copias divergen, y la que se olvida acaba siendo la que no valida.
  */
 const fichaEstudiante = z.object({
-  code: campo.codigo.min(3),
-  fullName: campo.nombre.min(3),
+  code: campo.documento,
+  fullName: campo.nombrePersona,
   email: campo.correo.optional(),
   program: campo.linea.min(2),
   photoUrl: campo.url.nullable().optional(),
@@ -262,7 +262,7 @@ studentRouter.patch('/:id', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), as
     }
 
     const body = z.object({
-      fullName: campo.nombre.min(3).optional(),
+      fullName: campo.nombrePersona.optional(),
       email: campo.correo.optional(),
       program: campo.linea.min(2).optional(),
       photoUrl: campo.url.nullable().optional(),

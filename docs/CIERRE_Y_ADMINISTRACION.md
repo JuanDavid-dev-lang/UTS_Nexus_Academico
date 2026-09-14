@@ -88,11 +88,30 @@ posterior sobrescribe los registros por su clave, pero el documento del periodo
 conserva la traza — que es lo único que permite responder «¿por qué el
 consolidado de diciembre no coincide con el de marzo?».
 
+### Último día del semestre
+
+Cada periodo puede llevar `endsOn` (`AAAA-MM-DD`): el día de las notas de
+habilitación del acuerdo del Consejo Académico. Se pone desde la tarjeta del
+periodo en esta misma pantalla (`PATCH /periods/:period`, solo ADMIN: el
+periodo es global) y se puede corregir con el periodo cerrado. Hoy lo usa una sola
+cosa: hasta ese día queda fijo el enlace de UniPlanner de quien marca asistencia
+por QR (`docs/UNIPLANNER.md` §8). Sin fecha, se usa la de
+`domains/periods/period-calendar.ts` —30 de junio y 20 de diciembre—, y la
+tarjeta dice cuál se está aplicando.
+
 ### Interfaz
 
-Escritorio: **Periodos** (`/periodos`, capacidad `periods.close`). Muestra el
-estado, la barra de progreso —que se refresca sola mientras hay un cierre en
-marcha—, el resumen de la fotografía y su contenido paginado.
+Escritorio: **Periodos** (`/periodos`, en el menú con `coordination.read`).
+Muestra el estado, la barra de progreso —que se refresca sola mientras hay un
+cierre en marcha—, el resumen de la fotografía y su contenido paginado.
+
+**Cerrar, abortar y reabrir son solo de ADMIN** (`periods.close`,
+`periods.reopen`). El periodo es global —`2026-2` es el mismo documento para
+todas las universidades—, así que una coordinación que lo cerrara bloquearía
+las notas de los docentes de las demás. Antes coordinación podía cerrarlo;
+ahora abre la pantalla para consultar el estado y el acta **de sus carreras**
+(la fotografía y su resumen se acotan por `req.alcance`, igual que los
+reportes), sin los botones de cierre.
 
 Móvil: no tiene pantalla de cierre a propósito. Lo que sí lee es el estado, para
 desactivar la captura de notas y de asistencia con su explicación en vez de
@@ -378,6 +397,17 @@ db.periodos_academicos.deleteMany({ state: 'OPEN', closedAt: null })
 
 Lo que **no** hay que deshacer así es un periodo ya cerrado: borrar su documento
 dejaría la fotografía huérfana y el semestre volvería a admitir escrituras.
+
+
+### Otras migraciones de datos
+
+Mismo patrón que `migrate:v3` —simulan por defecto, son idempotentes y
+respaldan antes de escribir—:
+
+| Script | Qué hace | Respaldo | Estado en producción |
+|---|---|---|---|
+| `npm run migrate:fechas-asistencia` | Une la asistencia duplicada por fecha de clase y deja la fecha canónica (mediodía del campus) | `asistencias_respaldo_fechas` | Aplicada el 13-09-2026 (15 clases duplicadas); **volver a pasarla tras desplegar el backend** |
+| `npm run migrate:nombres-estudiantes` | Nombres de estudiante en mayúsculas y solo letras, como los guarda UniPlanner | `estudiantes_respaldo_nombres` | Aplicada el 13-09-2026 (23 nombres) |
 
 ---
 

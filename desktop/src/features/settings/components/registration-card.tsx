@@ -39,11 +39,15 @@ export function RegistrationCard() {
   const estado = useQuery({
     queryKey: ['registro', 'estado'],
     queryFn: () => registroRepository.estado(),
+    // La tarjeta solo se pinta para ADMIN: sin esto, cada docente que abría
+    // Configuración disparaba dos 403 contra la cola de registro.
+    enabled: esAdmin,
   });
 
   const solicitudes = useQuery({
     queryKey: ['registro', 'solicitudes'],
     queryFn: () => registroRepository.solicitudes('PENDIENTE'),
+    enabled: esAdmin,
   });
 
   // El catálogo es el que traduce los identificadores guardados a los nombres

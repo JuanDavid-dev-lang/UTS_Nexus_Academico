@@ -13,6 +13,8 @@ import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
 import './widgets/event_sheet.dart';
 import './widgets/next_class_card.dart';
+import '../../core/auth/auth_controller.dart';
+import '../../core/auth/permisos.dart';
 
 /// Agenda académica en el teléfono.
 ///
@@ -118,11 +120,14 @@ class _AgendaPageState extends ConsumerState<AgendaPage> {
       // Crear desde el teléfono cierra el bucle Android → servidor → PC: lo que
       // el docente anota en el pasillo aparece en el calendario del escritorio
       // sin que nadie recargue nada.
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _nuevoEvento,
-        icon: const Icon(Icons.add),
-        label: const Text('Evento'),
-      ),
+      floatingActionButton:
+          puedeGestionarAgenda(ref.watch(authControllerProvider).user?.role)
+              ? FloatingActionButton.extended(
+                  onPressed: _nuevoEvento,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Evento'),
+                )
+              : null,
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(agendaResumenProvider);

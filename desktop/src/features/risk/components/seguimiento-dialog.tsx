@@ -18,6 +18,8 @@ import { gradeRepository } from '@/infrastructure/repositories/grades.repository
 import { toast } from '@/state/toast.store';
 import { currentPeriod, formatDate, formatGrade, formatPercent } from '@/shared/lib/format';
 import type { AccionSeguimiento, RiskItem, Seguimiento } from '@/domain/schemas/risk';
+import { can } from '@/core/auth/permissions';
+import { useUserRole } from '@/state/session.store';
 
 /**
  * Seguimiento de un estudiante en riesgo: su expediente y qué se hace con él.
@@ -73,6 +75,8 @@ export function SeguimientoDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
+  // Secretaría consulta el expediente pero no anota: el servidor respondería 403.
+  const puedeIntervenir = can(useUserRole(), 'analytics.intervene');
   const period = currentPeriod();
   const scope = row
     ? { studentId: row.studentId, subjectId: row.subjectId, period }
@@ -219,7 +223,7 @@ export function SeguimientoDialog({
             ) : null}
 
             {/* ── Actualizar el abierto, o abrir uno nuevo ───────────── */}
-            {abierto ? (
+            {!puedeIntervenir ? null : abierto ? (
               <ActualizarPanel
                 episodio={abierto}
                 progreso={datos?.progreso ?? null}

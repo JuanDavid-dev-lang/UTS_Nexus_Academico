@@ -56,7 +56,12 @@ export default function AgendaPage() {
   const [vista, setVista] = useState<VistaAgenda>('semana');
   const [importarHorario, setImportarHorario] = useState(false);
   const [importarInstitucional, setImportarInstitucional] = useState(false);
-  const esAdmin = useSession((state) => state.user?.role === 'ADMIN');
+  const rol = useSession((state) => state.user?.role);
+  const esAdmin = rol === 'ADMIN';
+  // Lo mismo que acepta el servidor: el horario lo importan ADMIN y el docente;
+  // un evento lo crea cualquiera menos secretaría, que solo lee.
+  const puedeImportarHorario = rol === 'ADMIN' || rol === 'PROFESSOR';
+  const puedeCrearEvento = rol === 'ADMIN' || rol === 'PROFESSOR' || rol === 'COORDINATOR';
   const [ancla, setAncla] = useState(() => new Date());
   const [subjectId, setSubjectId] = useState('');
   const [seleccionado, setSeleccionado] = useState<AgendaItem | null>(null);
@@ -96,6 +101,7 @@ export default function AgendaPage() {
   );
 
   function abrirNuevo() {
+    if (!puedeCrearEvento) return;
     setEventoEditado(undefined);
     setEditorAbierto(true);
   }
@@ -150,15 +156,19 @@ export default function AgendaPage() {
         actions={
           <div className="flex gap-2">
             {esAdmin && <Button variant="secondary" onClick={() => setImportarInstitucional(true)}><FileUp aria-hidden />Importar calendario</Button>}
-            <Button variant="secondary" onClick={() => setImportarHorario(true)}>
-              <FileUp aria-hidden />
-              Importar horario
-            </Button>
-            <Button variant="primary" onClick={abrirNuevo}>
-              <CalendarPlus aria-hidden />
-              Nuevo evento
-              <Kbd className="ml-1">N</Kbd>
-            </Button>
+            {puedeImportarHorario ? (
+              <Button variant="secondary" onClick={() => setImportarHorario(true)}>
+                <FileUp aria-hidden />
+                Importar horario
+              </Button>
+            ) : null}
+            {puedeCrearEvento ? (
+              <Button variant="primary" onClick={abrirNuevo}>
+                <CalendarPlus aria-hidden />
+                Nuevo evento
+                <Kbd className="ml-1">N</Kbd>
+              </Button>
+            ) : null}
           </div>
         }
       />

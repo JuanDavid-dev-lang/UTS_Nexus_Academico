@@ -311,6 +311,12 @@ class _UtsAppState extends ConsumerState<UtsApp> {
             ref.invalidate(dashboardProvider);
           case 'attendance':
             ref.invalidate(dashboardProvider);
+          // Una marca de la lista por QR. El móvil no tiene esa pantalla, y lo
+          // que cambia de verdad —la asistencia escrita— llega aparte como
+          // `attendance`. Sin este caso caía en `default`, y cada estudiante
+          // que escanea recargaba el panel del teléfono del docente.
+          case 'attendanceSession':
+            break;
           // El horario alimenta la agenda: cambiarlo mueve las clases y, con
           // ellas, los recordatorios que el teléfono tenía programados.
           case 'schedule':

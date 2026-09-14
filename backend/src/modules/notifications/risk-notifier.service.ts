@@ -15,6 +15,8 @@ import { crearNotificacion } from '../../shared/notify.js';
 export type RiskScanOptions = {
   /** Limita el escaneo a un docente (para el disparo manual del profesor). */
   teacherId?: string;
+  /** Limita a unas materias (el disparo manual de coordinación). */
+  subjectIds?: string[];
   period?: string;
 };
 
@@ -74,8 +76,13 @@ async function upsertRisk(userId: string, record: AcademicRecord) {
 }
 
 export async function generateRiskNotifications(options: RiskScanOptions = {}) {
+  // Una lista vacía es «nada en tu alcance», no «sin filtro».
+  if (options.subjectIds && options.subjectIds.length === 0) {
+    return { evaluados: 0, enRiesgo: 0, notificaciones: 0 };
+  }
   const records = await computeAcademicRecords({
     teacherId: options.teacherId,
+    subjectIds: options.subjectIds,
     period: options.period,
   });
 

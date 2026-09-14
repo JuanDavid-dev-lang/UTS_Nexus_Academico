@@ -79,12 +79,15 @@ export function StudentFormDialog({
       >
         <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Cédula" error={errors.code} required>
+            <Field label="Documento de identidad" error={errors.code} required>
               {(props) => (
                 <Input
                   {...props}
                   value={values.code}
-                  onChange={(event) => update('code', event.target.value)}
+                  // Solo dígitos: es el documento, único por persona, y la
+                  // misma clave con la que el estudiante se enlaza en UniPlanner.
+                  onChange={(event) => update('code', event.target.value.replace(/\D/g, '').slice(0, 15))}
+                  inputMode="numeric"
                   placeholder="1098765432"
                   autoFocus
                 />
@@ -108,8 +111,19 @@ export function StudentFormDialog({
               <Input
                 {...props}
                 value={values.fullName}
-                onChange={(event) => update('fullName', event.target.value)}
-                placeholder="Ana María Rodríguez"
+                // Solo letras y espacios, en mayúsculas: es como lo guarda el
+                // servidor y como lo guarda UniPlanner, que lo compara para
+                // verificar el enlace del estudiante.
+                onChange={(event) =>
+                  update(
+                    'fullName',
+                    event.target.value
+                      .replace(/[^\p{L} ]/gu, '')
+                      .replace(/ {2,}/g, ' ')
+                      .toLocaleUpperCase('es'),
+                  )
+                }
+                placeholder="ANA MARÍA RODRÍGUEZ"
               />
             )}
           </Field>

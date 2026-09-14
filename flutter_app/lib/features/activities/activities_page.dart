@@ -10,6 +10,8 @@ import '../../core/widgets/period_selector.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
 import './data/activity_models.dart';
+import '../../core/auth/auth_controller.dart';
+import '../../core/auth/permisos.dart';
 
 /// Actividades académicas.
 ///
@@ -146,11 +148,14 @@ class ActivitiesPage extends ConsumerWidget {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _abrirFormulario(context, ref, materias),
-        icon: const Icon(Icons.add),
-        label: const Text('Nueva'),
-      ),
+      floatingActionButton:
+          puedeGestionarAgenda(ref.watch(authControllerProvider).user?.role)
+              ? FloatingActionButton.extended(
+                  onPressed: () => _abrirFormulario(context, ref, materias),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Nueva'),
+                )
+              : null,
     );
   }
 
@@ -192,26 +197,33 @@ class ActivitiesPage extends ConsumerWidget {
                   StatusPill(actividad.period, kind: SemanticKind.info),
               ],
             ),
-            const SizedBox(height: AppSpacing.gap),
-            FilledButton.icon(
-              onPressed: () async {
-                Navigator.of(contextoHoja).pop();
-                await _cambiarEstado(context, ref, actividad);
-              },
-              icon: Icon(
-                actividad.cerrada ? Icons.lock_open_outlined : Icons.check_circle_outline,
+            // Cerrar y borrar son escrituras: el estudiante y secretaría ven
+            // el detalle sin los botones que el servidor les rechazaría.
+            if (puedeGestionarAgenda(ref.read(authControllerProvider).user?.role)) ...[
+              const SizedBox(height: AppSpacing.gap),
+              // Reabrir no es del docente (el servidor respondería 403).
+              if (!actividad.cerrada ||
+                  puedeReabrirActividad(ref.read(authControllerProvider).user?.role))
+                FilledButton.icon(
+                  onPressed: () async {
+                    Navigator.of(contextoHoja).pop();
+                    await _cambiarEstado(context, ref, actividad);
+                  },
+                  icon: Icon(
+                    actividad.cerrada ? Icons.lock_open_outlined : Icons.check_circle_outline,
+                  ),
+                  label: Text(actividad.cerrada ? 'Reabrir' : 'Cerrar actividad'),
+                ),
+              const SizedBox(height: AppSpacing.gapSm),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  Navigator.of(contextoHoja).pop();
+                  await _eliminar(context, ref, actividad);
+                },
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Eliminar'),
               ),
-              label: Text(actividad.cerrada ? 'Reabrir' : 'Cerrar actividad'),
-            ),
-            const SizedBox(height: AppSpacing.gapSm),
-            OutlinedButton.icon(
-              onPressed: () async {
-                Navigator.of(contextoHoja).pop();
-                await _eliminar(context, ref, actividad);
-              },
-              icon: const Icon(Icons.delete_outline),
-              label: const Text('Eliminar'),
-            ),
+            ],
           ],
         );
       },

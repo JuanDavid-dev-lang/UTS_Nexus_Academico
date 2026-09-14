@@ -20,7 +20,9 @@ export type NombreTarea =
   | 'attendance-patterns'
   | 'seguimiento-recordatorios'
   | 'release-check'
-  | 'announcement-publish';
+  | 'announcement-publish'
+  | 'uniplanner-solicitudes'
+  | 'uniplanner-verificacion';
 
 /**
  * Ejecuta una tarea y deja constancia del resultado.

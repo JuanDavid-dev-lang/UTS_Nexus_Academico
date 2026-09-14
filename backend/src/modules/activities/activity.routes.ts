@@ -84,7 +84,7 @@ activityRouter.get('/', requireRole(...ROLES_LECTURA), async (req, res, next) =>
     // El defecto sigue siendo 200, el tope que este endpoint ya devolvía:
     // bajarlo dejaría a los clientes publicados recibiendo menos sin error.
     const pagina = campo.paginacionCon(200).parse(req.query);
-    const { items, total } = await servicio.listar(filtro, pagina, req.user!);
+    const { items, total } = await servicio.listar(filtro, pagina, { ...req.user!, alcance: req.alcance });
     res.json(campo.respuestaPaginada(items, total, pagina));
   } catch (err) {
     next(err);
@@ -93,7 +93,7 @@ activityRouter.get('/', requireRole(...ROLES_LECTURA), async (req, res, next) =>
 
 activityRouter.get('/:id', requireRole(...ROLES_LECTURA), async (req, res, next) => {
   try {
-    res.json({ ok: true, item: await servicio.obtener(String(req.params.id), req.user!) });
+    res.json({ ok: true, item: await servicio.obtener(String(req.params.id), { ...req.user!, alcance: req.alcance }) });
   } catch (err) {
     next(err);
   }
@@ -118,7 +118,7 @@ activityRouter.post('/', requireRole(...ROLES_ESCRITURA), async (req, res, next)
     const body = cuerpoAlta.parse(req.body);
     const item = await servicio.crear(
       { ...body, teacherId: body.teacherId ?? req.user!.id },
-      req.user!,
+      { ...req.user!, alcance: req.alcance },
     );
     res.status(201).json({ ok: true, item });
   } catch (err) {
@@ -129,7 +129,7 @@ activityRouter.post('/', requireRole(...ROLES_ESCRITURA), async (req, res, next)
 activityRouter.patch('/:id', requireRole(...ROLES_ESCRITURA), async (req, res, next) => {
   try {
     const body = cuerpoEdicion.parse(req.body);
-    res.json({ ok: true, item: await servicio.editar(String(req.params.id), body, req.user!) });
+    res.json({ ok: true, item: await servicio.editar(String(req.params.id), body, { ...req.user!, alcance: req.alcance }) });
   } catch (err) {
     next(err);
   }
@@ -138,7 +138,7 @@ activityRouter.patch('/:id', requireRole(...ROLES_ESCRITURA), async (req, res, n
 /** Cierre. Lo puede hacer el docente dueño. */
 activityRouter.post('/:id/cierre', requireRole(...ROLES_ESCRITURA), async (req, res, next) => {
   try {
-    res.json({ ok: true, item: await servicio.cambiarEstado(String(req.params.id), 'CLOSED', req.user!) });
+    res.json({ ok: true, item: await servicio.cambiarEstado(String(req.params.id), 'CLOSED', { ...req.user!, alcance: req.alcance }) });
   } catch (err) {
     next(err);
   }
@@ -162,7 +162,7 @@ activityRouter.post('/:id/cierre', requireRole(...ROLES_ESCRITURA), async (req, 
  */
 activityRouter.post('/:id/reapertura', requireRole(...ROLES_ESCRITURA), async (req, res, next) => {
   try {
-    res.json({ ok: true, item: await servicio.cambiarEstado(String(req.params.id), 'OPEN', req.user!) });
+    res.json({ ok: true, item: await servicio.cambiarEstado(String(req.params.id), 'OPEN', { ...req.user!, alcance: req.alcance }) });
   } catch (err) {
     next(err);
   }
@@ -170,7 +170,7 @@ activityRouter.post('/:id/reapertura', requireRole(...ROLES_ESCRITURA), async (r
 
 activityRouter.delete('/:id', requireRole(...ROLES_ESCRITURA), async (req, res, next) => {
   try {
-    await servicio.eliminar(String(req.params.id), req.user!);
+    await servicio.eliminar(String(req.params.id), { ...req.user!, alcance: req.alcance });
     res.json({ ok: true });
   } catch (err) {
     next(err);

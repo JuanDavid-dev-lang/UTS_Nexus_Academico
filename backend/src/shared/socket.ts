@@ -93,6 +93,20 @@ export function emitToAdmins(event: string, payload: unknown) {
   io?.to('role:ADMIN').to('role:COORDINATOR').to('role:SECRETARY').emit(event, payload);
 }
 
+/**
+ * Emite **solo** a la sala de un usuario, sin copia a las salas
+ * administrativas.
+ *
+ * Para lo que es personal: el contenido de una notificación. `emitToUser`
+ * copia a administración, coordinación y secretaría —útil para que sus
+ * pantallas refresquen—, y con `notification:new` eso hacía que una
+ * coordinación de una universidad recibiera en su escritorio el aviso de
+ * riesgo de un estudiante de otra, con su nombre dentro.
+ */
+export function emitSoloAUsuario(userId: string, event: string, payload: unknown) {
+  io?.to(`user:${userId}`).emit(event, payload);
+}
+
 /** Emite un evento solo a un usuario concreto (y a admins/coordinadores). */
 export function emitToUser(userId: string, event: string, payload: unknown) {
   if (!io) return;

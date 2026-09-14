@@ -115,10 +115,17 @@ export const limiteLotes = limitador({
  * Es la única ruta donde contar por usuario no tiene sentido: quien prueba
  * contraseñas todavía no es nadie, y la clave del cupo saldría del correo que
  * él mismo elige — bastaría variarlo para estrenar cupo en cada intento.
+ *
+ * **Solo cuentan los intentos fallidos** (`skipSuccessfulRequests`). Contando
+ * todos, un campus entero —que sale a internet por una sola dirección— se
+ * quedaba sin cupo a las diez personas que entraban bien un lunes a las siete,
+ * y la undécima recibía «demasiados intentos» sin haberse equivocado nunca. A
+ * quien prueba contraseñas no le cambia nada: sus intentos fallan todos.
  */
 export const limiteLogin = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
+  skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
   message: { ok: false, message: 'Demasiados intentos. Espera unos minutos.' },

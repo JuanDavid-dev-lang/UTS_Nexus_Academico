@@ -20,6 +20,8 @@ import { agendaRepository } from '@/infrastructure/repositories/agenda.repositor
 import { horaCampus, OFFSET_CAMPUS_POR_DEFECTO, rangoDeVista } from '@/domain/agenda/calendar';
 import { useTheme } from '@/state/theme.store';
 import { useDebounce } from '@/shared/hooks/use-debounce';
+import { can, type Capability } from '@/core/auth/permissions';
+import { useUserRole } from '@/state/session.store';
 
 /**
  * Global command palette (Ctrl+K).
@@ -36,6 +38,8 @@ type Command = {
   group: string;
   icon: typeof Search;
   run: () => void;
+  /** Sin ella, el comando va a una pantalla que la ruta devolvería al panel. */
+  capability?: Capability;
 };
 
 export function CommandPalette({
@@ -49,6 +53,7 @@ export function CommandPalette({
   const [activeIndex, setActiveIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const role = useUserRole();
   const cycleTheme = useTheme((state) => state.cycle);
   const debouncedQuery = useDebounce(query, 150);
 
@@ -91,16 +96,16 @@ export function CommandPalette({
       onOpenChange(false);
     };
 
-    const navigation: Command[] = [
+    const todos: Command[] = [
       { id: 'nav-dashboard', label: 'Ir al panel', group: 'Navegación', icon: ArrowRight, run: go('/') },
-      { id: 'nav-students', label: 'Ir a estudiantes', group: 'Navegación', icon: Users, run: go('/estudiantes') },
-      { id: 'nav-subjects', label: 'Ir a materias', group: 'Navegación', icon: BookOpen, run: go('/materias') },
-      { id: 'nav-grades', label: 'Ir a notas', group: 'Navegación', icon: GraduationCap, run: go('/notas') },
+      { id: 'nav-students', label: 'Ir a estudiantes', group: 'Navegación', icon: Users, run: go('/estudiantes'), capability: 'students.read' },
+      { id: 'nav-subjects', label: 'Ir a materias', group: 'Navegación', icon: BookOpen, run: go('/materias'), capability: 'subjects.read' },
+      { id: 'nav-grades', label: 'Ir a notas', group: 'Navegación', icon: GraduationCap, run: go('/notas'), capability: 'grades.read' },
       { id: 'nav-agenda', label: 'Ir a la agenda', group: 'Navegación', icon: CalendarDays, run: go('/agenda') },
-      { id: 'nav-attendance', label: 'Ir a asistencia', group: 'Navegación', icon: ArrowRight, run: go('/asistencia') },
-      { id: 'nav-risk', label: 'Ir a riesgo académico', group: 'Navegación', icon: ArrowRight, run: go('/riesgo') },
-      { id: 'nav-assistant', label: 'Abrir asistente IA', group: 'Navegación', icon: ArrowRight, run: go('/asistente') },
-      { id: 'nav-reports', label: 'Ir a reportes', group: 'Navegación', icon: ArrowRight, run: go('/reportes') },
+      { id: 'nav-attendance', label: 'Ir a asistencia', group: 'Navegación', icon: ArrowRight, run: go('/asistencia'), capability: 'attendance.read' },
+      { id: 'nav-risk', label: 'Ir a riesgo académico', group: 'Navegación', icon: ArrowRight, run: go('/riesgo'), capability: 'analytics.risks' },
+      { id: 'nav-assistant', label: 'Abrir asistente IA', group: 'Navegación', icon: ArrowRight, run: go('/asistente'), capability: 'assistant.use' },
+      { id: 'nav-reports', label: 'Ir a reportes', group: 'Navegación', icon: ArrowRight, run: go('/reportes'), capability: 'reports.export' },
       {
         id: 'action-theme',
         label: 'Cambiar tema (claro / oscuro / automático)',
@@ -112,6 +117,7 @@ export function CommandPalette({
         },
       },
     ];
+    const navigation = todos.filter((comando) => !comando.capability || can(role, comando.capability));
 
     const term = debouncedQuery.trim().toLowerCase();
     if (term.length < 2) return navigation;
@@ -175,7 +181,7 @@ export function CommandPalette({
       }));
 
     return [...studentMatches, ...subjectMatches, ...agendaMatches, ...navigation];
-  }, [debouncedQuery, students, subjects, agenda, navigate, onOpenChange, cycleTheme]);
+  }, [debouncedQuery, students, subjects, agenda, navigate, onOpenChange, cycleTheme, role]);
 
   const results = useMemo(() => {
     const term = query.trim().toLowerCase();

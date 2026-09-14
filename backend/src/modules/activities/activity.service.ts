@@ -6,8 +6,11 @@
  * vive en `domains/activities/activity-status.ts`.
  */
 import { Types } from 'mongoose';
+import { esRolPorPrograma } from '../../shared/types.js';
+import { acotarPorAlcance, type AlcanceDePrograma } from '../../domains/scope/program-scope.js';
 import { ActivityModel } from '../../models/activity.model.js';
 import { GroupModel } from '../../models/group.model.js';
+import { SubjectModel } from '../../models/subject.model.js';
 import { EnrollmentModel } from '../../models/enrollment.model.js';
 import { auditChange } from '../../shared/audit.js';
 import { emitToUser } from '../../shared/socket.js';
@@ -31,7 +34,18 @@ export class ErrorDeActividad extends Error {
   }
 }
 
-export type Solicitante = { id: string; role: string; studentId?: string };
+export type Solicitante = {
+  id: string;
+  role: string;
+  studentId?: string;
+  /** Alcance por programa (coordinación y secretaría). Total para los demás. */
+  alcance?: AlcanceDePrograma;
+};
+
+/** Coordinación o secretaría con un alcance que acota. */
+function acotadoPorPrograma(usuario: Solicitante): usuario is Solicitante & { alcance: AlcanceDePrograma } {
+  return esRolPorPrograma(usuario.role) && Boolean(usuario.alcance) && !usuario.alcance!.total;
+}
 
 /**
  * Materias en las que un estudiante está matriculado.
@@ -105,6 +119,11 @@ async function filtroConAlcance(
 
   // El rol manda, y va al final.
   if (usuario.role === 'PROFESSOR') query.teacherId = usuario.id;
+  // Coordinación y secretaría: las materias de su alcance. Sin esto veían las
+  // actividades de todas las universidades.
+  if (acotadoPorPrograma(usuario)) {
+    Object.assign(query, acotarPorAlcance(query, 'subjectId', usuario.alcance.subjectIds));
+  }
   if (usuario.role === 'STUDENT') {
     // Un estudiante ve las actividades de las materias donde está matriculado.
     // Se resuelve con su ficha, nunca con lo que declare el cliente.
@@ -162,7 +181,15 @@ export async function obtener(id: string, usuario: Solicitante) {
  * el agujero que ya costó caro en `GET /students/:id`.
  */
 async function exigirAcceso(documento: ActividadPlana, usuario: Solicitante): Promise<void> {
-  if (usuario.role === 'ADMIN' || usuario.role === 'COORDINATOR') return;
+  if (usuario.role === 'ADMIN') return;
+  // Coordinación y secretaría (esta caía antes en la rama del estudiante y
+  // recibía 403): dentro de las materias de su alcance.
+  if (esRolPorPrograma(usuario.role)) {
+    if (acotadoPorPrograma(usuario) && !usuario.alcance.subjectIds.includes(String(documento.subjectId))) {
+      throw new ErrorDeActividad('Not found', 404);
+    }
+    return;
+  }
   if (usuario.role === 'PROFESSOR') {
     if (String(documento.teacherId) !== usuario.id) throw new ErrorDeActividad('Forbidden', 403);
     return;
@@ -197,6 +224,20 @@ async function normalizarPropiedad(
   entrada: EntradaActividad,
   usuario: Solicitante,
 ): Promise<EntradaActividad> {
+  if (acotadoPorPrograma(usuario)) {
+    if (!usuario.alcance.subjectIds.includes(entrada.subjectId)) {
+      throw new ErrorDeActividad('Esa materia no está en tu alcance.', 403);
+    }
+    if (entrada.groupId && !usuario.alcance.groupIds.includes(entrada.groupId)) {
+      throw new ErrorDeActividad('Ese grupo no está en tu alcance.', 403);
+    }
+    // La actividad es del docente de la materia, no de quien la cuelga ni de
+    // quien diga el cuerpo: con un `teacherId` ajeno la veía (y editaba) un
+    // docente de otra universidad, y con el de coordinación el docente real
+    // no la veía en su listado.
+    const materia = await SubjectModel.findById(entrada.subjectId).select('professorId').lean();
+    return { ...entrada, teacherId: materia?.professorId ? String(materia.professorId) : usuario.id };
+  }
   if (usuario.role !== 'PROFESSOR') return entrada;
 
   const alcance = await getProfessorScope(usuario.id);
@@ -244,6 +285,9 @@ export async function editar(id: string, cambio: CambioActividad, usuario: Solic
   if (!antes) throw new ErrorDeActividad('Not found', 404);
   await exigirAcceso(antes as ActividadPlana, usuario);
 
+  if (cambio.groupId && acotadoPorPrograma(usuario) && !usuario.alcance.groupIds.includes(cambio.groupId)) {
+    throw new ErrorDeActividad('Ese grupo no está en tu alcance.', 403);
+  }
   if (cambio.groupId && usuario.role === 'PROFESSOR') {
     const alcance = await getProfessorScope(usuario.id);
     if (!alcance.groupIds.includes(cambio.groupId)) {

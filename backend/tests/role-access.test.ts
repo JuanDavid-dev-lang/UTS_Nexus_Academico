@@ -59,6 +59,9 @@ describe('el guardián de solo lectura', () => {
     expect(puedeEscribir('SECRETARY', 'PATCH', '/notifications/read-all')).toBe(true);
     expect(puedeEscribir('SECRETARY', 'PATCH', '/notifications/64abc/read')).toBe(true);
     expect(puedeEscribir('SECRETARY', 'POST', '/telemetry/errores')).toBe(true);
+    // Marcar un aviso como leído: sin esto su contador de «sin leer» no bajaba.
+    expect(puedeEscribir('SECRETARY', 'POST', '/announcements/64abc/leido')).toBe(true);
+    expect(puedeEscribir('SECRETARY', 'POST', '/announcements')).toBe(false);
     // Su propia contraseña: escribe sobre su cuenta y sobre nada más. Sin esto,
     // cambiarla dependía de que un administrador lo hiciera por ella.
     expect(puedeEscribir('SECRETARY', 'POST', '/auth/password')).toBe(true);

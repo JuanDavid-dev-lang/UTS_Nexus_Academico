@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarCheck, Camera, Check, Send, Smartphone, X } from 'lucide-react';
+import { CalendarCheck, Camera, Check, QrCode, Send, Smartphone, X } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -17,7 +17,7 @@ import {
 import { Avatar } from '@/shared/ui/primitives';
 import { useAttendance, useMarkAttendance } from '@/features/attendance/hooks/use-attendance';
 import { useEnrolledStudents } from '@/features/grades/hooks/use-grades';
-import { useSubjects } from '@/features/subjects/hooks/use-subjects';
+import { useGroups, useSubjects } from '@/features/subjects/hooks/use-subjects';
 import { useCurrentUser, useUserRole } from '@/state/session.store';
 import { can } from '@/core/auth/permissions';
 import {
@@ -30,6 +30,8 @@ import {
 import { cn } from '@/shared/lib/cn';
 import { toast } from '@/state/toast.store';
 import { SheetScanDialog } from './components/sheet-scan-dialog';
+import { QrSessionDialog } from './components/qr-session-dialog';
+import { useSesionQrAbierta } from './hooks/use-attendance-qr';
 import {
   useEnlacesUniPlanner,
   useEstadoUniPlanner,
@@ -49,8 +51,11 @@ import {
 export default function AttendancePage() {
   const [period, setPeriod] = useState(currentPeriod());
   const [subjectId, setSubjectId] = useState('');
+  /** El grupo que eligió el docente. Vacío = ninguno elegido todavía. */
+  const [groupId, setGroupId] = useState('');
   const [date, setDate] = useState(toIsoDate());
   const [scanOpen, setScanOpen] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
   const [avisando, setAvisando] = useState<DestinatarioAviso[] | null>(null);
 
   const user = useCurrentUser();
@@ -58,7 +63,32 @@ export default function AttendancePage() {
   const canWrite = can(role, 'attendance.write');
 
   const subjects = useSubjects();
-  const enrolled = useEnrolledStudents({ subjectId, period });
+  const groups = useGroups();
+
+  /*
+    Se pasa lista a un **grupo**, no a la materia: en la UTS una materia
+    (PIS701) tiene varios grupos (A194, A193, B212), cada uno con sus
+    estudiantes y su horario. Con un solo grupo se usa ese; con varios hay que
+    elegir, y hasta entonces no se enseña ninguna lista: mezclar dos salones en
+    una es la forma más fácil de marcar ausente a quien no tenía clase.
+  */
+  const gruposDeMateria = useMemo(
+    () =>
+      (groups.data ?? [])
+        .filter((group) => group.subjectId === subjectId && (!group.period || group.period === period))
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })),
+    [groups.data, subjectId, period],
+  );
+  const grupoElegido =
+    gruposDeMateria.length === 1
+      ? gruposDeMateria[0]!._id
+      : gruposDeMateria.some((group) => group._id === groupId)
+        ? groupId
+        : '';
+  const faltaGrupo = gruposDeMateria.length > 1 && !grupoElegido;
+  const grupoActivo = gruposDeMateria.find((group) => group._id === grupoElegido);
+
+  const enrolled = useEnrolledStudents({ subjectId, period, groupId: grupoElegido || undefined });
   const attendance = useAttendance({ subjectId: subjectId || undefined, period }, Boolean(subjectId));
   const markAttendance = useMarkAttendance();
 
@@ -71,17 +101,26 @@ export default function AttendancePage() {
   const puenteActivo = puente.data?.configurado === true;
   const enlaces = useEnlacesUniPlanner({ subjectId, period }, puenteActivo && Boolean(subjectId));
 
+  /*
+    Lista por QR. Solo para la clase de hoy —el QR registra el día en que se
+    escanea— y solo con el puente encendido: sin él nadie podría escanear.
+  */
+  const esHoy = date === toIsoDate();
+  const puedeQr = canWrite && puenteActivo && Boolean(subjectId) && esHoy && gruposDeMateria.length > 0;
+  const sesionQr = useSesionQrAbierta(subjectId, grupoElegido, puedeQr);
+
   const enlacePorEstudiante = useMemo(
     () => new Map((enlaces.data ?? []).map((enlace) => [enlace.studentId, enlace])),
     [enlaces.data],
   );
 
-  /** Los que están en riesgo por faltas y además tienen la app. */
-  const enRiesgoConApp = useMemo(
-    () =>
-      (enlaces.data ?? []).filter((enlace) => enlace.enlazado && enlace.nivel !== 'VERDE'),
-    [enlaces.data],
-  );
+  /** Los del grupo que están en riesgo por faltas y además tienen la app. */
+  const enRiesgoConApp = useMemo(() => {
+    const delGrupo = new Set(enrolled.data.map((student) => student._id));
+    return (enlaces.data ?? []).filter(
+      (enlace) => enlace.enlazado && enlace.nivel !== 'VERDE' && delGrupo.has(enlace.studentId),
+    );
+  }, [enlaces.data, enrolled.data]);
 
   useEffect(() => {
     if (subjectId) return;
@@ -130,6 +169,7 @@ export default function AttendancePage() {
     markAttendance.mutate({
       studentId,
       subjectId,
+      groupId: grupoElegido || undefined,
       teacherId: user.id,
       period,
       date: new Date(`${date}T12:00:00`).toISOString(),
@@ -155,6 +195,7 @@ export default function AttendancePage() {
           <>
             <CalendarCheck className="size-3.5" aria-hidden />
             {materiaActiva ? materiaActiva.name : 'Sin materia seleccionada'}
+            {grupoActivo ? ` · Grupo ${grupoActivo.name}` : ''}
             {' · '}
             {formatDate(`${date}T12:00:00`)}
           </>
@@ -164,11 +205,20 @@ export default function AttendancePage() {
         actions={
           canWrite ? (
             <div className="flex flex-wrap gap-2">
+              {puedeQr ? (
+                <Button
+                  variant={sesionQr.data ? 'primary' : 'secondary'}
+                  onClick={() => setQrOpen(true)}
+                >
+                  <QrCode aria-hidden />
+                  {sesionQr.data ? 'Lista por QR en curso' : 'Pasar lista con QR'}
+                </Button>
+              ) : null}
               <Button variant="secondary" onClick={() => setScanOpen(true)}>
                 <Camera aria-hidden />
                 Importar desde una foto
               </Button>
-              {enrolled.data.length > 0 ? (
+              {!faltaGrupo && enrolled.data.length > 0 ? (
                 <Button variant="secondary" onClick={markAllPresent}>
                   <Check aria-hidden />
                   Marcar todos presentes
@@ -180,6 +230,22 @@ export default function AttendancePage() {
       />
 
       <SheetScanDialog open={scanOpen} onOpenChange={setScanOpen} />
+
+      {/* Se monta al abrir: cada apertura empieza limpia o retoma la sesión en curso. */}
+      {qrOpen && materiaActiva ? (
+        <QrSessionDialog
+          open
+          onOpenChange={setQrOpen}
+          subjectId={subjectId}
+          subjectName={materiaActiva.name}
+          grupos={gruposDeMateria}
+          // Solo el que el docente eligió aquí a mano: el QR pide el grupo
+          // siempre, y uno puesto solo porque es el único no cuenta como
+          // elegido.
+          grupoInicial={gruposDeMateria.length > 1 ? grupoElegido : ''}
+          sesionAbiertaId={sesionQr.data?.id ?? null}
+        />
+      ) : null}
 
       <div className="surface-well flex flex-wrap items-end gap-3 p-3">
         <Field label="Periodo" className="w-36">
@@ -206,7 +272,10 @@ export default function AttendancePage() {
             <NativeSelect
               {...props}
               value={subjectId}
-              onChange={(event) => setSubjectId(event.target.value)}
+              onChange={(event) => {
+                setSubjectId(event.target.value);
+                setGroupId('');
+              }}
               disabled={periodSubjects.length === 0}
             >
               <option value="">Selecciona una materia</option>
@@ -218,6 +287,26 @@ export default function AttendancePage() {
             </NativeSelect>
           )}
         </Field>
+
+        {gruposDeMateria.length > 0 ? (
+          <Field label="Grupo" className="w-36">
+            {(props) => (
+              <NativeSelect
+                {...props}
+                value={grupoElegido}
+                onChange={(event) => setGroupId(event.target.value)}
+                disabled={gruposDeMateria.length === 1}
+              >
+                {gruposDeMateria.length > 1 ? <option value="">Elige el grupo</option> : null}
+                {gruposDeMateria.map((group) => (
+                  <option key={group._id} value={group._id}>
+                    {group.name}
+                  </option>
+                ))}
+              </NativeSelect>
+            )}
+          </Field>
+        ) : null}
 
         <Field label="Fecha de clase" className="w-48">
           {(props) => (
@@ -240,7 +329,7 @@ export default function AttendancePage() {
         es justo el dato que hace falta mientras se está en mitad de la lista,
         que es exactamente cuando estaba fuera de pantalla.
       */}
-      {subjectId && enrolled.data.length > 0 ? (
+      {subjectId && !faltaGrupo && enrolled.data.length > 0 ? (
         <div className="surface-glass sticky top-0 z-10 -mx-1 flex flex-wrap items-center gap-4 rounded-card px-4 py-3 shadow-sm">
           <div className="flex items-center gap-2">
             <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary-soft text-primary">
@@ -306,6 +395,15 @@ export default function AttendancePage() {
             message="Elige la materia y la fecha de la clase para pasar lista."
           />
         </Card>
+      ) : faltaGrupo ? (
+        <Card>
+          <EmptyState
+            title="Elige el grupo"
+            message={`${materiaActiva?.name ?? 'Esta materia'} tiene ${gruposDeMateria.length} grupos (${gruposDeMateria
+              .map((group) => group.name)
+              .join(', ')}). Cada uno tiene su lista: elige a cuál le pasas asistencia.`}
+          />
+        </Card>
       ) : enrolled.isPending || attendance.isPending ? (
         <SkeletonList rows={6} />
       ) : enrolled.isError ? (
@@ -315,8 +413,8 @@ export default function AttendancePage() {
       ) : enrolled.data.length === 0 ? (
         <Card>
           <EmptyState
-            title="Sin estudiantes en esta materia"
-            message="Matricula estudiantes en la materia para poder registrar asistencia."
+            title={grupoActivo ? `Sin estudiantes en el grupo ${grupoActivo.name}` : 'Sin estudiantes en esta materia'}
+            message="Matricula estudiantes en el grupo para poder registrar asistencia."
           />
         </Card>
       ) : (
@@ -385,19 +483,28 @@ export default function AttendancePage() {
                       </Badge>
                     );
                   }
+                  const insignia = (
+                    <Badge
+                      tone={enlace.verificado ? 'success' : 'warning'}
+                      title={
+                        enlace.verificado
+                          ? 'Enlazado a UniPlanner y confirmado'
+                          : 'Enlazado a UniPlanner, sin confirmar por la institución'
+                      }
+                    >
+                      <Smartphone aria-hidden className="size-3.5" />
+                      {enlace.verificado ? 'UniPlanner' : 'Sin confirmar'}
+                    </Badge>
+                  );
                   return (
                     <div className="flex shrink-0 items-center gap-1.5">
-                      <Badge
-                        tone={enlace.verificado ? 'success' : 'warning'}
-                        title={
-                          enlace.verificado
-                            ? 'Enlazado a UniPlanner y confirmado'
-                            : 'Enlazado a UniPlanner, sin confirmar por la institución'
-                        }
-                      >
-                        <Smartphone aria-hidden className="size-3.5" />
-                        {enlace.verificado ? 'UniPlanner' : 'Sin confirmar'}
-                      </Badge>
+                      {/*
+                        Solo informa. Confirmar el enlace no es cosa del
+                        docente de un curso: el enlace es del estudiante con su
+                        universidad y vale para todas sus materias, así que lo
+                        confirma la institución en «Vínculos UniPlanner».
+                      */}
+                      {insignia}
                       {canWrite ? (
                         <Button
                           variant="ghost"

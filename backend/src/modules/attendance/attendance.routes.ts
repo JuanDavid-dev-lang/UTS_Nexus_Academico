@@ -13,6 +13,7 @@ import { emitSync } from '../../shared/socket.js';
 import { getProfessorScope } from '../../shared/professor-scope.js';
 import { filtroDeListado } from '../../domains/scope/professor-scope.js';
 import { exigirPeriodoAbierto } from '../../shared/period-guard.js';
+import { campoFechaDeClase } from '../../shared/class-date.js';
 
 export const attendanceRouter = Router();
 attendanceRouter.use(identificar);
@@ -45,7 +46,7 @@ attendanceRouter.post('/', requireRole('ADMIN', 'PROFESSOR'), async (req, res, n
       scheduleId: z.string().optional(),
       teacherId: z.string(),
       period: z.string().default('2026-1'),
-      date: z.coerce.date(),
+      date: campoFechaDeClase,
       durationMinutes: z.number().int().min(30).max(300).optional(),
       present: z.boolean().default(true),
       /**
@@ -112,7 +113,7 @@ attendanceRouter.post('/', requireRole('ADMIN', 'PROFESSOR'), async (req, res, n
         subjectId: body.subjectId,
         date: body.date,
       },
-      { $set: { ...body, durationMinutes } },
+      { $set: { ...body, durationMinutes, origen: 'MANUAL' } },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
     await auditChange({
@@ -161,7 +162,7 @@ attendanceRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR'), async (req, re
       scheduleId: idMongo.optional(),
       teacherId: idMongo,
       period: z.string().default('2026-1'),
-      date: z.coerce.date(),
+      date: campoFechaDeClase,
       durationMinutes: z.number().int().min(30).max(300).optional(),
       // El tope es la defensa contra una petición que intente escribir el
       // colegio entero; ningún salón real se acerca.
@@ -199,6 +200,42 @@ attendanceRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR'), async (req, re
       }
     }
 
+    // Cada estudiante tiene que estar matriculado en **esta** materia (y en
+    // este grupo, si viene). Ser del docente no basta: el móvil mandaba la
+    // lista de todos sus estudiantes y cada uno quedaba con asistencia en una
+    // materia que no cursa. Una consulta para todo el lote, con el mismo
+    // respaldo legado que la ruta unitaria (`studentIds[]` de materia y grupo).
+    const ids = [...new Set(body.registros.map(r => r.studentId))];
+    const matriculados = new Set(
+      (await EnrollmentModel.find({
+        subjectId: body.subjectId,
+        period: body.period,
+        studentId: { $in: ids },
+        ...(body.groupId ? { groupId: body.groupId } : {}),
+        deletedAt: null,
+        enrollmentStatus: 'ACTIVE',
+      }).select('studentId').lean()).map(e => String(e.studentId)),
+    );
+    if (matriculados.size < ids.length) {
+      const [materiaLegada, grupoLegado] = await Promise.all([
+        SubjectModel.findOne({ _id: body.subjectId, deletedAt: null }).select('studentIds').lean(),
+        body.groupId ? GroupModel.findOne({ _id: body.groupId, deletedAt: null }).select('studentIds').lean() : null,
+      ]);
+      for (const id of [...(materiaLegada?.studentIds ?? []), ...(grupoLegado?.studentIds ?? [])]) {
+        matriculados.add(String(id));
+      }
+    }
+    const sinMatricula = ids.filter(id => !matriculados.has(id));
+    if (sinMatricula.length > 0) {
+      return res.status(400).json({
+        ok: false,
+        message:
+          `${sinMatricula.length} estudiante(s) de la lista no están matriculados en ` +
+          (body.groupId ? 'este grupo' : 'esta materia') + '. No se guardó nada.',
+        sinMatricula,
+      });
+    }
+
     const schedule = body.scheduleId
       ? await ScheduleModel.findOne({ _id: body.scheduleId, deletedAt: null }).lean()
       : null;
@@ -232,6 +269,7 @@ attendanceRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR'), async (req, re
               present: registro.present,
               lateMinutes: registro.lateMinutes,
               notes: registro.notes,
+              origen: 'MANUAL',
             },
           },
           upsert: true,
@@ -244,11 +282,16 @@ attendanceRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR'), async (req, re
 
     // Una entrada de auditoría por la clase, no cuarenta: lo que ocurrió fue
     // "se pasó lista", y cuarenta filas idénticas esconden esa única acción.
+    //
+    // `entityId` es la materia: la auditoría lo guarda como ObjectId, y aquí
+    // iba «materia:fecha». Eso no falla la petición —`auditChange` registra el
+    // error y sigue—, así que ninguna lista pasada por esta ruta llegó a
+    // quedar auditada. La fecha va en `after`.
     await auditChange({
       actorId: req.user?.id,
       action: 'UPDATE',
       entity: 'Asistencia',
-      entityId: `${body.subjectId}:${body.date.toISOString()}`,
+      entityId: body.subjectId,
       before: null,
       after: {
         subjectId: body.subjectId,
@@ -275,14 +318,22 @@ attendanceRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR'), async (req, re
 attendanceRouter.get('/summary/:studentId', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR', 'STUDENT'), async (req, res, next) => {
   try {
     const studentId = String(req.params.studentId);
+    const filtro: Record<string, unknown> = { studentId, deletedAt: null };
     if (req.user?.role === 'PROFESSOR') {
       const scope = await getProfessorScope(req.user.id);
       if (!scope.studentIds.includes(studentId)) return res.status(403).json({ ok: false, message: 'Forbidden' });
+      // Sus materias: la asistencia del estudiante en las de otro docente no
+      // es asunto suyo, y sumada aquí se la enseñaba mezclada con la propia.
+      filtro.subjectId = { $in: scope.subjectIds };
+    }
+    if (req.alcance && !req.alcance.total) {
+      if (!req.alcance.studentIds.includes(studentId)) return res.status(404).json({ ok: false, message: 'Not found' });
+      filtro.subjectId = { $in: req.alcance.subjectIds };
     }
     if (req.user?.role === 'STUDENT' && req.user.studentId !== studentId) {
       return res.status(403).json({ ok: false, message: 'Forbidden' });
     }
-    const items = await AttendanceModel.find({ studentId, deletedAt: null }).lean();
+    const items = await AttendanceModel.find(filtro).lean();
     const totalMinutes = items.reduce((sum, row) => sum + Number(row.durationMinutes ?? 90), 0);
     const presentMinutes = items.reduce((sum, row) => sum + (row.present ? Number(row.durationMinutes ?? 90) : 0), 0);
     const totalClasses = items.length;

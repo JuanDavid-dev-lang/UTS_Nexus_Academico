@@ -201,6 +201,15 @@
   --sidebar-width: 264px;
   --sidebar-width-collapsed: 72px;
   --topbar-height: 64px;
+
+  /*
+   * Código QR de asistencia. **Igual en los dos modos, a propósito**: el lector
+   * de un teléfono busca módulos oscuros sobre fondo claro, y un QR invertido
+   * —lo que saldría de pintarlo con --text sobre --surface en oscuro— no lo
+   * leen todos. No se redefine en [data-theme='dark'].
+   */
+  --qr-module: #000000;
+  --qr-ground: #ffffff;
 }
 
 /**

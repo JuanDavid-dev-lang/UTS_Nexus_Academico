@@ -82,10 +82,14 @@ function aLista(valor: string[] | string | undefined): string[] {
   return valor.split(/\r?\n/).map(v => v.trim()).filter(Boolean);
 }
 
-/** Subir un formato (solo administración). */
+/**
+ * Subir un formato (solo administración). El repositorio es uno para todas las
+ * universidades —el modelo no lleva institución—, así que una coordinación que
+ * subiera o editara formatos lo haría para los directores de las demás.
+ */
 thesisRouter.post(
   '/formatos',
-  requireRole('ADMIN', 'COORDINATOR'),
+  requireRole('ADMIN'),
   subirFormato.single('file'),
   async (req, res, next) => {
     try {
@@ -191,7 +195,7 @@ thesisRouter.get('/formatos/:id/archivo', requireRole('ADMIN', 'PROFESSOR', 'COO
 });
 
 /** Editar metadatos (el archivo se reemplaza subiendo un formato nuevo). */
-thesisRouter.patch('/formatos/:id', requireRole('ADMIN', 'COORDINATOR'), async (req, res, next) => {
+thesisRouter.patch('/formatos/:id', requireRole('ADMIN'), async (req, res, next) => {
   try {
     const datos = metadatos.partial().parse(req.body);
     const cambios: Record<string, unknown> = { ...datos };

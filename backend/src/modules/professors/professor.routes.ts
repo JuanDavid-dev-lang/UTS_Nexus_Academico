@@ -118,9 +118,18 @@ professorRouter.get('/', requireRole('ADMIN', 'COORDINATOR'), async (req, res, n
         ? (req.alcance.programas.includes(pedido) ? [pedido] : [])
         : req.alcance.programas;
       delete filtro.programas;
+      // Sin programas asignados el alcance es la institución entera: todos sus
+      // docentes, no solo los que ya dictan algo (salvo que la URL pida uno).
+      const institucionEntera = req.alcance.programas.length === 0 && !pedido && Boolean(req.alcance.institutionId);
       filtro.$and = [
         ...(Array.isArray(filtro.$and) ? filtro.$and : []),
-        { $or: [{ programas: { $in: programas } }, { userId: { $in: req.alcance.professorIds } }] },
+        ...(institucionEntera
+          ? []
+          : [{ $or: [{ programas: { $in: programas } }, { userId: { $in: req.alcance.professorIds } }] }]),
+        // El catálogo de programas es compartido entre universidades: sin la
+        // institución, una coordinación de las UTS veía a los docentes de otra
+        // adscritos al mismo programa.
+        ...(req.alcance.institutionId ? [{ institutionId: req.alcance.institutionId }] : []),
       ];
     }
     if (req.query.director === 'true') filtro.esDirectorTrabajoGrado = true;
@@ -214,9 +223,12 @@ professorRouter.patch('/:id', requireRole('ADMIN', 'COORDINATOR'), async (req, r
     // listado ya no se los muestra, pero filtrar solo el listado deja la ficha
     // escribible a quien copie un id.
     if (req.alcance && !req.alcance.total) {
-      const suyo =
+      const deSuInstitucion = !req.alcance.institutionId
+        || String(antes.institutionId ?? '') === req.alcance.institutionId;
+      const suyo = deSuInstitucion && (
+        (req.alcance.programas.length === 0 && Boolean(req.alcance.institutionId)) ||
         (antes.programas ?? []).some(programa => req.alcance!.programas.includes(programa)) ||
-        req.alcance.professorIds.includes(String(antes.userId));
+        req.alcance.professorIds.includes(String(antes.userId)));
       if (!suyo) {
         return res.status(403).json({ ok: false, message: 'Docente fuera de tus programas' });
       }

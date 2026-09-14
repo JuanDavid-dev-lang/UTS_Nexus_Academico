@@ -54,7 +54,9 @@ function fecha(iso: string): string {
  */
 export default function FeedbackPage() {
   const role = useUserRole();
-  const esGestor = role === 'ADMIN' || role === 'COORDINATOR';
+  // La bandeja completa es de ADMIN, que es quien la atiende; los demás ven lo
+  // suyo, igual que responde el servidor.
+  const esGestor = role === 'ADMIN';
   const esAdmin = role === 'ADMIN';
 
   const [tipo, setTipo] = useState<TipoFeedback>('SUGERENCIA');

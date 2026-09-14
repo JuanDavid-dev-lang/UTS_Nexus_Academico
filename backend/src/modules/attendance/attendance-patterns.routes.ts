@@ -31,6 +31,7 @@ attendancePatternRouter.get(
       // El docente solo ve los suyos. Se impone aquí, después de leer la URL.
       const acotado: servicio.FiltroCasos = { ...filtro };
       if (req.user!.role === 'PROFESSOR') acotado.teacherId = req.user!.id;
+      if (req.alcance && !req.alcance.total) acotado.subjectIds = req.alcance.subjectIds;
 
       const { items, total } = await servicio.listarCasos(acotado, pagina);
       res.json(campo.respuestaPaginada(items, total, pagina));
@@ -51,7 +52,10 @@ attendancePatternRouter.post(
           estado: z.enum(['EN_SEGUIMIENTO', 'RESUELTO', 'DESCARTADO']).default('EN_SEGUIMIENTO'),
         })
         .parse(req.body);
-      const item = await servicio.registrarIntervencion(String(req.params.id), body, req.user!);
+      const item = await servicio.registrarIntervencion(String(req.params.id), body, {
+        ...req.user!,
+        alcance: req.alcance,
+      });
       res.json({ ok: true, item });
     } catch (err) {
       next(err);
@@ -67,7 +71,9 @@ attendancePatternRouter.post(
  */
 attendancePatternRouter.post(
   '/patrones/scan',
-  requireRole('ADMIN', 'COORDINATOR'),
+  // Solo ADMIN: la pasada es global —crea casos y avisa a docentes de todas
+  // las universidades—, igual que la del scheduler.
+  requireRole('ADMIN'),
   async (req, res, next) => {
     try {
       const filtro = z.object({ period: z.string().max(20).optional() }).parse(req.body ?? {});

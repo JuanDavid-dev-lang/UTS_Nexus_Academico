@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { dentroDelAlcanceDePrograma } from '../../domains/scope/program-scope.js';
 import { z } from 'zod';
 import { exigirSesion, identificar, requireRole } from '../../middlewares/auth.js';
 import { RiskFeedbackModel } from '../../models/risk-feedback.model.js';
@@ -32,7 +33,12 @@ mlRouter.get('/status', exigirSesion, async (_req, res, next) => {
  */
 mlRouter.get('/risk', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
-    const filter = req.user?.role === 'PROFESSOR' ? { teacherId: req.user.id } : {};
+    // Docente por matrícula; coordinación y secretaría por programa.
+    const filter = req.user?.role === 'PROFESSOR'
+      ? { teacherId: req.user.id }
+      : req.alcance && !req.alcance.total
+        ? { subjectIds: req.alcance.subjectIds }
+        : {};
     const period = req.query.period ? String(req.query.period) : undefined;
 
     const records = await computeAcademicRecords({ ...filter, period });
@@ -89,11 +95,21 @@ mlRouter.post('/feedback', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), asy
       if (!scope.studentIds.includes(body.studentId)) {
         return res.status(403).json({ ok: false, message: 'Student not assigned' });
       }
+      // La materia también: con un estudiante propio y la materia de otro
+      // docente se reescribía la etiqueta con la que se entrena el modelo.
+      if (!scope.subjectIds.includes(body.subjectId)) {
+        return res.status(403).json({ ok: false, message: 'Subject not assigned' });
+      }
+    }
+    if (req.alcance && (!dentroDelAlcanceDePrograma(req.alcance, 'studentIds', body.studentId)
+      || !dentroDelAlcanceDePrograma(req.alcance, 'subjectIds', body.subjectId))) {
+      return res.status(403).json({ ok: false, message: 'Fuera de tu alcance' });
     }
 
     const item = await RiskFeedbackModel.findOneAndUpdate(
       { studentId: body.studentId, subjectId: body.subjectId, period: body.period },
-      { $set: { ...body, teacherId: req.user?.id } },
+      // El caso es del docente de la materia; coordinación no se lo queda.
+      { $set: { ...body, ...(req.user?.role === 'PROFESSOR' ? { teacherId: req.user.id } : {}) } },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
@@ -104,13 +120,15 @@ mlRouter.post('/feedback', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), asy
 });
 
 /**
- * Reentrena el modelo con los casos ya cerrados.
+ * Reentrena el modelo con los casos ya cerrados. Solo ADMIN: el modelo es uno
+ * para todas las universidades, y promoverlo decide quién sale en rojo en
+ * todas ellas.
  *
  * Solo se usan los que tienen desenlace real (`actuallyFailed` definido): una
  * opinión sin resultado no es una etiqueta, y entrenar con ellas enseñaría al
  * modelo a imitar impresiones en vez de hechos.
  */
-mlRouter.post('/train', requireRole('ADMIN', 'COORDINATOR'), async (req, res, next) => {
+mlRouter.post('/train', requireRole('ADMIN'), async (req, res, next) => {
   try {
     const force = req.query.force === '1';
 

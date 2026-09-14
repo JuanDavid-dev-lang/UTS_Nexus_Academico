@@ -8,6 +8,7 @@ import './data/dashboard_summary.dart';
 import '../../core/network/api_error.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/auth/auth_repository.dart';
+import '../../core/auth/permisos.dart';
 import '../../core/theme/app_theme.dart';
 import '../activities/data/activity_models.dart';
 import '../agenda/widgets/next_class_card.dart';
@@ -169,7 +170,11 @@ class DashboardPage extends ConsumerWidget {
                           ),
                           // Tocar la fila abre dónde anotar qué se hizo: sin
                           // eso la lista repite los mismos nombres cada semana.
-                          onTap: () => showInterventionSheet(context, riesgo),
+                          // Secretaría consulta y no anota: el servidor lo
+                          // rechazaría.
+                          onTap: esSoloLectura(user?.role)
+                              ? null
+                              : () => showInterventionSheet(context, riesgo),
                         ),
                       ),
                   ],

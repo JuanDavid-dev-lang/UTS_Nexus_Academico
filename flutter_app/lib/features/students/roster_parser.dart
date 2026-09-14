@@ -111,17 +111,24 @@ RosterParseResult parseRoster(String input) {
       );
       continue;
     }
+    // El documento lleva solo dígitos (4 a 15), igual que en el servidor y en
+    // el enlace de UniPlanner: se quitan puntos, espacios y guiones; una letra
+    // no lo convierte en otro documento, lo deja fuera.
     final codeIndex = fields.indexWhere((field) {
-      final clean = field.replaceAll(RegExp(r'[\s.]'), '');
-      return RegExp(r'^\d{3,}$').hasMatch(clean);
+      final clean = field.replaceAll(RegExp(r'[\s.\-]'), '');
+      return RegExp(r'^\d{4,15}$').hasMatch(clean);
     });
     if (codeIndex < 0) {
       errors.add(
-        RosterParseError(index + 1, raw, 'No se encontró una cédula válida.'),
+        RosterParseError(
+          index + 1,
+          raw,
+          'No se encontró un documento válido (solo números, 4 a 15 dígitos).',
+        ),
       );
       continue;
     }
-    final code = fields[codeIndex].replaceAll(RegExp(r'[\s.]'), '');
+    final code = fields[codeIndex].replaceAll(RegExp(r'[\s.\-]'), '');
     final name = fields.indexed
         .where(
           (entry) =>

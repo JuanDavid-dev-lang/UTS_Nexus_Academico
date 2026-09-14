@@ -24,6 +24,15 @@ const schema = new Schema(
      */
     lateMinutes: { type: Number, default: 0, min: 0 },
     notes: { type: String, default: '' },
+    /**
+     * De dónde salió la marca: pasando lista a mano, de una planilla
+     * fotografiada o de un QR escaneado en UniPlanner.
+     *
+     * Con valor por defecto para que lo anterior siga siendo válido. Sirve
+     * cuando alguien reclama una falta: no es lo mismo una marca que el docente
+     * puso mirando el salón que una que llegó sola desde un teléfono.
+     */
+    origen: { type: String, enum: ['MANUAL', 'PLANILLA', 'QR'], default: 'MANUAL' },
   },
   { timestamps: true }
 );

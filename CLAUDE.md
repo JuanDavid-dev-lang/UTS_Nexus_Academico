@@ -18,7 +18,10 @@ npm start                # servidor compilado
 npm run seed             # sembrar/resetear datos de demo (credenciales demo en README)
 npm run smoke            # smoke test — requiere el servidor arriba y sembrado
 npm run test:e2e         # suite E2E completa sobre una base aislada (mongod local)
+npm run test:e2e:qr      # asistencia por QR: servicio real + mongod local + Firestore simulado
 npm run migrate:v3       # migración v3 — simula; con -- --aplicar escribe
+npm run migrate:fechas-asistencia   # une la asistencia duplicada por fecha — simula; -- --aplicar escribe
+npm run migrate:nombres-estudiantes # nombres de estudiante en mayúsculas y solo letras — simula; -- --aplicar escribe
 npm run check:env        # valida .env sin imprimir secretos
 npm test                 # Vitest — dominio puro (tests/)
 npm run lint             # eslint
@@ -95,8 +98,10 @@ No se usa Clean Architecture completa a propósito. Lo que Clean protege —el d
 
 ### Puente con UniPlanner (`modules/uniplanner/`)
 
-UniPlanner es la app del estudiante; Nexus escribe en su buzón y **nada vuelve**
-—no hay ninguna ruta que traiga datos suyos, y esa ausencia es la garantía—.
+UniPlanner es la app del estudiante; Nexus escribe en su buzón y **no hay
+ninguna ruta que traiga datos suyos**, y esa ausencia es la garantía. Lo único
+que vuelve es la marca de un QR de asistencia, con cuatro campos fijos y leída
+de Firestore por el servidor (ver «Asistencia por QR» más abajo).
 
 Tres cosas que no son negociables:
 
@@ -121,6 +126,113 @@ credenciales el canal es un no-op declarado y la lista de clase sigue igual.
 
 Detalle completo en `docs/UNIPLANNER.md`.
 
+### Asistencia por QR (`modules/attendance-qr/`)
+
+El docente proyecta un QR desde la pantalla de asistencia del escritorio; el
+estudiante lo escanea en UniPlanner, ve sus datos como los tiene la universidad
+(nombre, documento tapado, materia, grupo) y **confirma**. El docente no toca
+nada. La lista de siempre no cambia: quien no tiene la app se marca a mano.
+
+- **No hay ruta para el estudiante.** UniPlanner crea
+  `attendance_sessions/{sesion}/checkins/{uid}` en su Firestore y el lector del
+  servidor (`startAttendanceQrReader`, cada 3 s) lo trae. Nexus no se expone a
+  internet por esto y **ninguna credencial de UniPlanner cruza**: el token de
+  Firebase de un estudiante abre todo su Firestore, no tiene por qué salir de su
+  teléfono. Sin sesiones abiertas no se llama a Firestore.
+- **La identidad no la dice el teléfono.** La marca solo lleva el texto del QR.
+  Al abrir, se leen los enlaces de los matriculados y queda un mapa
+  `uid → estudiante`; la marca se resuelve con la cuenta que la creó. Un
+  estudiante con varias materias tiene un solo enlace y aparece en el mapa de
+  cada una de sus clases, y en el de ninguna más.
+- **Qué decide si vale** vive en `domains/attendance/qr-session.ts`, puro y con
+  pruebas: firma HMAC con un secreto por sesión que nunca sale del servidor
+  (materia, grupo y hora son predecibles), ventana de 15 s medida con la hora de
+  Firestore (una foto reenviada caduca), una marca por cuenta, ninguna cuenta
+  por dos matrículas del grupo, ningún teléfono por dos cuentas. Un compañero
+  escaneando en vivo por videollamada **no se puede parar**: lo ve el docente.
+- **Dos pasos.** Una marca válida no escribe nada: Nexus contesta en ella con
+  una vista previa (`stage: 'preview'`) y solo al leer `confirmedAt` escribe.
+  La vigencia del QR se mide al escanear (`createdAt`), así que leer la
+  vista previa no lo hace vencer; confirmar solo exige la lista abierta. Lo
+  sin confirmar al cerrar queda `SIN_CONFIRMAR`.
+- **Una vez por día.** Quien ya tiene asistencia presente de esa materia ese día
+  —otra lista, o marcado a mano— recibe `YA_REGISTRADA` sin vista previa y sin
+  escribir. Quien estaba ausente sí puede quedar presente en otra lista.
+- **Al confirmar** se escribe solo `present: true` y `origen: 'QR'`: el retraso o
+  la observación que el docente ya hubiera puesto se conservan. `lateMinutes`
+  no se deduce del escaneo. **Al cerrar**, ausente a quien no confirmó y no
+  tenía marca de ese día, con `$setOnInsert`: lo manual no se pisa.
+- **El bloqueo lo hace valer Nexus, no solo Firestore** (`vinculos_qr_semestre`,
+  `models/qr-binding.model.ts`). Las reglas de UniPlanner dejan borrar un enlace
+  fijo junto con el perfil —darse de baja— y el perfil se puede recrear, así que
+  `lockedUntil` solo no impedía enlazarse al código de un compañero. La primera
+  asistencia confirmada ata cuenta y estudiante en el periodo (índices únicos
+  por los dos lados) y lo que lo contradiga es `CUENTA_CAMBIADA`. Lo sueltan
+  «desbloquear», «liberar» y «asignar» en Vínculos; `lockedUntil` se **borra**,
+  no se deja en `null` (las reglas lo leerían como imborrable). Un documento que
+  tiene otra cuenta se **asigna** a su dueño reescribiendo el enlace, no se
+  libera borrándolo: borrado, la cuenta anterior podía volver a reclamarlo
+  primero.
+- **Lo que el docente marca a mano durante la lista manda** sobre la
+  confirmación que llegue después (`DECIDIDA_POR_DOCENTE`); pasados
+  `MAX_INTENTOS` se contesta `DEMASIADOS_INTENTOS` una vez en vez de dejar la
+  marca esperando.
+- **El QR es de un grupo y el grupo se pide siempre** (`groupId` obligatorio):
+  una materia de la UTS (PIS701) tiene varios grupos (A194, A193, B212) y la
+  etiqueta del grupo es lo que el estudiante ve al confirmar. Una lista abierta
+  por grupo y docente (índice único parcial), con los matriculados de ese grupo
+  y de ese docente.
+- **La lista de marcas se escribe con `revision`** (control optimista) y solo si
+  cambió: una pasada vacía, cada 3 s, no escribe en la base.
+- **El enlace queda fijo** (`lockedUntil` en `institution_links`) **hasta el
+  último día del semestre** de la clase: el que pone la administración en
+  Periodos (`AcademicPeriod.endsOn`, del acuerdo del Consejo Académico) o, sin
+  él, el de `domains/periods/period-calendar.ts` (30 jun / 20 dic, que cubren
+  el calendario UTS con margen). Es lo que impide cambiar el documento por el
+  de un compañero, marcar por él y volver al propio; en vacaciones se libera.
+  Se escribe una vez por estudiante y semestre, no en cada clase.
+- **El enlace se verifica solo** (`modules/uniplanner/verificacion.service.ts`,
+  puro en `domains/uniplanner/link-verification.ts`): el estudiante manda
+  universidad, documento (solo dígitos) y nombre completo (solo letras, en
+  mayúsculas), y Nexus lo verifica cuando casan con un estudiante matriculado en
+  esa universidad con ese nombre —todas las palabras, en cualquier orden, sin
+  tildes—. Scheduler cada minuto por cursor sobre `verificationRequestedAt`
+  (solo lo nuevo) y re-comprobación al matricular. Un solo estado de fallo
+  (`not_matched`) para no revelar qué documentos existen. **Comprueba datos, no
+  identidad**: quien conozca el nombre y el documento de un compañero puede
+  escribirlos; por eso siguen las demás capas.
+- **El enlace lo gestiona la institución, no el docente** (pantalla «Vínculos
+  UniPlanner», `modules/uniplanner/vinculos.service.ts`): es uno por estudiante
+  con su universidad y vale para todas sus materias, así que verificarlo,
+  desbloquearlo o liberarlo lo hacen ADMIN y coordinación —secretaría solo
+  consulta—, acotados a su institución y su alcance. El estudiante pide
+  revisión desde su app (`link_requests/{uid}`: se equivocó de código, o su
+  código lo tiene otra cuenta) y el scheduler avisa cada 5 min a ADMIN y a la
+  coordinación de esa universidad.
+- **UniPlanner tiene su mitad**: escáner con acceso rápido en el inicio, reglas
+  de `attendance_sessions`/`checkins`, `lockedUntil` intocable y un enlace por
+  cuenta. El contrato está en `docs/UNIPLANNER.md` §8, y un QR de referencia
+  copiado en las pruebas de los dos repositorios fija que el formato no diverja.
+
+### Fecha de una clase (`domains/attendance/class-date.ts`)
+
+`Asistencia.date` es **siempre el mediodía del campus** del día de la clase.
+Antes cada escritor mandaba el día a su manera —el escritorio mediodía local,
+el móvil medianoche sin zona que el servidor leía en la suya, la planilla
+`AAAA-MM-DD` como medianoche UTC—, y el índice único es (estudiante, materia,
+`date`): dos instantes para el mismo día eran dos clases, el porcentaje contaba
+el día dos veces y ningún cliente lo delataba, porque todos pintan
+`slice(0, 10)`. Toda ruta que escriba asistencia valida con
+`campoFechaDeClase` (`shared/class-date.ts`); una fecha ambigua
+(`13/09/2026`) es un 400, no una adivinanza. **Lo anterior se migra con
+`npm run migrate:fechas-asistencia`** (`planearMigracionDeFechas`, puro y con
+pruebas): en cada clase duplicada se queda el registro vivo modificado más
+recientemente, los demás se respaldan en `asistencias_respaldo_fechas` y se
+borran, y el que queda recibe la fecha canónica. Es idempotente; en la base de
+producción había 15 clases duplicadas de 59 registros (septiembre de 2026).
+Hay que volver a pasarla tras desplegar el backend nuevo, por lo que el
+servidor viejo haya escrito mientras tanto.
+
 ### Quién ve qué (`domains/scope/`)
 
 La garantía de que un docente no ve los estudiantes de otro es **lógica pura y probada**, no código repartido por las rutas. Dos funciones importan:
@@ -129,6 +241,40 @@ La garantía de que un docente no ve los estudiantes de otro es **lógica pura y
 - `filtroDeListado()` — **el ámbito del rol se aplica DESPUÉS de lo que pide la URL.** Escrito al revés, un estudiante recuperaba las notas de otro con `?studentId=` y la respuesta era un 200 con una lista impecable. Ese fallo estuvo vivo en `GET /grades` y no en `GET /attendance`, con el mismo código y dos líneas intercambiadas — por eso vive en una función y no copiado en cada ruta.
 
 El mismo patrón en reportes: `filtrosDeConsulta()` fuerza el `teacherId` del docente **siempre**, no solo cuando la petición no trae uno.
+
+### Documento del estudiante y grupos
+
+- **`Estudiante.fullName` se guarda en mayúsculas y solo con letras**
+  (`campo.nombrePersona`): los signos de las planillas (coma, guion,
+  apóstrofo) se quitan y un número es un 400. UniPlanner guarda el nombre del
+  enlace igual. Lo anterior se normaliza con `npm run
+  migrate:nombres-estudiantes` (simula; `-- --aplicar` escribe, con respaldo en
+  `estudiantes_respaldo_nombres`). Aplicada en la base de producción el
+  13 de septiembre de 2026: 23 nombres, ninguno con números ni símbolos. Es
+  idempotente.
+- **`Estudiante.code` es el número de documento de identidad, solo dígitos (4 a
+  15).** `campo.documento` (`shared/validation.ts`) quita los puntos, espacios y
+  guiones con que se escribe una cédula y rechaza cualquier letra o símbolo; lo
+  usan el alta, el lote y la matrícula masiva, y los formularios de los dos
+  clientes no dejan teclear otra cosa. UniPlanner exige lo mismo en su enlace
+  (cliente y reglas). Con letras, la misma persona podía existir dos veces
+  (`1098765432` y `CC1098765432`) y el enlace, solo numérico, no encontraba a
+  ninguna.
+- **El grupo no es la materia.** `PIS701` es Ingeniería del Software y `A194`
+  uno de sus grupos. El primer grupo nacía con el código de la materia como
+  nombre; ahora se pide al crear la materia (escritorio y móvil), `POST|PATCH
+  /groups` lo normaliza a mayúsculas y **rechaza** un nombre igual al código de
+  la materia, y la lista de estudiantes deja crear más grupos y renombrar los que
+  quedaron mal (con un aviso sobre ellos).
+- **Asistencia y notas se ven por grupo.** Asistencia (escritorio y móvil) exige
+  elegir el grupo cuando la materia tiene varios y solo carga a sus
+  matriculados; Notas filtra el consolidado por grupo. El consolidado filtra por
+  la **matrícula** del grupo y no por `Nota.groupId`, que casi siempre está vacío
+  porque las notas se capturan por materia.
+- **`POST /attendance/bulk` exige matrícula en la materia (y en el grupo, si
+  viene)**, de una consulta y con el mismo respaldo legado que la ruta unitaria.
+  El móvil mandaba la lista de *todos* los estudiantes del docente, y cada uno
+  quedaba con asistencia en una materia que no cursa.
 
 ### Alcance de estudiantes
 - `GET /students` acepta `subjectId`, `groupId`, `period` y `q`. Para un docente los filtros se **intersectan** con su alcance, no lo reemplazan: pedir una materia ajena devuelve lista vacía, nunca los datos de otro.
@@ -174,6 +320,36 @@ secretaría por **programa académico**; ADMIN no se acota.
   mañana, y una ruta de escritura sin marcar no falla, concede.
 - Exportar es **leer**: los exportables son `GET` a propósito, para que secretaría
   pueda descargarlos.
+- **Todo lo que coordinación y secretaría leen o escriben pasa por `req.alcance`**,
+  no solo los listados principales. La auditoría de roles encontró que agenda
+  (horarios, eventos —incluidos los recordatorios personales de los docentes— y
+  actividades), `GET /schedules`, actividades, casos de inasistencia, seguimiento
+  de riesgo, `GET /ml/risk`, el asistente (`/ai/*`), el consolidado de reportes,
+  `/reports/summary`, la fotografía del cierre, el historial del estudiante, la
+  cola de registro y los avisos de UniPlanner respondían con datos de **todas
+  las universidades**. Ahora cada uno acota por `subjectIds`/`studentIds` del
+  alcance o por `institutionId`, y lo de fuera responde 404 o lista vacía. En
+  escritura: matrículas, grupos y actividades se comprueban contra `groupIds` /
+  `subjectIds`; los eventos de agenda los edita **solo su autor** (o ADMIN);
+  coordinación solo cambia `programa` de una materia y solo hacia uno de sus
+  programas; anotar un seguimiento ya no cambia el `teacherId` del caso (queda
+  en `interventionBy`).
+- **Lo global es de ADMIN.** Cerrar un periodo (el mismo `2026-2` para todas las
+  universidades), reentrenar el modelo (`POST /ml/train`, uno para todas) y la
+  bandeja completa de sugerencias. Coordinación consulta el periodo y el acta de
+  sus carreras, ve sus propias sugerencias y lee los avisos vigentes para sus
+  programas.
+- **Lo personal es de su dueño.** Las notificaciones —su contenido por socket
+  (`emitSoloAUsuario`), su bandeja y su sincronización— son de quien las recibe
+  en todos los roles, ADMIN incluido: la copia a las salas administrativas que
+  hace `emitToUser` es para invalidar cachés, no para leer la campana de otro.
+- **Secretaría se nombra en las pocas escrituras que su lista blanca deja
+  pasar** (`POST /feedback`, `POST /ai/chat|quick`): `rolesEfectivos` solo la
+  hace valer como coordinación al **leer**, así que sin nombrarla en
+  `requireRole` la excepción de `role-access.ts` terminaba en 403. En los
+  clientes, `analytics.intervene` separa ver el riesgo de anotar sobre él, y el
+  escritorio protege cada ruta con la misma capacidad que el menú
+  (`app/require-capability.tsx`).
 
 `GET /coordinacion/*` (materias con su docente, docentes, grupos, resumen y
 `export.xlsx`) es una sola pipeline —`coordination.service.ts`— rebanada tres
@@ -270,8 +446,9 @@ pantalla se queda con la lista vieja.
 Tres capas que se acumulan, **todas contando por usuario cuando hay sesión y por
 IP cuando no**: `limiteGeneral` (600/15 min), `limiteEscritura` (120/15 min,
 solo métodos que modifican) y `limiteLotes` (20/15 min, las cuatro rutas masivas,
-los tres escáneres y los tres avisos de UniPlanner que reparten a una lista). Login aparte, por IP a propósito: quien prueba
-contraseñas todavía no es nadie y la clave saldría del correo que él mismo elige.
+los tres escáneres y los tres avisos de UniPlanner que reparten a una lista). Login aparte, por IP a propósito —quien prueba
+contraseñas todavía no es nadie y la clave saldría del correo que él mismo elige— y
+contando solo los intentos fallidos.
 
 - **Van en `routes/index.ts`, después de `identificar`.** En `app.ts` corren
   antes de saber quién llama, así que un `keyGenerator` por usuario allí caería
@@ -311,7 +488,7 @@ Mismo contrato de dos pasos que el listado y el escáner de asistencia: `POST /g
 **Toda celda de Excel sale por `agregarFila()`, nunca por `ws.addRow()` directamente.** Excel y LibreOffice ejecutan cualquier celda que empiece por `=`, `+`, `-`, `@`, tabulador o retorno de carro, y las columnas de estos informes son texto que escribe gente: el nombre de un estudiante llega por importación de listado o por OCR de una foto, y la observación de una asistencia son 500 caracteres libres. Quien abre el acta es coordinación o secretaría, así que **el que ejecuta no es el que escribió**. `celdaSegura()` antepone un apóstrofo —el escape que Excel entiende, invisible al abrir— y deja los números intactos, porque un `-2` numérico es una nota y convertirlo a texto rompería las sumas de la hoja. `shared/sanitize.ts` no cubría esto: sanea lo que se **guarda**, no lo que **sale** hacia un archivo.
 
 ### Buzón de sugerencias (`/feedback`)
-El docente escribe (escritorio y móvil), ADMIN revisa y cambia el estado; al resolver/descartar se avisa al autor vía `crearNotificacion()` con `dedupeKey`. No confundir con `risk-feedback` (realimentación del modelo ML). Un docente solo ve lo suyo.
+El personal escribe (escritorio y móvil, secretaría incluida), ADMIN revisa y cambia el estado; al resolver/descartar se avisa al autor vía `crearNotificacion()` con `dedupeKey`. No confundir con `risk-feedback` (realimentación del modelo ML). La bandeja completa es solo de ADMIN; los demás roles —coordinación incluida— ven solo lo suyo.
 
 ### Perfiles institucionales (`/instituciones`)
 
@@ -373,6 +550,12 @@ consultar el estado 500 veces en una importación). Horarios, actividades y
 avisos siguen editables: no forman parte del acta, así que bloquearlos
 impediría corregir datos sin proteger nada. La lista está en
 `domains/periods/period-lifecycle.ts` y la fijan pruebas.
+
+**Cerrar, abortar, reabrir y fijar el último día son solo de ADMIN.** El
+periodo es global —`2026-2` es un documento para todas las universidades—, así
+que cerrarlo bloquea las notas de los docentes de todas ellas; una coordinación
+no puede tomar esa decisión por las demás. Coordinación y secretaría abren la
+pantalla para consultar el estado y el acta de sus carreras.
 
 `CLOSING` existe porque el cierre puede interrumpirse: marcarlo cerrado desde
 el principio dejaría un periodo cerrado con la fotografía a medias, y no
@@ -465,7 +648,7 @@ El backend emite un evento único `sync:update` con payload `{entity, action, id
 
 Hay un segundo evento, `notification:new`, con el documento de la notificación. Va aparte a propósito: `sync:update` dice «esta caché caducó» y este dice «avísale». Mezclarlos obligaría a cada oyente a distinguirlos, y el que solo quiere invalidar acabaría mostrando avisos.
 
-Los eventos salen por `emitToUser` (sala `user:<id>` + ADMIN/COORDINATOR), no por el broadcast global.
+Los eventos salen por `emitToUser` (sala `user:<id>` + las salas administrativas: ADMIN, COORDINATOR y SECRETARY), no por el broadcast global. Lo personal —el contenido de una notificación— sale por `emitSoloAUsuario`, sin esa copia.
 
 ### Agenda académica
 `GET /agenda` expande el horario semanal (`ScheduleModel`) a ocurrencias con fecha y las une con `EventoCalendario` y `Actividad`. **Ningún cliente calcula a qué hora es una clase**: si PC y Android lo hicieran por su cuenta, un equipo con la zona horaria mal puesta mostraría otra hora y el docente no sabría cuál de los dos miente.
@@ -491,8 +674,12 @@ Detalle completo en `docs/AGENDA_Y_NOTIFICACIONES.md`.
 
 ### Sincronización — entidades de la v3
 
-Además de las anteriores, el backend emite `period`, `attendanceCase` y
-`clientError`, y `activity` ahora invalida también su propia pantalla (antes
+Además de las anteriores, el backend emite `period`, `attendanceCase`,
+`clientError` y `attendanceSession` (una marca del QR aceptada o rechazada: el
+escritorio tira la sesión y no el código del QR, que va en otra raíz de caché
+porque cambia por reloj; el móvil no tiene esa pantalla y la ignora a
+propósito, para que cada escaneo no le recargue el panel), y `activity` ahora
+invalida también su propia pantalla (antes
 solo la agenda, así que crear una entrega desde el escritorio no la hacía
 aparecer en el listado del teléfono).
 
@@ -803,7 +990,7 @@ Leídas por `backend/src/shared/env.ts`. **Un nombre mal escrito no da error: ca
 - `MONGODB_URI` es obligatoria; sin ella el backend arranca pero no conecta a la base.
 - **`NODE_ENV` ya no es el interruptor de la seguridad.** Lo fue, y era un error de diseño: `validarProduccion()` empezaba con `if (!esProduccion) return`, o sea que el guardián que impide desplegar con los secretos de juguete **solo se activaba si ya estaba puesta la variable que él mismo tendría que verificar**. Un `pm2 start` sin `NODE_ENV` arrancaba sin un aviso con `JWT_ACCESS_SECRET='dev-access'`, que está escrito en este repositorio. Ahora los secretos de firma se validan **siempre que haya `MONGODB_URI` configurada** —la señal de que esto no es un clon recién hecho— y `NODE_ENV` solo decide lo que sí molestaría en local: CORS acotado y servidor de correo.
 - **`TRUST_PROXY`** activa `trust proxy`, que es lo que hace que el límite de intentos de login vea la IP real y no la del proxy. Sin declarar sigue a `NODE_ENV`, que es lo que hacía antes. No la actives sin un proxy delante: cualquiera podría inventarse su `X-Forwarded-For` y estrenar cupo en cada petición.
-- **El límite de intentos de login va siempre**, no solo en producción. Estaba dentro de un `if (esProduccion)` y esa es justo la condición que falta cuando alguien despliega sin declararla. Diez intentos cada quince minutos no estorban a nadie desarrollando.
+- **El límite de intentos de login va siempre**, no solo en producción. Estaba dentro de un `if (esProduccion)` y esa es justo la condición que falta cuando alguien despliega sin declararla. Diez intentos **fallidos** cada quince minutos no estorban a nadie desarrollando: los que entran bien no cuentan (`skipSuccessfulRequests`), porque un campus sale por una sola IP y contando todos la undécima persona que entraba bien un lunes recibía «demasiados intentos». Por lo mismo la E2E, que inicia sesión más de diez veces, pasa con el límite real.
 - **`ALLOW_DEV_RECOVERY_CODE`** devuelve el código de recuperación en la respuesta de `/auth/recovery/request`. Apagada por defecto y con dos condiciones más encima (fuera de producción, sin SMTP). Nunca en un servidor al que llegue nadie más.
 - **`ML_SHARED_SECRET`** tiene que valer lo mismo aquí y en el entorno del servicio de Python. Vacío solo mientras el servicio escuche en `127.0.0.1`.
 - **`CLIENT_ORIGIN` no lleva los orígenes de la app de escritorio: los añade el backend.**
@@ -824,7 +1011,7 @@ Leídas por `backend/src/shared/env.ts`. **Un nombre mal escrito no da error: ca
 - `CAMPUS_UTC_OFFSET_MIN` (por defecto `-300`) es la zona del campus. Si el servidor corre en UTC y esto no se declara bien, **todas las clases y todos los recordatorios se desplazan varias horas sin ningún error visible**.
 - `CLASS_REMINDER_INTERVAL_MIN` va a `1` por defecto: un aviso de «empieza en 15 minutos» comprobado cada cuarto de hora no es un aviso. Con varias instancias, activarlo en una sola.
 - **El push a Android está apagado por defecto.** Sin `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL` y `FCM_PRIVATE_KEY` no se envía nada con la app cerrada y queda anotado en el log. Los recordatorios de clase siguen llegando: los programa el teléfono como alarmas locales.
-- **El puente con UniPlanner está apagado por defecto.** Sin `UNIPLANNER_PROJECT_ID`, `UNIPLANNER_CLIENT_EMAIL` y `UNIPLANNER_PRIVATE_KEY` no se lee ningún enlace ni se escribe ningún aviso, y queda anotado en el log. **La clave de cada universidad no es una variable**: sale de `Institucion.institutionId`, que es el identificador que ese modelo ya declara como «el que usará UniPlanner»; en el entorno, el despliegue entero quedaría atado a una sola. `UNIPLANNER_SOLO_VERIFICADOS=1` deja el canal mudo hoy, porque todavía no hay proceso que confirme una matrícula.
+- **El puente con UniPlanner está apagado por defecto.** Sin `UNIPLANNER_PROJECT_ID`, `UNIPLANNER_CLIENT_EMAIL` y `UNIPLANNER_PRIVATE_KEY` no se lee ningún enlace ni se escribe ningún aviso, y queda anotado en el log. **La clave de cada universidad no es una variable**: sale de `Institucion.institutionId`, que es el identificador que ese modelo ya declara como «el que usará UniPlanner»; en el entorno, el despliegue entero quedaría atado a una sola. `UNIPLANNER_SOLO_VERIFICADOS=1` limita avisos y marcas de QR a los enlaces verificados (solos o a mano). Con la verificación automática es viable; los enlaces anteriores, sin nombre, se quedan fuera hasta que la persona lo añada en su app.
 - **Correo saliente y aviso de versiones están apagados por defecto.** Sin `SMTP_HOST` no se envía nada y queda anotado en el log; con `RELEASE_CHECK_INTERVAL_H=0` no se consulta GitHub. Las dos degradan en silencio a propósito: una instalación local no debería necesitar servidor de correo para arrancar. Para activarlos: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `SMTP_SECURE` y `RELEASE_CHECK_INTERVAL_H` (horas), `RELEASES_REPO`.
 
 ## Plataformas

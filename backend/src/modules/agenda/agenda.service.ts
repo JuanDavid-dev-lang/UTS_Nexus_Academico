@@ -10,6 +10,8 @@
  * ve lo de las materias en las que está matriculado, y ADMIN/COORDINATOR ven
  * todo. Igual que `professor-scope.ts` hace con los estudiantes.
  */
+import { esRolPorPrograma } from '../../shared/types.js';
+import { acotarPorAlcance, type AlcanceDePrograma } from '../../domains/scope/program-scope.js';
 import { ScheduleModel } from '../../models/schedule.model.js';
 import { CalendarEventModel } from '../../models/calendar-event.model.js';
 import { ActivityModel } from '../../models/activity.model.js';
@@ -81,6 +83,8 @@ export type AgendaItem = {
 export type AlcanceAgenda = {
   userId: string;
   role: string;
+  /** Alcance por programa de coordinación y secretaría (`req.alcance`). */
+  programa?: AlcanceDePrograma;
 };
 
 export type FiltroAgenda = {
@@ -139,13 +143,24 @@ export async function construirAgenda(
   const esDocente = alcance.role === 'PROFESSOR';
   const esEstudiante = alcance.role === 'STUDENT';
 
-  const restriccion = esEstudiante ? await alcanceEstudiante(alcance.userId) : null;
+  // Coordinación y secretaría ven sus carreras; sin esto veían la agenda de
+  // todas las universidades, recordatorios personales de docentes incluidos.
+  const porPrograma = esRolPorPrograma(alcance.role) && alcance.programa && !alcance.programa.total
+    ? alcance.programa
+    : null;
+  const restriccion = esEstudiante
+    ? await alcanceEstudiante(alcance.userId)
+    : porPrograma
+      ? { subjectIds: porPrograma.subjectIds, groupIds: porPrograma.groupIds }
+      : null;
   // ── Horario semanal ──────────────────────────────────────────────────────
-  const filtroHorario: Record<string, unknown> = { deletedAt: null };
-  if (esDocente) filtroHorario.teacherId = alcance.userId;
-  if (restriccion) filtroHorario.subjectId = { $in: restriccion.subjectIds };
+  // La URL primero y el rol después: al revés, `?subjectId=` de una materia
+  // ajena le devolvía a un estudiante el horario de otra carrera.
+  let filtroHorario: Record<string, unknown> = { deletedAt: null };
   if (filtro.subjectId) filtroHorario.subjectId = filtro.subjectId;
   if (filtro.groupId) filtroHorario.groupId = filtro.groupId;
+  if (esDocente) filtroHorario.teacherId = alcance.userId;
+  if (restriccion) filtroHorario = acotarPorAlcance(filtroHorario, 'subjectId', restriccion.subjectIds);
 
   const horarios = await ScheduleModel.find(filtroHorario).lean();
 
@@ -172,26 +187,36 @@ export async function construirAgenda(
     deletedAt: null,
     startAt: { $gte: filtro.desde, $lt: filtro.hasta },
   };
-  if (esDocente) filtroEvento.$or = [{ teacherId: alcance.userId }, { visibility: 'INSTITUTIONAL' }];
-  if (restriccion) {
+  if (esDocente) {
+    filtroEvento.$or = [{ teacherId: alcance.userId }, { visibility: 'INSTITUTIONAL' }];
+  } else if (esEstudiante) {
     // Al estudiante le llegan los eventos de sus materias, nunca los
     // recordatorios personales de un docente.
     filtroEvento.$and = [
       { type: { $ne: 'REMINDER' } },
-      { $or: [{ visibility: 'INSTITUTIONAL' }, { subjectId: { $in: restriccion.subjectIds } }] },
+      { $or: [{ visibility: 'INSTITUTIONAL' }, { subjectId: { $in: restriccion?.subjectIds ?? [] } }] },
+    ];
+  } else {
+    // ADMIN, coordinación y secretaría: los suyos, los institucionales y los
+    // de sus materias (todas, con alcance total). Los recordatorios personales
+    // de un docente son suyos y de nadie más, tampoco de administración.
+    filtroEvento.$or = [
+      { teacherId: alcance.userId },
+      { visibility: 'INSTITUTIONAL' },
+      { type: { $ne: 'REMINDER' }, ...(porPrograma ? { subjectId: { $in: porPrograma.subjectIds } } : {}) },
     ];
   }
   if (filtro.subjectId) filtroEvento.subjectId = filtro.subjectId;
   if (filtro.groupId) filtroEvento.groupId = filtro.groupId;
 
-  const filtroActividad: Record<string, unknown> = {
+  let filtroActividad: Record<string, unknown> = {
     deletedAt: null,
     dueAt: { $gte: filtro.desde, $lt: filtro.hasta },
   };
-  if (esDocente) filtroActividad.teacherId = alcance.userId;
-  if (restriccion) filtroActividad.subjectId = { $in: restriccion.subjectIds };
   if (filtro.subjectId) filtroActividad.subjectId = filtro.subjectId;
   if (filtro.groupId) filtroActividad.groupId = filtro.groupId;
+  if (esDocente) filtroActividad.teacherId = alcance.userId;
+  if (restriccion) filtroActividad = acotarPorAlcance(filtroActividad, 'subjectId', restriccion.subjectIds);
 
   const [eventos, actividades] = await Promise.all([
     filtro.soloClases
@@ -315,7 +340,7 @@ export async function construirAgenda(
       status: estadoDeClase({ startAt: inicio, endAt: fin }, ahora),
       editable: evento.visibility === 'INSTITUTIONAL'
         ? alcance.role === 'ADMIN'
-        : !esEstudiante && (!esDocente || String(evento.teacherId) === alcance.userId),
+        : alcance.role === 'ADMIN' || (!esEstudiante && String(evento.teacherId) === alcance.userId),
     });
   }
 

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { dentroDelAlcanceDePrograma, type AlcanceDePrograma } from '../../domains/scope/program-scope.js';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import * as campo from '../../shared/validation.js';
@@ -86,6 +87,27 @@ aiRouter.get('/status', exigirSesion, async (_req, res) => {
   });
 });
 
+/**
+ * Coordinación y secretaría preguntan por sus carreras. Sin esto el asistente
+ * les contestaba con los estudiantes de todas las universidades.
+ */
+function fueraDelPrograma(
+  alcance: AlcanceDePrograma | undefined,
+  pedido: { subjectId?: string; studentId?: string; groupId?: string },
+): boolean {
+  if (!alcance || alcance.total) return false;
+  return Boolean(
+    (pedido.subjectId && !dentroDelAlcanceDePrograma(alcance, 'subjectIds', pedido.subjectId))
+    || (pedido.studentId && !dentroDelAlcanceDePrograma(alcance, 'studentIds', pedido.studentId))
+    || (pedido.groupId && !dentroDelAlcanceDePrograma(alcance, 'groupIds', pedido.groupId)),
+  );
+}
+
+/** Materias a las que se acota la consulta, o `undefined` si no hay que acotar. */
+function materiasDelPrograma(alcance: AlcanceDePrograma | undefined): string[] | undefined {
+  return alcance && !alcance.total ? alcance.subjectIds : undefined;
+}
+
 aiRouter.post('/predict', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
     const body = z.object({
@@ -99,6 +121,7 @@ aiRouter.post('/predict', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), asyn
       if (!scope.subjectIds.includes(body.subjectId)) return res.status(403).json({ ok: false, message: 'Subject not assigned' });
       if (!scope.studentIds.includes(body.studentId)) return res.status(403).json({ ok: false, message: 'Student not assigned' });
     }
+    if (fueraDelPrograma(req.alcance, body)) return res.status(403).json({ ok: false, message: 'Fuera de tu alcance' });
 
     const [grades, attendance, student] = await Promise.all([
       GradeModel.find({ studentId: body.studentId, subjectId: body.subjectId, deletedAt: null }).lean(),
@@ -177,7 +200,7 @@ const limiteConsultas = rateLimit({
  * idéntica con o sin Ollama. El alcance se comprueba igual que en el chat: un
  * docente solo consulta sus materias y sus grupos.
  */
-aiRouter.post('/quick', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), limiteConsultas, async (req, res, next) => {
+aiRouter.post('/quick', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR', 'SECRETARY'), limiteConsultas, async (req, res, next) => {
   try {
     const body = z.object({
       tipo: z.enum(TIPOS_CONSULTA),
@@ -196,11 +219,13 @@ aiRouter.post('/quick', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), limite
       }
       teacherId = req.user.id;
     }
+    if (fueraDelPrograma(req.alcance, body)) return res.status(403).json({ ok: false, message: 'Fuera de tu alcance' });
 
     const respuesta = await consultaRapida(body.tipo, {
       teacherId,
       subjectId: body.subjectId,
       groupId: body.groupId,
+      subjectIds: materiasDelPrograma(req.alcance),
     });
     res.json({ ok: true, ...respuesta });
   } catch (err) {
@@ -208,7 +233,7 @@ aiRouter.post('/quick', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), limite
   }
 });
 
-aiRouter.post('/chat', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), limiteChat, async (req, res, next) => {
+aiRouter.post('/chat', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR', 'SECRETARY'), limiteChat, async (req, res, next) => {
   try {
     const body = z.object({
       // Dos mil caracteres son cuatro párrafos largos: de sobra para cualquier
@@ -269,8 +294,11 @@ aiRouter.post('/chat', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), limiteC
       }
       teacherId = req.user.id;
     }
+    if (fueraDelPrograma(req.alcance, { subjectId, studentId: body.studentId, groupId })) {
+      return res.status(403).json({ ok: false, message: 'Fuera de tu alcance' });
+    }
 
-    const alcanceAgenda = { userId: req.user!.id, role: req.user!.role };
+    const alcanceAgenda = { userId: req.user!.id, role: req.user!.role, programa: req.alcance };
 
     // La agenda se calcula aquí, con los datos reales, y se le entrega al
     // modelo ya resuelta. Solo cuando la pregunta lo pide: cargar el horario en
@@ -289,6 +317,7 @@ aiRouter.post('/chat', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), limiteC
             subjectId,
             period: undefined,
             role: req.user?.role,
+            subjectIds: materiasDelPrograma(req.alcance),
           },
           (body.history ?? []) as ChatMessage[],
           bloqueAgenda,
@@ -324,6 +353,7 @@ aiRouter.post('/chat', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), limiteC
         teacherId,
         studentId: body.studentId,
         subjectId,
+        subjectIds: materiasDelPrograma(req.alcance),
       });
       if (respuestaMl) {
         const nota = respuestaMl.source === 'ml'
@@ -350,7 +380,9 @@ ${nota}`,
     if ((message.includes('riesgo') || message.includes('peligro')) && subjectId) {
       const students = req.user?.role === 'PROFESSOR'
         ? await StudentModel.find({ deletedAt: null, _id: { $in: (await getProfessorScope(req.user.id)).studentIds } }).lean()
-        : await StudentModel.find({ deletedAt: null }).lean();
+        : req.alcance && !req.alcance.total
+          ? await StudentModel.find({ deletedAt: null, _id: { $in: req.alcance.studentIds } }).lean()
+          : await StudentModel.find({ deletedAt: null }).lean();
       return res.json({
         ok: true,
         source: 'rules',

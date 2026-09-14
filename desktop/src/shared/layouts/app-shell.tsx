@@ -11,7 +11,8 @@ import { SkeletonStatGrid } from '@/shared/ui/skeleton';
 import { cn } from '@/shared/lib/cn';
 import { Rubri } from '@/shared/ui';
 import { useTheme } from '@/state/theme.store';
-import { useSession } from '@/state/session.store';
+import { useSession, useUserRole } from '@/state/session.store';
+import { can } from '@/core/auth/permissions';
 
 /** Title and subtitle per route, so the top bar always says where the user is. */
 const ROUTE_META: Record<string, { title: string; subtitle: string }> = {
@@ -35,6 +36,9 @@ export function AppShell() {
   // Se guarda por usuario y no por instalación: en un equipo compartido, el
   // segundo docente también tiene derecho a que se lo expliquen.
   const usuarioTour = useSession((estado) => estado.user?.id);
+  // Rubri y su atajo, solo para quien puede usar el asistente: la ruta
+  // devolvería al panel a los demás sin decir por qué.
+  const puedeAsistente = can(useUserRole(), 'assistant.use');
   const [tourAbierto, setTourAbierto] = useState(false);
 
   useEffect(() => {
@@ -89,7 +93,7 @@ export function AppShell() {
     'mod+4': () => navigate('/notas'),
     'mod+5': () => navigate('/asistencia'),
     'mod+6': () => navigate('/riesgo'),
-    'mod+7': () => navigate('/asistente'),
+    'mod+7': () => puedeAsistente && navigate('/asistente'),
     'mod+8': () => navigate('/agenda'),
   });
 
@@ -158,7 +162,7 @@ export function AppShell() {
       </div>
 
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
-      {location.pathname !== '/asistente' ? (
+      {puedeAsistente && location.pathname !== '/asistente' ? (
         <button
           type="button"
           aria-label="Abrir a Rubri, asistente de UTS Nexus"

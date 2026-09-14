@@ -68,10 +68,10 @@ async function conRiesgo(
 
 export async function consultaRapida(
   tipo: TipoConsulta,
-  contexto: { teacherId?: string; subjectId?: string; groupId?: string },
+  contexto: { teacherId?: string; subjectId?: string; groupId?: string; subjectIds?: string[] },
 ): Promise<RespuestaRapida> {
   const pregunta = PREGUNTA[tipo];
-  const todos = await computeAcademicRecords({ teacherId: contexto.teacherId });
+  const todos = await computeAcademicRecords({ teacherId: contexto.teacherId, subjectIds: contexto.subjectIds });
   let records = contexto.subjectId
     ? todos.filter(r => String(r.subjectId) === contexto.subjectId)
     : todos;

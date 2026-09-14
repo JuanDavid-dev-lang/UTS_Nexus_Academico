@@ -5,6 +5,7 @@
  * valida, autoriza, delega y responde. La regla de qué se puede escribir en
  * cada estado es pura y está en `domains/periods/period-lifecycle.ts`.
  */
+import { acotarPorAlcance } from '../../domains/scope/program-scope.js';
 import { Types } from 'mongoose';
 import { AcademicPeriodModel } from '../../models/academic-period.model.js';
 import { AcademicSnapshotModel } from '../../models/academic-snapshot.model.js';
@@ -15,6 +16,7 @@ import { auditChange } from '../../shared/audit.js';
 import { emitSync } from '../../shared/socket.js';
 import { invalidarCachePeriodos } from '../../shared/period-guard.js';
 import { resumirError } from '../../shared/sanitize.js';
+import { finDePeriodoPorDefecto } from '../../domains/periods/period-calendar.js';
 import {
   compararPeriodos,
   porcentajeDeCierre,
@@ -51,6 +53,10 @@ export type PeriodoResumen = {
   reaperturas: number;
   /** `true` cuando el periodo aún no tiene documento propio (histórico). */
   implicito: boolean;
+  /** Último día del semestre que puso la administración, `AAAA-MM-DD`. */
+  endsOn: string | null;
+  /** El que se usa si no hay `endsOn`. `null` en periodos sin calendario. */
+  endsOnPorDefecto: string | null;
 };
 
 function aResumen(documento: Record<string, any>, implicito = false): PeriodoResumen {
@@ -72,7 +78,44 @@ function aResumen(documento: Record<string, any>, implicito = false): PeriodoRes
     snapshotSummary: (documento.snapshotSummary ?? {}) as Record<string, number>,
     reaperturas: Array.isArray(documento.reopenings) ? documento.reopenings.length : 0,
     implicito,
+    endsOn: typeof documento.endsOn === 'string' ? documento.endsOn : null,
+    endsOnPorDefecto: finDePeriodoPorDefecto(String(documento.period)),
   };
+}
+
+/**
+ * Nombre y último día de un periodo.
+ *
+ * El último día es el de las notas de habilitación del acuerdo del Consejo
+ * Académico: hasta entonces queda fijo el enlace de UniPlanner de quien marca
+ * asistencia. `null` vuelve a la fecha por defecto.
+ */
+export async function configurarPeriodo(
+  periodo: string,
+  cambios: { label?: string; endsOn?: string | null },
+  actor: { id: string },
+): Promise<PeriodoResumen> {
+  const antes = await AcademicPeriodModel.findOne({ period: periodo }).lean();
+  const set: Record<string, unknown> = { updatedBy: actor.id };
+  if (cambios.label !== undefined) set.label = cambios.label;
+  if (cambios.endsOn !== undefined) set.endsOn = cambios.endsOn;
+
+  const documento = await AcademicPeriodModel.findOneAndUpdate(
+    { period: periodo },
+    { $set: set, $setOnInsert: { period: periodo, state: 'OPEN', createdBy: actor.id } },
+    { upsert: true, new: true, setDefaultsOnInsert: true },
+  ).lean();
+
+  await auditChange({
+    actorId: actor.id,
+    action: antes ? 'UPDATE' : 'CREATE',
+    entity: 'PeriodoAcademico',
+    entityId: String(documento!._id),
+    before: antes ? { label: antes.label, endsOn: (antes as { endsOn?: string }).endsOn ?? null } : null,
+    after: { label: documento!.label, endsOn: (documento as { endsOn?: string }).endsOn ?? null },
+  });
+  emitSync('sync:update', { entity: 'period', action: 'update', id: periodo });
+  return aResumen(documento as unknown as Parameters<typeof aResumen>[0]);
 }
 
 /**
@@ -429,6 +472,8 @@ export type FiltroFotografia = {
   studentId?: string;
   /** Docente al que se acota la consulta; lo impone el rol, nunca el cliente. */
   teacherId?: string;
+  /** Materias del alcance de coordinación y secretaría. También lo impone el rol. */
+  subjectIds?: string[];
 };
 
 /**
@@ -442,10 +487,11 @@ export async function consultarFotografia(
   filtro: FiltroFotografia,
   pagina: campo.Paginacion,
 ): Promise<{ items: unknown[]; total: number }> {
-  const query: Record<string, unknown> = { period: filtro.period };
+  let query: Record<string, unknown> = { period: filtro.period };
   if (filtro.subjectId) query.subjectId = filtro.subjectId;
   if (filtro.studentId) query.studentId = filtro.studentId;
   if (filtro.teacherId) query.teacherId = filtro.teacherId;
+  if (filtro.subjectIds) query = acotarPorAlcance(query, 'subjectId', filtro.subjectIds);
 
   const { skip, limit } = campo.saltoYTope(pagina);
   const [items, total] = await Promise.all([
@@ -456,9 +502,10 @@ export async function consultarFotografia(
 }
 
 /** Resumen de la fotografía guardada, para la pantalla de administración. */
-export async function resumenFotografia(periodo: string, teacherId?: string) {
-  const query: Record<string, unknown> = { period: periodo };
+export async function resumenFotografia(periodo: string, teacherId?: string, subjectIds?: string[]) {
+  let query: Record<string, unknown> = { period: periodo };
   if (teacherId) query.teacherId = teacherId;
+  if (subjectIds) query = acotarPorAlcance(query, 'subjectId', subjectIds);
 
   const [total, aprobados, riesgoAlto] = await Promise.all([
     AcademicSnapshotModel.countDocuments(query),

@@ -1,6 +1,15 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Archive, CheckCircle2, Loader2, Lock, RotateCcw, Unlock, XCircle } from 'lucide-react';
+import {
+  Archive,
+  CalendarClock,
+  CheckCircle2,
+  Loader2,
+  Lock,
+  RotateCcw,
+  Unlock,
+  XCircle,
+} from 'lucide-react';
 import {
   Badge,
   Button,
@@ -15,6 +24,7 @@ import {
   EmptyState,
   ErrorState,
   Field,
+  Input,
   PageContainer,
   PageHeader,
   Progress,
@@ -234,6 +244,10 @@ export default function PeriodsPage() {
                 </div>
               </CardHeader>
 
+              <CardContent className="pt-0">
+                <FinDelSemestre periodo={periodo} editable={puedeCerrar} onGuardado={invalidar} />
+              </CardContent>
+
               {enCurso || periodo.progresoDetalle.total > 0 ? (
                 <CardContent className="flex flex-col gap-2">
                   <Progress value={periodo.progreso} />
@@ -414,3 +428,107 @@ export default function PeriodsPage() {
     </PageContainer>
   );
 }
+
+/** Un `AAAA-MM-DD` como «17 de diciembre de 2026», sin pasar por la zona del equipo. */
+function dia(valor: string): string {
+  const [anio, mes, d] = valor.split('-').map(Number) as [number, number, number];
+  return new Date(Date.UTC(anio, mes - 1, d)).toLocaleDateString('es-CO', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+/**
+ * Último día del semestre: el de las notas de habilitación del acuerdo del
+ * Consejo Académico.
+ *
+ * Hasta ese día queda fijo el enlace de UniPlanner de quien marca asistencia
+ * por QR, para que nadie cambie su código por el de un compañero a mitad de
+ * semestre. Sin fecha propia se usa la de por defecto, y se dice cuál es: una
+ * fecha que se aplica sin que se vea es una que nadie revisa.
+ */
+function FinDelSemestre({
+  periodo,
+  editable,
+  onGuardado,
+}: {
+  periodo: Periodo;
+  editable: boolean;
+  onGuardado: () => void;
+}) {
+  const [editando, setEditando] = useState(false);
+  const [valor, setValor] = useState(periodo.endsOn ?? periodo.endsOnPorDefecto ?? '');
+
+  const guardar = useMutation({
+    mutationFn: (endsOn: string | null) => periodosRepository.configurarFin(periodo.period, endsOn),
+    onSuccess() {
+      toast.success('Último día del semestre guardado');
+      setEditando(false);
+      onGuardado();
+    },
+    onError(error) {
+      toast.fromError(error, 'No se pudo guardar la fecha');
+    },
+  });
+
+  const vigente = periodo.endsOn ?? periodo.endsOnPorDefecto;
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-lg bg-surface-sunken px-3 py-2">
+      <CalendarClock className="size-4 shrink-0 text-muted" aria-hidden />
+      {editando ? (
+        <>
+          <Field label="Último día del semestre" className="w-52">
+            {(props) => (
+              <Input {...props} type="date" value={valor} onChange={(e) => setValor(e.target.value)} />
+            )}
+          </Field>
+          <div className="flex gap-2 self-end">
+            <Button size="sm" loading={guardar.isPending} disabled={!valor} onClick={() => guardar.mutate(valor)}>
+              Guardar
+            </Button>
+            {periodo.endsOn ? (
+              <Button size="sm" variant="ghost" disabled={guardar.isPending} onClick={() => guardar.mutate(null)}>
+                Usar la de por defecto
+              </Button>
+            ) : null}
+            <Button size="sm" variant="ghost" disabled={guardar.isPending} onClick={() => setEditando(false)}>
+              Cancelar
+            </Button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="min-w-0 flex-1 text-caption text-muted">
+            <span className="font-semibold text-text">
+              Último día del semestre: {vigente ? dia(vigente) : 'sin fecha'}
+            </span>
+            {periodo.endsOn
+              ? ' · del acuerdo académico.'
+              : vigente
+                ? ' · fecha por defecto; pon la del acuerdo del Consejo Académico.'
+                : ' · periodo sin calendario: el enlace de UniPlanner queda fijo 30 días desde cada asistencia.'}{' '}
+            Hasta ese día, quien marque asistencia por QR no puede cambiar su enlace de UniPlanner.
+          </p>
+          {editable ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                // Parte de la fecha en vigor, no de la última que se escribió:
+                // tras «usar la de por defecto» el campo enseñaba la anterior.
+                setValor(vigente ?? '');
+                setEditando(true);
+              }}
+            >
+              Cambiar
+            </Button>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+}
+

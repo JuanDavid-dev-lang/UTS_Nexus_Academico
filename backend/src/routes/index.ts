@@ -34,6 +34,7 @@ import { coordinationRouter } from '../modules/coordination/coordination.routes.
 import { userRouter } from '../modules/users/user.routes.js';
 import { institutionRouter } from '../modules/institutions/institution.routes.js';
 import { uniplannerRouter } from '../modules/uniplanner/uniplanner.routes.js';
+import { attendanceQrRouter } from '../modules/attendance-qr/attendance-qr.routes.js';
 import { identificar, bloquearSoloLectura } from '../middlewares/auth.js';
 import { limiteEscritura, limiteGeneral } from '../middlewares/rate-limit.js';
 import { cargarAlcance } from '../middlewares/scope.js';
@@ -122,7 +123,12 @@ apiRouter.use('/usuarios', userRouter);
 // Perfiles institucionales: universidades creadas desde el panel, sus cortes
 // y ponderados, y qué docente pertenece a cuál. Solo ADMIN escribe.
 apiRouter.use('/instituciones', institutionRouter);
-// Puente con UniPlanner: la app del estudiante. Solo escribe hacia allá —no
-// hay ninguna ruta que traiga datos suyos— y queda apagado si no hay
-// credenciales configuradas.
+// Puente con UniPlanner: la app del estudiante. Escribe hacia allá —no hay
+// ninguna ruta que traiga datos suyos— y queda apagado si no hay credenciales
+// configuradas. Lo único que vuelve es la marca de un QR de asistencia, y no
+// entra por una ruta: la lee el servidor de Firestore (`/asistencia-qr`).
 apiRouter.use('/uniplanner', uniplannerRouter);
+// Asistencia por QR: el docente abre la clase y la proyecta. El estudiante no
+// entra por aquí —su marca llega por Firestore y la lee el servidor—, así que
+// no hay ninguna ruta abierta a quien no tenga sesión de Nexus.
+apiRouter.use('/asistencia-qr', attendanceQrRouter);

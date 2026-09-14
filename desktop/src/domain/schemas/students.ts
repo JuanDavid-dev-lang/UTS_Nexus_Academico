@@ -32,9 +32,19 @@ export const studentDirectoryEntrySchema = mongoDoc.extend({
 });
 export type StudentDirectoryEntry = z.infer<typeof studentDirectoryEntrySchema>;
 
+/**
+ * Documento de identidad: solo dígitos, entre 4 y 15. Es la misma regla que el
+ * backend (`campo.documento`) y que el enlace de UniPlanner: se toleran los
+ * puntos y espacios con que se escribe una cédula y se quitan; una letra no.
+ */
+export const documentoSchema = z
+  .string()
+  .transform((valor) => valor.trim().replace(/[\s.-]/g, ''))
+  .pipe(z.string().regex(/^\d{4,15}$/, 'Solo números: sin letras ni símbolos (4 a 15 dígitos)'));
+
 /** Fila de una lista importada: lo mínimo que el backend necesita para matricular. */
 export const rosterRowSchema = z.object({
-  code: z.string().min(3, 'Cédula demasiado corta'),
+  code: documentoSchema,
   fullName: z.string().min(3, 'Nombre demasiado corto'),
   email: z.string().trim().toLowerCase().email('Correo inválido').optional(),
   program: z.string().optional(),
@@ -42,8 +52,12 @@ export const rosterRowSchema = z.object({
 export type RosterRow = z.infer<typeof rosterRowSchema>;
 
 export const studentInputSchema = z.object({
-  code: z.string().trim().min(3, 'Mínimo 3 caracteres'),
-  fullName: z.string().trim().min(3, 'Nombre demasiado corto'),
+  code: documentoSchema,
+  fullName: z
+    .string()
+    .trim()
+    .min(3, 'Nombre demasiado corto')
+    .regex(/^\p{L}+( \p{L}+)*$/u, 'Solo letras y espacios: sin números ni símbolos'),
   email: z
     .string()
     .trim()

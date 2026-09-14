@@ -6,6 +6,8 @@ import { GroupModel } from '../../models/group.model.js';
 import { computeAcademicRecords, type AcademicRecord } from '../../shared/academic.service.js';
 import type { MapBundle } from './report-columns.js';
 import { acotarPorAlcance, type AlcanceDePrograma } from '../../domains/scope/program-scope.js';
+import { EnrollmentModel } from '../../models/enrollment.model.js';
+import { Types } from 'mongoose';
 
 /**
  * Acceso a datos de los reportes.
@@ -90,13 +92,20 @@ export function filtroDeAsistencia(filters: ReportFilters): Record<string, unkno
   return query;
 }
 
-/** Filtro académico (nota final consolidada) según rol. */
-export function filtroAcademico(query: any, user?: Solicitante) {
-  const filter: { teacherId?: string; studentId?: string; period?: string } = {};
+/**
+ * Filtro académico (nota final consolidada) según rol.
+ *
+ * Coordinación y secretaría, por carrera: el consolidado se les quedó fuera
+ * cuando se acotaron los demás reportes, y descargaba el acta de todas las
+ * universidades.
+ */
+export function filtroAcademico(query: any, user?: Solicitante, alcance?: AlcanceDePrograma) {
+  const filter: { teacherId?: string; studentId?: string; period?: string; subjectIds?: string[] } = {};
   if (query.period) filter.period = String(query.period);
   if (query.studentId) filter.studentId = String(query.studentId);
   if (user?.role === 'PROFESSOR') filter.teacherId = user.id;
   else if (query.teacherId) filter.teacherId = String(query.teacherId);
+  if (alcance && !alcance.total) filter.subjectIds = alcance.subjectIds;
   return filter;
 }
 
@@ -138,18 +147,51 @@ export function buscarAsistencia(filters: ReportFilters, orden: Record<string, 1
 }
 
 /** Registros consolidados con notas, ordenados como salen en el acta. */
-export async function consolidadoOrdenado(query: any, user?: Solicitante): Promise<AcademicRecord[]> {
-  const records = await computeAcademicRecords(filtroAcademico(query, user));
+export async function consolidadoOrdenado(
+  query: any,
+  user?: Solicitante,
+  alcance?: AlcanceDePrograma,
+): Promise<AcademicRecord[]> {
+  const records = await computeAcademicRecords(filtroAcademico(query, user, alcance));
   return records.filter(r => r.tieneNotas).sort((a, b) => a.fullName.localeCompare(b.fullName));
 }
 
+const CAMPOS_ID = ['studentId', 'subjectId', 'groupId', 'teacherId', 'professorId'];
+
+/** Pasa a ObjectId los ids de un filtro, que `find()` castea y la agregación no. */
+function aIdsDeAgregacion(filtro: Record<string, unknown>): Record<string, unknown> {
+  const convertir = (valor: unknown): unknown =>
+    typeof valor === 'string' && Types.ObjectId.isValid(valor) ? new Types.ObjectId(valor) : valor;
+  const salida: Record<string, unknown> = { ...filtro };
+  for (const campo of CAMPOS_ID) {
+    const valor = salida[campo];
+    if (valor && typeof valor === 'object' && Array.isArray((valor as { $in?: unknown }).$in)) {
+      salida[campo] = { $in: (valor as { $in: unknown[] }).$in.map(convertir) };
+    } else if (valor !== undefined) {
+      salida[campo] = convertir(valor);
+    }
+  }
+  return salida;
+}
+
 /** Cifras de portada del panel de reportes. */
-export async function resumenGeneral() {
+export async function resumenGeneral(filters: ReportFilters = {}) {
+  // Del alcance de quien pregunta: un docente leía las cifras de la institución
+  // entera y coordinación, las de todas las universidades. La agregación no
+  // castea ids, así que van como ObjectId.
+  const acotado = Boolean(filters.teacherId || filters.subjectIds);
+  const match = aIdsDeAgregacion(filtroDeNotas(filters));
   const [students, averageGrade, averageAttendance] = await Promise.all([
-    StudentModel.countDocuments({ deletedAt: null }),
-    GradeModel.aggregate([{ $match: { deletedAt: null } }, { $group: { _id: null, avg: { $avg: '$score' } } }]),
+    acotado
+      ? EnrollmentModel.distinct('studentId', aIdsDeAgregacion({
+          deletedAt: null,
+          ...(filters.teacherId ? { professorId: filters.teacherId } : {}),
+          ...(filters.subjectIds ? { subjectId: { $in: filters.subjectIds } } : {}),
+        })).then((ids) => ids.length)
+      : StudentModel.countDocuments({ deletedAt: null }),
+    GradeModel.aggregate([{ $match: match }, { $group: { _id: null, avg: { $avg: '$score' } } }]),
     AttendanceModel.aggregate([
-      { $match: { deletedAt: null } },
+      { $match: match },
       { $group: { _id: null, avg: { $avg: { $cond: ['$present', 1, 0] } } } },
     ]),
   ]);

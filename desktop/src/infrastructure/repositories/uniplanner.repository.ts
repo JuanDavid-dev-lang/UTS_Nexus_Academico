@@ -1,6 +1,17 @@
+import { z } from 'zod';
 import { http } from '@/core/api/http-client';
 import { itemsResponse } from '@/domain/schemas/common';
 import {
+  institucionGestionableSchema,
+  paginaVinculosSchema,
+  solicitudSchema,
+  vinculoSchema,
+  type AccionSolicitud,
+  type AccionVinculo,
+  type FiltroVinculos,
+  type InstitucionGestionable,
+  type Solicitud,
+  type Vinculo,
   enlaceUniPlannerSchema,
   envioUniPlannerSchema,
   estadoUniPlannerSchema,
@@ -62,4 +73,59 @@ export const uniplannerRepository = {
   }): Promise<EnvioUniPlanner> {
     return http.post('/uniplanner/avisos/entrega', input, { schema: envioUniPlannerSchema });
   },
+
+  // ── Vínculos (gestión institucional) ────────────────────────────────────
+
+  async institucionesGestionables(): Promise<InstitucionGestionable[]> {
+    return (
+      await http.get('/uniplanner/vinculos/instituciones', {
+        schema: itemsResponse(institucionGestionableSchema),
+      })
+    ).items;
+  },
+
+  async vinculos(filtro: {
+    institucion: string;
+    filtro: FiltroVinculos;
+    q?: string;
+    despuesDe?: string | null;
+  }): Promise<{ items: Vinculo[]; siguiente: string | null }> {
+    const data = await http.get('/uniplanner/vinculos', {
+      schema: paginaVinculosSchema,
+      query: {
+        institucion: filtro.institucion,
+        filtro: filtro.filtro,
+        q: filtro.q || undefined,
+        despuesDe: filtro.despuesDe || undefined,
+      },
+    });
+    return { items: data.items, siguiente: data.siguiente };
+  },
+
+  async accionVinculo(linkId: string, accion: AccionVinculo): Promise<Vinculo> {
+    const data = await http.post(
+      `/uniplanner/vinculos/${encodeURIComponent(linkId)}/acciones`,
+      { accion },
+      { schema: z.object({ ok: z.literal(true), item: vinculoSchema }) },
+    );
+    return data.item;
+  },
+
+  async solicitudes(institucion: string): Promise<Solicitud[]> {
+    return (
+      await http.get('/uniplanner/solicitudes', {
+        schema: itemsResponse(solicitudSchema),
+        query: { institucion },
+      })
+    ).items;
+  },
+
+  async resolverSolicitud(uid: string, accion: AccionSolicitud, nota?: string): Promise<void> {
+    await http.post(
+      `/uniplanner/solicitudes/${encodeURIComponent(uid)}/resolucion`,
+      { accion, nota: nota || undefined },
+      { schema: z.object({ ok: z.literal(true) }) },
+    );
+  },
 };
+

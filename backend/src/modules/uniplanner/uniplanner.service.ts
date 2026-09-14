@@ -274,7 +274,7 @@ async function repartir(
   return resultados;
 }
 
-async function nombreDelDocente(teacherId: string | null | undefined): Promise<string | undefined> {
+export async function nombreDelDocente(teacherId: string | null | undefined): Promise<string | undefined> {
   if (!teacherId) return undefined;
   const usuario = await UserModel.findById(teacherId).select('fullName name').lean();
   const nombre = (usuario as { fullName?: string; name?: string } | null);

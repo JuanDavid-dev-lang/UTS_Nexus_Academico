@@ -83,7 +83,7 @@ timelineRouter.get('/:id/historial', exigirSesion, async (req, res, next) => {
         hasta: consulta.hasta,
       },
       pagina,
-      req.user!,
+      { ...req.user!, alcance: req.alcance },
     );
     res.json(campo.respuestaPaginada(items, total, pagina));
   } catch (err) {
@@ -100,7 +100,7 @@ timelineRouter.get('/:id/seguimiento', exigirSesion, async (req, res, next) => {
     const pagina = campo.paginacionCon(20).parse(req.query);
     const item = await servicio.construirExpedienteSeguimiento({
       studentId: String(req.params.id), period: consulta.period, subjectId: consulta.subjectId,
-    }, pagina, req.user!);
+    }, pagina, { ...req.user!, alcance: req.alcance });
     res.json({ ok: true, item });
   } catch (err) { next(err); }
 });

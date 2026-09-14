@@ -122,6 +122,26 @@ subjectRouter.patch('/:id', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), as
       scheduleIds: z.array(z.string()).max(200).optional(),
     }).parse(req.body);
 
+    // Coordinación marca el programa y nada más: el nombre, el código o la
+    // lista de estudiantes son del docente que la dicta. Y solo hacia una de
+    // sus carreras: moverla a otra la sacaría de su alcance y la metería en el
+    // de otra coordinación, que es decidir por ella.
+    if (req.user?.role === 'COORDINATOR') {
+      const otros = Object.keys(body).filter(campo => campo !== 'programa');
+      if (otros.length > 0) {
+        return res.status(403).json({ ok: false, message: 'Coordinación solo puede cambiar el programa de una materia.' });
+      }
+      const suyos = req.alcance?.programas ?? [];
+      // `null` también es moverla: la materia caería al programa de su docente
+      // y podría salir de su alcance hacia el de otra coordinación.
+      if (body.programa === null && suyos.length > 0) {
+        return res.status(403).json({ ok: false, message: 'Coordinación no puede dejar una materia sin programa.' });
+      }
+      if (body.programa && suyos.length > 0 && !suyos.includes(body.programa)) {
+        return res.status(403).json({ ok: false, message: 'Ese programa no está entre los que coordinas.' });
+      }
+    }
+
     let filter: Record<string, unknown> = { _id: String(req.params.id), deletedAt: null };
     if (req.user?.role === 'PROFESSOR') filter.professorId = req.user.id;
     if (req.alcance && !req.alcance.total) {

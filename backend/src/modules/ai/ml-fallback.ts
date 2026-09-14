@@ -57,10 +57,13 @@ export async function responderConModelo(contexto: {
   teacherId?: string;
   studentId?: string;
   subjectId?: string;
+  /** Materias del alcance de coordinación y secretaría. Lo impone la ruta. */
+  subjectIds?: string[];
 }): Promise<MlAnswer | null> {
   const records = await computeAcademicRecords({
     teacherId: contexto.teacherId,
     studentId: contexto.studentId,
+    subjectIds: contexto.subjectIds,
   });
   const alcance = contexto.subjectId
     ? records.filter(r => String(r.subjectId) === contexto.subjectId)

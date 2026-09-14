@@ -396,9 +396,14 @@ function aDocente(doc: ProfesorCrudo): DocenteDeInstitucion {
   };
 }
 
-export async function docentesDe(idOSlug: string): Promise<DocenteDeInstitucion[]> {
+export async function docentesDe(idOSlug: string, soloInstitucion?: string | null): Promise<DocenteDeInstitucion[]> {
   const inst = await InstitutionModel.findOne(filtroPorId(idOSlug)).select('_id').lean();
   if (!inst) throw new ErrorInstitucion(404, 'Institución no encontrada.');
+  // Coordinación y secretaría ven los docentes de su universidad; los de otra
+  // responden igual que una que no existe.
+  if (soloInstitucion && String(inst._id) !== soloInstitucion) {
+    throw new ErrorInstitucion(404, 'Institución no encontrada.');
+  }
   const docs = await ProfessorModel.find({ institutionId: inst._id, deletedAt: null })
     .populate('userId', 'email fullName')
     .sort({ apellidos: 1, nombres: 1 })

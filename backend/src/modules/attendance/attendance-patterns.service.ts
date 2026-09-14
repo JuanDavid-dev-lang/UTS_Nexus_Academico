@@ -6,6 +6,7 @@
  * responda. Los umbrales, las rachas y la severidad viven allí, donde se
  * pueden fijar con pruebas sin base de datos.
  */
+import { acotarPorAlcance, type AlcanceDePrograma } from '../../domains/scope/program-scope.js';
 import { Types } from 'mongoose';
 import { AttendanceModel } from '../../models/attendance.model.js';
 import { AttendanceCaseModel } from '../../models/attendance-case.model.js';
@@ -356,6 +357,8 @@ export type FiltroCasos = {
   status?: string;
   /** Lo impone el rol; nunca llega del cliente. */
   teacherId?: string;
+  /** Materias del alcance de coordinación y secretaría. También lo impone el rol. */
+  subjectIds?: string[];
 };
 
 export async function listarCasos(filtro: FiltroCasos, pagina: campo.Paginacion) {
@@ -366,11 +369,12 @@ export async function listarCasos(filtro: FiltroCasos, pagina: campo.Paginacion)
   if (filtro.status) query.status = filtro.status;
   // El rol va al final: manda sobre lo que pida la URL.
   if (filtro.teacherId) query.teacherId = filtro.teacherId;
+  const acotada = filtro.subjectIds ? acotarPorAlcance(query, 'subjectId', filtro.subjectIds) : query;
 
   const { skip, limit } = campo.saltoYTope(pagina);
   const [items, total] = await Promise.all([
-    AttendanceCaseModel.find(query).sort({ severity: -1, detectedAt: -1 }).skip(skip).limit(limit).lean(),
-    AttendanceCaseModel.countDocuments(query),
+    AttendanceCaseModel.find(acotada).sort({ severity: -1, detectedAt: -1 }).skip(skip).limit(limit).lean(),
+    AttendanceCaseModel.countDocuments(acotada),
   ]);
   return { items, total };
 }
@@ -379,10 +383,14 @@ export async function listarCasos(filtro: FiltroCasos, pagina: campo.Paginacion)
 export async function registrarIntervencion(
   id: string,
   entrada: { nota: string; estado: 'EN_SEGUIMIENTO' | 'RESUELTO' | 'DESCARTADO' },
-  usuario: { id: string; role: string },
+  usuario: { id: string; role: string; alcance?: AlcanceDePrograma },
 ) {
-  const query: Record<string, unknown> = { _id: id, deletedAt: null };
+  let query: Record<string, unknown> = { _id: id, deletedAt: null };
   if (usuario.role === 'PROFESSOR') query.teacherId = usuario.id;
+  // Coordinación interviene en los casos de sus carreras, no en los de otra.
+  if (usuario.alcance && !usuario.alcance.total) {
+    query = acotarPorAlcance(query, 'subjectId', usuario.alcance.subjectIds);
+  }
 
   const caso = await AttendanceCaseModel.findOneAndUpdate(
     query,

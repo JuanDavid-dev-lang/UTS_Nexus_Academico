@@ -8,6 +8,8 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/period_selector.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
+import '../../core/auth/auth_controller.dart';
+import '../../core/auth/permisos.dart';
 
 final scheduleProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
   return ScheduleRepository().list();
@@ -90,6 +92,9 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
   Widget build(BuildContext context) {
     final async = ref.watch(scheduleProvider);
     final periodo = ref.watch(selectedPeriodProvider);
+    // Coordinación y secretaría consultan el horario; ordenarlo o editarlo es
+    // del docente y de ADMIN, y el servidor rechazaría lo demás.
+    final editable = puedeEditarHorario(ref.watch(authControllerProvider).user?.role);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
 
@@ -101,7 +106,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
           // periodo de la materia con cada franja. Antes leía un campo que la
           // respuesta no traía, así que nunca descartaba nada.
           const PeriodSelector(),
-          if (_ordenSucio)
+          if (_ordenSucio && editable)
             TextButton(onPressed: _saveOrder, child: const Text('Guardar orden')),
           const SessionMenuButton(),
         ],
@@ -141,7 +146,9 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
             itemCount: _items.length,
             // onReorderItem ya entrega el índice corregido tras retirar el
             // elemento, así que el ajuste manual de newIndex sobra.
+            buildDefaultDragHandles: editable,
             onReorderItem: (oldIndex, newIndex) {
+              if (!editable) return;
               setState(() {
                 final item = _items.removeAt(oldIndex);
                 _items.insert(newIndex, item);
@@ -157,11 +164,13 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
                 key: ValueKey(item['_id'] ?? i),
                 padding: const EdgeInsets.only(bottom: 10),
                 child: AppCard(
-                  onTap: () => _editar(item),
+                  onTap: editable ? () => _editar(item) : null,
                   child: Row(
                     children: [
-                      const Icon(Icons.drag_handle_outlined),
-                      const SizedBox(width: 12),
+                      if (editable) ...[
+                        const Icon(Icons.drag_handle_outlined),
+                        const SizedBox(width: 12),
+                      ],
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,

@@ -11,6 +11,8 @@ import {
   TOPE_LOTE,
   codigo,
   correo,
+  documento,
+  nombrePersona,
   linea,
   nombre,
   nota,
@@ -54,6 +56,48 @@ describe('campos acotados', () => {
     // Sin `.trim()` previo, 120 caracteres más un espacio sobrarían del tope
     // por culpa del espacio, que es justo lo que un formulario suele dejar.
     expect(nombre.parse(`  ${'a'.repeat(120)}  `)).toHaveLength(120);
+  });
+});
+
+describe('documento de identidad', () => {
+  it('se guarda solo con dígitos, aunque se escriba con puntos o espacios', () => {
+    expect(documento.parse('1.098.765.432')).toBe('1098765432');
+    expect(documento.parse(' 1098 765-432 ')).toBe('1098765432');
+  });
+
+  it('una letra o un símbolo es un error, no un documento distinto', () => {
+    // Con letras el mismo documento existía dos veces y el enlace de
+    // UniPlanner, solo numérico, no encontraba a ninguno.
+    expect(() => documento.parse('CC1098765432')).toThrow();
+    expect(() => documento.parse('1098765432#')).toThrow();
+    expect(() => documento.parse('E2E-1001')).toThrow();
+  });
+
+  it('entre 4 y 15 dígitos', () => {
+    expect(() => documento.parse('123')).toThrow();
+    expect(documento.parse('1234')).toBe('1234');
+    expect(() => documento.parse('1'.repeat(16))).toThrow();
+  });
+});
+
+describe('nombre de un estudiante', () => {
+  it('se guarda en mayúsculas y con un solo espacio entre palabras', () => {
+    // Mismo formato que UniPlanner: con los dos iguales, la verificación del
+    // enlace no depende de cómo lo escribió cada uno.
+    expect(nombrePersona.parse('  juan   carlos pérez ')).toBe('JUAN CARLOS PÉREZ');
+    expect(nombrePersona.parse('María Nuñez')).toBe('MARÍA NUÑEZ');
+  });
+
+  it('los signos de las planillas se quitan', () => {
+    expect(nombrePersona.parse('PÉREZ, Juan')).toBe('PÉREZ JUAN');
+    expect(nombrePersona.parse('Gómez-Pinzón Ana')).toBe('GÓMEZ PINZÓN ANA');
+    expect(nombrePersona.parse("O'Neil Mary")).toBe('ONEIL MARY');
+  });
+
+  it('un número o un símbolo es un error', () => {
+    expect(() => nombrePersona.parse('Juan Pérez 2')).toThrow();
+    expect(() => nombrePersona.parse('Juan @ Pérez')).toThrow();
+    expect(() => nombrePersona.parse('Jo')).toThrow();
   });
 });
 

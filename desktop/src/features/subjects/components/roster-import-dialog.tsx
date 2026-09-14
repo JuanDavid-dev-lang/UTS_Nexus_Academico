@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { AlertTriangle, FileUp, Search, UserPlus, Users } from 'lucide-react';
+import { AlertTriangle, FileUp, Pencil, Plus, Search, UserPlus, Users } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -21,7 +21,7 @@ import { toast } from '@/state/toast.store';
 import { useStudents, useStudentSearch } from '@/features/students/hooks/use-students';
 import { useDebounce } from '@/shared/hooks/use-debounce';
 import { useEnrollStudent, useImportRoster } from '../hooks/use-enrollment';
-import { useCreateGroup, useGroups, useSubjects } from '../hooks/use-subjects';
+import { useCreateGroup, useGroups, useRenameGroup, useSubjects } from '../hooks/use-subjects';
 
 type Props = {
   open: boolean;
@@ -44,6 +44,10 @@ export function RosterImportDialog({ open, onOpenChange, subjectId, subjectName 
   const [chosenGroup, setChosenGroup] = useState('');
   const [leyendo, setLeyendo] = useState(false);
   const [nombreGrupo, setNombreGrupo] = useState('');
+  /** Con grupos ya creados, el formulario de uno nuevo se abre a petición. */
+  const [creandoOtro, setCreandoOtro] = useState(false);
+  const [renombrando, setRenombrando] = useState<string | null>(null);
+  const renameGroup = useRenameGroup();
   const fileInput = useRef<HTMLInputElement>(null);
 
   const debouncedTerm = useDebounce(term, 300);
@@ -60,9 +64,13 @@ export function RosterImportDialog({ open, onOpenChange, subjectId, subjectName 
   const subjectsQuery = useSubjects();
   const subjectData = subjectsQuery.data?.find((subject) => subject._id === subjectId);
   const subjectPeriod = subjectData?.period;
-  // El nombre por defecto es el código de la materia: en la UTS el grupo se
-  // identifica por ese código, no por letras.
-  const nombreGrupoFinal = nombreGrupo.trim() || subjectData?.code || '';
+  // El grupo tiene su propia etiqueta —en la UTS, A194, A193, B212—, que no es
+  // el código de la materia (PIS701). Antes se proponía el código de la materia
+  // y así nacieron grupos imposibles de distinguir entre sí.
+  const nombreGrupoFinal = nombreGrupo.trim().toUpperCase();
+  const comoLaMateria = (nombre: string) =>
+    Boolean(subjectData?.code) &&
+    nombre.replace(/\s+/g, '').toUpperCase() === (subjectData?.code ?? '').replace(/\s+/g, '').toUpperCase();
   const groups = useMemo(
     () => (groupsQuery.data ?? []).filter((group) => group.subjectId === subjectId),
     [groupsQuery.data, subjectId],
@@ -164,17 +172,19 @@ export function RosterImportDialog({ open, onOpenChange, subjectId, subjectName 
           antes» y no existía ningún sitio en la aplicación donde crearlo. El
           grupo se crea aquí mismo, que es donde se descubre que falta.
         */}
-        {!groupsQuery.isLoading && groups.length === 0 && (
+        {!groupsQuery.isLoading && (groups.length === 0 || creandoOtro) && (
           <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface-alt p-3">
             <p className="text-body text-muted">
-              Esta materia todavía no tiene grupos, y la lista de estudiantes pertenece al grupo,
-              no a la materia. Crea el primero:
+              {groups.length === 0
+                ? 'Esta materia todavía no tiene grupos, y la lista de estudiantes pertenece al grupo, no a la materia. Crea el primero con la etiqueta que le da la universidad:'
+                : 'Nuevo grupo de esta materia, con la etiqueta que le da la universidad:'}
             </p>
             <div className="flex items-center gap-2">
               <Input
                 value={nombreGrupo}
-                onChange={(event) => setNombreGrupo(event.target.value)}
-                placeholder={subjectData?.code ?? 'Código del grupo'}
+                onChange={(event) => setNombreGrupo(event.target.value.toUpperCase())}
+                placeholder="A194"
+                maxLength={20}
                 aria-label="Nombre del grupo nuevo"
                 className="h-9 flex-1"
               />
@@ -182,34 +192,112 @@ export function RosterImportDialog({ open, onOpenChange, subjectId, subjectName 
                 variant="primary"
                 size="sm"
                 loading={createGroup.isPending}
-                disabled={!nombreGrupoFinal || !subjectPeriod || createGroup.isPending}
+                disabled={
+                  !nombreGrupoFinal || comoLaMateria(nombreGrupoFinal) || !subjectPeriod || createGroup.isPending
+                }
                 onClick={() =>
                   createGroup.mutate(
                     { name: nombreGrupoFinal, subjectId, period: subjectPeriod ?? '' },
-                    { onSuccess: (group) => setChosenGroup(group._id) },
+                    {
+                      onSuccess: (group) => {
+                        setChosenGroup(group._id);
+                        setNombreGrupo('');
+                        setCreandoOtro(false);
+                      },
+                    },
                   )
                 }
               >
                 Crear grupo
               </Button>
+              {groups.length > 0 ? (
+                <Button variant="ghost" size="sm" onClick={() => setCreandoOtro(false)}>
+                  Cancelar
+                </Button>
+              ) : null}
             </div>
+            {comoLaMateria(nombreGrupoFinal) ? (
+              <p className="text-caption text-danger">
+                Ese es el código de la materia. El grupo tiene su propia etiqueta, por ejemplo A194.
+              </p>
+            ) : null}
           </div>
         )}
 
-        {groups.length > 1 && (
-          <NativeSelect
-            className="mb-1"
-            aria-label="Grupo al que se matricula"
-            value={groupId}
-            onChange={(event) => setChosenGroup(event.target.value)}
-          >
-            {groups.map((group) => (
-              <option key={group._id} value={group._id}>
-                {group.name}
-                {group.period ? ` · ${group.period}` : ''}
-              </option>
-            ))}
-          </NativeSelect>
+        {groups.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <NativeSelect
+                className="flex-1"
+                aria-label="Grupo"
+                value={groupId}
+                onChange={(event) => setChosenGroup(event.target.value)}
+                disabled={groups.length === 1}
+              >
+                {groups.map((group) => (
+                  <option key={group._id} value={group._id}>
+                    Grupo {group.name}
+                    {group.period ? ` · ${group.period}` : ''}
+                  </option>
+                ))}
+              </NativeSelect>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setRenombrando(groups.find((group) => group._id === groupId)?.name ?? '')}
+                aria-label="Renombrar el grupo"
+                title="Renombrar el grupo"
+              >
+                <Pencil aria-hidden />
+              </Button>
+              {!creandoOtro ? (
+                <Button variant="secondary" size="sm" onClick={() => setCreandoOtro(true)}>
+                  <Plus aria-hidden />
+                  Otro grupo
+                </Button>
+              ) : null}
+            </div>
+
+            {/* Los grupos que nacieron con el código de la materia como nombre. */}
+            {comoLaMateria(groups.find((group) => group._id === groupId)?.name ?? '') && renombrando === null ? (
+              <p className="flex items-start gap-2 rounded-lg bg-warning-soft px-3 py-2 text-caption text-text">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+                Este grupo se llama como la materia ({subjectData?.code}). Renómbralo con la etiqueta del grupo
+                que da la universidad (por ejemplo A194): es la que ven los estudiantes al marcar asistencia.
+              </p>
+            ) : null}
+
+            {renombrando !== null ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  value={renombrando}
+                  onChange={(event) => setRenombrando(event.target.value.toUpperCase())}
+                  placeholder="A194"
+                  maxLength={20}
+                  aria-label="Nuevo nombre del grupo"
+                  className="h-9 flex-1"
+                  autoFocus
+                />
+                <Button
+                  variant="primary"
+                  size="sm"
+                  loading={renameGroup.isPending}
+                  disabled={!renombrando.trim() || comoLaMateria(renombrando) || renameGroup.isPending}
+                  onClick={() =>
+                    renameGroup.mutate(
+                      { id: groupId, name: renombrando.trim() },
+                      { onSuccess: () => setRenombrando(null) },
+                    )
+                  }
+                >
+                  Guardar
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setRenombrando(null)}>
+                  Cancelar
+                </Button>
+              </div>
+            ) : null}
+          </div>
         )}
 
         <Tabs defaultValue="lista">

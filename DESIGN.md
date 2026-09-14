@@ -245,6 +245,12 @@ cuando el acento *tiene* que ser texto:
 --dark-surface:       #33332A
 --dark-text:          #EDEFDD
 --dark-primary:       #CAD225   /* lima como acento principal */
+
+/* Código QR de asistencia: IGUAL en los dos modos. El lector de un teléfono
+   busca módulos oscuros sobre fondo claro; pintarlo con --text sobre --surface
+   lo invertiría en oscuro, y un QR invertido no lo leen todos. */
+--qr-module:          #000000
+--qr-ground:          #FFFFFF
 ```
 
 ### Elevación, degradados y superficies

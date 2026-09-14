@@ -40,7 +40,9 @@ import {
  */
 export default function ThesisFormatsPage() {
   const role = useUserRole();
-  const esGestor = role === 'ADMIN' || role === 'COORDINATOR';
+  // Subir y editar formatos es de ADMIN, como en el servidor: el repositorio es
+  // de todas las universidades. Coordinación los consulta.
+  const esGestor = role === 'ADMIN';
   const [etapa, setEtapa] = useState<EtapaTrabajoGrado | ''>('');
   const [q, setQ] = useState('');
   const [subiendo, setSubiendo] = useState(false);

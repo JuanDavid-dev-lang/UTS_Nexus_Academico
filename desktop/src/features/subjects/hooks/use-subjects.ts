@@ -39,6 +39,22 @@ export function useCreateGroup({ avisar = true }: { avisar?: boolean } = {}) {
   });
 }
 
+/** Renombra un grupo: sobre todo, los que nacieron con el código de la materia. */
+export function useRenameGroup() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) => groupRepository.rename(id, name),
+    onSuccess(group) {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.groups.all });
+      toast.success('Grupo renombrado', group.name);
+    },
+    onError(error) {
+      toast.fromError(error, 'No se pudo renombrar el grupo');
+    },
+  });
+}
+
 export function useCreateSubject() {
   const queryClient = useQueryClient();
 

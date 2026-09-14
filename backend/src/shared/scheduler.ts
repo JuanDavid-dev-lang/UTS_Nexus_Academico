@@ -13,6 +13,13 @@ import { escanearPatronesDeAsistencia } from '../modules/attendance/attendance-p
 import { recordarSeguimientosPendientes } from '../modules/analytics/seguimiento-reminder.service.js';
 import { repartirAvisosPendientes } from '../modules/announcements/announcement-notify.service.js';
 import { ejecutarTarea } from './job-run.js';
+import { configurado as uniplannerConfigurado } from './uniplanner.js';
+import {
+  procesarSesionesAbiertas,
+  SEGUNDOS_ENTRE_LECTURAS,
+} from '../modules/attendance-qr/attendance-qr.service.js';
+import { avisarSolicitudesNuevas } from '../modules/uniplanner/vinculos.service.js';
+import { verificarEnlacesPedidos } from '../modules/uniplanner/verificacion.service.js';
 
 let timer: NodeJS.Timeout | null = null;
 let releaseTimer: NodeJS.Timeout | null = null;
@@ -20,6 +27,8 @@ let recordatoriosTimer: NodeJS.Timeout | null = null;
 let actividadesTimer: NodeJS.Timeout | null = null;
 let patronesTimer: NodeJS.Timeout | null = null;
 let avisosTimer: NodeJS.Timeout | null = null;
+let asistenciaQrTimer: NodeJS.Timeout | null = null;
+let solicitudesTimer: NodeJS.Timeout | null = null;
 
 /**
  * Comprobación periódica de versión nueva.
@@ -231,6 +240,119 @@ export function stopAnnouncementPublisher() {
   if (avisosTimer) {
     clearInterval(avisosTimer);
     avisosTimer = null;
+  }
+}
+
+/**
+ * Lector de la asistencia por QR.
+ *
+ * Su ritmo es de segundos y no de minutos: el estudiante escanea y se queda
+ * mirando el teléfono hasta que le dicen que quedó registrado. Sale barato
+ * porque sin sesiones abiertas no llama a Firestore, y a la base solo va una
+ * vez por minuto a buscar sesiones que no conozca.
+ *
+ * No pasa por `ejecutarTarea`: son veinte pasadas por minuto y cada una dejaría
+ * su fila en `ejecuciones_tareas`.
+ *
+ * Con varias instancias puede correr en todas: una marca leída dos veces
+ * escribe la misma asistencia, y la lista de la sesión no la apunta dos veces.
+ */
+export function startAttendanceQrReader() {
+  if (asistenciaQrTimer) return;
+  if (!uniplannerConfigurado()) {
+    console.info('Asistencia por QR desactivada: el puente con UniPlanner no está configurado.');
+    return;
+  }
+
+  let enCurso = false;
+  asistenciaQrTimer = setInterval(async () => {
+    // Una pasada lenta —Firestore tarda, Atlas tarda— no se solapa con la
+    // siguiente: dos lecturas de la misma tanda competirían por escribirla.
+    if (enCurso) return;
+    enCurso = true;
+    try {
+      await procesarSesionesAbiertas();
+    } catch (err) {
+      console.warn('[asistencia-qr] fallo en el lector:', err instanceof Error ? err.message : err);
+    } finally {
+      enCurso = false;
+    }
+  }, SEGUNDOS_ENTRE_LECTURAS * 1000);
+  console.info(`Asistencia por QR: lector de marcas activo cada ${SEGUNDOS_ENTRE_LECTURAS} s.`);
+}
+
+/**
+ * Avisa de las solicitudes que los estudiantes mandan desde UniPlanner (enlace
+ * equivocado, código reclamado por otra cuenta).
+ *
+ * Cada cinco minutos y no en tiempo real: lo que se pide lo resuelve una
+ * persona, que no está mirando la bandeja cada segundo. Sale barato —una
+ * consulta por pasada, que casi siempre no trae nada— y el `dedupeKey` evita
+ * repetir el aviso de una solicitud que sigue pendiente.
+ */
+export function startUniplannerRequestWatcher() {
+  if (solicitudesTimer) return;
+  if (!uniplannerConfigurado()) return;
+
+  const run = async () => {
+    const resultado = await ejecutarTarea('uniplanner-solicitudes', async () => {
+      return { ...(await avisarSolicitudesNuevas()) };
+    });
+    if (resultado && Number(resultado.avisos) > 0) {
+      console.info(`[uniplanner] ${resultado.avisos} aviso(s) de solicitudes de enlace.`);
+    }
+  };
+  solicitudesTimer = setInterval(run, 5 * 60 * 1000);
+  setTimeout(run, 50 * 1000);
+}
+
+let verificacionTimer: NodeJS.Timeout | null = null;
+
+/**
+ * Verificación automática de los enlaces de UniPlanner, cada minuto.
+ *
+ * Solo lee los enlaces nuevos o corregidos desde la pasada anterior (cursor
+ * por `verificationRequestedAt`), así que una pasada sin nada nuevo es una
+ * consulta vacía. Un minuto es lo que tarda el estudiante en ver «Verificado»
+ * después de enlazarse.
+ */
+export function startUniplannerLinkVerifier() {
+  if (verificacionTimer) return;
+  if (!uniplannerConfigurado()) return;
+
+  const run = async () => {
+    const resultado = await ejecutarTarea('uniplanner-verificacion', async () => ({
+      ...(await verificarEnlacesPedidos()),
+    }));
+    if (resultado && Number(resultado.revisados) > 0) {
+      console.info(
+        `[uniplanner] verificación automática: ${resultado.verificados} verificado(s), ` +
+          `${resultado.sinCoincidencia} sin coincidencia.`,
+      );
+    }
+  };
+  verificacionTimer = setInterval(run, 60 * 1000);
+  setTimeout(run, 20 * 1000);
+}
+
+export function stopUniplannerLinkVerifier() {
+  if (verificacionTimer) {
+    clearInterval(verificacionTimer);
+    verificacionTimer = null;
+  }
+}
+
+export function stopUniplannerRequestWatcher() {
+  if (solicitudesTimer) {
+    clearInterval(solicitudesTimer);
+    solicitudesTimer = null;
+  }
+}
+
+export function stopAttendanceQrReader() {
+  if (asistenciaQrTimer) {
+    clearInterval(asistenciaQrTimer);
+    asistenciaQrTimer = null;
   }
 }
 

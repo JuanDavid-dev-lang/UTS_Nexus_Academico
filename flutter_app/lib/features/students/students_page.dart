@@ -13,6 +13,8 @@ import '../../core/widgets/lista_progresiva.dart';
 import 'students_paginados_provider.dart';
 import './widgets/student_timeline_sheet.dart';
 import 'roster_import_sheet.dart';
+import '../../core/auth/auth_controller.dart';
+import '../../core/auth/permisos.dart';
 
 /// Directorio global de estudiantes.
 ///
@@ -53,11 +55,13 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
             ? null
             : '${students.valueOrNull!.total}',
         acciones: [
-          IconButton(
-            icon: const Icon(Icons.upload_file_outlined),
-            tooltip: 'Importar lista',
-            onPressed: _openImportSheet,
-          ),
+          // Importar matrícula es escribir: secretaría solo consulta.
+          if (!esSoloLectura(ref.watch(authControllerProvider).user?.role))
+            IconButton(
+              icon: const Icon(Icons.upload_file_outlined),
+              tooltip: 'Importar lista',
+              onPressed: _openImportSheet,
+            ),
           const SessionMenuButton(),
         ],
       ),

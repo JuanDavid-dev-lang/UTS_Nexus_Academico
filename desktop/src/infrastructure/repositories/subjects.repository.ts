@@ -38,4 +38,8 @@ export const groupRepository: GroupRepository = {
     // dueño de la materia.
     return (await http.post('/groups', input, { schema: groupResponse })).item;
   },
+
+  async rename(id, name) {
+    return (await http.patch(`/groups/${id}`, { name }, { schema: groupResponse })).item;
+  },
 };

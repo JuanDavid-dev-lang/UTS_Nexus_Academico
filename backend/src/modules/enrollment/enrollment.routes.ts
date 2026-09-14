@@ -7,7 +7,7 @@ import { EnrollmentModel } from '../../models/enrollment.model.js';
 import { GroupModel } from '../../models/group.model.js';
 import { StudentModel } from '../../models/student.model.js';
 import { identificar, requireRole } from '../../middlewares/auth.js';
-import { acotarPorAlcance } from '../../domains/scope/program-scope.js';
+import { acotarPorAlcance, dentroDelAlcanceDePrograma } from '../../domains/scope/program-scope.js';
 import { auditChange } from '../../shared/audit.js';
 import { emitToUser } from '../../shared/socket.js';
 import { interpretarMatrizListado } from '../../domains/enrollment/import-roster.js';
@@ -16,6 +16,19 @@ import { assertUniqueStudentEmails } from '../students/student.service.js';
 import { mlFetch } from '../../shared/ml-client.js';
 import { ENTRADA_DE_ESCANER, exigirTipoReal, filtroPorMimetype } from '../../shared/uploads.js';
 import { limiteLotes } from '../../middlewares/rate-limit.js';
+import { verificarEnlacesDeEstudiantes } from '../uniplanner/verificacion.service.js';
+
+/**
+ * Tras matricular, se vuelve a comprobar el enlace de UniPlanner de esos
+ * estudiantes: quien se enlazó antes de que su docente cargara el curso quedó
+ * sin verificar, y ahora sí casa. Sin esperar: la respuesta no depende de otro
+ * proyecto, y un fallo allí no deshace la matrícula.
+ */
+function reverificarEnlaces(studentIds: string[]) {
+  void verificarEnlacesDeEstudiantes(studentIds).catch(err =>
+    console.warn('[uniplanner] no se pudo reverificar tras matricular:', err instanceof Error ? err.message : err),
+  );
+}
 
 export const enrollmentRouter = Router();
 enrollmentRouter.use(identificar);
@@ -32,10 +45,17 @@ const subirArchivo = multer({
   ),
 });
 
-/** Verifica que el grupo pertenezca al profesor autenticado (o que sea ADMIN/COORDINATOR). */
+/**
+ * Verifica que el grupo sea del docente autenticado o, para coordinación, de
+ * sus carreras. ADMIN, cualquiera. Fuera del alcance es 404, igual que al leer:
+ * un 403 confirmaría que el grupo existe.
+ */
 async function assertGroupOwnership(req: any, groupId: string) {
   const group = await GroupModel.findOne({ _id: groupId, deletedAt: null }).lean();
   if (!group) return { error: { status: 404, message: 'Grupo no encontrado' } };
+  if (req.alcance && !dentroDelAlcanceDePrograma(req.alcance, 'groupIds', String(group._id))) {
+    return { error: { status: 404, message: 'Grupo no encontrado' } };
+  }
   if (req.user?.role === 'PROFESSOR' && String(group.professorId) !== req.user.id) {
     return { error: { status: 403, message: 'Grupo no asignado' } };
   }
@@ -113,6 +133,7 @@ enrollmentRouter.post('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), asy
     );
     await auditChange({ actorId: req.user?.id, action: 'CREATE', entity: 'Matricula', entityId: item.id, after: item.toObject() });
     emitToUser(String(group.professorId), 'sync:update', { entity: 'enrollment', action: 'create', id: item.id });
+    reverificarEnlaces([body.studentId]);
     res.status(201).json({ ok: true, item });
   } catch (err) {
     next(err);
@@ -246,8 +267,8 @@ enrollmentRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'),
     const body = z.object({
       groupId: z.string(),
       students: z.array(z.object({
-        code: campo.codigo.min(3),
-        fullName: campo.nombre.min(3),
+        code: campo.documento,
+        fullName: campo.nombrePersona,
         email: campo.correo.optional(),
         program: campo.linea.optional(),
       })).min(1).max(campo.TOPE_LOTE),
@@ -361,6 +382,7 @@ enrollmentRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'),
     const matriculados = estudiantes.length;
 
     emitToUser(String(group.professorId), 'sync:update', { entity: 'enrollment', action: 'bulk', id: body.groupId });
+    reverificarEnlaces(estudiantes.map(estudiante => String(estudiante._id)));
     // `creados` y `reutilizados` van en la respuesta porque ahora significan
     // cosas distintas: los reutilizados conservan el nombre que ya tenían, y el
     // docente tiene que poder ver que su listado no los renombró.
@@ -382,6 +404,9 @@ enrollmentRouter.delete('/:id', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR')
     if (!before) return res.status(404).json({ ok: false, message: 'Not found' });
     if (req.user?.role === 'PROFESSOR' && String(before.professorId) !== req.user.id) {
       return res.status(403).json({ ok: false, message: 'Forbidden' });
+    }
+    if (req.alcance && !dentroDelAlcanceDePrograma(req.alcance, 'subjectIds', String(before.subjectId))) {
+      return res.status(404).json({ ok: false, message: 'Not found' });
     }
     if (before.period) await exigirPeriodoAbierto(String(before.period), 'enrollment');
     await EnrollmentModel.updateOne(

@@ -140,8 +140,9 @@ completa: toma de cuenta de un paso conociendo solo un correo del directorio.
    sí molestaría en local (CORS acotado, servidor de correo). El mensaje de
    error lo dice explícitamente cuando salta fuera de producción.
 2. **El límite de login y `trust proxy` dejan de depender de `NODE_ENV`.** El
-   límite va siempre (diez intentos cada quince minutos no estorban a nadie
-   desarrollando); `trust proxy` pasa a `TRUST_PROXY`, que sin declarar sigue a
+   límite va siempre (diez intentos fallidos cada quince minutos no estorban a
+   nadie desarrollando; los correctos no cuentan, porque un campus entero sale
+   por una sola IP y contándolos se bloqueaba a quien no se había equivocado); `trust proxy` pasa a `TRUST_PROXY`, que sin declarar sigue a
    `NODE_ENV` — el despliegue que ya funciona detrás de Caddy no cambia. Poder
    apagarlo importa igual: con `trust proxy` y sin proxy delante, cualquiera
    manda su `X-Forwarded-For` y estrena cupo en cada petición.

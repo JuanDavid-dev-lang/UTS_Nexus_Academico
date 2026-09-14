@@ -145,10 +145,13 @@ const secondaryDestinations = <NavDestination>[
     label: 'Actividades',
     icon: Icons.assignment_outlined,
   ),
+  // Sin STUDENT: `GET /schedules` no lo acepta, y sus clases ya salen en la
+  // agenda, que sí es suya.
   NavDestination(
     route: '/schedule',
     label: 'Horario',
     icon: Icons.schedule_outlined,
+    roles: ['ADMIN', 'PROFESSOR', 'COORDINATOR', 'SECRETARY'],
   ),
   NavDestination(
     route: '/reports',

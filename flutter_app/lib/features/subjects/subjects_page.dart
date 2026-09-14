@@ -234,6 +234,10 @@ class _FormularioMateria extends ConsumerStatefulWidget {
 class _FormularioMateriaState extends ConsumerState<_FormularioMateria> {
   final _nombre = TextEditingController();
   final _codigo = TextEditingController();
+
+  /// El primer grupo: la etiqueta que da la universidad (A194), que **no** es
+  /// el código de la materia (PIS701).
+  final _grupo = TextEditingController();
   final _creditos = TextEditingController(text: '0');
   bool _enviando = false;
   String? _error;
@@ -242,6 +246,7 @@ class _FormularioMateriaState extends ConsumerState<_FormularioMateria> {
   void dispose() {
     _nombre.dispose();
     _codigo.dispose();
+    _grupo.dispose();
     _creditos.dispose();
     super.dispose();
   }
@@ -249,10 +254,20 @@ class _FormularioMateriaState extends ConsumerState<_FormularioMateria> {
   Future<void> _guardar() async {
     final nombre = _nombre.text.trim();
     final codigo = _codigo.text.trim();
+    final grupo = _grupo.text.trim().toUpperCase();
     final creditos = int.tryParse(_creditos.text.trim()) ?? 0;
     if (nombre.length < 3 || codigo.length < 2) {
       setState(() => _error =
           'El nombre necesita al menos 3 caracteres y el código 2.');
+      return;
+    }
+    if (grupo.isEmpty) {
+      setState(() => _error = 'Escribe el grupo (por ejemplo A194).');
+      return;
+    }
+    if (grupo.replaceAll(' ', '') == codigo.toUpperCase().replaceAll(' ', '')) {
+      setState(() => _error =
+          'El grupo no es el código de la materia: usa la etiqueta del grupo (por ejemplo A194).');
       return;
     }
     final professorId = ref.read(authControllerProvider).user?.id;
@@ -287,7 +302,7 @@ class _FormularioMateriaState extends ConsumerState<_FormularioMateria> {
     // listas del escritorio.
     try {
       await repo.createGroup(
-        name: codigo,
+        name: grupo,
         subjectId: materia.id,
         period: widget.period,
       );
@@ -321,7 +336,20 @@ class _FormularioMateriaState extends ConsumerState<_FormularioMateria> {
                 textCapitalization: TextCapitalization.characters,
                 decoration: const InputDecoration(
                   labelText: 'Código',
-                  hintText: 'CAL-101',
+                  hintText: 'PIS701',
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.gapSm),
+            Expanded(
+              child: TextField(
+                controller: _grupo,
+                textCapitalization: TextCapitalization.characters,
+                maxLength: 20,
+                decoration: const InputDecoration(
+                  labelText: 'Grupo',
+                  hintText: 'A194',
+                  counterText: '',
                 ),
               ),
             ),

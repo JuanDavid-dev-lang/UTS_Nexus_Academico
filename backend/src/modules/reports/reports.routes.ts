@@ -49,9 +49,10 @@ function tituloDe(plantilla: Plantilla, kind: keyof typeof TITULOS_POR_DEFECTO):
   return plantilla.titulos[kind] ?? TITULOS_POR_DEFECTO[kind];
 }
 
-reportsRouter.get('/summary', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (_req, res, next) => {
+reportsRouter.get('/summary', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
-    res.json({ ok: true, summary: await resumenGeneral() });
+    // Solo el alcance de quien pregunta, nunca los filtros de la URL.
+    res.json({ ok: true, summary: await resumenGeneral(filtrosDeConsulta({}, req.user, req.alcance)) });
   } catch (err) {
     next(err);
   }
@@ -143,7 +144,7 @@ reportsRouter.get('/preview/attendance', requireRole('ADMIN', 'PROFESSOR', 'COOR
 reportsRouter.get('/pdf/consolidado', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
     const [records, plantilla] = await Promise.all([
-      consolidadoOrdenado(req.query, req.user),
+      consolidadoOrdenado(req.query, req.user, req.alcance),
       getPlantilla(),
     ]);
     // El diccionario de nombres se pide DESPUÉS de las filas, no en
@@ -166,7 +167,7 @@ reportsRouter.get('/pdf/consolidado', requireRole('ADMIN', 'PROFESSOR', 'COORDIN
 reportsRouter.get('/excel/consolidado', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
     const [records, plantilla] = await Promise.all([
-      consolidadoOrdenado(req.query, req.user),
+      consolidadoOrdenado(req.query, req.user, req.alcance),
       getPlantilla(),
     ]);
     // El diccionario de nombres se pide DESPUÉS de las filas, no en

@@ -38,6 +38,9 @@ export const queryKeys = {
   uniplanner: {
     all: ['uniplanner'] as const,
     estado: () => ['uniplanner', 'estado'] as const,
+    instituciones: () => ['uniplanner', 'instituciones'] as const,
+    vinculos: (filtro: unknown) => ['uniplanner', 'vinculos', filtro] as const,
+    solicitudes: (institucion: string) => ['uniplanner', 'solicitudes', institucion] as const,
     enlaces: (filtro: { subjectId: string; period?: string }) =>
       ['uniplanner', 'enlaces', filtro] as const,
   },
@@ -81,6 +84,27 @@ export const queryKeys = {
     // que falta, así que se invalida con el mismo gesto que el consolidado.
     pending: (period: string, subjectId?: string) =>
       ['grades', 'pending', period, subjectId ?? null] as const,
+  },
+
+  /**
+   * Asistencia por QR: la sesión y quién va marcando. Raíz propia y no bajo
+   * `attendance`, para que una marca a mano en otra pantalla no la tire.
+   */
+  attendanceQr: {
+    all: ['attendance-qr'] as const,
+    abiertas: (subjectId: string) => ['attendance-qr', 'abiertas', subjectId] as const,
+    sesion: (id: string) => ['attendance-qr', 'sesion', id] as const,
+  },
+
+  /**
+   * El contenido del QR, en otra raíz que la sesión. Cambia por reloj, no por
+   * datos: si colgara de `attendance-qr`, cada estudiante que escanea tiraría
+   * también el código y la pantalla lo pediría cuarenta veces por clase sin que
+   * haya cambiado.
+   */
+  attendanceQrCode: {
+    all: ['attendance-qr-code'] as const,
+    de: (id: string) => ['attendance-qr-code', id] as const,
   },
 
   attendance: {

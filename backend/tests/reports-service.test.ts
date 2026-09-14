@@ -12,6 +12,7 @@ import {
   filtroDeNotas,
   filtrosDeConsulta,
 } from '../src/modules/reports/reports.service.js';
+import { ALCANCE_TOTAL } from '../src/domains/scope/program-scope.js';
 
 const docente = { id: 'p1', role: 'PROFESSOR' };
 const admin = { id: 'a1', role: 'ADMIN' };
@@ -64,6 +65,12 @@ describe('filtroAcademico', () => {
 
   it('un ADMIN puede acotar por docente', () => {
     expect(filtroAcademico({ teacherId: 'p2' }, admin).teacherId).toBe('p2');
+  });
+
+  it('coordinación queda en las materias de sus carreras', () => {
+    const alcance = { ...ALCANCE_TOTAL, total: false, subjectIds: ['m1'] };
+    expect(filtroAcademico({}, { id: 'c1', role: 'COORDINATOR' }, alcance).subjectIds).toEqual(['m1']);
+    expect(filtroAcademico({}, admin, ALCANCE_TOTAL).subjectIds).toBeUndefined();
   });
 });
 

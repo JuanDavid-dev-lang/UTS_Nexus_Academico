@@ -42,13 +42,26 @@ describe('capacidades administrativas nuevas', () => {
     expect(can('PROFESSOR', 'audit.read')).toBe(false);
   });
 
-  it('coordinación cierra periodos pero no los reabre', () => {
-    // Reabrir un acta oficial es lo único que puede hacer que el consolidado
-    // deje de coincidir con lo que ya se consultó.
-    expect(can('COORDINATOR', 'periods.close')).toBe(true);
-    expect(can('COORDINATOR', 'periods.reopen')).toBe(false);
+  it('cerrar y reabrir periodos es solo de ADMIN', () => {
+    // El periodo es global —el mismo `2026-2` para todas las universidades—:
+    // una coordinación que lo cerrara bloquearía las notas de las demás. Y
+    // reabrir un acta es lo único que puede hacer que el consolidado deje de
+    // coincidir con lo que ya se consultó.
+    expect(can('ADMIN', 'periods.close')).toBe(true);
     expect(can('ADMIN', 'periods.reopen')).toBe(true);
+    expect(can('COORDINATOR', 'periods.close')).toBe(false);
+    expect(can('COORDINATOR', 'periods.reopen')).toBe(false);
     expect(can('PROFESSOR', 'periods.close')).toBe(false);
+    // Pero coordinación y secretaría siguen consultando el estado y el acta.
+    expect(can('COORDINATOR', 'periods.read')).toBe(true);
+    expect(can('SECRETARY', 'periods.read')).toBe(true);
+  });
+
+  it('anotar seguimiento es escribir: secretaría no', () => {
+    expect(can('PROFESSOR', 'analytics.intervene')).toBe(true);
+    expect(can('COORDINATOR', 'analytics.intervene')).toBe(true);
+    expect(can('SECRETARY', 'analytics.risks')).toBe(true);
+    expect(can('SECRETARY', 'analytics.intervene')).toBe(false);
   });
 
   it('un docente crea actividades pero no reabre las cerradas', () => {

@@ -9,6 +9,9 @@ import {
   startActivityDueWatcher,
   startAttendancePatternScanner,
   startAnnouncementPublisher,
+  startAttendanceQrReader,
+  startUniplannerRequestWatcher,
+  startUniplannerLinkVerifier,
 } from './shared/scheduler.js';
 import { env, esProduccion, validarProduccion } from './shared/env.js';
 import { asegurarPerfilesIniciales } from './shared/institutions-bootstrap.js';
@@ -82,5 +85,8 @@ server.listen(env.PORT, env.HOST, () => {
   startActivityDueWatcher();
   startAttendancePatternScanner();
   startAnnouncementPublisher();
+  startAttendanceQrReader();
+  startUniplannerRequestWatcher();
+  startUniplannerLinkVerifier();
 });
 

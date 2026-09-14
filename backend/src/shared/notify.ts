@@ -20,7 +20,7 @@ import {
   PREFERENCIAS_POR_DEFECTO,
   type PreferenciasResueltas,
 } from '../models/notification-preference.model.js';
-import { emitToUser } from './socket.js';
+import { emitSoloAUsuario } from './socket.js';
 import { enviarPush } from './push.js';
 import { env } from './env.js';
 import { dentroDeFranja, diaLocal, minutoDelDiaLocal } from '../domains/agenda/agenda.service.js';
@@ -258,8 +258,10 @@ export async function crearNotificacion(entrada: EntradaNotificacion): Promise<R
   // Dos eventos con propósitos distintos, a la misma sala privada del usuario:
   // `notification:new` es la campana (el cliente puede sonar o mostrar un
   // aviso nativo) y `sync:update` es lo que invalida la caché de la bandeja.
-  emitToUser(entrada.userId, 'notification:new', carga);
-  emitToUser(entrada.userId, 'sync:update', { entity: 'notification', action: 'create', id: documentoId });
+  // Solo a su sala: el contenido de un aviso es de su destinatario, y la
+  // bandeja de cada rol es la propia (ver `notification.routes.ts`).
+  emitSoloAUsuario(entrada.userId, 'notification:new', carga);
+  emitSoloAUsuario(entrada.userId, 'sync:update', { entity: 'notification', action: 'create', id: documentoId });
 
   // Solo lo nuevo suena. Una alerta de riesgo que se reescribe cada escaneo no
   // debe volver a vibrar en el teléfono cada vez.

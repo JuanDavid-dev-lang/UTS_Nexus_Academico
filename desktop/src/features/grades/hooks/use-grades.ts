@@ -47,7 +47,7 @@ export function useGrades(scope: Scope, enabled = true) {
  * Enrollments hold the relationship; the student list holds the names. Joining
  * them here keeps the two calls out of the component.
  */
-export function useEnrolledStudents(scope: { subjectId?: string; period: string }) {
+export function useEnrolledStudents(scope: { subjectId?: string; period: string; groupId?: string }) {
   const enrollments = useQuery({
     queryKey: queryKeys.enrollments.list(scope),
     queryFn: () => enrollmentRepository.list(scope),
@@ -65,11 +65,15 @@ export function useEnrolledStudents(scope: { subjectId?: string; period: string 
     // matrículas pero ningún id casaba —que es exactamente cómo se ve un
     // contrato roto— y enmascaraba el fallo ofreciendo a todos los
     // estudiantes del docente como calificables en cualquier materia.
-    if (enrollments.data.length === 0) return students.data;
+    //
+    // Con un grupo pedido, nunca: un grupo sin matriculados es un grupo vacío,
+    // no una instalación legada, y caer al respaldo enseñaría a todos los
+    // estudiantes del docente como si fueran de A194.
+    if (enrollments.data.length === 0) return scope.groupId ? [] : students.data;
 
     const enrolledIds = new Set(enrollments.data.map((enrollment) => enrollment.studentId));
     return students.data.filter((student) => enrolledIds.has(student._id));
-  }, [enrollments.data, students.data]);
+  }, [enrollments.data, students.data, scope.groupId]);
 
   return {
     data,

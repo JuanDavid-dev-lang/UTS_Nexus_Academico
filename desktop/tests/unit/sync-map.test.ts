@@ -38,6 +38,8 @@ const ENTIDADES_DEL_BACKEND: SyncEntity[] = [
   'clientError',
   'user',
   'institution',
+  'attendanceSession',
+  'risk',
 ];
 
 describe('mapa de invalidación', () => {

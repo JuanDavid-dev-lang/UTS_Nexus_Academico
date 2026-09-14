@@ -825,10 +825,10 @@ Cinco roles. Lo que separa a cada uno del de arriba es **qué alcance ve** y
 
 | Rol | Ve | Escribe | Además |
 |---|---|---|---|
-| **Administración** | Toda la institución | Todo | Auditoría, telemetría, reapertura de periodos, gestión del personal |
-| **Coordinación** | Los programas que tenga asignados | Sí, dentro de ellos | Cierra periodos; **no** los reabre ni entra a la auditoría |
+| **Administración** | Todas las universidades | Todo | Auditoría, telemetría, cierre y reapertura de periodos, reentrenar el modelo, gestión del personal, bandeja de sugerencias |
+| **Coordinación** | Su universidad y, dentro de ella, los programas que tenga asignados | Sí, dentro de ellos | Gestiona los vínculos de UniPlanner de su universidad; consulta periodos y actas de sus carreras, **no** los cierra ni entra a la auditoría |
 | **Secretaría** | Lo mismo que su coordinación | **Nada** | Consulta y exporta |
-| **Docente** | Sus materias, sus grupos, sus estudiantes | Notas y asistencia de lo suyo | — |
+| **Docente** | Sus materias, sus grupos, sus estudiantes | Notas y asistencia de lo suyo, QR de asistencia | — |
 | **Estudiante** | Su propio expediente | Nada | — |
 
 **El alcance de un docente sale de la matrícula; el de coordinación y
@@ -865,7 +865,16 @@ sitio: cuenta como coordinación **en lectura**, y un guardián global corta
 cualquier escritura por método HTTP. Marcar ruta por ruta cuáles escriben deja
 fuera la que se añada mañana, y una ruta de escritura sin marcar no falla:
 concede. Las únicas excepciones son las que escriben sobre su propia cuenta
-—entrar, salir, marcar un aviso como leído y cambiar su contraseña—.
+—entrar, salir, marcar un aviso como leído, cambiar su contraseña, enviar una
+sugerencia y preguntar al asistente—.
+
+**Nada cruza de una universidad a otra ni de un rol a otro.** Agenda, horarios,
+actividades, casos de inasistencia, seguimiento de riesgo, asistente, reportes,
+actas del cierre, historial del estudiante y avisos de UniPlanner se acotan al
+alcance de quien pregunta; lo de fuera responde 404 o una lista vacía. Lo que es
+de todas las universidades a la vez —cerrar un periodo, reentrenar el modelo—
+es de administración, y lo personal —la bandeja de notificaciones, los
+recordatorios de un docente— es solo de su dueño, en todos los roles.
 
 Exportar cuenta como leer, así que todos los exportables son `GET` y secretaría
 los descarga.
@@ -970,9 +979,10 @@ uno completo.
 
 ### UniPlanner (app del estudiante)
 
-Canal de una sola dirección: aquí solo se escribe hacia allá. Ninguna ruta
-acepta la nota ni las faltas en el cuerpo — el servidor las lee de su propia
-base. Apagado si no hay credenciales. Ver [`docs/UNIPLANNER.md`](docs/UNIPLANNER.md).
+Aquí solo se escribe hacia allá. Ninguna ruta acepta la nota ni las faltas en
+el cuerpo — el servidor las lee de su propia base. Lo único que vuelve es la
+marca del QR de asistencia, y no entra por ninguna ruta (ver la sección
+siguiente). Apagado si no hay credenciales. Ver [`docs/UNIPLANNER.md`](docs/UNIPLANNER.md).
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
@@ -983,10 +993,31 @@ base. Apagado si no hay credenciales. Ver [`docs/UNIPLANNER.md`](docs/UNIPLANNER
 | `POST` | `/uniplanner/avisos/carga` | Mandar el horario del semestre (ADMIN/COORDINATOR) |
 | `POST` | `/uniplanner/avisos/entrega` | Mandar un trabajo con su fecha límite |
 
+### Asistencia por QR
+
+El docente abre la clase de hoy y proyecta el QR; los estudiantes lo escanean
+desde UniPlanner, confirman sus datos y quedan presentes. **No hay ruta para el estudiante**:
+su marca llega por Firestore y la lee el servidor cada 3 s. Solo ADMIN y
+PROFESSOR, y un docente solo ve sus sesiones. Ver
+[`docs/UNIPLANNER.md` §8](docs/UNIPLANNER.md#8-asistencia-por-qr).
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `GET` | `/asistencia-qr/sesiones?subjectId=` | La sesión abierta de una materia, para retomarla |
+| `POST` | `/asistencia-qr/sesiones` | Abrir la clase de hoy de un grupo `{subjectId, groupId, minutos, marcarAusentes}` (`groupId` obligatorio); si ya hay una abierta, la devuelve |
+| `GET` | `/asistencia-qr/sesiones/:id` | Quién marcó, quién falta y qué se rechazó y por qué |
+| `GET` | `/asistencia-qr/sesiones/:id/qr` | El QR vigente y cuándo pedir el siguiente |
+| `POST` | `/asistencia-qr/sesiones/:id/cerrar` | Cerrar: ausentes a quien no marcó y no tenía marca de hoy |
+| `GET` | `/uniplanner/vinculos?institucion=&filtro=&q=` | Enlaces de UniPlanner de una universidad, o búsqueda de un estudiante (ADMIN, coordinación, secretaría) |
+| `POST` | `/uniplanner/vinculos/:linkId/acciones` | Verificar, retirar verificación, quitar bloqueo o liberar un código (ADMIN, coordinación) |
+| `GET` | `/uniplanner/solicitudes?institucion=` | Solicitudes de revisión que mandan los estudiantes desde UniPlanner |
+| `POST` | `/uniplanner/solicitudes/:uid/resolucion` | Desbloquear, liberar, asignar el documento a su dueño o rechazar, con nota para el estudiante |
+| `PATCH` | `/periods/:period` | Último día del semestre `{endsOn: 'AAAA-MM-DD' \| null}`: hasta ahí queda fijo el enlace de quien marca por QR |
+
 ### Reportes
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| `GET` | `/reports/summary` | Resumen agregado para el panel de reportes |
+| `GET` | `/reports/summary` | Resumen agregado para el panel de reportes, acotado al alcance de quien pregunta |
 | `GET` | `/reports/pdf/consolidado` | PDF con nota final, estado y % asistencia |
 | `GET` | `/reports/pdf/grades` | PDF de notas por corte y componente |
 | `GET` | `/reports/pdf/attendance` | PDF de registros de asistencia |
@@ -1046,11 +1077,11 @@ presentándose como abiertas sin que nadie lo notara.
 |--------|------|-------------|
 | `GET` | `/periods` | Todos: los registrados y los que solo existen por sus datos |
 | `GET` | `/periods/:period` | Estado, progreso del cierre y resumen de la fotografía |
-| `POST` | `/periods/:period/cierre` | Inicia o **retoma** el cierre (ADMIN/COORDINATOR) |
+| `POST` | `/periods/:period/cierre` | Inicia o **retoma** el cierre (**solo ADMIN**: el periodo es global) |
 | `POST` | `/periods/:period/cierre/abortar` | Devuelve a `OPEN` un cierre atascado (ADMIN) |
 | `POST` | `/periods/:period/reapertura` | Reabre con motivo obligatorio (**solo ADMIN**) |
-| `GET` | `/periods/:period/fotografia` | Consolidado congelado, paginado |
-| `GET` | `/periods/:period/fotografia/resumen` | Contadores de la fotografía |
+| `GET` | `/periods/:period/fotografia` | Consolidado congelado, paginado y acotado al alcance del rol |
+| `GET` | `/periods/:period/fotografia/resumen` | Contadores de la fotografía (sin STUDENT) |
 
 Con el periodo en `CLOSING` o `CLOSED`, **notas, asistencia y matrículas
 responden 409** con un mensaje que explica el estado. Horarios, actividades,
@@ -1151,7 +1182,7 @@ de eventos por entidad:
 
 | Campo | Valores |
 |-------|---------|
-| `entity` | `student` · `subject` · `group` · `grade` · `attendance` · `enrollment` · `notification` · `schedule` · `activity` · `professor` |
+| `entity` | `student` · `subject` · `group` · `grade` · `attendance` · `attendanceSession` · `enrollment` · `notification` · `schedule` · `activity` · `professor` |
 | `action` | `create` · `update` · `delete` · `bulk` · `read` · `risk` · `reorder` |
 | `id` | Identificador del registro afectado |
 
@@ -1228,6 +1259,9 @@ npm run lint             # ESLint
 npm run migrate:enrollments  # Migrar studentIds[] a colección Matrículas
 npm run migrate:v3           # Periodos, lateMinutes y periodo de actividades
 npm run migrate:v3 -- --aplicar   # …y escribirlo de verdad (por defecto simula)
+npm run migrate:fechas-asistencia    # Une la asistencia duplicada por fecha de clase (simula; -- --aplicar escribe)
+npm run migrate:nombres-estudiantes  # Nombres de estudiante en mayúsculas y solo letras (simula; -- --aplicar escribe)
+npm run test:e2e:qr                  # E2E de la asistencia por QR (Firestore simulado)
 
 # Desde /desktop
 npm run dev              # Interfaz en el navegador (no requiere Rust)
@@ -1434,12 +1468,12 @@ una importación.
 
 | Componente | Estado |
 |-----------|--------|
-| Backend (Node.js / TypeScript) | ✅ Operativo · **335 pruebas** |
-| App de escritorio (Tauri 2 + React 19) | ✅ Operativa en Windows y Linux · **170 pruebas** |
-| App móvil (Flutter / Android) | ✅ Operativa · **89 pruebas** |
+| Backend (Node.js / TypeScript) | ✅ Operativo · **521 pruebas** |
+| App de escritorio (Tauri 2 + React 19) | ✅ Operativa en Windows y Linux · **171 pruebas** |
+| App móvil (Flutter / Android) | ✅ Operativa · **118 pruebas** |
 | Servicio de ML (`ml_service/`) | ✅ Operativo · **54 pruebas** — ver [`ml_service/README.md`](ml_service/README.md) |
 | App de escritorio v1 (PySide6) | 🪦 Muerta · sin lanzador, solo referencia histórica |
-| Pruebas E2E | ✅ `npm run test:e2e` · **114 comprobaciones** sobre una base aislada |
+| Pruebas E2E | ✅ `npm run test:e2e` · **164 comprobaciones** sobre una base aislada · `npm run test:e2e:qr` · **40** de la asistencia por QR |
 
 Las pruebas de `npm test` cubren **lógica pura**: cálculo de notas, riesgo,
 agenda, alcance por docente y por programa, quién puede escribir, filtros,
@@ -1447,7 +1481,7 @@ paginación y navegación. Ninguna toca la base de datos.
 
 Para lo que sí la toca hay dos niveles: `npm run smoke` recorre el camino
 principal contra el servidor que ya tengas arriba, y `npm run test:e2e` levanta
-un `mongod` local, crea su propia base, recorre 114 comprobaciones —incluidos el
+un `mongod` local, crea su propia base, recorre 164 comprobaciones —incluidos el
 alcance por carrera, el 403 de secretaría al escribir y el cierre de sesiones al
 cambiar una contraseña— y borra la base al terminar. La suite **se niega a
 arrancar contra un `mongodb+srv`**: borra lo que toca.

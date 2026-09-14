@@ -2,6 +2,7 @@ import { lazy } from 'react';
 import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
 import { AppShell } from '@/shared/layouts/app-shell';
 import { useSession } from '@/state/session.store';
+import { Con } from '@/app/require-capability';
 import { BootScreen } from '@/app/boot-screen';
 
 /**
@@ -16,6 +17,7 @@ const AnnouncementsPage = lazy(() => import('@/features/announcements/announceme
 const RegisterPage = lazy(() => import('@/features/auth/register-page'));
 const RecoveryPage = lazy(() => import('@/features/auth/recovery-page'));
 const DashboardPage = lazy(() => import('@/features/dashboard/dashboard-page'));
+const UniPlannerLinksPage = lazy(() => import('@/features/uniplanner/links-page'));
 const AgendaPage = lazy(() => import('@/features/agenda/agenda-page'));
 const StudentsPage = lazy(() => import('@/features/students/students-page'));
 const SubjectsPage = lazy(() => import('@/features/subjects/subjects-page'));
@@ -72,28 +74,29 @@ export const router = createBrowserRouter([
         element: <AppShell />,
         children: [
           { path: '/', element: <DashboardPage /> },
-          { path: '/estudiantes', element: <StudentsPage /> },
-          { path: '/materias', element: <SubjectsPage /> },
-          { path: '/notas', element: <GradesPage /> },
-          { path: '/asistencia', element: <AttendancePage /> },
+          { path: '/estudiantes', element: <Con capacidad="students.read"><StudentsPage /></Con> },
+          { path: '/materias', element: <Con capacidad="subjects.read"><SubjectsPage /></Con> },
+          { path: '/notas', element: <Con capacidad="grades.read"><GradesPage /></Con> },
+          { path: '/asistencia', element: <Con capacidad="attendance.read"><AttendancePage /></Con> },
           { path: '/agenda', element: <AgendaPage /> },
-          { path: '/riesgo', element: <RiskPage /> },
-          { path: '/asistente', element: <AssistantPage /> },
-          { path: '/reportes', element: <ReportsPage /> },
+          { path: '/riesgo', element: <Con capacidad="analytics.risks"><RiskPage /></Con> },
+          { path: '/asistente', element: <Con capacidad="assistant.use"><AssistantPage /></Con> },
+          { path: '/reportes', element: <Con capacidad="reports.export"><ReportsPage /></Con> },
           { path: '/avisos', element: <AnnouncementsPage /> },
           { path: '/sugerencias', element: <FeedbackPage /> },
-          { path: '/coordinacion', element: <CoordinationPage /> },
-          { path: '/personal', element: <StaffPage /> },
-          { path: '/instituciones', element: <InstitutionsPage /> },
-          { path: '/docentes', element: <ProfessorsPage /> },
+          { path: '/coordinacion', element: <Con capacidad="coordination.read"><CoordinationPage /></Con> },
+          { path: '/personal', element: <Con capacidad="staff.manage"><StaffPage /></Con> },
+          { path: '/instituciones', element: <Con capacidad="institutions.read"><InstitutionsPage /></Con> },
+          { path: '/vinculos-uniplanner', element: <Con capacidad="uniplanner.links.read"><UniPlannerLinksPage /></Con> },
+          { path: '/docentes', element: <Con capacidad="professors.manage"><ProfessorsPage /></Con> },
           { path: '/trabajos-grado', element: <ThesisFormatsPage /> },
-          { path: '/actividades', element: <ActivitiesPage /> },
-          { path: '/periodos', element: <PeriodsPage /> },
-          { path: '/auditoria', element: <AuditPage /> },
-          { path: '/estado-sistema', element: <HealthPage /> },
+          { path: '/actividades', element: <Con capacidad="activities.read"><ActivitiesPage /></Con> },
+          { path: '/periodos', element: <Con capacidad="coordination.read"><PeriodsPage /></Con> },
+          { path: '/auditoria', element: <Con capacidad="audit.read"><AuditPage /></Con> },
+          { path: '/estado-sistema', element: <Con capacidad="system.health"><HealthPage /></Con> },
           { path: '/notificaciones', element: <NotificationsPage /> },
           { path: '/configuracion', element: <SettingsPage /> },
-          { path: '/supervision-admin', element: <SupervisionAdminPage /> },
+          { path: '/supervision-admin', element: <Con capacidad="staff.manage"><SupervisionAdminPage /></Con> },
         ],
       },
     ],

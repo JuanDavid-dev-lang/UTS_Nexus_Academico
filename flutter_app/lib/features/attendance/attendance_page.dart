@@ -57,6 +57,11 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
   String _query = '';
 
   String? _subjectId;
+
+  /// El grupo al que se pasa lista (A194). Con un solo grupo es ese; con
+  /// varios, el que elija el docente, y hasta entonces no hay lista.
+  String? _groupId;
+  List<Map<String, dynamic>> _groups = [];
   int _durationMinutes = 90;
   DateTime _date = DateTime.now();
   bool _loading = false;
@@ -99,19 +104,17 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
   Future<void> _load() async {
     setState(() => _loading = true);
 
-    // Las dos a la vez: ninguna depende del resultado de la otra. Encadenadas
-    // —estudiantes, luego materias— la pantalla se quedaba en blanco el doble
-    // de tiempo sobre el wifi de un aula.
+    // Materias y grupos a la vez: ninguna depende de la otra. Encadenadas la
+    // pantalla se quedaba en blanco el doble de tiempo sobre el wifi del aula.
     final resultados = await Future.wait([
-      ApiClient.instance.get('/students'),
       ApiClient.instance.get('/subjects'),
+      ApiClient.instance.get('/groups'),
     ]);
 
-    final items = (resultados[0].data as Map)['items'] as List;
-    final subjects = (resultados[1].data as Map)['items'] as List;
-    final students = items.map((e) => Map<String, dynamic>.from(e as Map)).toList()
-      ..sort((a, b) =>
-          (a['code'] ?? '').toString().compareTo((b['code'] ?? '').toString()));
+    final subjects = (resultados[0].data as Map)['items'] as List;
+    final allGroups = ((resultados[1].data as Map)['items'] as List)
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
     final allSubjects =
         subjects.map((e) => Map<String, dynamic>.from(e as Map)).toList();
     final filteredSubjects =
@@ -119,16 +122,51 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
     final subjectId = _subjectId ??
         (filteredSubjects.isNotEmpty ? filteredSubjects.first['_id']?.toString() : null);
 
+    // Se pasa lista a un grupo (A194, A193…), no a la materia entera: cada
+    // grupo es otro salón, con otros estudiantes.
+    final groups = allGroups
+        .where((g) =>
+            g['subjectId']?.toString() == subjectId &&
+            ((g['period'] ?? '').toString().isEmpty || g['period'].toString() == _period))
+        .toList()
+      ..sort((a, b) => (a['name'] ?? '').toString().compareTo((b['name'] ?? '').toString()));
+    final groupId = groups.length == 1
+        ? groups.first['_id'].toString()
+        : (groups.any((g) => g['_id'].toString() == _groupId) ? _groupId : null);
+    final faltaGrupo = groups.length > 1 && groupId == null;
+
+    // Solo los matriculados de esa materia y ese grupo. Antes se cargaban todos
+    // los estudiantes del docente y la lista guardaba asistencia en esta
+    // materia a quien cursa otra.
+    final List<Map<String, dynamic>> students;
+    if (subjectId == null || faltaGrupo) {
+      students = [];
+    } else {
+      final query = StringBuffer('/students?subjectId=$subjectId&period=$_period');
+      if (groupId != null) query.write('&groupId=$groupId');
+      final resp = await ApiClient.instance.get(query.toString());
+      students = ((resp.data as Map)['items'] as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList()
+        ..sort((a, b) =>
+            (a['code'] ?? '').toString().compareTo((b['code'] ?? '').toString()));
+    }
+
     final attendanceResp = await ApiClient.instance.get(
       '/attendance?period=$_period${subjectId != null ? '&subjectId=$subjectId' : ''}',
     );
     final attendanceItems = (attendanceResp.data as Map)['items'] as List;
-    final attendance =
-        attendanceItems.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    final delGrupo = {for (final s in students) s['_id'].toString()};
+    final attendance = attendanceItems
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .where((fila) => delGrupo.contains(fila['studentId']?.toString()))
+        .toList();
 
     _students = students;
     _subjects = filteredSubjects;
     _subjectId = subjectId;
+    _groups = groups;
+    _groupId = groupId;
     _attendance = attendance;
     _studentById.clear();
     for (final estudiante in students) {
@@ -252,6 +290,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
     try {
       await ApiClient.instance.post('/attendance/bulk', data: {
         'subjectId': _subjectId,
+        if (_groupId != null) 'groupId': _groupId,
         'teacherId': ref.read(authControllerProvider).user?.id ?? '',
         'period': _period,
         'date': isoDate,
@@ -299,10 +338,11 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
   Widget build(BuildContext context) {
     final filtrados = _filtrados;
     final periodoAbierto = ref.watch(periodoActivoAbiertoProvider);
-    // Un perfil de consulta ve la lista y no la guarda: el boton desactivado
-    // dice eso antes de intentarlo, en vez de dejar que el servidor lo diga
-    // despues de que alguien haya marcado a treinta estudiantes.
-    final soloLectura = esSoloLectura(ref.watch(authControllerProvider).user?.role);
+    // Solo quien dicta la clase (o ADMIN) guarda asistencia: coordinación y
+    // secretaría ven la lista y no la guardan. El boton desactivado dice eso
+    // antes de intentarlo, en vez de dejar que el servidor lo diga despues de
+    // que alguien haya marcado a treinta estudiantes.
+    final soloLectura = !puedeCapturar(ref.watch(authControllerProvider).user?.role);
     final periodo = ref.watch(selectedPeriodProvider);
     final offlineStatus = ref.watch(offlineStatusProvider).valueOrNull;
     final sinConexion = offlineStatus != null && offlineStatus.desdeCache != null;
@@ -496,6 +536,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                     .toList(),
                 onChanged: (value) async {
                   _subjectId = value;
+                  _groupId = null;
                   await _load();
                 },
                 decoration: const InputDecoration(
@@ -504,6 +545,34 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                 ),
               ),
             ),
+            if (_groups.isNotEmpty) ...[
+              const SizedBox(width: AppSpacing.gapSm),
+              SizedBox(
+                width: 110,
+                child: DropdownButtonFormField<String>(
+                  key: ValueKey('grupos-$_subjectId'),
+                  initialValue: _groupId,
+                  isExpanded: true,
+                  hint: const Text('Grupo'),
+                  items: _groups
+                      .map((g) => DropdownMenuItem(
+                            value: g['_id'].toString(),
+                            child: Text(g['name']?.toString() ?? ''),
+                          ))
+                      .toList(),
+                  onChanged: _groups.length == 1
+                      ? null
+                      : (value) async {
+                          _groupId = value;
+                          await _load();
+                        },
+                  decoration: const InputDecoration(
+                    labelText: 'Grupo',
+                    isDense: true,
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(width: AppSpacing.gapSm),
             SizedBox(
               width: 110,
@@ -566,6 +635,14 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
         const SizedBox(height: AppSpacing.gapSm),
         Divider(height: 1, color: context.palette.border),
         const SizedBox(height: AppSpacing.gapSm),
+        if (_groups.length > 1 && _groupId == null)
+          CompactEmpty(
+            icono: Icons.groups_outlined,
+            mensaje:
+                'Esta materia tiene ${_groups.length} grupos '
+                '(${_groups.map((g) => g['name']).join(', ')}). Cada uno tiene '
+                'su lista: elige a cuál le pasas asistencia.',
+          ),
       ],
     );
   }

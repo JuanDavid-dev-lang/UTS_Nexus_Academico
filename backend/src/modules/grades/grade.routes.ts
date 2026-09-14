@@ -11,7 +11,7 @@ import { auditChange } from '../../shared/audit.js';
 import { emitToUser } from '../../shared/socket.js';
 import { getProfessorScope, getEnrolledStudentIds } from '../../shared/professor-scope.js';
 import { filtroDeListado } from '../../domains/scope/professor-scope.js';
-import { acotarPorAlcance } from '../../domains/scope/program-scope.js';
+import { acotarPorAlcance, dentroDelAlcanceDePrograma } from '../../domains/scope/program-scope.js';
 import {
   calcularNotaFinal,
   corteDisponible,
@@ -85,14 +85,30 @@ gradeRouter.get('/consolidado', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR',
     // listado. Cuando lo armaba aparte, el alcance por programa habría tenido
     // que replicarse aquí — y la copia que se olvida es la que devuelve el
     // consolidado de otra carrera con un 200.
+    //
+    // El grupo **no** filtra por `Nota.groupId`: casi todas las notas se
+    // capturan por materia y lo llevan vacío, así que filtrar por ese campo
+    // escondía las notas de todo el grupo. El grupo decide *quiénes* —su
+    // matrícula— y de ellos se toman todas sus notas de la materia.
     const filter = filtroDeListado(
-      { subjectId: query.subjectId, groupId: query.groupId, studentId: query.studentId },
+      { subjectId: query.subjectId, studentId: query.studentId },
       req.user,
       { period: query.period },
       req.alcance,
     );
 
-    const grades = await GradeModel.find(filter).lean();
+    const delGrupo = query.groupId
+      ? new Set(
+          await getEnrolledStudentIds({
+            subjectId: query.subjectId,
+            groupId: query.groupId,
+            period: query.period,
+            professorId: req.user?.role === 'PROFESSOR' ? req.user.id : undefined,
+          }),
+        )
+      : null;
+    const grades = (await GradeModel.find(filter).lean())
+      .filter(grade => !delGrupo || delGrupo.has(String(grade.studentId)));
 
     // Agrupar por estudiante.
     const porEstudiante = new Map<string, typeof grades>();
@@ -103,7 +119,15 @@ gradeRouter.get('/consolidado', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR',
     }
 
     const studentIds = [...porEstudiante.keys()];
-    if (query.subjectId || query.groupId) {
+    // La lista matriculada (con quien aún no tiene notas) solo dentro del
+    // alcance: sin esto, pedir una materia ajena devolvía las notas vacías
+    // —bien— y además nombre y cédula de todo el curso. Un estudiante no la
+    // recibe nunca: sus compañeros no son asunto suyo.
+    const materiaEnAlcance = !query.subjectId || !req.alcance
+      || dentroDelAlcanceDePrograma(req.alcance, 'subjectIds', query.subjectId);
+    const grupoEnAlcance = !query.groupId || !req.alcance
+      || dentroDelAlcanceDePrograma(req.alcance, 'groupIds', query.groupId);
+    if ((query.subjectId || query.groupId) && req.user?.role !== 'STUDENT' && materiaEnAlcance && grupoEnAlcance) {
       const isProfessor = req.user?.role === 'PROFESSOR';
       const enrolled = await getEnrolledStudentIds({
         subjectId: query.subjectId,

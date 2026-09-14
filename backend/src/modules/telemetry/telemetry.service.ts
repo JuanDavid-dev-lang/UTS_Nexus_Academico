@@ -17,7 +17,7 @@
  */
 import { createHash } from 'node:crypto';
 import { ClientErrorModel } from '../../models/client-error.model.js';
-import { emitSync } from '../../shared/socket.js';
+import { emitToAdmins } from '../../shared/socket.js';
 import { env } from '../../shared/env.js';
 import { LIMITES, sanearTexto } from '../../shared/sanitize.js';
 import * as campo from '../../shared/validation.js';
@@ -140,7 +140,7 @@ export async function registrarError(
   // Solo se avisa al panel cuando aparece un defecto nuevo: un error en bucle
   // no debe convertirse en un bucle de invalidaciones de caché.
   if (!previo) {
-    emitSync('sync:update', { entity: 'clientError', action: 'create', id: String(documento._id) });
+    emitToAdmins('sync:update', { entity: 'clientError', action: 'create', id: String(documento._id) });
   }
 
   return {
@@ -199,13 +199,13 @@ export async function cambiarEstado(
     error.statusCode = 404;
     throw error;
   }
-  emitSync('sync:update', { entity: 'clientError', action: 'update', id: String(documento._id) });
+  emitToAdmins('sync:update', { entity: 'clientError', action: 'update', id: String(documento._id) });
   return documento.toObject();
 }
 
 export async function eliminar(id: string): Promise<void> {
   await ClientErrorModel.deleteOne({ _id: id });
-  emitSync('sync:update', { entity: 'clientError', action: 'delete', id });
+  emitToAdmins('sync:update', { entity: 'clientError', action: 'delete', id });
 }
 
 /**

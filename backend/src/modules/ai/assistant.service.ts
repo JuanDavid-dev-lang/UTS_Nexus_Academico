@@ -17,6 +17,8 @@ export type ChatContext = {
   subjectId?: string;
   period?: string;
   role?: string;
+  /** Materias del alcance de coordinación y secretaría. Lo impone la ruta. */
+  subjectIds?: string[];
 };
 
 export type ChatMessage = { role: 'user' | 'assistant'; content: string };
@@ -156,6 +158,7 @@ export async function askAssistant(
     teacherId: context.teacherId,
     studentId: context.studentId,
     period: context.period,
+    subjectIds: context.subjectIds,
   });
   const academicContext = buildContext(
     context.subjectId ? records.filter(r => r.subjectId === context.subjectId) : records,

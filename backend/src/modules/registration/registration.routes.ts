@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { AlcanceDePrograma } from '../../domains/scope/program-scope.js';
 import bcrypt from 'bcryptjs';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
@@ -246,13 +247,26 @@ registrationRouter.post('/', limiteSolicitudes, async (req, res, next) => {
 // ── Administración ──────────────────────────────────────────────────────────
 registrationRouter.use(identificar);
 
+/**
+ * Coordinación y secretaría ven las solicitudes de su universidad; ADMIN,
+ * todas. Las que piden una institución que aún no existe no tienen dueña y
+ * solo las ve ADMIN, que es quien crea el perfil.
+ */
+function deSuInstitucion(alcance: AlcanceDePrograma | undefined): Record<string, unknown> {
+  return alcance && !alcance.total && alcance.institutionId ? { institutionId: alcance.institutionId } : {};
+}
+
 /** Estado del interruptor y cuántas solicitudes esperan. */
-registrationRouter.get('/estado', requireRole('ADMIN', 'COORDINATOR'), async (_req, res, next) => {
+registrationRouter.get('/estado', requireRole('ADMIN', 'COORDINATOR'), async (req, res, next) => {
   try {
     res.json({
       ok: true,
       abierto: await registroAbierto(),
-      pendientes: await ProfessorModel.countDocuments({ estado: 'PENDIENTE', deletedAt: null }),
+      pendientes: await ProfessorModel.countDocuments({
+        estado: 'PENDIENTE',
+        deletedAt: null,
+        ...deSuInstitucion(req.alcance),
+      }),
     });
   } catch (err) {
     next(err);
@@ -296,7 +310,7 @@ registrationRouter.get('/solicitudes', requireRole('ADMIN', 'COORDINATOR'), asyn
       .default('PENDIENTE')
       .parse(req.query.estado ?? 'PENDIENTE');
 
-    const items = await ProfessorModel.find({ estado, deletedAt: null })
+    const items = await ProfessorModel.find({ estado, deletedAt: null, ...deSuInstitucion(req.alcance) })
       .populate('userId', 'email fullName createdAt')
       // Quien revisa necesita saber de qué institución es la solicitud, y si
       // pidió una que aún no existe (`institucionSolicitada` sin vínculo).

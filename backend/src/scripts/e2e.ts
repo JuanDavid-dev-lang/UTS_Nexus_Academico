@@ -152,9 +152,9 @@ async function login(email: string): Promise<string> {
 
 const PERIODO = '2026-1';
 const ESTUDIANTES = [
-  { code: 'E2E-1001', fullName: 'Ana Prueba Uno', email: 'e2e1@uts.edu.co', program: 'Sistemas' },
-  { code: 'E2E-1002', fullName: 'Bruno Prueba Dos', email: 'e2e2@uts.edu.co', program: 'Sistemas' },
-  { code: 'E2E-1003', fullName: 'Carla Prueba Tres', email: 'e2e3@uts.edu.co', program: 'Sistemas' },
+  { code: '90001001', fullName: 'Ana Prueba Uno', email: 'e2e1@uts.edu.co', program: 'Sistemas' },
+  { code: '90001002', fullName: 'Bruno Prueba Dos', email: 'e2e2@uts.edu.co', program: 'Sistemas' },
+  { code: '90001003', fullName: 'Carla Prueba Tres', email: 'e2e3@uts.edu.co', program: 'Sistemas' },
 ];
 
 /**
@@ -163,7 +163,7 @@ const ESTUDIANTES = [
  * entra en riesgo alto. Sin esa gradación, la comprobación de riesgo pasaría
  * por casualidad.
  */
-const NOTAS: Record<string, number> = { 'E2E-1001': 4.5, 'E2E-1002': 3.2, 'E2E-1003': 1.5 };
+const NOTAS: Record<string, number> = { '90001001': 4.5, '90001002': 3.2, '90001003': 1.5 };
 
 async function main() {
   console.log(`\n🧪 Suite E2E de UTS Nexus Académico`);
@@ -332,7 +332,7 @@ async function ejecutar(puerto: number) {
       corte: 1,
       componentType: 'PARCIALES',
       labels: ['Parcial'],
-      filas: [{ studentId: porId.get('E2E-1001'), scores: [5] }],
+      filas: [{ studentId: porId.get('90001001'), scores: [5] }],
     },
     otroDocente,
   );
@@ -356,8 +356,8 @@ async function ejecutar(puerto: number) {
         durationMinutes: 90,
         registros: ESTUDIANTES.map(e => ({
           studentId: porId.get(e.code),
-          present: e.code !== 'E2E-1003',
-          lateMinutes: e.code === 'E2E-1002' ? 15 : 0,
+          present: e.code !== '90001003',
+          lateMinutes: e.code === '90001002' ? 15 : 0,
         })),
       },
       docente,
@@ -384,12 +384,12 @@ async function ejecutar(puerto: number) {
   // corte y 4.5 en la final. Comprobar el número exacto —y no solo «aprueba»—
   // es lo que hace que un cambio de pesos rompa la prueba en vez de cambiar
   // notas en silencio.
-  const uno = filas.find(f => f.code === 'E2E-1001');
+  const uno = filas.find(f => f.code === '90001001');
   ok('La nota final la calcula el backend con la rúbrica 30/60/10',
     Boolean(uno && uno.aprobado && Math.abs(uno.notaFinal - 4.5) < 0.05),
     JSON.stringify(uno).slice(0, 160));
 
-  const tres = filas.find(f => f.code === 'E2E-1003');
+  const tres = filas.find(f => f.code === '90001003');
   ok('Quien saca 1.5 aparece reprobando',
     Boolean(tres && tres.aprobado === false && tres.notaFinal < 3),
     JSON.stringify(tres).slice(0, 160));
@@ -440,7 +440,7 @@ async function ejecutar(puerto: number) {
   const intervencion = await patch(
     '/analytics/risks/intervencion',
     {
-      studentId: porId.get('E2E-1003'),
+      studentId: porId.get('90001003'),
       subjectId,
       period: PERIODO,
       estado: 'CONTACTADO',
@@ -501,7 +501,7 @@ async function ejecutar(puerto: number) {
       corte: 1,
       componentType: 'TRABAJOS',
       labels: ['Tardío'],
-      filas: [{ studentId: porId.get('E2E-1001'), scores: [5] }],
+      filas: [{ studentId: porId.get('90001001'), scores: [5] }],
     },
     docente,
   );
@@ -517,7 +517,7 @@ async function ejecutar(puerto: number) {
       period: PERIODO,
       date: '2026-02-24T14:00:00.000Z',
       durationMinutes: 90,
-      registros: [{ studentId: porId.get('E2E-1001'), present: true }],
+      registros: [{ studentId: porId.get('90001001'), present: true }],
     },
     docente,
   );
@@ -526,7 +526,7 @@ async function ejecutar(puerto: number) {
 
   const matriculaTardia = await post(
     '/enrollments',
-    { studentId: porId.get('E2E-1001'), groupId },
+    { studentId: porId.get('90001001'), groupId },
     docente,
   );
   ok('Matrícula en periodo cerrado → 409', matriculaTardia.status === 409,
@@ -548,7 +548,7 @@ async function ejecutar(puerto: number) {
   ok('La fotografía devuelve las 3 filas congeladas', congelado.length === 3,
     `trajo ${congelado.length}`);
   ok('Conserva la nota final calculada al cerrar',
-    congelado.some(f => f.code === 'E2E-1001' && Math.abs(f.notaFinal - 4.5) < 0.05),
+    congelado.some(f => f.code === '90001001' && Math.abs(f.notaFinal - 4.5) < 0.05),
     JSON.stringify(congelado).slice(0, 200));
 
   const fotoAjena = await get(`/periods/${PERIODO}/fotografia`, otroDocente);
@@ -577,7 +577,7 @@ async function ejecutar(puerto: number) {
 
   // ── 14. Historial del estudiante ────────────────────────────────────────
   seccion('14) Historial del estudiante');
-  const historial = await get(`/students/${porId.get('E2E-1003')}/historial`, docente);
+  const historial = await get(`/students/${porId.get('90001003')}/historial`, docente);
   const eventos = (historial.json?.items ?? []) as { type: string }[];
   ok('El historial lo arma el backend', historial.status === 200 && eventos.length > 0,
     `${eventos.length} eventos`);
@@ -586,7 +586,7 @@ async function ejecutar(puerto: number) {
       [...new Set(eventos.map(e => e.type))].join(', '));
   }
 
-  const historialAjeno = await get(`/students/${porId.get('E2E-1003')}/historial`, otroDocente);
+  const historialAjeno = await get(`/students/${porId.get('90001003')}/historial`, otroDocente);
   ok('Otro docente no accede al historial → 403',
     historialAjeno.status === 403, `status ${historialAjeno.status}`);
 
@@ -680,7 +680,7 @@ async function ejecutar(puerto: number) {
       corte: 1,
       componentType: 'TRABAJOS',
       labels: ['Corrección'],
-      filas: [{ studentId: porId.get('E2E-1001'), scores: [5] }],
+      filas: [{ studentId: porId.get('90001001'), scores: [5] }],
     },
     docente,
   );
@@ -876,7 +876,7 @@ async function ejecutar(puerto: number) {
 
   const escrituraSecretaria = await post(
     '/students',
-    { code: 'E2E-SEC', fullName: 'No debería crearse', program: 'Ingeniería de Sistemas' },
+    { code: '90009999', fullName: 'No debería crearse', program: 'Ingeniería de Sistemas' },
     secretaria,
   );
   ok('Secretaría escribiendo → 403', escrituraSecretaria.status === 403,

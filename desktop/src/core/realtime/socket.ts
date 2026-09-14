@@ -36,7 +36,9 @@ export type SyncEntity =
   | 'attendanceCase'
   | 'clientError'
   | 'user'
-  | 'institution';
+  | 'institution'
+  | 'attendanceSession'
+  | 'risk';
 
 /**
  * Estado de la sincronización.
@@ -153,6 +155,19 @@ export const INVALIDATION_MAP: Record<SyncEntity, readonly (readonly unknown[])[
    * que ve su cuenta (`user`, por el mismo motivo que un cambio de rol).
    */
   institution: [queryKeys.institutions.all, queryKeys.registro.all, queryKeys.users.all],
+  /**
+   * Una marca de UniPlanner aceptada o rechazada, o la sesión que se cierra.
+   * Tira la sesión y no el código del QR (`attendanceQrCode`), que cambia por
+   * reloj y no por marcas. La asistencia escrita llega aparte como
+   * `attendance`.
+   */
+  attendanceSession: [queryKeys.attendanceQr.all],
+  /**
+   * Intervención o episodio de seguimiento sobre un estudiante en riesgo. Sin
+   * esta entrada el evento se descartaba y la pantalla de Riesgo que otro tenía
+   * abierta seguía enseñando «pendiente» un caso ya atendido.
+   */
+  risk: [queryKeys.analytics.all],
 };
 
 let socket: Socket | null = null;

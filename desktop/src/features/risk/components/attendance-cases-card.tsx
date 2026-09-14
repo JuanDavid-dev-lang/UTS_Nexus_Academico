@@ -24,6 +24,8 @@ import { attendanceCasesRepository } from '@/infrastructure/repositories/activit
 import { queryKeys } from '@/core/api/query-keys';
 import { toast } from '@/state/toast.store';
 import { TITULO_PATRON, type CasoAsistencia } from '@/domain/schemas/activities';
+import { can } from '@/core/auth/permissions';
+import { useUserRole } from '@/state/session.store';
 
 /**
  * Casos abiertos por patrón de inasistencia.
@@ -58,6 +60,7 @@ function fecha(iso?: string): string {
 }
 
 export function AttendanceCasesCard() {
+  const puedeIntervenir = can(useUserRole(), 'analytics.intervene');
   const [interviniendo, setInterviniendo] = useState<CasoAsistencia | null>(null);
   const [nota, setNota] = useState('');
   const [estado, setEstado] = useState<'EN_SEGUIMIENTO' | 'RESUELTO' | 'DESCARTADO'>(
@@ -148,7 +151,7 @@ export function AttendanceCasesCard() {
                         se comprueba la evidencia. */}
                     <Link to={`/asistencia?subjectId=${caso.subjectId}`}>Ver asistencia</Link>
                   </Button>
-                  <Button
+                  {puedeIntervenir ? <Button
                     onClick={() => {
                       setInterviniendo(caso);
                       setNota(caso.interventionNote ?? '');
@@ -156,7 +159,7 @@ export function AttendanceCasesCard() {
                     }}
                   >
                     Registrar seguimiento
-                  </Button>
+                  </Button> : null}
                 </div>
               </div>
             );

@@ -48,6 +48,13 @@ export const periodosRepository = {
     return (await http.get(`/periods/${period}`, { schema: itemResponse(periodoSchema) })).item;
   },
 
+  /** El último día del semestre. `null` vuelve a la fecha por defecto. */
+  async configurarFin(period: string, endsOn: string | null): Promise<Periodo> {
+    return (
+      await http.patch(`/periods/${period}`, { endsOn }, { schema: itemResponse(periodoSchema) })
+    ).item;
+  },
+
   /**
    * Inicia o retoma el cierre.
    *

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  accionesDeSolicitud,
+  mensajeDeResolucion,
+  partesDelEnlace,
+  puedeGestionarInstitucion,
+} from '../src/domains/uniplanner/link-admin.js';
+import {
   esCodigoValido,
   esInstitucionValida,
   idDeEnlace,
@@ -295,3 +301,38 @@ describe('fechas de entrega imposibles', () => {
     expect(aviso.payload?.dueDate).toBe('2026-03-01');
   });
 });
+
+describe('gestión institucional de los enlaces', () => {
+  it('descompone el id de un enlace y rechaza lo que no lo es', () => {
+    expect(partesDelEnlace('uts__1098765432')).toEqual({ institucion: 'uts', codigo: '1098765432' });
+    expect(partesDelEnlace('unab-2__AB12')).toEqual({ institucion: 'unab-2', codigo: 'AB12' });
+    for (const malo of ['uts_1098', '__1098765432', 'uts__1.098', 'uts__', 'UTS__1098765432']) {
+      expect(partesDelEnlace(malo), malo).toBeNull();
+    }
+  });
+
+  it('coordinación solo gestiona enlaces de su universidad; administración, todas', () => {
+    expect(puedeGestionarInstitucion(['uts'], 'uts')).toBe(true);
+    expect(puedeGestionarInstitucion(['uts'], 'uis')).toBe(false);
+    expect(puedeGestionarInstitucion(null, 'uis')).toBe(true);
+  });
+
+  it('no se desbloquea el enlace de otra cuenta: se asigna a quien lo pide', () => {
+    // Quitarle el bloqueo al enlace de otra persona le dejaría a ella cambiarlo.
+    expect(accionesDeSolicitud('unlock', true)).toContain('desbloquear');
+    expect(accionesDeSolicitud('unlock', false)).not.toContain('desbloquear');
+    // El documento de otra cuenta se asigna a quien lo pide, no se libera:
+    // liberado, la cuenta anterior podía volver a reclamarlo antes que su dueño.
+    expect(accionesDeSolicitud('claimed', false)).toEqual(['asignar', 'rechazar']);
+    expect(accionesDeSolicitud('unlock', false)).toEqual(['asignar', 'rechazar']);
+  });
+
+  it('un rechazo lleva la nota de quien lo resolvió', () => {
+    expect(mensajeDeResolucion('rechazar', 'Acércate a coordinación con tu documento.')).toMatch(
+      /no la aprobó\. Acércate a coordinación/,
+    );
+    expect(mensajeDeResolucion('liberar')).toMatch(/liberó el documento/);
+    expect(mensajeDeResolucion('asignar')).toMatch(/te lo asignó, ya verificado/);
+  });
+});
+

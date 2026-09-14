@@ -3,6 +3,7 @@ import { z } from 'zod';
 import * as campo from '../../shared/validation.js';
 import { identificar, requireRole, exigirSesion } from '../../middlewares/auth.js';
 import { esPeriodoValido } from '../../domains/periods/period-lifecycle.js';
+import { esFinDePeriodoValido } from '../../domains/periods/period-calendar.js';
 import * as servicio from './period.service.js';
 
 /**
@@ -59,8 +60,42 @@ periodRouter.get('/:period', exigirSesion, async (req, res, next) => {
 });
 
 /**
- * Inicia o retoma el cierre. Solo administración: cerrar un semestre bloquea
- * las notas de todos los docentes de la institución.
+ * Nombre y último día del periodo.
+ *
+ * El último día sale del acuerdo del Consejo Académico (el de las notas de
+ * habilitación): hasta ese día queda fijo el enlace de UniPlanner de quien
+ * marca asistencia por QR. `endsOn: null` vuelve a la fecha por defecto.
+ * No depende del estado: se puede corregir con el periodo cerrado.
+ *
+ * Solo ADMIN: el periodo es global —`2026-2` es el mismo documento para
+ * todas las universidades—, así que una coordinación que lo cambiara movería
+ * la fecha de las demás.
+ */
+periodRouter.patch('/:period', requireRole('ADMIN'), async (req, res, next) => {
+  try {
+    const clave = periodo.parse(String(req.params.period));
+    const cambios = z
+      .object({
+        label: campo.linea.optional(),
+        endsOn: z
+          .string()
+          .refine(esFinDePeriodoValido, 'Usa un día real con la forma AAAA-MM-DD.')
+          .nullable()
+          .optional(),
+      })
+      .parse(req.body ?? {});
+    const item = await servicio.configurarPeriodo(clave, cambios, { id: String(req.user?.id) });
+    res.json({ ok: true, item });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Inicia o retoma el cierre. Solo ADMIN: el periodo es global —`2026-2` es el
+ * mismo documento para todas las universidades—, así que cerrarlo bloquea las
+ * notas de todos los docentes de todas ellas. Una coordinación no puede tomar
+ * esa decisión por las demás; antes podía.
  *
  * @openapi
  * /periods/{period}/cierre:
@@ -83,11 +118,11 @@ periodRouter.get('/:period', exigirSesion, async (req, res, next) => {
  *       400:
  *         description: El periodo no tiene la forma AAAA-N
  *       403:
- *         description: Solo ADMIN o COORDINATOR
+ *         description: Solo ADMIN
  *       409:
  *         description: El periodo ya estaba cerrado
  */
-periodRouter.post('/:period/cierre', requireRole('ADMIN', 'COORDINATOR'), async (req, res, next) => {
+periodRouter.post('/:period/cierre', requireRole('ADMIN'), async (req, res, next) => {
   try {
     const clave = periodo.parse(String(req.params.period));
     const resultado = await servicio.cerrarPeriodo(clave, {
@@ -198,6 +233,8 @@ periodRouter.get('/:period/fotografia', exigirSesion, async (req, res, next) => 
     const usuario = req.user!;
     const filtro: servicio.FiltroFotografia = { period: clave, ...consulta };
     if (usuario.role === 'PROFESSOR') filtro.teacherId = usuario.id;
+    // Coordinación y secretaría: el acta de sus carreras, no la de otra universidad.
+    if (req.alcance && !req.alcance.total) filtro.subjectIds = req.alcance.subjectIds;
     if (usuario.role === 'STUDENT') {
       // Sin ficha vinculada la consulta se cierra a nada, no se abre a todos.
       filtro.studentId = usuario.studentId ?? '000000000000000000000000';
@@ -210,12 +247,15 @@ periodRouter.get('/:period/fotografia', exigirSesion, async (req, res, next) => 
   }
 });
 
-periodRouter.get('/:period/fotografia/resumen', exigirSesion, async (req, res, next) => {
+// Sin STUDENT: es el consolidado de todos, y un estudiante solo tiene asunto con
+// sus propias filas (que ya le da `/fotografia`).
+periodRouter.get('/:period/fotografia/resumen', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
     const clave = periodo.parse(String(req.params.period));
     const usuario = req.user!;
     const soloSuyo = usuario.role === 'PROFESSOR' ? usuario.id : undefined;
-    res.json({ ok: true, item: await servicio.resumenFotografia(clave, soloSuyo) });
+    const materias = req.alcance && !req.alcance.total ? req.alcance.subjectIds : undefined;
+    res.json({ ok: true, item: await servicio.resumenFotografia(clave, soloSuyo, materias) });
   } catch (err) {
     next(err);
   }

@@ -12,6 +12,8 @@
  * auditoría, y vive en su propio panel. Mezclarlos convertiría la ficha en un
  * volcado de registros que nadie lee.
  */
+import { esRolPorPrograma } from '../../shared/types.js';
+import { SIN_RESULTADOS_ID, type AlcanceDePrograma } from '../../domains/scope/program-scope.js';
 import { Types } from 'mongoose';
 import { EnrollmentModel } from '../../models/enrollment.model.js';
 import { GradeModel } from '../../models/grade.model.js';
@@ -65,7 +67,18 @@ export type FiltroHistorial = {
   hasta?: Date;
 };
 
-export type Solicitante = { id: string; role: string; studentId?: string };
+export type Solicitante = {
+  id: string;
+  role: string;
+  studentId?: string;
+  /** Alcance por programa de coordinación y secretaría (`req.alcance`). */
+  alcance?: AlcanceDePrograma;
+};
+
+/** Coordinación o secretaría con un alcance que acota. */
+function acotadoPorPrograma(usuario: Solicitante): usuario is Solicitante & { alcance: AlcanceDePrograma } {
+  return esRolPorPrograma(usuario.role) && Boolean(usuario.alcance) && !usuario.alcance!.total;
+}
 
 type ParDeAlcance = { subjectId: string; period: string };
 type AlcanceEfectivo = ParDeAlcance[] | null;
@@ -89,7 +102,19 @@ class ErrorDeHistorial extends Error {
  * porque filtrar solo el listado deja la ficha accesible a quien copie un id.
  */
 export async function exigirAcceso(studentId: string, usuario: Solicitante, subjectId?: string): Promise<void> {
-  if (usuario.role === 'ADMIN' || usuario.role === 'COORDINATOR') return;
+  if (usuario.role === 'ADMIN') return;
+
+  // Coordinación y secretaría (secretaría caía antes en la rama del docente y
+  // recibía 403): estudiantes y materias de sus carreras.
+  if (esRolPorPrograma(usuario.role)) {
+    if (acotadoPorPrograma(usuario) && (
+      !usuario.alcance.studentIds.includes(studentId)
+      || (subjectId && !usuario.alcance.subjectIds.includes(subjectId))
+    )) {
+      throw new ErrorDeHistorial('Forbidden', 403);
+    }
+    return;
+  }
 
   if (usuario.role === 'STUDENT') {
     if (!usuario.studentId || usuario.studentId !== studentId) {
@@ -120,6 +145,26 @@ async function resolverAlcanceEfectivo(
   usuario: Solicitante,
 ): Promise<AlcanceEfectivo> {
   await exigirAcceso(filtro.studentId, usuario, filtro.subjectId);
+
+  if (acotadoPorPrograma(usuario)) {
+    // Solo lo de sus carreras: el mismo estudiante puede cursar materias de
+    // otra, y esas no son asunto de esta coordinación.
+    const matriculas = await EnrollmentModel.find({
+      studentId: filtro.studentId,
+      subjectId: { $in: usuario.alcance.subjectIds },
+      deletedAt: null,
+      ...(filtro.subjectId ? { subjectId: filtro.subjectId } : {}),
+      ...(filtro.period ? { period: filtro.period } : {}),
+    }).select('subjectId period').lean();
+    const pares = [...new Map(matriculas.map(m => {
+      const par = { subjectId: String(m.subjectId), period: String(m.period) };
+      return [`${par.subjectId}|${par.period}`, par] as const;
+    })).values()];
+    // `$or` vacío no es una consulta válida: sin matrículas propias, un par
+    // imposible que no casa con nada.
+    return pares.length > 0 ? pares : [{ subjectId: SIN_RESULTADOS_ID, period: '' }];
+  }
+
   if (usuario.role !== 'PROFESSOR') return null;
 
   const matriculas = await EnrollmentModel.find({

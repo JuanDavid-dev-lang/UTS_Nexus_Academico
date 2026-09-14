@@ -51,6 +51,8 @@ export const ESCRITURAS_DE_SOLO_LECTURA: readonly RegExp[] = [
   /^\/notifications\/[^/]+\/read$/,
   /^\/notifications\/devices$/,
   /^\/notifications\/[^/]+$/,
+  // Avisos institucionales: marcar uno como leído.
+  /^\/announcements\/[^/]+\/leido$/,
   // Telemetría de cliente: un fallo de la propia aplicación se reporta solo.
   /^\/telemetry\/errores$/,
   // Buzón de sugerencias: escribir la suya propia.

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { acotarPorAlcance } from '../../domains/scope/program-scope.js';
 import { Types } from 'mongoose';
 import multer from 'multer';
 import { z } from 'zod';
@@ -52,8 +53,13 @@ async function puedeTocarMateria(
 
 scheduleRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (_req, res, next) => {
   try {
-    const filter: Record<string, unknown> = { deletedAt: null };
+    let filter: Record<string, unknown> = { deletedAt: null };
     if (_req.user?.role === 'PROFESSOR') filter.teacherId = _req.user.id;
+    // Coordinación y secretaría: el horario de sus carreras, no el de todas
+    // las universidades.
+    if (_req.alcance && !_req.alcance.total) {
+      filter = acotarPorAlcance(filter, 'subjectId', _req.alcance.subjectIds);
+    }
     const items = await ScheduleModel.find(filter).sort({ order: 1, dayOfWeek: 1, startTime: 1 }).limit(200).lean();
 
     // El nombre de la materia viaja con la franja: la pantalla de horario

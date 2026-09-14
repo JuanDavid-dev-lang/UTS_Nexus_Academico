@@ -4,7 +4,7 @@ import { NotificationModel } from '../../models/notification.model.js';
 import { DeviceModel } from '../../models/device.model.js';
 import { NotificationPreferenceModel } from '../../models/notification-preference.model.js';
 import { identificar, requireRole } from '../../middlewares/auth.js';
-import { emitToUser } from '../../shared/socket.js';
+import { emitSoloAUsuario, emitToUser } from '../../shared/socket.js';
 import { crearNotificacion, obtenerPreferencias, normalizarPreferencias } from '../../shared/notify.js';
 import { pushConfigurado } from '../../shared/push.js';
 import { normalizarAntelaciones } from '../../domains/agenda/agenda.service.js';
@@ -15,7 +15,13 @@ import { notificarVersionNueva } from './release-notifier.service.js';
 export const notificationRouter = Router();
 notificationRouter.use(identificar);
 
-const TODOS = ['ADMIN', 'PROFESSOR', 'COORDINATOR', 'STUDENT'] as const;
+/**
+ * Todos los roles con bandeja. Secretaría incluida: faltaba, así que no podía
+ * marcar como leídos sus avisos, ni guardar sus preferencias, ni registrar el
+ * teléfono para el push — la lista blanca de `role-access.ts` ya le dejaba
+ * escribir sobre su bandeja, pero aquí se le respondía 403.
+ */
+const TODOS = ['ADMIN', 'PROFESSOR', 'COORDINATOR', 'SECRETARY', 'STUDENT'] as const;
 
 const listadoSchema = z.object({
   /** `unread` deja solo las pendientes; `all` (por defecto) no filtra. */
@@ -28,9 +34,11 @@ const listadoSchema = z.object({
 notificationRouter.get('/', requireRole(...TODOS), async (req, res, next) => {
   try {
     const query = listadoSchema.parse(req.query);
-    const filter: Record<string, unknown> = { deletedAt: null };
-    // Docente y estudiante solo ven sus propias notificaciones.
-    if (req.user?.role === 'PROFESSOR' || req.user?.role === 'STUDENT') filter.userId = req.user.id;
+    // **Cada rol ve su propia bandeja**, también administración y
+    // coordinación. Antes esos dos roles recibían aquí las notificaciones de
+    // todo el sistema: los avisos de riesgo de los estudiantes de cualquier
+    // universidad, mezclados con los suyos.
+    const filter: Record<string, unknown> = { deletedAt: null, userId: req.user!.id };
     if (query.estado === 'unread') filter.readAt = null;
     if (query.priority) filter.priority = query.priority;
     if (query.type) filter.type = query.type;
@@ -172,8 +180,13 @@ notificationRouter.delete('/devices', requireRole(...TODOS), async (req, res, ne
 notificationRouter.post('/risks/scan', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
     const period = req.query.period ? String(req.query.period) : undefined;
+    // El docente, sobre sus grupos; coordinación, sobre las materias de su
+    // alcance. Sin esto el escaneo de una coordinación era global y creaba
+    // avisos para los docentes de todas las universidades.
+    const acotado = req.user?.role === 'COORDINATOR' && req.alcance && !req.alcance.total;
     const result = await generateRiskNotifications({
       teacherId: req.user?.role === 'PROFESSOR' ? req.user.id : undefined,
+      subjectIds: acotado ? req.alcance!.subjectIds : undefined,
       period,
     });
     res.json({ ok: true, ...result });
@@ -299,10 +312,14 @@ notificationRouter.post('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), a
 
 // ── Lectura y limpieza ───────────────────────────────────────────────────────
 
-/** Ámbito de escritura sobre la bandeja: los propios, salvo ADMIN/COORDINATOR. */
+/**
+ * Ámbito de escritura sobre la bandeja: **siempre los propios**.
+ *
+ * Antes ADMIN y COORDINATOR escribían sobre todas: «marcar todo como leído»
+ * marcaba los avisos de todo el mundo, y borrar podía borrar los de otro.
+ */
 function ambitoPropio(req: { user?: { id: string; role: string } }): Record<string, unknown> {
-  if (req.user?.role === 'PROFESSOR' || req.user?.role === 'STUDENT') return { userId: req.user.id };
-  return {};
+  return { userId: req.user!.id };
 }
 
 notificationRouter.patch('/read-all', requireRole(...TODOS), async (req, res, next) => {
@@ -311,7 +328,7 @@ notificationRouter.patch('/read-all', requireRole(...TODOS), async (req, res, ne
       { ...ambitoPropio(req), deletedAt: null, readAt: null },
       { $set: { readAt: new Date() } },
     );
-    emitToUser(req.user!.id, 'sync:update', { entity: 'notification', action: 'read-all', id: req.user!.id });
+    emitSoloAUsuario(req.user!.id, 'sync:update', { entity: 'notification', action: 'read-all', id: req.user!.id });
     res.json({ ok: true, count: resultado.modifiedCount ?? 0 });
   } catch (err) {
     next(err);
@@ -323,7 +340,7 @@ notificationRouter.patch('/:id/read', requireRole(...TODOS), async (req, res, ne
     const filter: Record<string, unknown> = { _id: req.params.id, deletedAt: null, ...ambitoPropio(req) };
     const item = await NotificationModel.findOneAndUpdate(filter, { $set: { readAt: new Date() } }, { new: true });
     if (!item) return res.status(404).json({ ok: false, message: 'Not found' });
-    emitToUser(String(item.userId), 'sync:update', { entity: 'notification', action: 'read', id: String(item._id) });
+    emitSoloAUsuario(String(item.userId), 'sync:update', { entity: 'notification', action: 'read', id: String(item._id) });
     res.json({ ok: true, item });
   } catch (err) {
     next(err);
@@ -341,7 +358,7 @@ notificationRouter.delete('/:id', requireRole(...TODOS), async (req, res, next) 
       { new: true },
     );
     if (!item) return res.status(404).json({ ok: false, message: 'Not found' });
-    emitToUser(String(item.userId), 'sync:update', { entity: 'notification', action: 'delete', id: String(item._id) });
+    emitSoloAUsuario(String(item.userId), 'sync:update', { entity: 'notification', action: 'delete', id: String(item._id) });
     res.json({ ok: true });
   } catch (err) {
     next(err);

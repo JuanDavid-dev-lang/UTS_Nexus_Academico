@@ -31,7 +31,10 @@ const cuerpo = z.object({
 
 const ESTADOS = ['NUEVO', 'EN_REVISION', 'RESUELTO', 'DESCARTADO'] as const;
 
-feedbackRouter.post('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
+// SECRETARY explícito: su lista blanca de escritura (`role-access.ts`) deja
+// pasar su sugerencia propia, pero `rolesEfectivos` solo la hace valer como
+// coordinación al leer, así que sin nombrarla aquí recibía un 403.
+feedbackRouter.post('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR', 'SECRETARY'), async (req, res, next) => {
   try {
     const datos = cuerpo.parse(req.body);
 
@@ -53,12 +56,14 @@ feedbackRouter.post('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async
 });
 
 /**
- * Bandeja. La administración ve todo; un docente, solo lo suyo — el buzón no
- * es un foro y lo que reportó otro no es asunto de nadie más.
+ * Bandeja. La administración ve todo; los demás, solo lo suyo — el buzón no
+ * es un foro y lo que reportó otro no es asunto de nadie más. Coordinación
+ * entraba como gestora y leía las sugerencias de todas las universidades sin
+ * poder gestionarlas: quien las atiende es ADMIN.
  */
 feedbackRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
-    const esGestor = req.user?.role === 'ADMIN' || req.user?.role === 'COORDINATOR';
+    const esGestor = req.user?.role === 'ADMIN';
     const filtro: Record<string, unknown> = { deletedAt: null };
     if (!esGestor) filtro.autorId = req.user?.id;
     if (req.query.estado && ESTADOS.includes(String(req.query.estado) as (typeof ESTADOS)[number])) {

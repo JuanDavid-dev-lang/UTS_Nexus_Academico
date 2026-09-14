@@ -27,6 +27,13 @@ const schema = new Schema(
     period: { type: String, required: true, unique: true, index: true },
     /** Nombre legible opcional («Primer semestre 2026»). */
     label: { type: String, default: '' },
+    /**
+     * Último día del semestre (`AAAA-MM-DD`): el de las notas de habilitación
+     * del acuerdo del Consejo Académico. Hasta ese día queda fijo el enlace de
+     * UniPlanner de quien marca asistencia por QR. Sin él se usa el de
+     * `domains/periods/period-calendar.ts`.
+     */
+    endsOn: { type: String, default: null },
     state: {
       type: String,
       enum: ['OPEN', 'CLOSING', 'CLOSED'],

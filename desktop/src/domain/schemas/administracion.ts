@@ -34,6 +34,13 @@ export const periodoSchema = z.object({
   reaperturas: numberish.default(0),
   /** `true` cuando el periodo aún no tiene documento propio (histórico). */
   implicito: z.boolean().default(false),
+  /**
+   * Último día del semestre (`AAAA-MM-DD`), del acuerdo del Consejo Académico.
+   * Hasta ese día queda fijo el enlace de UniPlanner de quien marca asistencia
+   * por QR. `endsOnPorDefecto` es el que se usa si no hay ninguno.
+   */
+  endsOn: z.string().nullable().default(null),
+  endsOnPorDefecto: z.string().nullable().default(null),
 });
 export type Periodo = z.infer<typeof periodoSchema>;
 

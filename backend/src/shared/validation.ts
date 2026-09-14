@@ -17,8 +17,69 @@ import { z } from 'zod';
  * cuántos caracteres tocaban.
  */
 
-/** Identificador corto: cédula, código de materia, código de empleado. */
+/** Identificador corto: código de materia, código de empleado, grupo. */
 export const codigo = z.string().trim().min(1).max(40);
+
+/** Dígitos de un documento de identidad: entre 4 y 15. */
+export const PATRON_DOCUMENTO = /^\d{4,15}$/;
+
+/**
+ * El documento de identidad de un estudiante (cédula, tarjeta de identidad),
+ * tal y como se guarda: **solo dígitos**.
+ *
+ * Es la clave con la que se identifica a la persona en todas partes —la
+ * matrícula, las importaciones, el enlace con UniPlanner— y es única. Se
+ * toleran los separadores con que se escribe a mano o sale de una planilla
+ * (`1.098.765.432`, `1098 765 432`, `1098-765-432`) y se quitan antes de
+ * guardar; una letra o cualquier otro símbolo es un 400. Con letras, el mismo
+ * documento podía existir dos veces —`1098765432` y `CC1098765432`— y el enlace
+ * de UniPlanner, que es solo numérico, no encontraba a ninguno.
+ */
+export function limpiarDocumento(bruto: string): string {
+  return String(bruto ?? '').trim().replace(/[\s.-]/g, '');
+}
+
+/**
+ * El nombre completo de un estudiante tal y como se guarda: **solo letras y
+ * espacios, en mayúsculas** (`JUAN CARLOS PÉREZ GÓMEZ`).
+ *
+ * Es uno de los tres datos con los que se verifica solo el enlace de
+ * UniPlanner (documento, nombre y universidad), y UniPlanner lo guarda igual.
+ * Guardado en una misma forma en los dos lados, `juan pérez` y `JUAN PÉREZ` no
+ * son dos personas. Los signos que traen las planillas —la coma de «PÉREZ,
+ * JUAN», el guion de «GÓMEZ-PINZÓN», el apóstrofo de «O'NEIL»— se quitan; un
+ * número o cualquier otro símbolo es un 400.
+ */
+export function limpiarNombrePersona(bruto: string): string {
+  return String(bruto ?? '')
+    .normalize('NFC')
+    .replace(/['’`´]/g, '')
+    .replace(/[,.;\-_]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLocaleUpperCase('es');
+}
+
+export const nombrePersona = z
+  .string()
+  .transform(limpiarNombrePersona)
+  .pipe(
+    z
+      .string()
+      .min(3, 'El nombre es demasiado corto.')
+      .max(120)
+      .regex(/^\p{L}+( \p{L}+)*$/u, 'El nombre lleva solo letras y espacios: sin números ni símbolos.'),
+  );
+
+export const documento = z
+  .string()
+  .transform(limpiarDocumento)
+  .pipe(
+    z.string().regex(
+      PATRON_DOCUMENTO,
+      'El documento lleva solo números: sin letras ni símbolos, entre 4 y 15 dígitos.',
+    ),
+  );
 
 /** Nombre propio, de materia o de grupo. */
 export const nombre = z.string().trim().min(1).max(120);

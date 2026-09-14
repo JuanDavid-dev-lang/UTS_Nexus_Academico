@@ -170,9 +170,18 @@ institutionRouter.get('/:id', requireRole('ADMIN', 'COORDINATOR', 'SECRETARY'), 
   }
 });
 
-institutionRouter.get('/:id/docentes', ES_ADMIN, async (req, res, next) => {
+/**
+ * Docentes de una institución. Coordinación y secretaría, solo los de la suya:
+ * es lo que necesitan para saber de dónde viene un docente, y la pantalla ya se
+ * lo ofrecía y recibía un 403.
+ */
+institutionRouter.get('/:id/docentes', requireRole('ADMIN', 'COORDINATOR', 'SECRETARY'), async (req, res, next) => {
   try {
-    res.json({ ok: true, items: await docentesDe(idParam(req)) });
+    const propia = req.user?.role === 'ADMIN' ? null : (req.alcance?.institutionId ?? null);
+    if (req.user?.role !== 'ADMIN' && !propia) {
+      return res.status(404).json({ ok: false, message: 'Institución no encontrada.' });
+    }
+    res.json({ ok: true, items: await docentesDe(idParam(req), propia) });
   } catch (err) {
     responderError(err, res, next);
   }

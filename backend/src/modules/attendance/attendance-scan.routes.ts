@@ -12,6 +12,7 @@ import { emitSync } from '../../shared/socket.js';
 import { getEnrolledStudentIds, getProfessorScope } from '../../shared/professor-scope.js';
 import { cruzarConMatricula, ordenarPorApellido } from '../../domains/attendance/sheet-match.js';
 import { exigirPeriodoAbierto } from '../../shared/period-guard.js';
+import { campoFechaDeClase } from '../../shared/class-date.js';
 import { mlFetch } from '../../shared/ml-client.js';
 import { ENTRADA_DE_ESCANER, exigirTipoReal, filtroPorMimetype } from '../../shared/uploads.js';
 import { limiteLotes } from '../../middlewares/rate-limit.js';
@@ -188,7 +189,7 @@ const confirmacion = z
     // Una fecha por columna de la planilla. El docente las confirma o corrige:
     // adivinar la fecha de una clase a partir de la foto y guardarla mal es
     // exactamente el error que este flujo tiene que evitar.
-    fechas: z.array(z.coerce.date()).min(1).max(campo.TOPE_FECHAS),
+    fechas: z.array(campoFechaDeClase).min(1).max(campo.TOPE_FECHAS),
     durationMinutes: z.number().int().min(30).max(300).default(90),
     filas: z
       .array(
@@ -327,6 +328,7 @@ attendanceScanRouter.post('/scan/confirm', requireRole('ADMIN', 'PROFESSOR'), li
               teacherId: teacherObjectId,
               period: group.period,
               deletedAt: null,
+              origen: 'PLANILLA',
               // Queda registrado de dónde salió el dato: si mañana alguien
               // reclama una falta, se puede saber que vino de una foto revisada
               // y no de un registro hecho en clase.

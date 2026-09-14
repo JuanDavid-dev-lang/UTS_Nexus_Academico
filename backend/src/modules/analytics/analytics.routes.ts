@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { dentroDelAlcanceDePrograma } from '../../domains/scope/program-scope.js';
 import { z } from 'zod';
 import { identificar, requireRole } from '../../middlewares/auth.js';
 import { StudentModel } from '../../models/student.model.js';
@@ -139,11 +140,8 @@ analyticsRouter.patch('/risks/intervencion', requireRole('ADMIN', 'PROFESSOR', '
     // Un docente solo anota sobre sus propios estudiantes y materias. Sin esta
     // comprobación, el seguimiento sería una vía para escribir en el expediente
     // de un estudiante ajeno.
-    if (req.user?.role === 'PROFESSOR') {
-      const scope = await getProfessorScope(req.user.id);
-      if (!scope.studentIds.includes(body.studentId) || !scope.subjectIds.includes(body.subjectId)) {
-        return res.status(403).json({ ok: false, message: 'Fuera de tu alcance' });
-      }
+    if (!(await exigirAlcance(req, body.studentId, body.subjectId))) {
+      return res.status(403).json({ ok: false, message: 'Fuera de tu alcance' });
     }
 
     const item = await RiskFeedbackModel.findOneAndUpdate(
@@ -154,11 +152,16 @@ analyticsRouter.patch('/risks/intervencion', requireRole('ADMIN', 'PROFESSOR', '
           interventionNote: body.nota,
           interventionAt: new Date(),
           interventionBy: req.user?.id,
-          teacherId: req.user?.id,
+          // El caso es del docente de la materia: si anota coordinación, queda
+          // en `interventionBy` y el caso no cambia de dueño.
+          ...(req.user?.role === 'PROFESSOR' ? { teacherId: req.user.id } : {}),
         },
         // Solo al crear: si el caso ya existe porque el modelo lo registró, su
         // predicción original no debe reescribirse con un valor de relleno.
-        $setOnInsert: { predictedLevel: 'MEDIUM' },
+        $setOnInsert: {
+          predictedLevel: 'MEDIUM',
+          ...(req.user?.role === 'PROFESSOR' ? {} : await docenteDeLaMateria(body.subjectId)),
+        },
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
@@ -198,7 +201,26 @@ function progresoEntre(desde: string, hasta: string): 'MEJORA' | 'IGUAL' | 'EMPE
   return delta < 0 ? 'MEJORA' : delta > 0 ? 'EMPEORA' : 'IGUAL';
 }
 
+/**
+ * Dueño de un caso que abre alguien que no es su docente (coordinación,
+ * ADMIN): el docente de la materia. Sin esto el caso nacía sin `teacherId` y
+ * los recordatorios de seguimiento no le llegaban a nadie.
+ */
+async function docenteDeLaMateria(subjectId: string): Promise<Record<string, unknown>> {
+  const materia = await SubjectModel.findById(subjectId).select('professorId').lean();
+  return materia?.professorId ? { teacherId: materia.professorId } : {};
+}
+
+/**
+ * Si el caso (estudiante, materia) es de quien llama: del docente por matrícula,
+ * de coordinación y secretaría por programa. Sin la segunda mitad, coordinación
+ * leía y escribía el seguimiento de estudiantes de otra universidad.
+ */
 async function exigirAlcance(req: any, studentId: string, subjectId: string): Promise<boolean> {
+  if (req.alcance && !req.alcance.total) {
+    return dentroDelAlcanceDePrograma(req.alcance, 'subjectIds', subjectId)
+      && dentroDelAlcanceDePrograma(req.alcance, 'studentIds', studentId);
+  }
   if (req.user?.role !== 'PROFESSOR') return true;
   const scope = await getProfessorScope(req.user.id);
   return scope.studentIds.includes(studentId) && scope.subjectIds.includes(subjectId);
@@ -306,10 +328,16 @@ analyticsRouter.post('/risks/seguimientos', requireRole('ADMIN', 'PROFESSOR', 'C
             creadoEn: new Date(),
           },
         },
-        $set: { teacherId: req.user?.id },
+        // El caso es del docente de la materia: si abre el episodio
+        // coordinación, queda en `creadoPor` y los recordatorios siguen
+        // llegándole al docente.
+        ...(req.user?.role === 'PROFESSOR' ? { $set: { teacherId: req.user.id } } : {}),
         // Solo al crear el caso: si ya existía por el modelo, su predicción no
         // se pisa con un valor de relleno.
-        $setOnInsert: { predictedLevel: 'MEDIUM' },
+        $setOnInsert: {
+          predictedLevel: 'MEDIUM',
+          ...(req.user?.role === 'PROFESSOR' ? {} : await docenteDeLaMateria(body.subjectId)),
+        },
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
