@@ -241,7 +241,10 @@ export default function SubjectsPage() {
                     </p>
                   </div>
 
-                  <div className="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                  {/* Siempre a la vista, más tenues sin el ratón encima: ocultos
+                      del todo ocupaban igual su sitio —cortando el nombre de la
+                      materia— sin que se supiera que estaban ahí. */}
+                  <div className="flex shrink-0 gap-0.5 opacity-60 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                     {canWrite ? (
                       <Tooltip content="Estudiantes de la materia">
                         <Button

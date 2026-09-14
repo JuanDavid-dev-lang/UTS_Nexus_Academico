@@ -440,6 +440,15 @@ function FilaVinculo({
           {vinculo.estudiante ? ` · ${vinculo.estudiante.program}` : ''}
           {vinculo.enlazadoEn ? ` · enlazado el ${fecha(vinculo.enlazadoEn)}` : ''}
         </span>
+        {/* El motivo a la vista y no en un tooltip: es lo que dice si hay que
+            matricular a alguien, corregir un nombre o no hacer nada. */}
+        {vinculo.motivo && !vinculo.verificado ? (
+          <span
+            className={`text-caption ${vinculo.verificacion === 'no_coincide' ? 'text-danger' : 'text-warning'}`}
+          >
+            {textoDelMotivo(vinculo)}
+          </span>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
@@ -515,6 +524,28 @@ function FilaVinculo({
       ) : null}
     </li>
   );
+}
+
+/**
+ * Por qué el enlace no casa con el registro, en lo que hay que hacer.
+ *
+ * Sin matrícula es el caso más común y el que más confunde: la persona
+ * escribió bien sus datos, pero sin ningún curso Nexus no sabe de qué
+ * universidad es. Se arregla matriculándola, y el enlace se verifica solo.
+ */
+function textoDelMotivo(vinculo: Vinculo): string {
+  switch (vinculo.motivo) {
+    case 'sin_estudiante':
+      return 'Ningún estudiante de Nexus tiene este documento.';
+    case 'sin_matricula':
+      return 'Está en Nexus pero sin matrícula en ningún curso. Al matricularlo se verifica solo.';
+    case 'otra_universidad':
+      return 'Sus cursos en Nexus son de otra universidad.';
+    case 'nombre_distinto':
+      return `El nombre no coincide: en UniPlanner escribió «${vinculo.nombreEnUniPlanner ?? ''}» y en Nexus es «${vinculo.estudiante?.fullName ?? ''}».`;
+    default:
+      return '';
+  }
 }
 
 const TEXTO_ACCION_VINCULO: Record<AccionVinculo, { titulo: string; cuerpo: string; boton: string }> = {

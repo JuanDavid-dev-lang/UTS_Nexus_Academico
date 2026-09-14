@@ -3,7 +3,7 @@ import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
 import { AppShell } from '@/shared/layouts/app-shell';
 import { useSession } from '@/state/session.store';
 import { Con } from '@/app/require-capability';
-import { BootScreen } from '@/app/boot-screen';
+import { BootScreen, UnreachableScreen } from '@/app/boot-screen';
 
 /**
  * Routes.
@@ -45,6 +45,7 @@ function RequireAuth() {
   const status = useSession((state) => state.status);
 
   if (status === 'booting') return <BootScreen />;
+  if (status === 'unreachable') return <UnreachableScreen />;
   if (status === 'anonymous') return <Navigate to="/login" replace />;
   return <Outlet />;
 }
@@ -54,7 +55,9 @@ function RedirectIfAuthenticated() {
   const status = useSession((state) => state.status);
 
   if (status === 'booting') return <BootScreen />;
-  if (status === 'authenticated') return <Navigate to="/" replace />;
+  // Con una sesión guardada y el servidor sin contestar, se espera a que
+  // vuelva en vez de pedir la contraseña otra vez.
+  if (status === 'authenticated' || status === 'unreachable') return <Navigate to="/" replace />;
   return <Outlet />;
 }
 

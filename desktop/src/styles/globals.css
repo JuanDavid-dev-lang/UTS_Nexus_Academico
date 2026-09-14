@@ -21,6 +21,17 @@
  */
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
+/*
+ * `hover:` sin la media query. Tailwind 4 envuelve cada `hover:` (y con él
+ * `group-hover:`) en `@media (hover: hover)`, y el WebView de Linux
+ * (WebKitGTK) no siempre dice que hay un puntero que puede pasar por encima.
+ * Allí no se aplicaba ningún hover: los botones de las tarjetas de Materias,
+ * que solo aparecían al pasar el ratón, no aparecían nunca (el tooltip sí,
+ * porque va por eventos de JavaScript). Es una app de escritorio: el ratón
+ * existe siempre.
+ */
+@custom-variant hover (&:hover);
+
 @theme inline {
   --color-bg: var(--bg);
   --color-bg-subtle: var(--bg-subtle);

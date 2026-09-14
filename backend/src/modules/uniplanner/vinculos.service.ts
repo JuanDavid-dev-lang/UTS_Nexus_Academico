@@ -18,6 +18,7 @@
  * secretaría, la suya y solo los estudiantes de su alcance —su institución, y
  * sus programas si tiene—. Secretaría lee y no escribe (`bloquearSoloLectura`).
  */
+import { Types } from 'mongoose';
 import { InstitutionModel } from '../../models/institution.model.js';
 import { StudentModel } from '../../models/student.model.js';
 import { UserModel } from '../../models/user.model.js';
@@ -35,8 +36,9 @@ import {
   type AccionSolicitud,
   type TipoSolicitud,
 } from '../../domains/uniplanner/link-admin.js';
+import { motivoSinCoincidencia, type MotivoSinCoincidencia } from '../../domains/uniplanner/link-verification.js';
 import type { AlcanceDePrograma } from '../../domains/scope/program-scope.js';
-import { avisarEnlaceVerificado } from './verificacion.service.js';
+import { avisarEnlaceVerificado, institucionesDe } from './verificacion.service.js';
 
 export class ErrorDeVinculo extends Error {
   constructor(
@@ -111,6 +113,12 @@ export type Vinculo = {
   verificacion: 'automatica' | 'manual' | 'no_coincide' | 'pendiente' | 'sin_nombre' | null;
   /** El nombre que escribió la persona en UniPlanner. Para resolver un «no coincide». */
   nombreEnUniPlanner: string | null;
+  /**
+   * Por qué no casa con el registro, si no está verificado y tiene nombre:
+   * `sin_estudiante`, `sin_matricula`, `otra_universidad` o `nombre_distinto`.
+   * Solo lo ve la institución; el estudiante recibe un único «no coincide».
+   */
+  motivo: MotivoSinCoincidencia | null;
   /** El estudiante de Nexus con ese documento, o `null` si no hay ninguno. */
   estudiante: EstudianteDeVinculo | null;
 };
@@ -120,8 +128,10 @@ function aVinculo(
   codigo: string,
   datos: Record<string, unknown> | null,
   estudiante: EstudianteDeVinculo | null,
+  instituciones: ReadonlyMap<string, ReadonlySet<string>>,
 ): Vinculo {
   const fecha = (valor: unknown) => (valor instanceof Date ? valor.toISOString() : null);
+  const nombre = typeof datos?.fullName === 'string' ? datos.fullName.slice(0, 120) : '';
   const bloqueo = datos?.lockedUntil instanceof Date && datos.lockedUntil > new Date() ? datos.lockedUntil : null;
   return {
     linkId,
@@ -132,9 +142,23 @@ function aVinculo(
     bloqueadoHasta: fecha(bloqueo),
     enlazadoEn: fecha(datos?.linkedAt),
     verificacion: estadoDeVerificacion(datos),
-    nombreEnUniPlanner: typeof datos?.fullName === 'string' && datos.fullName ? datos.fullName.slice(0, 120) : null,
+    nombreEnUniPlanner: nombre || null,
+    motivo:
+      datos && datos.verified !== true && nombre.trim()
+        ? motivoSinCoincidencia(
+            { institucion: partesDelEnlace(linkId)?.institucion ?? '', nombre },
+            estudiante
+              ? { nombre: estudiante.fullName, instituciones: instituciones.get(estudiante.id) ?? new Set<string>() }
+              : null,
+          )
+        : null,
     estudiante,
   };
+}
+
+/** Las universidades en las que está matriculado cada estudiante, por su id. */
+function institucionesDeEstudiantes(estudiantes: Iterable<EstudianteDeVinculo>) {
+  return institucionesDe([...estudiantes].map((e) => new Types.ObjectId(e.id)));
 }
 
 function estadoDeVerificacion(datos: Record<string, unknown> | null): Vinculo['verificacion'] {
@@ -207,13 +231,16 @@ export async function listarVinculos(
         email: (e.email as string | null) ?? null,
       });
     }
-    const documentos = await Promise.all(
-      [...porLink.keys()].map(async (linkId) => [linkId, await puente.leerDocumento(`institution_links/${linkId}`)] as const),
-    );
+    const [documentos, instituciones] = await Promise.all([
+      Promise.all(
+        [...porLink.keys()].map(async (linkId) => [linkId, await puente.leerDocumento(`institution_links/${linkId}`)] as const),
+      ),
+      institucionesDeEstudiantes(porLink.values()),
+    ]);
     const items = documentos.map(([linkId, lectura]) => {
       const estudiante = porLink.get(linkId)!;
       const datosEnlace = lectura.ok ? (lectura.documento?.datos ?? null) : null;
-      return aVinculo(linkId, partesDelEnlace(linkId)?.codigo ?? '', datosEnlace, estudiante);
+      return aVinculo(linkId, partesDelEnlace(linkId)?.codigo ?? '', datosEnlace, estudiante, instituciones);
     });
     return { items: items.filter((v) => cumpleFiltro(v, datos.filtro)), siguiente: null };
   }
@@ -227,13 +254,14 @@ export async function listarVinculos(
 
   const codigos = pagina.documentos.map((d) => partesDelEnlace(d.id)?.codigo ?? '').filter(Boolean);
   const porCodigo = await estudiantesPorCodigo(codigos, ctx);
+  const instituciones = await institucionesDeEstudiantes(porCodigo.values());
   const items: Vinculo[] = [];
   for (const documento of pagina.documentos) {
     const partes = partesDelEnlace(documento.id);
     if (!partes) continue;
     const estudiante = porCodigo.get(partes.codigo) ?? null;
     if (ctx.visibles && !estudiante) continue;
-    const vinculo = aVinculo(documento.id, partes.codigo, documento.datos, estudiante);
+    const vinculo = aVinculo(documento.id, partes.codigo, documento.datos, estudiante, instituciones);
     if (cumpleFiltro(vinculo, datos.filtro)) items.push(vinculo);
   }
   const ultimo = pagina.documentos.at(-1);
@@ -338,9 +366,10 @@ export async function cambiarVinculo(
     userAgent: actor.userAgent ?? null,
   });
 
-  if (accion === 'liberar') return aVinculo(linkId, partes.codigo, null, estudiante);
+  const instituciones = await institucionesDeEstudiantes(estudiante ? [estudiante] : []);
+  if (accion === 'liberar') return aVinculo(linkId, partes.codigo, null, estudiante, instituciones);
   const actual = await puente.leerDocumento(`institution_links/${linkId}`);
-  return aVinculo(linkId, partes.codigo, actual.ok ? (actual.documento?.datos ?? null) : null, estudiante);
+  return aVinculo(linkId, partes.codigo, actual.ok ? (actual.documento?.datos ?? null) : null, estudiante, instituciones);
 }
 
 // ── Solicitudes de los estudiantes ───────────────────────────────────────────

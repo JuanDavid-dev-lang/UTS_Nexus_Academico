@@ -201,7 +201,8 @@ nada. La lista de siempre no cambia: quien no tiene la app se marca a mano.
   corregir el nombre en la ficha. **La universidad sale de la matrícula**: un
   estudiante registrado sin matricular no tiene ninguna y queda `not_matched`
   hasta que lo matriculan. Un solo estado de fallo (`not_matched`) para no
-  revelar qué documentos existen. Al quedar verificado —solo o a mano— le llega
+  revelar qué documentos existen; el motivo (`motivoSinCoincidencia`) solo lo
+  ven la institución en «Vínculos» y la auditoría. Al quedar verificado —solo o a mano— le llega
   un aviso `notice` a su buzón, con id fijo por enlace
   (`idDelAvisoDeVerificacion`): el cursor y una matrícula pueden verificarlo a
   la vez y el aviso es uno. **Comprueba datos, no identidad**: quien conozca el
@@ -375,6 +376,7 @@ Configuración → «Cuentas del personal»; la gestión continua, en Personal.
 ### Cuentas, sesión y recuperación
 - **`POST /auth/register` es solo para ADMIN.** Acepta `role: 'ADMIN'` y la ficha de docente nace `APROBADO`, así que abierto era un generador público de administradores que además saltaba entero el diseño de `/registro`. Quien se da de alta por su cuenta pasa por `/registro`: interruptor de la administración, estado `PENDIENTE` y revisión humana.
 - **`POST /auth/refresh` rota el token** (RTR): cada canje quema el anterior sobre la misma sesión. Reutilizar uno ya rotado revoca **toda** la familia de sesiones del usuario, que es la única señal disponible de que alguien copió un token.
+- **Solo el servidor termina una sesión; no contestar no la termina.** El refresco del escritorio distingue `rejected` (el servidor dijo que no: se borra) de `unreachable` (sin conexión, 5xx o 429: se conserva y la petición falla como `network`). Al arrancar, un `/auth/me` sin respuesta deja la sesión en `unreachable` —pantalla que reintenta sola cada 15 s— en vez de borrarla. Antes cualquier fallo al arrancar borraba los tokens, y abrir la app con el servidor apagado o aún despertando acababa siempre en el inicio de sesión.
 - **El código de recuperación se envía por correo, nunca en la respuesta.** Solo vuelve en `devCode` con `ALLOW_DEV_RECOVERY_CODE=1`, fuera de producción y sin `SMTP_HOST`: las tres condiciones a la vez. Devolverlo siempre convierte `/recovery/request` en una toma de cuenta de un solo paso, porque basta conocer un correo del directorio. Antes bastaban las dos últimas condiciones, es decir, **se deducía de dos ausencias**: un despliegue que olvidara `NODE_ENV` y no tuviera SMTP lo devolvía sin que nadie lo hubiera decidido. Deducir un permiso a partir de lo que falta es lo contrario de conceder un permiso.
 - **`POST /auth/password` cambia la contraseña propia y lo puede hacer cualquier rol** (incluida secretaría: escribe sobre su cuenta y sobre nada más, por eso está en la lista blanca de `role-access.ts`). Exige la actual —con solo el token, un equipo desbloqueado sería una toma de cuenta en dos clics—, **revoca todas las sesiones** y devuelve un par nuevo: sin eso, cambiarse la contraseña echaba al propio usuario al inicio de sesión y se leía como una avería. Está en Configuración de los dos clientes.
 - Las contraseñas van acotadas a 128 caracteres en todas las rutas: bcrypt solo mira 72 bytes, y sin tope `bcrypt.compare` con una cadena de megabytes ocupa el único hilo del proceso.
@@ -878,7 +880,10 @@ Cuatro decisiones que conviene no deshacer:
 - **El icono se saca de dentro de la propia AppImage**, no de un archivo
   aparte: así es siempre el de la versión que se está instalando. Si la
   extracción falla no se aborta nada — queda el icono genérico, que es un
-  defecto de aspecto y no de funcionamiento.
+  defecto de aspecto y no de funcionamiento. **`.DirIcon` es un enlace
+  simbólico** (Tauri lo empaqueta como `.DirIcon -> UTS Nexus Academico.png`):
+  extraer solo `.DirIcon` deja un enlace roto, y así se instaló sin icono hasta
+  la 1.3.1. `extraer_icono()` extrae también el destino del enlace.
 - **Los datos del usuario se preguntan aparte y por defecto se conservan.**
   Desinstalar para instalar una versión nueva y perder de paso la sesión
   guardada es una sorpresa cara. La sesión que esté en el llavero del sistema
@@ -890,6 +895,20 @@ Cuatro decisiones que conviene no deshacer:
   asignar mata el script. Eso abortaba la desinstalación **después** de haber
   borrado la aplicación. `leer_respuesta()` intenta abrirlo y cae a la entrada
   estándar.
+
+### WebKitGTK no es Chromium: dos cosas que en Linux se hacen a mano
+
+- **`hover:` va sin media query** (`@custom-variant hover (&:hover)` en
+  `globals.css`). Tailwind 4 envuelve cada `hover:` en `@media (hover: hover)`,
+  y WebKitGTK no siempre dice que hay un puntero: en Linux no se aplicaba
+  ningún hover, y los botones que solo aparecen al pasar el ratón —los de las
+  tarjetas de Materias— no aparecían nunca. No lo quites pensando que sobra.
+- **El menú de `NativeSelect` lo pinta la página** (`shared/ui/select-menu.tsx`).
+  El nativo de WebKitGTK es una ventana de GTK aparte: sale claro en modo
+  oscuro y en Wayland se queda flotando sobre otras aplicaciones al cambiar de
+  ventana. El `<select>` real se queda —valor, `onChange`, `react-hook-form`—
+  y solo se sustituye el menú, así que ninguna pantalla cambia. Solo en Linux
+  (`usarMenuPropio`); en Windows el nativo va bien y se deja.
 
 `StartupWMClass` tiene que seguir siendo `uts-nexus-academico`, el nombre del
 binario: es lo mismo que fija `uts-nexus.desktop.hbs` y por lo mismo — sin él,

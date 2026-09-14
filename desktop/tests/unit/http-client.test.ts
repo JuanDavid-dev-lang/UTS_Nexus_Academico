@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { http, onSessionExpired, setServerUrl } from '@/core/api/http-client';
 import { tokenService } from '@/core/auth/token.service';
 import { AppError } from '@/core/api/errors';
+import { useSession } from '@/state/session.store';
 
 /**
  * HTTP client behaviour under authentication failures.
@@ -99,6 +100,51 @@ describe('token refresh', () => {
     expect(listener).toHaveBeenCalledTimes(1);
 
     unsubscribe();
+  });
+
+  // Abrir la app con el servidor apagado, o aún despertando, borraba la
+  // sesión: el refresco fallaba por red y eso se leía como token rechazado.
+  it.each([
+    ['sin conexión', () => Promise.reject(new TypeError('Failed to fetch'))],
+    ['un 503', () => Promise.resolve(jsonResponse({ ok: false }, 503))],
+  ])('keeps the session when the refresh gets %s instead of an answer', async (_caso, refresh) => {
+    const listener = vi.fn();
+    const unsubscribe = onSessionExpired(listener);
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) =>
+        String(input).includes('/auth/refresh') ? refresh() : jsonResponse({ ok: false }, 401),
+      ),
+    );
+
+    await expect(http.get('/students', { schema: listSchema })).rejects.toMatchObject({ kind: 'network' });
+
+    expect(tokenService.getAccessToken()).toBe('access-old');
+    expect(tokenService.getRefreshToken()).toBe('refresh-1');
+    expect(listener).not.toHaveBeenCalled();
+
+    unsubscribe();
+  });
+});
+
+describe('arranque con una sesión guardada', () => {
+  it('sin servidor queda en «sin conexión» y conserva la sesión, en vez de pedir la contraseña', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new TypeError('Failed to fetch'))));
+
+    await useSession.getState().reconnect();
+
+    expect(useSession.getState().status).toBe('unreachable');
+    expect(tokenService.getAccessToken()).toBe('access-old');
+  });
+
+  it('si el servidor rechaza la sesión, sí la borra', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ ok: false, message: 'invalid' }, 401)));
+
+    await useSession.getState().reconnect();
+
+    expect(useSession.getState().status).toBe('anonymous');
+    expect(tokenService.getAccessToken()).toBeUndefined();
   });
 });
 

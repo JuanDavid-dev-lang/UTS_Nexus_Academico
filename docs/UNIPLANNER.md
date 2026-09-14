@@ -460,7 +460,10 @@ materias) y con ese nombre. Lo que decide es puro
   salón.
 - **Un solo estado para «no coincide»** (`not_matched`): el nombre no casa, el
   documento no existe o es de otra universidad. Distinguirlos le diría a quien
-  prueba documentos cuáles son de estudiantes de verdad.
+  prueba documentos cuáles son de estudiantes de verdad. **La institución sí ve
+  el motivo** (`motivoSinCoincidencia`: `sin_estudiante`, `sin_matricula`,
+  `otra_universidad`, `nombre_distinto`), en «Vínculos UniPlanner» y en la
+  auditoría de cada pasada; nunca viaja a Firestore.
 - **Nunca desverifica.** Un enlace verificado a mano sigue verificado aunque la
   comprobación automática no case.
 
@@ -499,8 +502,11 @@ tarjeta prometía una comprobación que nadie estaba haciendo.
 
 **Revisión manual.** Sigue en «Vínculos UniPlanner» para las excepciones —un
 nombre que la universidad tiene mal escrito, un cambio de cuenta—: la pantalla
-enseña si un enlace se verificó solo, a mano o si no coincide, con el nombre que
-escribió la persona.
+enseña si un enlace se verificó solo, a mano o si no coincide, y **por qué no
+coincide** en una línea bajo el nombre: sin estudiante con ese documento, sin
+matrícula (se arregla matriculándolo; el enlace se verifica solo), de otra
+universidad, o el nombre que escribió la persona frente al de la ficha. Sin el
+motivo, un «no coincide» por falta de matrícula parecía un nombre mal escrito.
 
 ### Solicitudes del estudiante
 

@@ -116,6 +116,15 @@ export const vinculoSchema = z.object({
     .default(null),
   /** El nombre que escribió la persona en UniPlanner. */
   nombreEnUniPlanner: z.string().nullable().optional().default(null),
+  /**
+   * Por qué no casa con el registro de Nexus, si no está verificado. Solo lo
+   * ve la institución; opcional para servidores anteriores.
+   */
+  motivo: z
+    .enum(['sin_estudiante', 'sin_matricula', 'otra_universidad', 'nombre_distinto'])
+    .nullable()
+    .optional()
+    .default(null),
   /** `null` si el documento no es de ningún estudiante de Nexus. */
   estudiante: estudianteDeVinculoSchema.nullable(),
 });

@@ -71,6 +71,34 @@ export type EstudianteRegistrado = {
 };
 
 /**
+ * Por qué un enlace no casa, o `null` si casa.
+ *
+ * **Solo para la institución** (la lista de «Vínculos UniPlanner» y la
+ * auditoría), nunca para UniPlanner: el estudiante recibe un único
+ * `not_matched` (ver `decidirVerificacion`). Quien gestiona sí lo necesita:
+ * un «no coincide» sin motivo parece un nombre mal escrito, y el caso más
+ * común es otro —el estudiante se enlazó antes de que su docente lo
+ * matriculara—, que se arregla matriculándolo y no tocando el enlace.
+ *
+ * - `sin_estudiante`: ningún estudiante de Nexus tiene ese documento.
+ * - `sin_matricula`: existe, pero no está matriculado en ningún curso, así que
+ *   no hay de dónde saber de qué universidad es.
+ * - `otra_universidad`: sus cursos son de otra universidad.
+ * - `nombre_distinto`: todo lo demás casa y el nombre no.
+ */
+export type MotivoSinCoincidencia = 'sin_estudiante' | 'sin_matricula' | 'otra_universidad' | 'nombre_distinto';
+
+export function motivoSinCoincidencia(
+  enlace: EnlaceAVerificar,
+  estudiante: EstudianteRegistrado | null,
+): MotivoSinCoincidencia | null {
+  if (!estudiante) return 'sin_estudiante';
+  if (estudiante.instituciones.size === 0) return 'sin_matricula';
+  if (!estudiante.instituciones.has(enlace.institucion)) return 'otra_universidad';
+  return mismoNombre(enlace.nombre, estudiante.nombre) ? null : 'nombre_distinto';
+}
+
+/**
  * Qué escribir en un enlace, o `null` si no hay que tocarlo.
  *
  * - Sin nombre (enlaces anteriores a esta verificación): nada. La app le pide
@@ -79,13 +107,13 @@ export type EstudianteRegistrado = {
  *   nombre: `verified`.
  * - Cualquier otra cosa: `not_matched`. **Un solo estado para «no existe»,
  *   «es de otra universidad» y «el nombre no coincide»**: distinguirlos le
- *   diría a quien prueba documentos cuáles son de estudiantes de verdad.
+ *   diría a quien prueba documentos cuáles son de estudiantes de verdad. El
+ *   motivo existe (`motivoSinCoincidencia`), pero solo lo ve la institución.
  */
 export function decidirVerificacion(
   enlace: EnlaceAVerificar,
   estudiante: EstudianteRegistrado | null,
 ): EstadoVerificacion | null {
   if (palabrasDelNombre(enlace.nombre).length === 0) return null;
-  if (!estudiante || !estudiante.instituciones.has(enlace.institucion)) return 'not_matched';
-  return mismoNombre(enlace.nombre, estudiante.nombre) ? 'verified' : 'not_matched';
+  return motivoSinCoincidencia(enlace, estudiante) === null ? 'verified' : 'not_matched';
 }

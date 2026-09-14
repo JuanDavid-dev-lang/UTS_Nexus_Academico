@@ -1,5 +1,7 @@
-import { forwardRef, useId } from 'react';
+import { forwardRef, useCallback, useId, useRef, useState } from 'react';
 import { cn } from '@/shared/lib/cn';
+import { MenuDeSelect } from './select-menu';
+import { elegirOpcion, opcionesDe, siguienteHabilitada, usarMenuPropio } from './select-menu-logica';
 
 /**
  * Form primitives.
@@ -42,14 +44,112 @@ export const Textarea = forwardRef<
   );
 });
 
+/**
+ * Un `<select>` de verdad. En Linux, con el menú dibujado por la página
+ * (`select-menu.tsx`): el de WebKitGTK sale claro en modo oscuro y se queda
+ * flotando sobre otras aplicaciones.
+ */
 export const NativeSelect = forwardRef<
   HTMLSelectElement,
   React.SelectHTMLAttributes<HTMLSelectElement>
->(function NativeSelect({ className, children, ...props }, ref) {
+>(function NativeSelect({ className, children, onMouseDown, onKeyDown, onBlur, ...props }, ref) {
+  const local = useRef<HTMLSelectElement | null>(null);
+  // El `<select>` sobre el que está abierto el menú, o `null`. En estado y no
+  // leído del ref al pintar: el menú necesita el nodo, y un ref no se lee
+  // durante el render.
+  const [abiertoEn, setAbiertoEn] = useState<HTMLSelectElement | null>(null);
+  const abierto = abiertoEn !== null;
+  const [activo, setActivo] = useState(0);
+
+  const unirRef = useCallback(
+    (nodo: HTMLSelectElement | null) => {
+      local.current = nodo;
+      if (typeof ref === 'function') ref(nodo);
+      else if (ref) ref.current = nodo;
+    },
+    [ref],
+  );
+  const cerrar = useCallback(() => setAbiertoEn(null), []);
+
+  const menuPropio = usarMenuPropio && !props.multiple && !(props.size && props.size > 1);
+
+  function abrir(evento: React.SyntheticEvent) {
+    const select = local.current;
+    if (!select || props.disabled) return;
+    evento.preventDefault();
+    select.focus();
+    setActivo(Math.max(select.selectedIndex, 0));
+    setAbiertoEn(select);
+  }
+
+  function teclaConMenu(evento: React.KeyboardEvent<HTMLSelectElement>) {
+    const select = local.current;
+    if (!select) return;
+    const opciones = opcionesDe(select);
+    const mover = (indice: number) => {
+      evento.preventDefault();
+      setActivo(indice);
+    };
+    switch (evento.key) {
+      case 'ArrowDown':
+        return mover(siguienteHabilitada(opciones, activo, 1));
+      case 'ArrowUp':
+        return mover(siguienteHabilitada(opciones, activo, -1));
+      case 'Home':
+        return mover(siguienteHabilitada(opciones, -1, 1));
+      case 'End':
+        return mover(siguienteHabilitada(opciones, opciones.length, -1));
+      case 'Enter':
+      case ' ':
+        evento.preventDefault();
+        if (!opciones[activo]?.deshabilitada) elegirOpcion(select, activo);
+        return cerrar();
+      case 'Escape':
+        evento.preventDefault();
+        // Que un Escape que solo cierra el menú no cierre también el diálogo.
+        evento.stopPropagation();
+        return cerrar();
+      case 'Tab':
+        return cerrar();
+    }
+  }
+
   return (
-    <select ref={ref} className={cn(controlStyles, 'h-10 cursor-pointer pr-8', className)} {...props}>
-      {children}
-    </select>
+    <>
+      <select
+        ref={unirRef}
+        className={cn(controlStyles, 'h-10 cursor-pointer pr-8', className)}
+        {...(menuPropio ? { 'aria-expanded': abierto } : {})}
+        onMouseDown={(evento) => {
+          onMouseDown?.(evento);
+          if (!menuPropio || evento.defaultPrevented || evento.button !== 0) return;
+          if (abierto) {
+            evento.preventDefault();
+            cerrar();
+          } else {
+            abrir(evento);
+          }
+        }}
+        onKeyDown={(evento) => {
+          onKeyDown?.(evento);
+          if (!menuPropio || evento.defaultPrevented) return;
+          if (abierto) return teclaConMenu(evento);
+          const abre =
+            evento.key === ' ' || evento.key === 'Enter' || evento.key === 'F4' || (evento.altKey && evento.key === 'ArrowDown');
+          if (abre) abrir(evento);
+        }}
+        onBlur={(evento) => {
+          onBlur?.(evento);
+          cerrar();
+        }}
+        {...props}
+      >
+        {children}
+      </select>
+      {abiertoEn ? (
+        <MenuDeSelect select={abiertoEn} activo={activo} onActivo={setActivo} onCerrar={cerrar} />
+      ) : null}
+    </>
   );
 });
 

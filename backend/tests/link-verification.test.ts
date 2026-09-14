@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   decidirVerificacion,
   mismoNombre,
+  motivoSinCoincidencia,
   palabrasDelNombre,
 } from '../src/domains/uniplanner/link-verification.js';
 
@@ -53,5 +54,31 @@ describe('decidir la verificación', () => {
 
   it('un enlace sin nombre no se toca: lo completa la persona desde su app', () => {
     expect(decidirVerificacion({ institucion: 'uts', nombre: '' }, ana)).toBeNull();
+  });
+});
+
+describe('motivo de un «no coincide», solo para la institución', () => {
+  const enlace = { institucion: 'uts', nombre: 'Ana María Gómez Rueda' };
+  const ana = (instituciones: string[], nombre = 'GÓMEZ RUEDA ANA MARÍA') => ({
+    nombre,
+    instituciones: new Set(instituciones),
+  });
+
+  it('sin matrícula no hay de dónde saber su universidad, aunque el nombre esté bien', () => {
+    // El caso real que motivó esto: se enlazó con los datos exactos antes de
+    // que su docente la matriculara, y el panel solo decía «No coincide».
+    expect(motivoSinCoincidencia(enlace, ana([]))).toBe('sin_matricula');
+    expect(decidirVerificacion(enlace, ana([]))).toBe('not_matched');
+  });
+
+  it('distingue documento inexistente, otra universidad y nombre distinto', () => {
+    expect(motivoSinCoincidencia(enlace, null)).toBe('sin_estudiante');
+    expect(motivoSinCoincidencia(enlace, ana(['uis']))).toBe('otra_universidad');
+    expect(motivoSinCoincidencia(enlace, ana(['uts'], 'GÓMEZ ANA'))).toBe('nombre_distinto');
+  });
+
+  it('si todo casa no hay motivo, y la decisión es la misma que la del motivo', () => {
+    expect(motivoSinCoincidencia(enlace, ana(['uis', 'uts']))).toBeNull();
+    expect(decidirVerificacion(enlace, ana(['uis', 'uts']))).toBe('verified');
   });
 });

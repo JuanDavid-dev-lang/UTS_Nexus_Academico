@@ -14,7 +14,7 @@
  */
 import { z, type ZodType, type ZodTypeDef } from 'zod';
 import { apiBaseUrl, env } from '@/core/config/env';
-import { AppError, appErrorFromResponse, toAppError } from '@/core/api/errors';
+import { AppError, appErrorFromResponse, messageFor, toAppError } from '@/core/api/errors';
 import { tokenService } from '@/core/auth/token.service';
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
@@ -75,7 +75,12 @@ function buildUrl(path: string, query?: RequestOptions<unknown>['query']): strin
 // ── Single-flight refresh ────────────────────────────────────────────────────
 // A shared promise means concurrent 401s wait on one refresh instead of racing
 // each other and invalidating one another's rotated refresh token.
-let refreshInFlight: Promise<boolean> | null = null;
+//
+// Three outcomes, not two. «The server said no» ends the session; «the server
+// did not answer» must not. Folding both into `false` logged people out every
+// time the app started while the server was stopped or still waking up.
+type RefreshOutcome = 'renewed' | 'rejected' | 'unreachable';
+let refreshInFlight: Promise<RefreshOutcome> | null = null;
 
 const refreshResponseSchema = z.object({
   ok: z.literal(true),
@@ -83,34 +88,38 @@ const refreshResponseSchema = z.object({
   refreshToken: z.string().min(1),
 });
 
-async function refreshSession(): Promise<boolean> {
+async function refreshSession(): Promise<RefreshOutcome> {
   const refreshToken = tokenService.getRefreshToken();
-  if (!refreshToken) return false;
+  if (!refreshToken) return 'rejected';
 
+  let response: Response;
   try {
-    const response = await fetch(buildUrl('/auth/refresh'), {
+    response = await fetch(buildUrl('/auth/refresh'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken }),
       signal: AbortSignal.timeout(env.requestTimeoutMs),
     });
-
-    if (!response.ok) return false;
-
-    const parsed = refreshResponseSchema.safeParse(await response.json());
-    if (!parsed.success) return false;
-
-    await tokenService.set({
-      accessToken: parsed.data.accessToken,
-      refreshToken: parsed.data.refreshToken,
-    });
-    return true;
   } catch {
-    return false;
+    // Unreachable or timed out: nothing is known about the token.
+    return 'unreachable';
   }
+
+  // A 5xx or a 429 is the server's trouble, not a verdict on the token.
+  if (response.status >= 500 || response.status === 429) return 'unreachable';
+  if (!response.ok) return 'rejected';
+
+  const parsed = refreshResponseSchema.safeParse(await response.json().catch(() => null));
+  if (!parsed.success) return 'rejected';
+
+  await tokenService.set({
+    accessToken: parsed.data.accessToken,
+    refreshToken: parsed.data.refreshToken,
+  });
+  return 'renewed';
 }
 
-function ensureRefresh(): Promise<boolean> {
+function ensureRefresh(): Promise<RefreshOutcome> {
   refreshInFlight ??= refreshSession().finally(() => {
     refreshInFlight = null;
   });
@@ -126,8 +135,8 @@ function ensureRefresh(): Promise<boolean> {
  * real-time sync dies silently. Refreshing here and reconnecting recovers it
  * without racing the HTTP layer's own refresh.
  */
-export function refreshAccessToken(): Promise<boolean> {
-  return ensureRefresh();
+export async function refreshAccessToken(): Promise<boolean> {
+  return (await ensureRefresh()) === 'renewed';
 }
 
 async function readBody(response: Response): Promise<unknown> {
@@ -170,8 +179,11 @@ async function performRequest(
 
   // One refresh + one retry. A second 401 means the refresh token is dead too.
   if (response.status === 401 && !anonymous && attempt === 0) {
-    const refreshed = await ensureRefresh();
-    if (refreshed) return performRequest(path, options, attempt + 1);
+    const outcome = await ensureRefresh();
+    if (outcome === 'renewed') return performRequest(path, options, attempt + 1);
+    // The refresh never reached the server: the session may be perfectly
+    // valid, so it is kept and the caller sees a connection error instead.
+    if (outcome === 'unreachable') throw new AppError('network', messageFor('network'));
 
     await tokenService.clear();
     notifySessionExpired();

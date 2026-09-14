@@ -37,7 +37,12 @@ import { auditChange } from '../../shared/audit.js';
 import * as puente from '../../shared/uniplanner.js';
 import { partesDelEnlace } from '../../domains/uniplanner/link-admin.js';
 import { idDeEnlace } from '../../domains/uniplanner/link-id.js';
-import { decidirVerificacion, type EstadoVerificacion } from '../../domains/uniplanner/link-verification.js';
+import {
+  decidirVerificacion,
+  motivoSinCoincidencia,
+  type EstadoVerificacion,
+  type MotivoSinCoincidencia,
+} from '../../domains/uniplanner/link-verification.js';
 import { avisoDeEnlaceVerificado, idDelAvisoDeVerificacion } from '../../domains/uniplanner/message.js';
 
 const CLAVE_CURSOR = 'uniplanner_verificacion_cursor';
@@ -48,8 +53,12 @@ type Cursor = { desde: string | null; ids: string[] };
  * Las universidades de cada estudiante, por su matrícula: la materia, el
  * docente que la dicta y el perfil institucional de ese docente. Cuatro
  * consultas para toda la tanda, no cuatro por estudiante.
+ *
+ * Un estudiante sin matrícula no aparece en el mapa: su ficha no dice de qué
+ * universidad es, así que su enlace no puede verificarse hasta que lo
+ * matriculen (`sin_matricula`).
  */
-async function institucionesDe(studentIds: Types.ObjectId[]): Promise<Map<string, Set<string>>> {
+export async function institucionesDe(studentIds: Types.ObjectId[]): Promise<Map<string, Set<string>>> {
   const resultado = new Map<string, Set<string>>();
   if (studentIds.length === 0) return resultado;
 
@@ -128,16 +137,18 @@ async function decidirYEscribir(candidatos: Candidato[], siempre: boolean) {
 
   let verificados = 0;
   let sinCoincidencia = 0;
+  // Por qué no casaron, para la auditoría: «sinCoincidencia: 1» no dice si hay
+  // que matricular a alguien o corregir un nombre.
+  const motivos: Partial<Record<MotivoSinCoincidencia, number>> = {};
   for (const candidato of porVerificar) {
     const p = partes.get(candidato.id);
     if (!p) continue;
     const estudiante = estudiantePorCodigo.get(p.codigo);
-    const estado = decidirVerificacion(
-      { institucion: p.institucion, nombre: candidato.nombre },
-      estudiante
-        ? { nombre: String(estudiante.fullName ?? ''), instituciones: instituciones.get(String(estudiante._id)) ?? new Set() }
-        : null,
-    );
+    const enlace = { institucion: p.institucion, nombre: candidato.nombre };
+    const registrado = estudiante
+      ? { nombre: String(estudiante.fullName ?? ''), instituciones: instituciones.get(String(estudiante._id)) ?? new Set<string>() }
+      : null;
+    const estado = decidirVerificacion(enlace, registrado);
     if (!estado) continue;
     if (!siempre && estado === candidato.estadoVerificacion) continue;
     if (!siempre && estado === 'not_matched') continue;
@@ -147,6 +158,8 @@ async function decidirYEscribir(candidatos: Candidato[], siempre: boolean) {
         await avisarEnlaceVerificado(candidato.uid, p.institucion, candidato.id);
       } else {
         sinCoincidencia++;
+        const motivo = motivoSinCoincidencia(enlace, registrado);
+        if (motivo) motivos[motivo] = (motivos[motivo] ?? 0) + 1;
       }
     }
   }
@@ -158,7 +171,7 @@ async function decidirYEscribir(candidatos: Candidato[], siempre: boolean) {
       entity: 'EnlaceUniPlanner',
       entityId: null,
       before: null,
-      after: { verificados, sinCoincidencia, revisados: porVerificar.length },
+      after: { verificados, sinCoincidencia, revisados: porVerificar.length, motivos },
     });
   }
   return { revisados: porVerificar.length, verificados, sinCoincidencia };

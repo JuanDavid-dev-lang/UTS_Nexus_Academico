@@ -284,18 +284,27 @@ conseguir_appimage() {
 extraer_icono() {
   local appimage="$1" temporal
   temporal="$(mktemp -d)" || return 1
+  local raiz="$temporal/squashfs-root"
 
+  # `.DirIcon` es un enlace simbólico al PNG de la raíz (Tauri lo empaqueta
+  # así: `.DirIcon -> UTS Nexus Academico.png`). Extraer solo el enlace deja un
+  # enlace roto, y el instalador acababa sin icono y sin decir nada: la entrada
+  # del menú salía con el genérico. Se extrae también aquello a lo que apunta.
   (
     cd "$temporal" || exit 1
-    "$appimage" --appimage-extract '*.DirIcon' >/dev/null 2>&1 ||
-      "$appimage" --appimage-extract >/dev/null 2>&1
+    "$appimage" --appimage-extract '.DirIcon' >/dev/null 2>&1
+    if [ -L "$raiz/.DirIcon" ]; then
+      "$appimage" --appimage-extract "$(readlink "$raiz/.DirIcon")" >/dev/null 2>&1
+    fi
   )
 
-  local origen
-  origen="$(find "$temporal/squashfs-root" -maxdepth 1 -name '.DirIcon' -type f 2>/dev/null | head -1)"
+  local origen=''
+  # `-f` sigue el enlace: solo vale si al final hay una imagen de verdad.
+  [ -f "$raiz/.DirIcon" ] && origen="$raiz/.DirIcon"
   if [ -z "$origen" ]; then
-    origen="$(find "$temporal/squashfs-root" -path '*apps*' -name '*.png' -type f 2>/dev/null |
-              sort -r | head -1)"
+    ( cd "$temporal" && "$appimage" --appimage-extract 'usr/share/icons/*' >/dev/null 2>&1 )
+    origen="$(find -L "$raiz" -path '*apps*' -name '*.png' -type f 2>/dev/null |
+              sort -V -r | head -1)"
   fi
 
   if [ -n "$origen" ]; then
