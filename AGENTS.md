@@ -1086,6 +1086,7 @@ Los tres clientes se actualizan desde **GitHub Releases**; el proceso completo e
 - `docs/AGENDA_Y_NOTIFICACIONES.md` — agenda, recordatorios, push de Android, sincronización y qué hay que configurar.
 - `docs/CIERRE_Y_ADMINISTRACION.md` — cierre de periodos, auditoría, centro de salud, patrones de inasistencia, telemetría, historial, migración v3 y suite E2E.
 - `docs/PUBLICAR_VERSION.md` — publicar una versión, secretos de CI y manejo de las claves de firma.
+- `docs/DESPLIEGUE_PRODUCCION.md` — el servidor real (`nexus.victabares.com`, Nodo 1, systemd + túnel de Cloudflare), cómo se despliega con `deploy/actualizar.sh` y qué lleva su `.env` (plantilla en `deploy/.env.produccion.example`).
 - `docs/AUDITORIA_SEGURIDAD.md` — auditoría de entradas, formularios, subidas y sesión: qué falló, cómo se corrigió y **por qué existe cada defensa**. Léelo antes de quitar una comprobación que parezca redundante.
 - `docs/AUDITORIA_RENDIMIENTO.md` — carga sobre la base: N+1, topes de escritura, límites de tasa y carga progresiva. De dónde salen los números (por qué 5 000 casillas, por qué el cupo va por usuario).
 - `docs/AUDITORIA_RECURSOS.md` — lo que las aplicaciones gastan en el equipo donde se instalan: memoria, almacenamiento, batería. Por qué las fuentes van recortadas, por qué las imágenes son WebP y por qué el socket se suelta en segundo plano.

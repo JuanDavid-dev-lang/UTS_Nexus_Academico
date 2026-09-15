@@ -28,6 +28,29 @@ El sistema se encuentra desplegado en el **Nodo 1 del Clúster Central**, expues
 * **Base de datos:** MongoDB Atlas (clúster de producción, base de datos `nexus_academico`).
 * **IA Local:** Conectado directamente al daemon de Ollama en `http://127.0.0.1:11434` utilizando `llama3.2:latest`.
 
+### 2.1 Variables de entorno
+
+El servicio lee `/srv/proyectos/nexus-backend/.env` (`EnvironmentFile=`).
+**`deploy/actualizar.sh` lo excluye del rsync**: se edita a mano en el servidor
+y nunca se versiona con valores reales. La plantilla es
+`deploy/.env.produccion.example`; `instalar.sh` la copia si el archivo no existe.
+
+Lo que cambia respecto a un `.env` local, y por qué:
+
+| Variable | Valor | Motivo |
+|---|---|---|
+| `NODE_ENV` | `production` | Activa CORS acotado, formato de log y exige SMTP. |
+| `HOST` | `127.0.0.1` | Solo el túnel de Cloudflare llega al backend; nada escucha hacia la red del clúster. |
+| `TRUST_PROXY` | `1` | Hay proxy delante (`cloudflared`). Sin él, el límite de login vería la IP del túnel y contaría a toda la institución como un visitante. |
+| `CLIENT_ORIGIN` | `https://nexus.victabares.com` | `*` está prohibido en producción. Los orígenes de la app de escritorio los añade el backend solo. |
+| `SMTP_*` | los del correo institucional | Obligatorio: sin `SMTP_HOST` el servidor no arranca en producción (recuperación de contraseña). |
+| `AI_BASE_URL` / `AI_MODEL` | `http://127.0.0.1:11434` / `llama3.2:latest` | El daemon de Ollama del Nodo 1. |
+| `ALLOW_DEV_RECOVERY_CODE` | `0` | Nunca en un servidor al que llegue alguien más. |
+| `SEED_PASSWORD` | ausente | Las cuentas de demo son cuentas conocidas. |
+
+Tras editarlo: `sudo systemctl restart nexus-backend` y `node check-env.mjs`
+desde `/srv/proyectos/nexus-backend` para verificar sin imprimir secretos.
+
 ---
 
 ## 3. Comandos de Operación y Monitoreo

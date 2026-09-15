@@ -134,20 +134,37 @@ if (env.JWT_SECRET && !env.JWT_ACCESS_SECRET) {
 }
 
 // ── CORS ────────────────────────────────────────────────────────────────────
+//
+// Refleja `validarProduccion()` y `origenesPermitidos()` de shared/env.ts: en
+// producción "*" impide arrancar, y los orígenes de la app de escritorio
+// empaquetada (http://tauri.localhost, tauri://localhost) los añade el backend
+// por su cuenta, así que una lista explícita NO tiene que incluirlos. Lo único
+// que sí hay que declarar a mano es el servidor de desarrollo del escritorio.
+const esProd = (env.NODE_ENV ?? '') === 'production';
 const origin = env.CLIENT_ORIGIN;
-if (!origin) {
-  console.log(`  ${green('✓')} CLIENT_ORIGIN        ${dim('no definida → por defecto "*"')}`);
-} else if (origin === '*') {
-  console.log(`  ${green('✓')} CLIENT_ORIGIN        *`);
+const origenDevEscritorio = 'http://localhost:5183';
+if (!origin || origin === '*') {
+  const texto = origin ? '*' : dim('no definida → por defecto "*"');
+  if (esProd) {
+    console.log(`  ${red('✗')} CLIENT_ORIGIN        ${texto}`);
+    problems.push(
+      'CLIENT_ORIGIN es "*" con NODE_ENV=production: el servidor se niega a arrancar.\n' +
+        '    Declara el dominio público, p. ej. CLIENT_ORIGIN=https://nexus.victabares.com\n' +
+        '    Los orígenes de la app de escritorio los añade el backend solo.',
+    );
+  } else {
+    console.log(`  ${green('✓')} CLIENT_ORIGIN        ${texto}`);
+  }
 } else {
-  console.log(`  ${red('✗')} CLIENT_ORIGIN        ${origin}`);
-  problems.push(
-    `CLIENT_ORIGIN está fijada a "${origin}".\n` +
-      '    La app de escritorio NO se sirve desde ahí: su origen es http://tauri.localhost\n' +
-      '    y el servidor de desarrollo usa http://localhost:5183. El login fallará con un\n' +
-      '    error que dice "sin conexión" y nunca menciona CORS.\n' +
-      '    Para uso local:  CLIENT_ORIGIN=*   (el backend solo escucha en 127.0.0.1)',
-  );
+  const declarados = origin.split(',').map((o) => o.trim()).filter(Boolean);
+  console.log(`  ${green('✓')} CLIENT_ORIGIN        ${declarados.join(', ')} ${dim('(+ orígenes de Tauri)')}`);
+  if (!esProd && !declarados.includes(origenDevEscritorio)) {
+    warnings.push(
+      `CLIENT_ORIGIN es una lista y no incluye ${origenDevEscritorio}, el servidor de\n` +
+        '    desarrollo del escritorio (npm run dev). Desde el navegador el login fallará\n' +
+        '    con "sin conexión" y nunca mencionará CORS. Para uso local: CLIENT_ORIGIN=*',
+    );
+  }
 }
 
 // ── Resto (no sensible) ─────────────────────────────────────────────────────
@@ -181,15 +198,23 @@ for (const [clave, porDefecto, descripcion] of tareas) {
 // real: el guardián de producción colgaba de `NODE_ENV`, así que olvidarla
 // dejaba secretos de juguete, sin límite de login y con el código de
 // recuperación viajando en la respuesta.
-const esProd = (env.NODE_ENV ?? '') === 'production';
 console.log(
-  `  ${esProd ? green('✓') : yellow('!')} NODE_ENV             ${env.NODE_ENV ?? dim('(sin declarar → development)')}`,
+  `  ${esProd ? green('✓') : yellow('!')} NODE_ENV            ${env.NODE_ENV ?? dim('(sin declarar → development)')}`,
 );
 if (!esProd && mongo) {
   warnings.push(
     'Hay MONGODB_URI pero NODE_ENV no es "production".\n' +
       '    Los secretos JWT se validan igualmente (el arranque falla si son los de\n' +
       '    desarrollo), pero CORS queda en "*" y el formato del log es el de dev.',
+  );
+}
+
+// `validarProduccion()` lo exige: sin correo no hay recuperación de contraseña.
+if (esProd && !env.SMTP_HOST) {
+  console.log(`  ${red('✗')} SMTP_HOST            ${dim('(vacía)')}`);
+  problems.push(
+    'SMTP_HOST es obligatoria con NODE_ENV=production: el servidor se niega a\n' +
+      '    arrancar sin ella. Configura SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS y SMTP_FROM.',
   );
 }
 

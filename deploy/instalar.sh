@@ -17,9 +17,17 @@ if ! id -u nexus >/dev/null 2>&1; then
 fi
 
 # 2. Directorio y permisos
-sudo mkdir -p ""
-sudo chown -R nexus:nexus ""
-sudo chmod 750 ""
+sudo mkdir -p "$DESTINO"
+sudo chown -R nexus:nexus "$DESTINO"
+sudo chmod 750 "$DESTINO"
+
+# 2b. El .env se mantiene a mano (actualizar.sh lo excluye del rsync). Si no
+# existe, se deja la plantilla para rellenar: el servicio no arranca sin ella.
+if [ ! -f "$DESTINO/.env" ]; then
+  AQUI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  sudo install -o nexus -g nexus -m 600 "$AQUI/.env.produccion.example" "$DESTINO/.env"
+  echo "Plantilla copiada a $DESTINO/.env — rellena los secretos antes de arrancar."
+fi
 
 # 3. Permisos sudo mínimos para reiniciar servicio
 sudo tee /etc/sudoers.d/nexus >/dev/null << 'EOF'
