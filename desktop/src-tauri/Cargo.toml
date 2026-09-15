@@ -1,6 +1,6 @@
 [package]
 name = "uts-nexus-desktop"
-version = "1.3.2"
+version = "1.3.3"
 description = "UTS Nexus Academico desktop client"
 authors = ["UTS Nexus Academico"]
 edition = "2021"
