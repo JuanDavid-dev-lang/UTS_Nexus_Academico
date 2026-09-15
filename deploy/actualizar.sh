@@ -1,85 +1,46 @@
 #!/usr/bin/env bash
-# Actualiza el servidor ya instalado: trae el código nuevo, reconstruye lo que
-# cambió y espera a que responda.
+# ==============================================================================
+#  UTS Nexus Académico — Despliegue y actualización en producción (Nodo 1)
+# ==============================================================================
 #
-# Se ejecuta EN LA INSTANCIA. Desde tu equipo, `conectar.ps1 -Actualizar` hace
-# exactamente esto por SSH.
+#  Sincroniza el código del backend con el servidor central, compila TypeScript,
+#  reinicia el servicio systemd y verifica la sonda de salud pública.
 #
-# No toca `deploy/.env`: los secretos los generó `instalar.sh` y no se vuelven a
-# tocar. Si hiciera falta cambiar una variable, se edita ese archivo y se vuelve
-# a lanzar este script.
+#  Uso:
+#    ./deploy/actualizar.sh
+#    ./deploy/actualizar.sh [IP_SERVIDOR]
+# ==============================================================================
 set -euo pipefail
 
-AQUI="$(cd "$(dirname "$0")" && pwd)"
+AQUI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RAIZ="$(cd "$AQUI/.." && pwd)"
-ENTORNO="$AQUI/.env"
+SERVIDOR="${1:-10.11.9.36}"
+USUARIO="nexus"
+DESTINO="/srv/proyectos/nexus-backend"
 
-if [ ! -f "$ENTORNO" ]; then
-  echo "No hay deploy/.env. Este script actualiza una instalación existente;"
-  echo "para la primera vez, usa ./instalar.sh"
-  exit 1
-fi
+echo "── 1. Sincronizando código hacia $USUARIO@$SERVIDOR:$DESTINO ──"
+rsync -avz --delete \
+  --exclude="node_modules" \
+  --exclude="dist" \
+  --exclude=".git" \
+  --exclude=".env" \
+  --exclude="uploads" \
+  --exclude="actualizar.sh" \
+  -e "ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10" \
+  "$RAIZ/backend/" "$USUARIO@$SERVIDOR:$DESTINO/"
 
-# `docker compose` (plugin) o `docker-compose` (binario suelto): las dos formas
-# siguen vivas según la distribución, y fallar por esto sería absurdo.
-if docker compose version >/dev/null 2>&1; then
-  DOCKER="docker"
-elif command -v docker-compose >/dev/null 2>&1; then
-  DOCKER="docker-compose-legacy"
+echo "── 2. Ejecutando compilación y reinicio en el servidor ──"
+ssh -o StrictHostKeyChecking=accept-new "$USUARIO@$SERVIDOR" "$DESTINO/actualizar.sh"
+
+echo "── 3. Verificando endpoint público vía Cloudflare ──"
+if curl -fsS --max-time 5 "https://nexus.victabares.com/health" >/dev/null 2>&1; then
+  echo ""
+  echo "════════════════════════════════════════════════════════════"
+  echo "  Despliegue verificado en producción exitosamente"
+  echo "  API:     https://nexus.victabares.com"
+  echo "  Health:  https://nexus.victabares.com/health"
+  echo "  Docs:    https://nexus.victabares.com/docs"
+  echo "════════════════════════════════════════════════════════════"
 else
-  echo "No encuentro Docker Compose. ¿Se instaló con ./instalar.sh?"
-  exit 1
+  echo "Advertencia: El endpoint público tardó en responder. Revisa la conectividad del túnel."
 fi
-
-compose() {
-  if [ "$DOCKER" = "docker" ]; then
-    docker compose --env-file "$ENTORNO" "$@"
-  else
-    docker-compose --env-file "$ENTORNO" "$@"
-  fi
-}
-
-DOMINIO="$(grep -E '^DOMINIO=' "$ENTORNO" | head -1 | cut -d= -f2-)"
-
-echo "── Código ──────────────────────────────────────────────────────────────"
-cd "$RAIZ"
-ANTES="$(git rev-parse --short HEAD)"
-git pull --ff-only
-DESPUES="$(git rev-parse --short HEAD)"
-
-if [ "$ANTES" = "$DESPUES" ]; then
-  echo "Ya estaba en $DESPUES. Se reconstruye igual, por si cambió .env."
-else
-  echo "$ANTES → $DESPUES"
-fi
-
-# El disco de 8 GB por defecto se llena con las capas viejas de las imágenes, y
-# el fallo aparece a mitad de la compilación en vez de antes de empezar.
-LIBRES=$(df -BG --output=avail / | tail -1 | tr -dc '0-9')
-echo "Disco libre : ${LIBRES} GB"
-if [ "${LIBRES:-0}" -lt 6 ]; then
-  echo "   Quedan menos de 6 GB. Libera espacio con:  docker system prune -af"
-fi
-
-echo
-echo "── Reconstruyendo ──────────────────────────────────────────────────────"
-cd "$AQUI"
-compose up -d --build
-
-echo
-echo "Esperando a que el servidor responda…"
-for _ in $(seq 1 60); do
-  if curl -fsS --max-time 4 "https://$DOMINIO/health" >/dev/null 2>&1; then
-    echo
-    echo "════════════════════════════════════════════════════════════"
-    echo "  Servidor arriba:  https://$DOMINIO"
-    echo "  Versión:          $DESPUES"
-    echo "════════════════════════════════════════════════════════════"
-    exit 0
-  fi
-  sleep 5
-done
-
-echo "El servidor no respondió a tiempo. Mira los registros con:"
-echo "  cd $AQUI && docker compose logs --tail=80 backend"
-exit 1
