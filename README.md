@@ -1373,7 +1373,8 @@ docker compose up --build   # Levantar backend en contenedor
   autenticadas o usuarios concretos.
 - **Los secretos de firma se validan aunque no se declare `NODE_ENV`.** Basta que
   haya `MONGODB_URI` configurada: es la señal de que no es un clon recién hecho.
-  El límite de intentos de login también va siempre. Antes las dos cosas
+  El límite de intentos de login también va siempre (solo cuenta los
+  fallidos: 30 por IP y 10 por correo cada quince minutos). Antes las dos cosas
   colgaban de `NODE_ENV=production`, así que olvidar esa variable dejaba el
   servidor con los secretos de desarrollo —que están en este repositorio— y sin
   límite de fuerza bruta.
@@ -1473,7 +1474,7 @@ una importación.
 | App móvil (Flutter / Android) | ✅ Operativa · **118 pruebas** |
 | Servicio de ML (`ml_service/`) | ✅ Operativo · **54 pruebas** — ver [`ml_service/README.md`](ml_service/README.md) |
 | App de escritorio v1 (PySide6) | 🪦 Muerta · sin lanzador, solo referencia histórica |
-| Pruebas E2E | ✅ `npm run test:e2e` · **164 comprobaciones** sobre una base aislada · `npm run test:e2e:qr` · **42** de la asistencia por QR |
+| Pruebas E2E | ✅ `npm run test:e2e` · **166 comprobaciones** sobre una base aislada · `npm run test:e2e:qr` · **42** de la asistencia por QR |
 
 Las pruebas de `npm test` cubren **lógica pura**: cálculo de notas, riesgo,
 agenda, alcance por docente y por programa, quién puede escribir, filtros,
@@ -1481,7 +1482,7 @@ paginación y navegación. Ninguna toca la base de datos.
 
 Para lo que sí la toca hay dos niveles: `npm run smoke` recorre el camino
 principal contra el servidor que ya tengas arriba, y `npm run test:e2e` levanta
-un `mongod` local, crea su propia base, recorre 164 comprobaciones —incluidos el
+un `mongod` local, crea su propia base, recorre 166 comprobaciones —incluidos el
 alcance por carrera, el 403 de secretaría al escribir y el cierre de sesiones al
 cambiar una contraseña— y borra la base al terminar. La suite **se niega a
 arrancar contra un `mongodb+srv`**: borra lo que toca.

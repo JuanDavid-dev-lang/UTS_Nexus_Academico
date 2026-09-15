@@ -121,10 +121,12 @@ cualquier servidor. Se sustituyó por una política de red que exige TLS y solo
 admite texto plano contra `localhost` y `10.0.2.2`, para que el emulador siga
 funcionando en desarrollo.
 
-Además, el login tiene ahora su propio límite de 10 intentos fallidos cada 15
-minutos (los correctos no cuentan: todo el campus comparte IP). El
-cupo general de 250 peticiones dejaba sitio de sobra para probar contraseñas, y
-en internet eso se intenta constantemente.
+Además, el login tiene su propio límite, que cuenta solo los intentos
+**fallidos**: 30 por IP y 10 por correo cada 15 minutos. El cupo general dejaba
+sitio de sobra para probar contraseñas, y en internet eso se intenta
+constantemente. Un inicio de sesión correcto no descuenta cupo: un campus
+entero sale a internet por una sola dirección, y contar los correctos dejaba
+fuera al undécimo docente de la mañana.
 
 ---
 

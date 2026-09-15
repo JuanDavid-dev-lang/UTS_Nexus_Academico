@@ -77,9 +77,11 @@ class AuthController extends StateNotifier<AuthState> {
     };
 
     _realtime.onUnauthorized = () async {
-      // Si la renovación va bien, `onTokensRenewed` reconecta el socket.
-      final renewed = await api.renewAccessToken();
-      if (!renewed) await logout();
+      // Si la renovación va bien, `onTokensRenewed` reconecta el socket. Si el
+      // servidor no contestó, el socket ya reintenta solo con su propio
+      // retroceso: cerrar la sesión por eso sería castigar un wifi caído.
+      final outcome = await api.renewAccessToken();
+      if (outcome == RefreshOutcome.rejected) await logout();
     };
   }
 

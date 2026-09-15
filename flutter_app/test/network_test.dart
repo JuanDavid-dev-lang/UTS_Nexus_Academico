@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:uts_academico/core/config.dart';
+import 'package:uts_academico/core/network/api_client.dart';
 import 'package:uts_academico/core/network/api_error.dart';
 
 void main() {
@@ -118,6 +119,29 @@ void main() {
 
     test('un estado sin mensaje cae al genérico sin reventar', () {
       expect(fromStatus(403, body: {'estado': 'PENDIENTE'}).message, contains('permisos'));
+    });
+  });
+
+  group('ApiClient.esRechazoDeSesion', () {
+    DioException conEstado(int? status) => DioException(
+          requestOptions: RequestOptions(path: '/auth/refresh'),
+          type: status == null ? DioExceptionType.connectionError : DioExceptionType.badResponse,
+          response: status == null
+              ? null
+              : Response(requestOptions: RequestOptions(path: '/auth/refresh'), statusCode: status),
+        );
+
+    test('solo una respuesta que rechaza el token termina la sesión', () {
+      expect(ApiClient.esRechazoDeSesion(conEstado(401)), isTrue);
+      expect(ApiClient.esRechazoDeSesion(conEstado(403)), isTrue);
+      expect(ApiClient.esRechazoDeSesion(conEstado(400)), isTrue);
+    });
+
+    test('sin servidor, un 5xx o un 429 la sesión sigue viva', () {
+      expect(ApiClient.esRechazoDeSesion(conEstado(null)), isFalse);
+      expect(ApiClient.esRechazoDeSesion(conEstado(500)), isFalse);
+      expect(ApiClient.esRechazoDeSesion(conEstado(503)), isFalse);
+      expect(ApiClient.esRechazoDeSesion(conEstado(429)), isFalse);
     });
   });
 }

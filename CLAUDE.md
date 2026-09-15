@@ -80,7 +80,7 @@ node .github/scripts/comprobar-version.mjs v1.0.1
   - `professor-scope.ts` → toda query se filtra por `EnrollmentModel.professorId`; un docente nunca ve datos de otro. Cualquier endpoint nuevo debe respetar este scoping.
   - `socket.ts` → Socket.io con JWT en el handshake; eventos solo a salas `user:<id>` y `role:<ROL>`, nunca broadcast global.
   - `scheduler.ts` → escaneo periódico de riesgo (`RISK_SCAN_INTERVAL_MIN`).
-  - `error.ts` → **traduce el error a HTTP**. `ZodError` → 400 con el campo que falla, clave duplicada de Mongo → 409, `CastError` de ObjectId → 404. Los 5xx se registran pero nunca devuelven detalle interno. No lanzar un `Error` pelado esperando un 400: sin `statusCode` cae a 500, y los clientes reintentan solos los 5xx.
+  - `error.ts` → **traduce el error a HTTP**. `ZodError` → 400 con el campo que falla, clave duplicada de Mongo → 409, `CastError` de ObjectId → 404, error de `jsonwebtoken` (`TokenExpiredError`, `JsonWebTokenError`, `NotBeforeError`) → 401. Los 5xx se registran pero nunca devuelven detalle interno. No lanzar un `Error` pelado esperando un 400: sin `statusCode` cae a 500, y los clientes reintentan solos los 5xx.
 
 ### El molde de un módulo del backend
 
@@ -454,9 +454,15 @@ pantalla se queda con la lista vieja.
 Tres capas que se acumulan, **todas contando por usuario cuando hay sesión y por
 IP cuando no**: `limiteGeneral` (600/15 min), `limiteEscritura` (120/15 min,
 solo métodos que modifican) y `limiteLotes` (20/15 min, las cuatro rutas masivas,
-los tres escáneres y los tres avisos de UniPlanner que reparten a una lista). Login aparte, por IP a propósito —quien prueba
-contraseñas todavía no es nadie y la clave saldría del correo que él mismo elige— y
-contando solo los intentos fallidos.
+los tres escáneres y los tres avisos de UniPlanner que reparten a una lista). Login aparte, y **contando solo los
+intentos fallidos**: por IP (30/15 min, el freno a una máquina probando
+contraseñas) y además por correo normalizado (10/15 min, el freno a repartir
+los intentos contra una cuenta entre muchas direcciones). Por correo *solo* no
+vale —quien prueba contraseñas todavía no es nadie y bastaría variar el correo
+para estrenar cupo—, y contar también los correctos bloqueaba a un campus
+entero detrás de una NAT antes de la primera clase: el undécimo docente recibía
+«Demasiados intentos» sin haberse equivocado. La E2E lo demostraba sola, con
+nueve fallos por 429 a partir del décimo escenario.
 
 - **Van en `routes/index.ts`, después de `identificar`.** En `app.ts` corren
   antes de saber quién llama, así que un `keyGenerator` por usuario allí caería
@@ -1015,7 +1021,7 @@ Leídas por `backend/src/shared/env.ts`. **Un nombre mal escrito no da error: ca
 - `MONGODB_URI` es obligatoria; sin ella el backend arranca pero no conecta a la base.
 - **`NODE_ENV` ya no es el interruptor de la seguridad.** Lo fue, y era un error de diseño: `validarProduccion()` empezaba con `if (!esProduccion) return`, o sea que el guardián que impide desplegar con los secretos de juguete **solo se activaba si ya estaba puesta la variable que él mismo tendría que verificar**. Un `pm2 start` sin `NODE_ENV` arrancaba sin un aviso con `JWT_ACCESS_SECRET='dev-access'`, que está escrito en este repositorio. Ahora los secretos de firma se validan **siempre que haya `MONGODB_URI` configurada** —la señal de que esto no es un clon recién hecho— y `NODE_ENV` solo decide lo que sí molestaría en local: CORS acotado y servidor de correo.
 - **`TRUST_PROXY`** activa `trust proxy`, que es lo que hace que el límite de intentos de login vea la IP real y no la del proxy. Sin declarar sigue a `NODE_ENV`, que es lo que hacía antes. No la actives sin un proxy delante: cualquiera podría inventarse su `X-Forwarded-For` y estrenar cupo en cada petición.
-- **El límite de intentos de login va siempre**, no solo en producción. Estaba dentro de un `if (esProduccion)` y esa es justo la condición que falta cuando alguien despliega sin declararla. Diez intentos **fallidos** cada quince minutos no estorban a nadie desarrollando: los que entran bien no cuentan (`skipSuccessfulRequests`), porque un campus sale por una sola IP y contando todos la undécima persona que entraba bien un lunes recibía «demasiados intentos». Por lo mismo la E2E, que inicia sesión más de diez veces, pasa con el límite real.
+- **El límite de intentos de login va siempre**, no solo en producción. Estaba dentro de un `if (esProduccion)` y esa es justo la condición que falta cuando alguien despliega sin declararla. Cuenta solo los intentos fallidos (30 por IP y 10 por correo cada quince minutos), así que no estorba a nadie desarrollando ni a un aula entera entrando a la vez.
 - **`ALLOW_DEV_RECOVERY_CODE`** devuelve el código de recuperación en la respuesta de `/auth/recovery/request`. Apagada por defecto y con dos condiciones más encima (fuera de producción, sin SMTP). Nunca en un servidor al que llegue nadie más.
 - **`ML_SHARED_SECRET`** tiene que valer lo mismo aquí y en el entorno del servicio de Python. Vacío solo mientras el servicio escuche en `127.0.0.1`.
 - **`CLIENT_ORIGIN` no lleva los orígenes de la app de escritorio: los añade el backend.**

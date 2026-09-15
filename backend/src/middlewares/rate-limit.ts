@@ -110,23 +110,53 @@ export const limiteLotes = limitador({
 });
 
 /**
- * Cupo del inicio de sesión. Por IP a propósito, no por usuario.
+ * Cupo del inicio de sesión: dos limitadores, y los dos cuentan **solo los
+ * intentos fallidos**.
  *
- * Es la única ruta donde contar por usuario no tiene sentido: quien prueba
- * contraseñas todavía no es nadie, y la clave del cupo saldría del correo que
- * él mismo elige — bastaría variarlo para estrenar cupo en cada intento.
+ * Contaba todo, y eso rompía por el lado bueno: diez inicios de sesión por IP
+ * cada quince minutos —correctos incluidos— es un cupo que un campus entero
+ * detrás de una NAT gasta antes de la primera clase, y el undécimo docente
+ * recibía «Demasiados intentos» sin haberse equivocado nunca. La suite E2E lo
+ * demostraba sola: inicia sesión con una cuenta por escenario y a partir de la
+ * décima todo devolvía 429. Un inicio de sesión correcto no es un intento de
+ * fuerza bruta, así que no descuenta cupo.
  *
- * **Solo cuentan los intentos fallidos** (`skipSuccessfulRequests`). Contando
- * todos, un campus entero —que sale a internet por una sola dirección— se
- * quedaba sin cupo a las diez personas que entraban bien un lunes a las siete,
- * y la undécima recibía «demasiados intentos» sin haberse equivocado nunca. A
- * quien prueba contraseñas no le cambia nada: sus intentos fallan todos.
+ * **Por IP** con un cupo amplio (30 fallos): es el freno contra una máquina
+ * probando contraseñas, y treinta errores en quince minutos desde la misma
+ * dirección no los produce nadie tecleando.
+ *
+ * **Por correo** con un cupo corto (10 fallos): es lo que frena a quien reparte
+ * los intentos contra una sola cuenta entre muchas direcciones. Va *además* del
+ * de IP, no en su lugar — solo, bastaría variar el correo para estrenar cupo en
+ * cada intento. Se normaliza igual que en el login (minúsculas, sin espacios)
+ * para que `Ana@` y `ana@` sean la misma cuenta.
  */
-export const limiteLogin = rateLimit({
+const RESPUESTA_LOGIN = { ok: false, message: 'Demasiados intentos. Espera unos minutos.' };
+
+const limiteLoginPorIp = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  skipSuccessfulRequests: true,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: RESPUESTA_LOGIN,
+});
+
+function correoDelCuerpo(req: Request): string {
+  const email = (req.body as { email?: unknown } | undefined)?.email;
+  const clave = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  return clave ? `correo:${clave}` : `ip:${req.ip ?? 'anonimo'}`;
+}
+
+const limiteLoginPorCorreo = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
   skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { ok: false, message: 'Demasiados intentos. Espera unos minutos.' },
+  keyGenerator: correoDelCuerpo,
+  message: RESPUESTA_LOGIN,
 });
+
+/** Se monta con `app.use(ruta, limiteLogin)`: Express acepta la lista. */
+export const limiteLogin = [limiteLoginPorIp, limiteLoginPorCorreo];

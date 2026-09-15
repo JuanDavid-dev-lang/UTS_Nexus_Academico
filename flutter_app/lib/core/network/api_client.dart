@@ -5,6 +5,17 @@ import 'package:dio/dio.dart';
 import '../config.dart';
 import './api_error.dart';
 
+/// Resultado de una renovación del access token.
+///
+/// Son tres y no dos porque «no se pudo renovar» junta dos cosas que piden lo
+/// contrario: el servidor **rechazó** el refresh token (401: vencido, rotado o
+/// revocado) y la sesión de verdad terminó; o el servidor **no contestó** —sin
+/// red, tiempo de espera, un 5xx o un 429— y la sesión sigue tan viva como
+/// hace un minuto. Tratar lo segundo como lo primero cerraba la sesión y
+/// borraba la caché offline cada vez que el wifi del aula parpadeaba justo
+/// cuando caducaba el token de acceso, que es cada quince minutos.
+enum RefreshOutcome { renewed, rejected, unavailable }
+
 /// Cliente HTTP.
 ///
 /// Todo lo que la app envía al servidor pasa por aquí. Dos responsabilidades que
@@ -40,7 +51,11 @@ class ApiClient {
   void Function()? onSessionExpired;
 
   /// Promesa compartida de la renovación en curso.
-  Future<bool>? _refreshInFlight;
+  Future<RefreshOutcome>? _refreshInFlight;
+
+  /// El fallo con el que terminó la última renovación [RefreshOutcome.unavailable],
+  /// para que la petición original salga con ese error y no con un 401.
+  DioException? _ultimoFalloDeRefresh;
 
   void setTokens({String? accessToken, String? refreshToken}) {
     this.accessToken = accessToken;
@@ -72,11 +87,17 @@ class ApiClient {
       return handler.next(error);
     }
 
-    final renewed = await _ensureRefresh();
-    if (!renewed) {
+    final outcome = await _ensureRefresh();
+    if (outcome == RefreshOutcome.rejected) {
       setTokens(accessToken: null, refreshToken: null);
       onSessionExpired?.call();
       return handler.next(error);
+    }
+    if (outcome == RefreshOutcome.unavailable) {
+      // La sesión sigue en pie; lo que no hay es servidor. Se devuelve ese
+      // fallo, no el 401 original: «Tu sesión expiró» mandaría al docente a
+      // teclear la contraseña contra un servidor que tampoco va a responder.
+      return handler.next(_ultimoFalloDeRefresh ?? error);
     }
 
     try {
@@ -89,7 +110,7 @@ class ApiClient {
     }
   }
 
-  Future<bool> _ensureRefresh() {
+  Future<RefreshOutcome> _ensureRefresh() {
     return _refreshInFlight ??= _refresh().whenComplete(() {
       _refreshInFlight = null;
     });
@@ -102,11 +123,12 @@ class ApiClient {
   /// cuando el access token expira el reintento de conexión se rechaza y la
   /// sincronización muere. Renovar aquí y reconectar la recupera sin competir
   /// con la renovación que pueda estar haciendo la capa HTTP.
-  Future<bool> renewAccessToken() => _ensureRefresh();
+  Future<RefreshOutcome> renewAccessToken() => _ensureRefresh();
 
-  Future<bool> _refresh() async {
+  Future<RefreshOutcome> _refresh() async {
     final token = refreshToken;
-    if (token == null) return false;
+    if (token == null) return RefreshOutcome.rejected;
+    _ultimoFalloDeRefresh = null;
 
     try {
       // Cliente aparte: el interceptor de `dio` no debe reentrar aquí.
@@ -125,14 +147,29 @@ class ApiClient {
       final data = response.data;
       final newAccess = data?['accessToken'] as String?;
       final newRefresh = data?['refreshToken'] as String?;
-      if (newAccess == null || newRefresh == null) return false;
+      if (newAccess == null || newRefresh == null) return RefreshOutcome.rejected;
 
       setTokens(accessToken: newAccess, refreshToken: newRefresh);
       await onTokensRenewed?.call(newAccess, newRefresh);
-      return true;
+      return RefreshOutcome.renewed;
+    } on DioException catch (error) {
+      if (esRechazoDeSesion(error)) return RefreshOutcome.rejected;
+      _ultimoFalloDeRefresh = error;
+      return RefreshOutcome.unavailable;
     } catch (_) {
-      return false;
+      // Un cuerpo que no se pudo interpretar u otro fallo local: no hay
+      // motivo para dar la sesión por muerta.
+      return RefreshOutcome.unavailable;
     }
+  }
+
+  /// Un rechazo es una respuesta del servidor que dice que ese token no vale:
+  /// 401 (vencido, rotado o revocado), 403 (cuenta bloqueada) o 400 (el
+  /// cuerpo no pasó la validación, es decir, el token guardado está corrupto).
+  /// Todo lo demás —sin respuesta, 5xx, 429— es el servidor, no la sesión.
+  static bool esRechazoDeSesion(DioException error) {
+    final status = error.response?.statusCode;
+    return status == 400 || status == 401 || status == 403;
   }
 
   Future<Response<T>> get<T>(String path, {Map<String, dynamic>? query}) =>

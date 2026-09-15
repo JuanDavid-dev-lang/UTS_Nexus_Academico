@@ -35,6 +35,7 @@
  */
 import type { Server } from 'node:http';
 import { randomBytes } from 'node:crypto';
+import jwt from 'jsonwebtoken';
 
 // ── Configuración del entorno de prueba, ANTES de importar nada del app ────
 //
@@ -1062,6 +1063,18 @@ async function ejecutar(puerto: number) {
   });
   ok('Quien cambió la contraseña sigue dentro', refrescoNuevo.status === 200,
     `status ${refrescoNuevo.status}`);
+
+  // Un refresh token vencido —un teléfono que lleva más de treinta días sin
+  // abrir la app— salía como 500: `jwt.verify` lanza `TokenExpiredError` y el
+  // traductor de errores no lo conocía. El móvil lo pintaba como una avería del
+  // servidor y reintentaba un 5xx que nunca iba a mejorar.
+  const vencido = jwt.sign({ sub: 'x' }, process.env.JWT_REFRESH_SECRET!, { expiresIn: -60 });
+  const refrescoVencido = await post('/auth/refresh', { refreshToken: vencido });
+  ok('Un refresh token vencido → 401, no 500', refrescoVencido.status === 401,
+    `status ${refrescoVencido.status}`);
+  const refrescoBasura = await post('/auth/refresh', { refreshToken: 'no-es-un-jwt' });
+  ok('Un refresh token mal formado → 401, no 500', refrescoBasura.status === 401,
+    `status ${refrescoBasura.status}`);
 
   const loginNuevaClave = await post('/auth/login', {
     email: 'e2e-nueva-coordinacion@uts.edu.co',

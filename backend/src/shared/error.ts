@@ -2,6 +2,9 @@ import type { ErrorRequestHandler } from 'express';
 import { MulterError } from 'multer';
 import { ZodError } from 'zod';
 
+/** Nombres de error que lanza `jsonwebtoken` al verificar un token. */
+const ERRORES_JWT = new Set(['TokenExpiredError', 'JsonWebTokenError', 'NotBeforeError']);
+
 /**
  * Traduce un error a una respuesta HTTP.
  *
@@ -35,6 +38,21 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   // Id de Mongo mal formado: tampoco es un 500, es un recurso que no existe.
   if (err?.name === 'CastError' && err?.kind === 'ObjectId') {
     return res.status(404).json({ ok: false, message: 'Not found' });
+  }
+
+  /**
+   * Token JWT vencido, mal firmado o mal formado: es un 401, no un 500.
+   *
+   * `jwt.verify` lanza estos tres al verificar, y el único sitio donde se
+   * verifica fuera de un middleware con su propio `try` es `POST /auth/refresh`.
+   * Sin esta rama, un refresh token caducado —un teléfono que lleva más de
+   * treinta días sin abrir la app— salía como «Internal server error»: el
+   * móvil lo pintaba como una avería del servidor y, como trata el 5xx como
+   * reintentable, volvía a pedir lo mismo. La sesión sí había expirado; lo que
+   * fallaba era el código de estado con el que se contaba.
+   */
+  if (ERRORES_JWT.has(err?.name)) {
+    return res.status(401).json({ ok: false, message: 'Invalid session' });
   }
 
   /**
