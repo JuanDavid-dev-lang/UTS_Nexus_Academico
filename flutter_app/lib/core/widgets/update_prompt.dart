@@ -109,7 +109,10 @@ class _UpdateGateState extends State<UpdateGate> {
   /// Va al canal «Sistema», que es de importancia baja: aparece en el cajón sin
   /// sonido ni interrupción. Una versión nueva no es urgente, y tratarla como
   /// si lo fuera enseña a la gente a ignorar el canal que sí lo es.
-  Future<void> _notificarVersion(String version, SharedPreferences preferencias) async {
+  Future<void> _notificarVersion(
+    String version,
+    SharedPreferences preferencias,
+  ) async {
     if (preferencias.getString(_claveNotificada) == version) return;
 
     // Sin permiso no se muestra nada, y este no es momento de pedirlo: la
@@ -157,13 +160,16 @@ class _UpdateDialogState extends State<_UpdateDialog> {
       _error = null;
     });
     try {
-      await widget.service.download(widget.release, onProgress: (recibidos, total) {
-        if (!mounted) return;
-        setState(() {
-          _recibidos = recibidos;
-          if (total > 0) _total = total;
-        });
-      });
+      await widget.service.download(
+        widget.release,
+        onProgress: (recibidos, total) {
+          if (!mounted) return;
+          setState(() {
+            _recibidos = recibidos;
+            if (total > 0) _total = total;
+          });
+        },
+      );
       // El instalador de Android toma el relevo; el diálogo ya no pinta nada.
       if (mounted) Navigator.of(context).pop(true);
     } on ApiUpdateException catch (error) {
@@ -177,12 +183,14 @@ class _UpdateDialogState extends State<_UpdateDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
     final ratio = _total > 0 ? _recibidos / _total : null;
 
     return AlertDialog(
-      title: Text('Versión ${widget.release.version} disponible', style: AppType.h3),
+      title: Text(
+        'Versión ${widget.release.version} disponible',
+        style: AppType.h3,
+      ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -196,14 +204,19 @@ class _UpdateDialogState extends State<_UpdateDialog> {
             ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 160),
               child: SingleChildScrollView(
-                child: Text(widget.release.notes.trim(), style: AppType.caption),
+                child: Text(
+                  widget.release.notes.trim(),
+                  style: AppType.caption,
+                ),
               ),
             ),
           ],
           if (widget.release.sizeBytes > 0 && !_descargando) ...[
             const SizedBox(height: 10),
-            Text('Descarga de ${_mb(widget.release.sizeBytes)}',
-                style: AppType.caption.copyWith(color: muted)),
+            Text(
+              'Descarga de ${_mb(widget.release.sizeBytes)}',
+              style: AppType.caption.copyWith(color: muted),
+            ),
           ],
           if (_descargando) ...[
             const SizedBox(height: 14),
@@ -218,21 +231,27 @@ class _UpdateDialogState extends State<_UpdateDialog> {
               child: LinearProgressIndicator(value: ratio, minHeight: 6),
             ),
             const SizedBox(height: 6),
-            Text('No cierres la aplicación.',
-                style: AppType.caption.copyWith(color: muted)),
+            Text(
+              'No cierres la aplicación.',
+              style: AppType.caption.copyWith(color: muted),
+            ),
           ],
           if (_error != null) ...[
             const SizedBox(height: 10),
-            Text(_error!,
-                style: AppType.caption.copyWith(
-                  color: SemanticTone.of(context, SemanticKind.danger).fg,
-                )),
+            Text(
+              _error!,
+              style: AppType.caption.copyWith(
+                color: SemanticTone.of(context, SemanticKind.danger).fg,
+              ),
+            ),
           ],
         ],
       ),
       actions: [
         TextButton(
-          onPressed: _descargando ? null : () => Navigator.of(context).pop(false),
+          onPressed: _descargando
+              ? null
+              : () => Navigator.of(context).pop(false),
           child: const Text('Más tarde'),
         ),
         FilledButton.icon(

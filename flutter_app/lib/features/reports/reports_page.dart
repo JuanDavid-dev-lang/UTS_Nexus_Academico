@@ -60,8 +60,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
   @override
   Widget build(BuildContext context) {
     final subjects = ref.watch(periodSubjectsProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
 
     return Scaffold(
       appBar: AppBar(
@@ -85,9 +84,12 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Alcance',
-                          style: AppType.bodyStrong
-                              .copyWith(fontWeight: FontWeight.w700)),
+                      Text(
+                        'Alcance',
+                        style: AppType.bodyStrong.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                       const SizedBox(height: 4),
                       Text(
                         'Los documentos se generan solo con los datos que tienes '
@@ -99,8 +101,9 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                         loading: () =>
                             const SkeletonBox(height: 48, radius: 12),
                         error: (_, __) => Text(
-                            'No se pudieron cargar las materias',
-                            style: AppType.caption.copyWith(color: muted)),
+                          'No se pudieron cargar las materias',
+                          style: AppType.caption.copyWith(color: muted),
+                        ),
                         data: (items) => DropdownButtonFormField<String?>(
                           initialValue: _subjectId,
                           isExpanded: true,
@@ -140,8 +143,9 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                         _download(report.kind, format, report.title),
                     // Solo asistencia tiene vista previa: es el reporte que se
                     // revisa antes de entregar (quién faltó y cuántos minutos).
-                    onPreview:
-                        report.kind == 'attendance' ? _openPreview : null,
+                    onPreview: report.kind == 'attendance'
+                        ? _openPreview
+                        : null,
                   ),
                   const SizedBox(height: 12),
                 ],
@@ -203,7 +207,9 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         : subjects.where((s) => s.id == _subjectId).firstOrNull?.code;
 
     try {
-      final bytes = await ref.read(academicRepositoryProvider).downloadReport(
+      final bytes = await ref
+          .read(academicRepositoryProvider)
+          .downloadReport(
             format: format,
             kind: kind,
             period: period,
@@ -212,8 +218,11 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
 
       if (bytes.isEmpty) {
         if (!mounted) return;
-        AppToast.error(context, 'El reporte llegó vacío',
-            'El servidor no devolvió contenido para este alcance.');
+        AppToast.error(
+          context,
+          'El reporte llegó vacío',
+          'El servidor no devolvió contenido para este alcance.',
+        );
         return;
       }
 
@@ -269,8 +278,7 @@ class _ReportCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
     final anyBusy = busyKey != null;
 
     Widget button(String format, IconData icon, String label) {
@@ -282,7 +290,8 @@ class _ReportCard extends StatelessWidget {
               ? const SizedBox(
                   height: 15,
                   width: 15,
-                  child: CircularProgressIndicator(strokeWidth: 2))
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
               : Icon(icon, size: 18),
           label: Text(label),
         ),
@@ -293,8 +302,10 @@ class _ReportCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title,
-              style: AppType.bodyStrong.copyWith(fontWeight: FontWeight.w700)),
+          Text(
+            title,
+            style: AppType.bodyStrong.copyWith(fontWeight: FontWeight.w700),
+          ),
           const SizedBox(height: 4),
           Text(description, style: AppType.caption.copyWith(color: muted)),
           const SizedBox(height: 14),
@@ -337,16 +348,17 @@ class _AttendancePreviewSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Vista previa de asistencia',
-              style: AppType.bodyStrong.copyWith(fontWeight: FontWeight.w700)),
+          Text(
+            'Vista previa de asistencia',
+            style: AppType.bodyStrong.copyWith(fontWeight: FontWeight.w700),
+          ),
           const SizedBox(height: 4),
           Text(
             'Lo que ves aquí es exactamente lo que saldrá en el archivo.',
@@ -393,8 +405,9 @@ class _AttendancePreviewSheet extends StatelessWidget {
                         scrollDirection: Axis.horizontal,
                         child: SingleChildScrollView(
                           child: DataTable(
-                            headingTextStyle: AppType.caption
-                                .copyWith(fontWeight: FontWeight.w700),
+                            headingTextStyle: AppType.caption.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
                             dataTextStyle: AppType.caption,
                             columns: [
                               for (final header in preview.headers)
@@ -402,10 +415,12 @@ class _AttendancePreviewSheet extends StatelessWidget {
                             ],
                             rows: [
                               for (final row in preview.rows)
-                                DataRow(cells: [
-                                  for (final cell in row)
-                                    DataCell(Text(cell)),
-                                ]),
+                                DataRow(
+                                  cells: [
+                                    for (final cell in row)
+                                      DataCell(Text(cell)),
+                                  ],
+                                ),
                             ],
                           ),
                         ),

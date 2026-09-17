@@ -59,15 +59,26 @@ ConsolidatedRow filaVaciaDeEstudiante({
           complete: false,
           components: const [
             ComponentSummary(
-                type: 'TRABAJOS', weight: 0.3, average: 0, count: 0, notes: []),
+              type: 'TRABAJOS',
+              weight: 0.3,
+              average: 0,
+              count: 0,
+              notes: [],
+            ),
             ComponentSummary(
-                type: 'PARCIALES', weight: 0.6, average: 0, count: 0, notes: []),
+              type: 'PARCIALES',
+              weight: 0.6,
+              average: 0,
+              count: 0,
+              notes: [],
+            ),
             ComponentSummary(
-                type: 'AUTOEVALUACION',
-                weight: 0.1,
-                average: 0,
-                count: 0,
-                notes: []),
+              type: 'AUTOEVALUACION',
+              weight: 0.1,
+              average: 0,
+              count: 0,
+              notes: [],
+            ),
           ],
         ),
     ],
@@ -78,6 +89,7 @@ Future<void> showGradeBreakdown(
   BuildContext context,
   ConsolidatedRow row,
   VoidCallback onChanged, {
+
   /// El filtro de materia con el que la página pidió el consolidado: es la
   /// clave del provider que este sheet observa para que la fila se refresque
   /// sola tras añadir o borrar una nota.
@@ -137,7 +149,9 @@ class _GradeBreakdownSheetState extends ConsumerState<_GradeBreakdownSheet> {
             child: const Text('Cancelar'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            style: FilledButton.styleFrom(
+              backgroundColor: dialogContext.palette.danger.fg,
+            ),
             onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Eliminar'),
           ),
@@ -156,16 +170,22 @@ class _GradeBreakdownSheetState extends ConsumerState<_GradeBreakdownSheet> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _borrando = null);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ApiError.from(error).message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ApiError.from(error).message)));
     }
   }
 
   Future<void> _agregar(
-      int corte, String tipo, String label, double score) async {
+    int corte,
+    String tipo,
+    String label,
+    double score,
+  ) async {
     final captura = widget.captura!;
-    await ref.read(academicRepositoryProvider).saveGrade(
+    await ref
+        .read(academicRepositoryProvider)
+        .saveGrade(
           studentId: widget.row.studentId,
           subjectId: captura.subjectId,
           teacherId: captura.teacherId,
@@ -180,18 +200,19 @@ class _GradeBreakdownSheetState extends ConsumerState<_GradeBreakdownSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
-    final danger = isDark ? AppColors.dangerDark : AppColors.danger;
+    final muted = context.palette.muted;
+    final danger = context.palette.danger.fg;
     final offlineStatus = ref.watch(offlineStatusProvider).valueOrNull;
-    final sinConexion = offlineStatus != null && offlineStatus.desdeCache != null;
+    final sinConexion =
+        offlineStatus != null && offlineStatus.desdeCache != null;
 
     // La fila VIVA: la que llegó al abrir es una foto, y aquí también se
     // registran notas — con la foto, lo añadido no se vería hasta cerrar y
     // volver a abrir. Si el estudiante aún no aparece en el consolidado
     // (sin notas), se usa la estructura con la que se abrió.
-    final consolidado =
-        ref.watch(consolidatedProvider(widget.subjectIdFiltro)).valueOrNull;
+    final consolidado = ref
+        .watch(consolidatedProvider(widget.subjectIdFiltro))
+        .valueOrNull;
     var row = widget.row;
     if (consolidado != null) {
       row = consolidado.firstWhere(
@@ -199,8 +220,9 @@ class _GradeBreakdownSheetState extends ConsumerState<_GradeBreakdownSheet> {
         orElse: () => widget.row,
       );
     }
-    final tieneNotas = row.cuts
-        .any((cut) => cut.components.any((component) => component.count > 0));
+    final tieneNotas = row.cuts.any(
+      (cut) => cut.components.any((component) => component.count > 0),
+    );
 
     // Cortes en orden: el renglón de añadir del corte N se habilita cuando el
     // N-1 está completo. El «completo» lo declara el backend en el resumen —
@@ -251,8 +273,10 @@ class _GradeBreakdownSheetState extends ConsumerState<_GradeBreakdownSheet> {
                         style: AppType.bodyStrong,
                       ),
                     ),
-                    Text(cut.grade.toStringAsFixed(2),
-                        style: AppType.bodyStrong),
+                    Text(
+                      cut.grade.toStringAsFixed(2),
+                      style: AppType.bodyStrong,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -264,10 +288,13 @@ class _GradeBreakdownSheetState extends ConsumerState<_GradeBreakdownSheet> {
                     borrando: _borrando,
                     onDelete: _eliminar,
                     sinConexion: sinConexion,
-                    onAgregar: widget.captura == null || !corteAbierto(cut.cut) || sinConexion
+                    onAgregar:
+                        widget.captura == null ||
+                            !corteAbierto(cut.cut) ||
+                            sinConexion
                         ? null
                         : (label, score) =>
-                            _agregar(cut.cut, component.type, label, score),
+                              _agregar(cut.cut, component.type, label, score),
                   ),
                 if (widget.captura != null && !corteAbierto(cut.cut))
                   Padding(
@@ -317,11 +344,7 @@ class _ComponentBlock extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        border: Border.all(
-          color: Theme.of(context).brightness == Brightness.dark
-              ? AppColors.borderDark
-              : AppColors.border,
-        ),
+        border: Border.all(color: context.palette.border),
         borderRadius: BorderRadius.circular(AppSpacing.radiusInput),
       ),
       child: Column(
@@ -330,8 +353,10 @@ class _ComponentBlock extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text('$nombre  $peso',
-                    style: AppType.captionStrong.copyWith(color: muted)),
+                child: Text(
+                  '$nombre  $peso',
+                  style: AppType.captionStrong.copyWith(color: muted),
+                ),
               ),
               if (component.count == 0)
                 const StatusPill('Sin calificar', kind: SemanticKind.warning)
@@ -357,10 +382,12 @@ class _ComponentBlock extends StatelessWidget {
               child: Row(
                 children: [
                   Expanded(
-                    child: Text(nota.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppType.caption),
+                    child: Text(
+                      nota.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.caption,
+                    ),
                   ),
                   Text(nota.score.toStringAsFixed(1), style: AppType.caption),
                   const SizedBox(width: 4),
@@ -375,7 +402,9 @@ class _ComponentBlock extends StatelessWidget {
                       visualDensity: VisualDensity.compact,
                       tooltip: 'Eliminar ${nota.label}',
                       icon: Icon(Icons.delete_outline, size: 18, color: danger),
-                      onPressed: borrando == null && !sinConexion ? () => onDelete(nota) : null,
+                      onPressed: borrando == null && !sinConexion
+                          ? () => onDelete(nota)
+                          : null,
                     ),
                 ],
               ),
@@ -419,12 +448,14 @@ class _AgregarNotaFilaState extends State<_AgregarNotaFila> {
     final mensajero = ScaffoldMessenger.of(context);
     if (label.isEmpty) {
       mensajero.showSnackBar(
-          const SnackBar(content: Text('Escribe qué actividad fue.')));
+        const SnackBar(content: Text('Escribe qué actividad fue.')),
+      );
       return;
     }
     if (score == null || score < 0 || score > 5) {
       mensajero.showSnackBar(
-          const SnackBar(content: Text('La nota va de 0.0 a 5.0.')));
+        const SnackBar(content: Text('La nota va de 0.0 a 5.0.')),
+      );
       return;
     }
 
@@ -439,7 +470,8 @@ class _AgregarNotaFilaState extends State<_AgregarNotaFila> {
       if (!mounted) return;
       setState(() => _enviando = false);
       mensajero.showSnackBar(
-          SnackBar(content: Text(ApiError.from(error).message)));
+        SnackBar(content: Text(ApiError.from(error).message)),
+      );
     }
   }
 
@@ -464,12 +496,10 @@ class _AgregarNotaFilaState extends State<_AgregarNotaFila> {
             width: 64,
             child: TextField(
               controller: _nota,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                hintText: '0–5',
-                isDense: true,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
               ),
+              decoration: const InputDecoration(hintText: '0–5', isDense: true),
               style: AppType.caption,
               onSubmitted: (_) => _guardar(),
             ),

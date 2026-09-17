@@ -21,10 +21,10 @@ class SessionMenuButton extends ConsumerWidget {
     if (user == null) return const SizedBox.shrink();
 
     final scheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final palette = context.palette;
     // El rojo canónico está calibrado para texto sobre blanco; sobre la
     // superficie oscura del menú se queda por debajo del AA que exige DESIGN.md.
-    final danger = isDark ? AppColors.dangerDark : AppColors.danger;
+    final danger = palette.danger.fg;
 
     return PopupMenuButton<String>(
       tooltip: 'Sesión',
@@ -49,9 +49,7 @@ class SessionMenuButton extends ConsumerWidget {
               Text(user.fullName, style: AppType.bodyStrong),
               Text(
                 user.email,
-                style: AppType.caption.copyWith(
-                  color: isDark ? AppColors.textMutedDark : AppColors.textMuted,
-                ),
+                style: AppType.caption.copyWith(color: palette.muted),
               ),
             ],
           ),
@@ -132,7 +130,8 @@ Future<void> confirmLogout(BuildContext context, WidgetRef ref) async {
           child: const Text('Cancelar'),
         ),
         FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+          style:
+              FilledButton.styleFrom(backgroundColor: dialogContext.palette.danger.fg),
           onPressed: () => Navigator.pop(dialogContext, true),
           child: const Text('Cerrar sesión'),
         ),

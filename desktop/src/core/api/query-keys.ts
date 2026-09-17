@@ -8,6 +8,11 @@
 import type { Scope } from '@/domain/repositories/ports';
 
 export const queryKeys = {
+  /** Ajustes del equipo (inicio con Windows, bandeja). No vienen del servidor. */
+  sistema: {
+    ajustes: () => ['sistema', 'ajustes'] as const,
+  },
+
   auth: {
     all: ['auth'] as const,
     me: () => ['auth', 'me'] as const,

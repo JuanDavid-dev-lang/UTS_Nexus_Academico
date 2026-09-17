@@ -24,6 +24,8 @@ type JwtPayload = {
   sub?: string;
   role?: string;
   studentId?: string;
+  /** Emisión, en segundos. La pone `jsonwebtoken` en todos los tokens. */
+  iat?: number;
   exp?: number;
 };
 

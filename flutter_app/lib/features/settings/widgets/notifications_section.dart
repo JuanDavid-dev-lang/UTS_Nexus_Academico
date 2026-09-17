@@ -40,7 +40,8 @@ class NotificationsSection extends ConsumerStatefulWidget {
   const NotificationsSection({super.key});
 
   @override
-  ConsumerState<NotificationsSection> createState() => _NotificationsSectionState();
+  ConsumerState<NotificationsSection> createState() =>
+      _NotificationsSectionState();
 }
 
 class _NotificationsSectionState extends ConsumerState<NotificationsSection> {
@@ -63,7 +64,10 @@ class _NotificationsSectionState extends ConsumerState<NotificationsSection> {
       );
 
       if (mounted) {
-        AppToast.success(context, 'Preferencias guardadas · $programados avisos programados');
+        AppToast.success(
+          context,
+          'Preferencias guardadas · $programados avisos programados',
+        );
       }
     } catch (error) {
       if (mounted) AppToast.error(context, ApiError.from(error).message);
@@ -75,8 +79,7 @@ class _NotificationsSectionState extends ConsumerState<NotificationsSection> {
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(notificationPrefsProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
 
     return async.when(
       loading: () => const AppCard(child: SkeletonBox(height: 120)),
@@ -103,8 +106,13 @@ class _NotificationsSectionState extends ConsumerState<NotificationsSection> {
               ),
               const SizedBox(height: AppSpacing.gap),
 
-              Text('ANTELACIÓN DE LAS CLASES',
-                  style: AppType.captionStrong.copyWith(color: muted, letterSpacing: 0.8)),
+              Text(
+                'ANTELACIÓN DE LAS CLASES',
+                style: AppType.captionStrong.copyWith(
+                  color: muted,
+                  letterSpacing: 0.8,
+                ),
+              ),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
@@ -135,15 +143,25 @@ class _NotificationsSectionState extends ConsumerState<NotificationsSection> {
               ),
 
               const Divider(height: 28),
-              Text('QUÉ RECIBIR',
-                  style: AppType.captionStrong.copyWith(color: muted, letterSpacing: 0.8)),
+              Text(
+                'QUÉ RECIBIR',
+                style: AppType.captionStrong.copyWith(
+                  color: muted,
+                  letterSpacing: 0.8,
+                ),
+              ),
               for (final (clave, etiqueta, detalle) in _categorias)
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: Text(etiqueta, style: AppType.body),
-                  subtitle: Text(detalle, style: AppType.caption.copyWith(color: muted)),
+                  subtitle: Text(
+                    detalle,
+                    style: AppType.caption.copyWith(color: muted),
+                  ),
                   value: _valorDe(p, clave),
-                  onChanged: _guardando ? null : (valor) => _guardar({clave: valor}),
+                  onChanged: _guardando
+                      ? null
+                      : (valor) => _guardar({clave: valor}),
                 ),
 
               const Divider(height: 28),
@@ -160,8 +178,8 @@ class _NotificationsSectionState extends ConsumerState<NotificationsSection> {
                 onChanged: _guardando
                     ? null
                     : (valor) => _guardar({
-                          'quietHours': {'enabled': valor}
-                        }),
+                        'quietHours': {'enabled': valor},
+                      }),
               ),
 
               // Se distinguen los dos lados del push: puede faltar en el
@@ -191,11 +209,15 @@ class _NotificationsSectionState extends ConsumerState<NotificationsSection> {
                       onPressed: _guardando
                           ? null
                           : () async {
-                              final concedido =
-                                  await LocalNotificationsService.instance.pedirPermisos();
+                              final concedido = await LocalNotificationsService
+                                  .instance
+                                  .pedirPermisos();
                               if (!context.mounted) return;
                               if (concedido) {
-                                AppToast.success(context, 'Notificaciones activadas');
+                                AppToast.success(
+                                  context,
+                                  'Notificaciones activadas',
+                                );
                               } else {
                                 AppToast.error(
                                   context,
@@ -213,8 +235,9 @@ class _NotificationsSectionState extends ConsumerState<NotificationsSection> {
                       onPressed: _guardando
                           ? null
                           : () async {
-                              final pendientes =
-                                  await LocalNotificationsService.instance.pendientes();
+                              final pendientes = await LocalNotificationsService
+                                  .instance
+                                  .pendientes();
                               if (!context.mounted) return;
                               AppToast.success(
                                 context,

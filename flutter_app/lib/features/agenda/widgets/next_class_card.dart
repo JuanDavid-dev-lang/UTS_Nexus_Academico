@@ -49,10 +49,9 @@ class _NextClassCardState extends ConsumerState<NextClassCard> {
   @override
   Widget build(BuildContext context) {
     final resumen = ref.watch(agendaResumenProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     // El gris canónico está calibrado para texto sobre blanco; en oscuro hay
     // que aclararlo o cae por debajo del contraste que exige DESIGN.md.
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
 
     return resumen.when(
       loading: () => const AppCard(child: SkeletonBox(height: 84)),
@@ -149,12 +148,12 @@ class _Bloque extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final palette = context.palette;
     // Sobre el degradado no valen los tonos del tema: el texto es blanco (u
     // oliva claro en oscuro) y los secundarios son ese mismo color rebajado,
     // que es lo único que conserva el contraste sobre un fondo que cambia de
     // luminosidad a lo largo de la tarjeta.
-    final frente = isDark ? AppColors.textDark : Colors.white;
+    final frente = palette.isDark ? palette.text : Colors.white;
     final tenue = frente.withValues(alpha: 0.72);
 
     return BrandSurface(
@@ -170,8 +169,8 @@ class _Bloque extends StatelessWidget {
                 Container(
                   width: 8,
                   height: 8,
-                  decoration: const BoxDecoration(
-                    color: AppColors.lime,
+                  decoration: BoxDecoration(
+                    color: palette.accent,
                     shape: BoxShape.circle,
                   ),
                 )
@@ -181,7 +180,7 @@ class _Bloque extends StatelessWidget {
               Text(
                 enCurso ? 'CLASE EN CURSO' : 'PRÓXIMA CLASE',
                 style: AppType.captionStrong.copyWith(
-                  color: enCurso ? AppColors.lime : tenue,
+                  color: enCurso ? palette.accent : tenue,
                   letterSpacing: 1,
                   fontWeight: FontWeight.w700,
                 ),
@@ -212,7 +211,9 @@ class _Bloque extends StatelessWidget {
               ),
             ],
           ),
-          if (item.aula.isNotEmpty || item.grupo.isNotEmpty || item.docente.isNotEmpty) ...[
+          if (item.aula.isNotEmpty ||
+              item.grupo.isNotEmpty ||
+              item.docente.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.gapXs),
             Row(
               children: [

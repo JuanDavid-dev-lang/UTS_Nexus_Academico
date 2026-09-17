@@ -53,16 +53,22 @@ class AppCard extends StatelessWidget {
           color: selected ? palette.primary : palette.border,
           width: selected ? 1.5 : 1,
         ),
-        boxShadow: elevated ? AppShadows.md(palette.isDark) : AppShadows.sm(palette.isDark),
+        boxShadow: elevated
+            ? AppShadows.md(palette.isDark)
+            : AppShadows.sm(palette.isDark),
       ),
-      child: child,
+      // El `Material` transparente va DENTRO de la decoración, no alrededor:
+      // un `ListTile` o un `InkWell` pintan su fondo y su onda sobre el
+      // `Material` más cercano, y con el de fuera el `DecoratedBox` de la
+      // tarjeta los tapaba. En depuración `ListTile` lanza una aserción que
+      // dice exactamente eso; en release el toque simplemente no deja rastro.
+      child: Material(color: Colors.transparent, child: child),
     );
 
     if (onTap == null && onLongPress == null) return content;
 
-    // El `Material` transparente por debajo es lo que hace que la onda del
-    // `InkWell` se dibuje: sin él, el `InkWell` pinta sobre el `Material` del
-    // Scaffold, que está detrás de la tarjeta, y el toque no deja rastro.
+    // La onda de la tarjeta entera sí va por fuera: cubre toda su superficie,
+    // con sus bordes redondeados.
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -97,12 +103,13 @@ class BrandSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final palette = context.palette;
+    final isDark = palette.isDark;
     final radio = borderRadius ?? BorderRadius.circular(AppSpacing.radiusLarge);
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        gradient: AppGradients.brand(isDark),
+        gradient: AppGradients.brand(palette),
         borderRadius: radio,
         boxShadow: AppShadows.md(isDark),
       ),
@@ -114,7 +121,7 @@ class BrandSurface extends StatelessWidget {
             // contraste del texto justo donde más claro está el degradado.
             Positioned.fill(
               child: DecoratedBox(
-                decoration: BoxDecoration(gradient: AppGradients.veil(isDark)),
+                decoration: BoxDecoration(gradient: AppGradients.veil(palette)),
               ),
             ),
             Material(
@@ -124,15 +131,15 @@ class BrandSurface extends StatelessWidget {
                 child: Padding(
                   padding: padding,
                   // En claro el texto va en blanco; en oscuro el degradado es
-                  // oliva y el blanco puro vibra encima, así que hereda el
+                  // apagado y el blanco puro vibra encima, así que hereda el
                   // color de texto del tema.
                   child: DefaultTextStyle.merge(
                     style: TextStyle(
-                      color: isDark ? AppColors.textDark : Colors.white,
+                      color: isDark ? palette.text : Colors.white,
                     ),
                     child: IconTheme.merge(
                       data: IconThemeData(
-                        color: isDark ? AppColors.textDark : Colors.white,
+                        color: isDark ? palette.text : Colors.white,
                       ),
                       child: child,
                     ),
@@ -167,7 +174,10 @@ class SectionHeader extends StatelessWidget {
               Text(title, style: AppType.h2),
               if (subtitle != null) ...[
                 const SizedBox(height: 2),
-                Text(subtitle!, style: AppType.caption.copyWith(color: palette.muted)),
+                Text(
+                  subtitle!,
+                  style: AppType.caption.copyWith(color: palette.muted),
+                ),
               ],
             ],
           ),
@@ -228,7 +238,12 @@ class StatusPill extends StatelessWidget {
   final String text;
   final SemanticKind kind;
   final IconData? icon;
-  const StatusPill(this.text, {super.key, this.kind = SemanticKind.info, this.icon});
+  const StatusPill(
+    this.text, {
+    super.key,
+    this.kind = SemanticKind.info,
+    this.icon,
+  });
 
   factory StatusPill.success(String t, {IconData? icon}) =>
       StatusPill(t, kind: SemanticKind.success, icon: icon);
@@ -241,7 +256,10 @@ class StatusPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final tone = SemanticTone.of(context, kind);
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: icon == null ? 10 : 8, vertical: 4),
+      padding: EdgeInsets.symmetric(
+        horizontal: icon == null ? 10 : 8,
+        vertical: 4,
+      ),
       decoration: BoxDecoration(
         color: tone.bg,
         borderRadius: BorderRadius.circular(AppSpacing.radiusPill),
@@ -292,7 +310,8 @@ class StatTile extends StatelessWidget {
     final semantico = tone == null ? null : SemanticTone.of(context, tone!);
     // DESIGN.md §4 regla 4: en oscuro el texto nunca va en lima, para no
     // competir con los CTAs. La cifra neutra usa el color de texto del tema.
-    final valueColor = semantico?.fg ?? (palette.isDark ? palette.text : palette.primary);
+    final valueColor =
+        semantico?.fg ?? (palette.isDark ? palette.text : palette.primary);
     final railColor = semantico?.fg ?? palette.primary;
 
     return AppCard(
@@ -328,7 +347,9 @@ class StatTile extends StatelessWidget {
                         padding: const EdgeInsets.all(5),
                         decoration: BoxDecoration(
                           color: semantico?.bg ?? palette.primarySoft,
-                          borderRadius: BorderRadius.circular(AppSpacing.radiusInput - 4),
+                          borderRadius: BorderRadius.circular(
+                            AppSpacing.radiusInput - 4,
+                          ),
                         ),
                         child: Icon(icon, size: 14, color: valueColor),
                       ),
@@ -339,8 +360,10 @@ class StatTile extends StatelessWidget {
                         label.toUpperCase(),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: AppType.captionStrong
-                            .copyWith(letterSpacing: 0.8, color: palette.muted),
+                        style: AppType.captionStrong.copyWith(
+                          letterSpacing: 0.8,
+                          color: palette.muted,
+                        ),
                       ),
                     ),
                   ],
@@ -437,7 +460,8 @@ class AppToast {
     );
   }
 
-  static void success(BuildContext context, String title, [String? detail]) => _show(
+  static void success(BuildContext context, String title, [String? detail]) =>
+      _show(
         context,
         icon: Icons.check_circle_outline,
         kind: SemanticKind.success,
@@ -446,7 +470,8 @@ class AppToast {
         duration: const Duration(seconds: 3),
       );
 
-  static void info(BuildContext context, String title, [String? detail]) => _show(
+  static void info(BuildContext context, String title, [String? detail]) =>
+      _show(
         context,
         icon: Icons.info_outline,
         kind: SemanticKind.info,
@@ -455,7 +480,8 @@ class AppToast {
         duration: const Duration(seconds: 4),
       );
 
-  static void error(BuildContext context, String title, [String? detail]) => _show(
+  static void error(BuildContext context, String title, [String? detail]) =>
+      _show(
         context,
         icon: Icons.error_outline,
         kind: SemanticKind.danger,
@@ -475,12 +501,7 @@ class SkeletonBox extends StatefulWidget {
   final double? width;
   final double radius;
 
-  const SkeletonBox({
-    super.key,
-    this.height = 16,
-    this.width,
-    this.radius = 8,
-  });
+  const SkeletonBox({super.key, this.height = 16, this.width, this.radius = 8});
 
   @override
   State<SkeletonBox> createState() => _SkeletonBoxState();
@@ -581,16 +602,26 @@ class StateView extends StatelessWidget {
   });
 
   factory StateView.loading([String message = 'Cargando información…']) =>
-      StateView(icon: Icons.hourglass_empty, title: 'Un momento', message: message);
+      StateView(
+        icon: Icons.hourglass_empty,
+        title: 'Un momento',
+        message: message,
+      );
 
-  factory StateView.empty([String message = 'No hay datos para mostrar todavía.']) =>
-      StateView(icon: Icons.inbox_outlined, title: 'Sin datos', message: message);
+  factory StateView.empty([
+    String message = 'No hay datos para mostrar todavía.',
+  ]) => StateView(
+    icon: Icons.inbox_outlined,
+    title: 'Sin datos',
+    message: message,
+  );
 
   factory StateView.error(String message, {Widget? action}) => StateView(
-      icon: Icons.error_outline,
-      title: 'Ocurrió un problema',
-      message: message,
-      action: action);
+    icon: Icons.error_outline,
+    title: 'Ocurrió un problema',
+    message: message,
+    action: action,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -627,14 +658,20 @@ class StateView extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.gap + 4),
-            Text(title, style: AppType.bodyStrong.copyWith(fontWeight: FontWeight.w700)),
+            Text(
+              title,
+              style: AppType.bodyStrong.copyWith(fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: AppSpacing.gapXs),
             Text(
               message,
               textAlign: TextAlign.center,
               style: AppType.caption.copyWith(color: palette.muted),
             ),
-            if (action != null) ...[const SizedBox(height: AppSpacing.gap + 4), action!],
+            if (action != null) ...[
+              const SizedBox(height: AppSpacing.gap + 4),
+              action!,
+            ],
           ],
         ),
       ),

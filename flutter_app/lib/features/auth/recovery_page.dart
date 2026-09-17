@@ -18,7 +18,8 @@ class RecoveryPage extends StatefulWidget {
   const RecoveryPage({super.key, this.requestCode, this.resetPassword});
 
   final Future<Map<String, dynamic>> Function(String email)? requestCode;
-  final Future<void> Function(String email, String code, String password)? resetPassword;
+  final Future<void> Function(String email, String code, String password)?
+  resetPassword;
 
   @override
   State<RecoveryPage> createState() => _RecoveryPageState();
@@ -51,8 +52,7 @@ class _RecoveryPageState extends State<RecoveryPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
 
     return Scaffold(
       appBar: AppBar(
@@ -144,14 +144,24 @@ class _RecoveryPageState extends State<RecoveryPage> {
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(Icons.error_outline,
-                                  size: 18, color: AppColors.danger),
+                              Icon(
+                                Icons.error_outline,
+                                size: 18,
+                                color: SemanticTone.of(
+                                  context,
+                                  SemanticKind.danger,
+                                ).fg,
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   _error!,
-                                  style: AppType.caption
-                                      .copyWith(color: AppColors.danger),
+                                  style: AppType.caption.copyWith(
+                                    color: SemanticTone.of(
+                                      context,
+                                      SemanticKind.danger,
+                                    ).fg,
+                                  ),
                                 ),
                               ),
                             ],
@@ -165,28 +175,34 @@ class _RecoveryPageState extends State<RecoveryPage> {
                                   height: 20,
                                   width: 20,
                                   child: CircularProgressIndicator(
-                                      strokeWidth: 2.4))
-                              : Text(_step == _Step.requestCode
-                                  ? 'Enviar código'
-                                  : 'Restablecer contraseña'),
+                                    strokeWidth: 2.4,
+                                  ),
+                                )
+                              : Text(
+                                  _step == _Step.requestCode
+                                      ? 'Enviar código'
+                                      : 'Restablecer contraseña',
+                                ),
                         ),
                         if (_step == _Step.resetPassword) ...[
                           TextButton(
                             onPressed: _busy || _resendSeconds > 0
                                 ? null
                                 : _requestCode,
-                            child: Text(_resendSeconds > 0
-                                ? 'Reenviar disponible en $_resendSeconds s'
-                                : 'Reenviar código'),
+                            child: Text(
+                              _resendSeconds > 0
+                                  ? 'Reenviar disponible en $_resendSeconds s'
+                                  : 'Reenviar código',
+                            ),
                           ),
                           const SizedBox(height: 8),
                           TextButton(
                             onPressed: _busy
                                 ? null
                                 : () => setState(() {
-                                      _step = _Step.requestCode;
-                                      _error = null;
-                                    }),
+                                    _step = _Step.requestCode;
+                                    _error = null;
+                                  }),
                             child: const Text('Usar otro correo'),
                           ),
                         ],
@@ -227,13 +243,20 @@ class _RecoveryPageState extends State<RecoveryPage> {
           return;
         }
         if (widget.resetPassword != null) {
-          await widget.resetPassword!(_email.text.trim(), _code.text.trim(), _password.text);
+          await widget.resetPassword!(
+            _email.text.trim(),
+            _code.text.trim(),
+            _password.text,
+          );
         } else {
-          await ApiClient.instance.post('/auth/recovery/reset', data: {
-            'email': _email.text.trim(),
-            'code': _code.text.trim(),
-            'newPassword': _password.text,
-          });
+          await ApiClient.instance.post(
+            '/auth/recovery/reset',
+            data: {
+              'email': _email.text.trim(),
+              'code': _code.text.trim(),
+              'newPassword': _password.text,
+            },
+          );
         }
         if (mounted) setState(() => _step = _Step.done);
       }
@@ -257,9 +280,10 @@ class _RecoveryPageState extends State<RecoveryPage> {
     try {
       final data = widget.requestCode != null
           ? await widget.requestCode!(email)
-          : (await ApiClient.instance
-                  .post('/auth/recovery/request', data: {'email': email}))
-              .data;
+          : (await ApiClient.instance.post(
+              '/auth/recovery/request',
+              data: {'email': email},
+            )).data;
       if (!mounted) return;
       setState(() {
         _step = _Step.resetPassword;
@@ -292,8 +316,11 @@ class _DoneView extends StatelessWidget {
     return Column(
       children: [
         const SizedBox(height: 20),
-        const Icon(Icons.check_circle_outline,
-            size: 64, color: AppColors.success),
+        Icon(
+          Icons.check_circle_outline,
+          size: 64,
+          color: SemanticTone.of(context, SemanticKind.success).fg,
+        ),
         const SizedBox(height: 18),
         Text(
           'Contraseña actualizada',

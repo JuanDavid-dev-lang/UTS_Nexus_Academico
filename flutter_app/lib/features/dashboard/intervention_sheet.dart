@@ -24,11 +24,11 @@ const interventionLabels = <String, String>{
 /// `NO_RESPONDE` va en peligro y no en advertencia: es el único estado que
 /// significa que el camino habitual ya falló.
 SemanticKind interventionKind(String estado) => switch (estado) {
-      'RESUELTO' => SemanticKind.success,
-      'NO_RESPONDE' => SemanticKind.danger,
-      'CONTACTADO' || 'CITA_ACORDADA' => SemanticKind.info,
-      _ => SemanticKind.warning,
-    };
+  'RESUELTO' => SemanticKind.success,
+  'NO_RESPONDE' => SemanticKind.danger,
+  'CONTACTADO' || 'CITA_ACORDADA' => SemanticKind.info,
+  _ => SemanticKind.warning,
+};
 
 Future<void> showInterventionSheet(BuildContext context, RiskItem risk) {
   return showModalBottomSheet<void>(
@@ -82,7 +82,9 @@ class _InterventionSheetState extends ConsumerState<_InterventionSheet> {
 
   Future<void> _cargarSeguimientos() async {
     try {
-      final datos = await ref.read(academicRepositoryProvider).seguimientos(
+      final datos = await ref
+          .read(academicRepositoryProvider)
+          .seguimientos(
             studentId: widget.risk.studentId,
             subjectId: widget.risk.subjectId,
             period: ref.read(selectedPeriodProvider),
@@ -108,8 +110,9 @@ class _InterventionSheetState extends ConsumerState<_InterventionSheet> {
         builder: (dialogContext) => AlertDialog(
           title: const Text('¿Abrir de todas formas?'),
           content: const Text(
-              'Este estudiante ya estuvo en acompañamiento pero fue negado. '
-              '¿Deseas realizarlo de todas formas?'),
+            'Este estudiante ya estuvo en acompañamiento pero fue negado. '
+            '¿Deseas realizarlo de todas formas?',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
@@ -127,7 +130,9 @@ class _InterventionSheetState extends ConsumerState<_InterventionSheet> {
 
     setState(() => _accionando = true);
     try {
-      await ref.read(academicRepositoryProvider).crearSeguimiento(
+      await ref
+          .read(academicRepositoryProvider)
+          .crearSeguimiento(
             studentId: widget.risk.studentId,
             subjectId: widget.risk.subjectId,
             period: ref.read(selectedPeriodProvider),
@@ -138,9 +143,9 @@ class _InterventionSheetState extends ConsumerState<_InterventionSheet> {
       await _cargarSeguimientos();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ApiError.from(error).message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ApiError.from(error).message)));
     } finally {
       if (mounted) setState(() => _accionando = false);
     }
@@ -149,7 +154,9 @@ class _InterventionSheetState extends ConsumerState<_InterventionSheet> {
   Future<void> _cerrarSeguimiento(String id, String resultado) async {
     setState(() => _accionando = true);
     try {
-      await ref.read(academicRepositoryProvider).cerrarSeguimiento(
+      await ref
+          .read(academicRepositoryProvider)
+          .cerrarSeguimiento(
             id,
             resultado: resultado,
             nota: _notaSeg.text.trim(),
@@ -159,9 +166,9 @@ class _InterventionSheetState extends ConsumerState<_InterventionSheet> {
       ref.invalidate(risksProvider);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ApiError.from(error).message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ApiError.from(error).message)));
     } finally {
       if (mounted) setState(() => _accionando = false);
     }
@@ -170,7 +177,9 @@ class _InterventionSheetState extends ConsumerState<_InterventionSheet> {
   Future<void> _guardar() async {
     setState(() => _guardando = true);
     try {
-      await ref.read(academicRepositoryProvider).saveIntervention(
+      await ref
+          .read(academicRepositoryProvider)
+          .saveIntervention(
             studentId: widget.risk.studentId,
             subjectId: widget.risk.subjectId,
             period: ref.read(selectedPeriodProvider),
@@ -182,16 +191,15 @@ class _InterventionSheetState extends ConsumerState<_InterventionSheet> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _guardando = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ApiError.from(error).message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ApiError.from(error).message)));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -206,15 +214,19 @@ class _InterventionSheetState extends ConsumerState<_InterventionSheet> {
           children: [
             Text('Seguimiento', style: AppType.h3),
             const SizedBox(height: 2),
-            Text(widget.risk.fullName,
-                style: AppType.caption.copyWith(color: muted)),
+            Text(
+              widget.risk.fullName,
+              style: AppType.caption.copyWith(color: muted),
+            ),
             const SizedBox(height: 14),
 
             for (final motivo in widget.risk.reasons)
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
-                child: Text('· $motivo',
-                    style: AppType.caption.copyWith(color: muted)),
+                child: Text(
+                  '· $motivo',
+                  style: AppType.caption.copyWith(color: muted),
+                ),
               ),
             const SizedBox(height: 14),
 
@@ -275,8 +287,10 @@ class _InterventionSheetState extends ConsumerState<_InterventionSheet> {
   /// el progreso medido por el servidor); sin abierto, se ofrece abrir uno.
   Widget _bloqueAcompanamiento(Color muted) {
     if (_cargandoSeg) {
-      return Text('Cargando acompañamiento…',
-          style: AppType.caption.copyWith(color: muted));
+      return Text(
+        'Cargando acompañamiento…',
+        style: AppType.caption.copyWith(color: muted),
+      );
     }
     final datos = _seg;
     if (datos == null) return const SizedBox.shrink();
@@ -320,13 +334,13 @@ class _InterventionSheetState extends ConsumerState<_InterventionSheet> {
                     episodio['estado'] == 'EN_CURSO'
                         ? 'En curso'
                         : episodio['estado'] == 'BIEN'
-                            ? 'Fue bien'
-                            : 'Negado',
+                        ? 'Fue bien'
+                        : 'Negado',
                     kind: episodio['estado'] == 'BIEN'
                         ? SemanticKind.success
                         : episodio['estado'] == 'NEGADO'
-                            ? SemanticKind.danger
-                            : SemanticKind.info,
+                        ? SemanticKind.danger
+                        : SemanticKind.info,
                   ),
                 ],
               ),
@@ -340,8 +354,8 @@ class _InterventionSheetState extends ConsumerState<_InterventionSheet> {
                   progreso == 'MEJORA'
                       ? 'El riesgo va disminuyendo · hoy $nivelActual'
                       : progreso == 'EMPEORA'
-                          ? 'El riesgo va aumentando · hoy $nivelActual'
-                          : 'El riesgo sigue igual · hoy $nivelActual',
+                      ? 'El riesgo va aumentando · hoy $nivelActual'
+                      : 'El riesgo sigue igual · hoy $nivelActual',
                   style: AppType.caption.copyWith(color: muted),
                 ),
               ),
@@ -360,7 +374,9 @@ class _InterventionSheetState extends ConsumerState<_InterventionSheet> {
                     onPressed: _accionando
                         ? null
                         : () => _cerrarSeguimiento(
-                            abierto['_id'].toString(), 'NEGADO'),
+                            abierto['_id'].toString(),
+                            'NEGADO',
+                          ),
                     child: const Text('Fue mal'),
                   ),
                 ),
@@ -370,7 +386,9 @@ class _InterventionSheetState extends ConsumerState<_InterventionSheet> {
                     onPressed: _accionando
                         ? null
                         : () => _cerrarSeguimiento(
-                            abierto['_id'].toString(), 'BIEN'),
+                            abierto['_id'].toString(),
+                            'BIEN',
+                          ),
                     child: const Text('Fue bien'),
                   ),
                 ),
@@ -388,8 +406,7 @@ class _InterventionSheetState extends ConsumerState<_InterventionSheet> {
                 for (final entrada in _accionesSeguimiento.entries)
                   DropdownMenuItem(
                     value: entrada.key,
-                    child:
-                        Text(entrada.value, overflow: TextOverflow.ellipsis),
+                    child: Text(entrada.value, overflow: TextOverflow.ellipsis),
                   ),
               ],
               onChanged: (valor) => setState(() => _accion = valor ?? _accion),

@@ -27,6 +27,7 @@ class _UpdateSectionState extends State<UpdateSection> {
   AppRelease? _release;
   String _installed = '';
   String? _error;
+
   /// Un fallo que nadie pidió —el de la comprobación al abrir Ajustes— se
   /// cuenta en gris: la app funciona igual y no hay nada que hacer con la
   /// noticia. Pintar de rojo lo que nadie preguntó enseña a ignorar los rojos.
@@ -37,11 +38,14 @@ class _UpdateSectionState extends State<UpdateSection> {
   @override
   void initState() {
     super.initState();
-    _service.currentVersion().then((version) {
-      if (mounted) setState(() => _installed = version);
-    }).catchError((_) {
-      if (mounted) setState(() => _installed = 'desconocida');
-    });
+    _service
+        .currentVersion()
+        .then((version) {
+          if (mounted) setState(() => _installed = version);
+        })
+        .catchError((_) {
+          if (mounted) setState(() => _installed = 'desconocida');
+        });
     _check(pedida: false);
   }
 
@@ -81,13 +85,16 @@ class _UpdateSectionState extends State<UpdateSection> {
       _error = null;
     });
     try {
-      await _service.download(release, onProgress: (received, total) {
-        if (!mounted) return;
-        setState(() {
-          _received = received;
-          if (total > 0) _total = total;
-        });
-      });
+      await _service.download(
+        release,
+        onProgress: (received, total) {
+          if (!mounted) return;
+          setState(() {
+            _received = received;
+            if (total > 0) _total = total;
+          });
+        },
+      );
       if (mounted) setState(() => _phase = _Phase.available);
     } on ApiUpdateException catch (error) {
       if (!mounted) return;
@@ -102,8 +109,7 @@ class _UpdateSectionState extends State<UpdateSection> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
 
     return AppCard(
       child: Column(
@@ -137,7 +143,8 @@ class _UpdateSectionState extends State<UpdateSection> {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: _phase == _Phase.checking ||
+                onPressed:
+                    _phase == _Phase.checking ||
                         _phase == _Phase.downloading ||
                         _phase == _Phase.unsupported
                     ? null
@@ -171,8 +178,10 @@ class _UpdateSectionState extends State<UpdateSection> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
               const SizedBox(width: 10),
-              Text('Buscando una versión nueva…',
-                  style: AppType.caption.copyWith(color: muted)),
+              Text(
+                'Buscando una versión nueva…',
+                style: AppType.caption.copyWith(color: muted),
+              ),
             ],
           ),
         ];
@@ -181,9 +190,11 @@ class _UpdateSectionState extends State<UpdateSection> {
         return [
           Row(
             children: [
-              Icon(Icons.check_circle_outline,
-                  size: 18,
-                  color: SemanticTone.of(context, SemanticKind.success).fg),
+              Icon(
+                Icons.check_circle_outline,
+                size: 18,
+                color: SemanticTone.of(context, SemanticKind.success).fg,
+              ),
               const SizedBox(width: 8),
               Text('Ya tienes la última versión.', style: AppType.caption),
             ],
@@ -198,13 +209,17 @@ class _UpdateSectionState extends State<UpdateSection> {
           ),
           if (_release!.notes.isNotEmpty) ...[
             const SizedBox(height: 10),
-            Text(_release!.notes,
-                style: AppType.caption.copyWith(color: muted)),
+            Text(
+              _release!.notes,
+              style: AppType.caption.copyWith(color: muted),
+            ),
           ],
           if (_release!.sizeBytes > 0) ...[
             const SizedBox(height: 6),
-            Text('Descarga de ${_mb(_release!.sizeBytes)}',
-                style: AppType.caption.copyWith(color: muted)),
+            Text(
+              'Descarga de ${_mb(_release!.sizeBytes)}',
+              style: AppType.caption.copyWith(color: muted),
+            ),
           ],
         ];
 
@@ -222,8 +237,10 @@ class _UpdateSectionState extends State<UpdateSection> {
             child: LinearProgressIndicator(value: ratio, minHeight: 6),
           ),
           const SizedBox(height: 6),
-          Text('No cierres la aplicación.',
-              style: AppType.caption.copyWith(color: muted)),
+          Text(
+            'No cierres la aplicación.',
+            style: AppType.caption.copyWith(color: muted),
+          ),
         ];
 
       case _Phase.failed:
@@ -240,13 +257,17 @@ class _UpdateSectionState extends State<UpdateSection> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.error_outline,
-                  size: 18,
-                  color: SemanticTone.of(context, SemanticKind.danger).fg),
+              Icon(
+                Icons.error_outline,
+                size: 18,
+                color: SemanticTone.of(context, SemanticKind.danger).fg,
+              ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(_error ?? 'No se pudo actualizar.',
-                    style: AppType.caption),
+                child: Text(
+                  _error ?? 'No se pudo actualizar.',
+                  style: AppType.caption,
+                ),
               ),
             ],
           ),

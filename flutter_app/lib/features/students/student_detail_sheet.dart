@@ -30,8 +30,7 @@ class _StudentDetailSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
     final cuts = entry.grades?.cuts ?? const <CutSummary>[];
 
     return DraggableScrollableSheet(
@@ -218,11 +217,15 @@ class _StudentDetailSheet extends StatelessWidget {
                             value: (cut.grade / 5).clamp(0, 1),
                             minHeight: 7,
                             color: cut.grade >= 3
-                                ? AppColors.success
-                                : AppColors.danger,
-                            backgroundColor: isDark
-                                ? AppColors.surfaceAltDark
-                                : AppColors.surfaceAlt,
+                                ? SemanticTone.of(
+                                    context,
+                                    SemanticKind.success,
+                                  ).fg
+                                : SemanticTone.of(
+                                    context,
+                                    SemanticKind.danger,
+                                  ).fg,
+                            backgroundColor: context.palette.surfaceAlt,
                           ),
                         ),
                       ),

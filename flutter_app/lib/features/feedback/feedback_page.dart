@@ -32,8 +32,7 @@ class _FeedbackPageState extends ConsumerState<FeedbackPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
     final enviados = ref.watch(feedbackProvider);
 
     return Scaffold(
@@ -48,9 +47,12 @@ class _FeedbackPageState extends ConsumerState<FeedbackPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Enviar al buzón',
-                    style: AppType.bodyStrong
-                        .copyWith(fontWeight: FontWeight.w700)),
+                Text(
+                  'Enviar al buzón',
+                  style: AppType.bodyStrong.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Text(
                   'Llega a la administración con tu nombre — así se te puede '
@@ -66,9 +68,13 @@ class _FeedbackPageState extends ConsumerState<FeedbackPage> {
                   ),
                   items: const [
                     DropdownMenuItem(
-                        value: 'SUGERENCIA', child: Text('Sugerencia')),
+                      value: 'SUGERENCIA',
+                      child: Text('Sugerencia'),
+                    ),
                     DropdownMenuItem(
-                        value: 'ERROR', child: Text('Reporte de error')),
+                      value: 'ERROR',
+                      child: Text('Reporte de error'),
+                    ),
                   ],
                   onChanged: (value) =>
                       setState(() => _tipo = value ?? 'SUGERENCIA'),
@@ -103,7 +109,8 @@ class _FeedbackPageState extends ConsumerState<FeedbackPage> {
                           ? const SizedBox(
                               height: 15,
                               width: 15,
-                              child: CircularProgressIndicator(strokeWidth: 2))
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
                           : const Icon(Icons.send_outlined, size: 18),
                       label: const Text('Enviar'),
                     ),
@@ -113,9 +120,10 @@ class _FeedbackPageState extends ConsumerState<FeedbackPage> {
             ),
           ),
           const SizedBox(height: 18),
-          Text('Lo que has enviado',
-              style:
-                  AppType.bodyStrong.copyWith(fontWeight: FontWeight.w700)),
+          Text(
+            'Lo que has enviado',
+            style: AppType.bodyStrong.copyWith(fontWeight: FontWeight.w700),
+          ),
           const SizedBox(height: 10),
           enviados.when(
             loading: () => const SkeletonBox(height: 90, radius: 12),
@@ -158,7 +166,10 @@ class _FeedbackPageState extends ConsumerState<FeedbackPage> {
       _controller.clear();
       ref.invalidate(feedbackProvider);
       AppToast.success(
-          context, 'Enviado', 'Gracias: la administración lo revisará.');
+        context,
+        'Enviado',
+        'Gracias: la administración lo revisará.',
+      );
     } on ApiError catch (error) {
       if (!mounted) return;
       AppToast.error(context, 'No se pudo enviar', error.message);
@@ -178,8 +189,7 @@ class _FeedbackCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
 
     // El estado siempre lleva su palabra: el color solo la acompaña.
     final (kind, texto) = switch (item.estado) {
@@ -206,8 +216,9 @@ class _FeedbackCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   item.tipo == 'ERROR' ? 'Reporte de error' : 'Sugerencia',
-                  style: AppType.bodyStrong
-                      .copyWith(fontWeight: FontWeight.w700),
+                  style: AppType.bodyStrong.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               StatusPill(texto, kind: kind),

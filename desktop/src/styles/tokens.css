@@ -302,3 +302,54 @@
     rgb(202 210 37 / 0) 55%
   );
 }
+
+/**
+ * Estilo elegido en Configuración → Apariencia.
+ *
+ * Los colores del tono y de la visión del color no están aquí: los escribe
+ * `state/theme.store.ts` en línea sobre <html>, porque el color propio no se
+ * conoce de antemano. Lo que sí es una lista cerrada va como regla.
+ *
+ * Esquinas y tamaño de texto escalan la rampa entera, no un escalón suelto:
+ * la escala de cinco pasos sigue siendo de cinco pasos, más grande o más
+ * pequeña, y ningún componente deja de pertenecer a ella.
+ */
+html[data-esquinas='rectas'] {
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 6px;
+  --radius-card: 7px;
+  --radius-xl: 8px;
+  --radius-2xl: 10px;
+}
+
+html[data-esquinas='redondeadas'] {
+  --radius-sm: 11px;
+  --radius-md: 17px;
+  --radius-lg: 22px;
+  --radius-card: 25px;
+  --radius-xl: 28px;
+  --radius-2xl: 36px;
+}
+
+html[data-texto='grande'] {
+  --type-h1: 40px;
+  --type-h2: 34px;
+  --type-h3: 27px;
+  --type-body: 18px;
+  --type-caption: 15px;
+}
+
+html[data-texto='muy-grande'] {
+  --type-h1: 45px;
+  --type-h2: 38px;
+  --type-h3: 30px;
+  --type-body: 20px;
+  --type-caption: 16px;
+}
+
+html[data-movimiento='reducido'] {
+  --duration-fast: 0ms;
+  --duration-base: 0ms;
+  --duration-slow: 0ms;
+}

@@ -19,22 +19,21 @@ class AnnouncementsPage extends ConsumerWidget {
   const AnnouncementsPage({super.key});
 
   static SemanticKind _kind(String tipo) => switch (tipo) {
-        'URGENTE' => SemanticKind.danger,
-        'IMPORTANTE' => SemanticKind.warning,
-        _ => SemanticKind.info,
-      };
+    'URGENTE' => SemanticKind.danger,
+    'IMPORTANTE' => SemanticKind.warning,
+    _ => SemanticKind.info,
+  };
 
   static String _etiqueta(String tipo) => switch (tipo) {
-        'URGENTE' => 'Urgente',
-        'IMPORTANTE' => 'Importante',
-        _ => 'Informativo',
-      };
+    'URGENTE' => 'Urgente',
+    'IMPORTANTE' => 'Importante',
+    _ => 'Informativo',
+  };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final avisos = ref.watch(avisosProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
 
     return Scaffold(
       appBar: AppBar(
@@ -87,8 +86,7 @@ class AnnouncementsPage extends ConsumerWidget {
                         ),
                       );
                     }
-                    final aviso =
-                        listado.items[indice - (conCabecera ? 1 : 0)];
+                    final aviso = listado.items[indice - (conCabecera ? 1 : 0)];
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: _Tarjeta(aviso: aviso, muted: muted, ref: ref),
@@ -151,8 +149,10 @@ class _TarjetaState extends State<_Tarjeta> {
                   const SizedBox(width: 6),
                 ],
                 Expanded(
-                  child: Text(a.titulo,
-                      style: AppType.body.copyWith(fontWeight: FontWeight.w700)),
+                  child: Text(
+                    a.titulo,
+                    style: AppType.body.copyWith(fontWeight: FontWeight.w700),
+                  ),
                 ),
                 if (!a.leido)
                   Container(
@@ -168,12 +168,16 @@ class _TarjetaState extends State<_Tarjeta> {
             const SizedBox(height: 6),
             Row(
               children: [
-                StatusPill(AnnouncementsPage._etiqueta(a.tipo),
-                    kind: AnnouncementsPage._kind(a.tipo)),
+                StatusPill(
+                  AnnouncementsPage._etiqueta(a.tipo),
+                  kind: AnnouncementsPage._kind(a.tipo),
+                ),
                 const SizedBox(width: 8),
                 if (fecha != null)
-                  Text('${fecha.day}/${fecha.month}/${fecha.year}',
-                      style: AppType.caption.copyWith(color: widget.muted)),
+                  Text(
+                    '${fecha.day}/${fecha.month}/${fecha.year}',
+                    style: AppType.caption.copyWith(color: widget.muted),
+                  ),
               ],
             ),
             const SizedBox(height: 8),
@@ -185,8 +189,10 @@ class _TarjetaState extends State<_Tarjeta> {
             ),
             if (_abierto && a.autor.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Text('Publicado por ${a.autor}',
-                  style: AppType.caption.copyWith(color: widget.muted)),
+              Text(
+                'Publicado por ${a.autor}',
+                style: AppType.caption.copyWith(color: widget.muted),
+              ),
             ],
           ],
         ),

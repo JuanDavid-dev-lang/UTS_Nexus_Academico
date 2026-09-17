@@ -75,7 +75,9 @@ class _AiPageState extends ConsumerState<AiPage> {
 
   void _consultar(({String tipo, String etiqueta}) consulta) {
     final materia = _materia;
-    ref.read(chatControllerProvider.notifier).quick(
+    ref
+        .read(chatControllerProvider.notifier)
+        .quick(
           consulta.tipo,
           materia == null
               ? consulta.etiqueta
@@ -141,8 +143,11 @@ class _AiPageState extends ConsumerState<AiPage> {
         ),
         children: [
           ActionChip(
-            avatar: Icon(Icons.filter_list_outlined,
-                size: 16, color: palette.primary),
+            avatar: Icon(
+              Icons.filter_list_outlined,
+              size: 16,
+              color: palette.primary,
+            ),
             label: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 140),
               child: Text(
@@ -171,7 +176,8 @@ class _AiPageState extends ConsumerState<AiPage> {
     // 'no fresco' = lo que se está viendo salió de la caché. El estado ya no
     // es nulo cuando hay conexión: ahora también lleva la hora de la última
     // sincronización, así que la comprobación va contra 'esFresco'.
-    final sinConexion = !(ref.watch(offlineStatusProvider).valueOrNull?.esFresco ?? true);
+    final sinConexion =
+        !(ref.watch(offlineStatusProvider).valueOrNull?.esFresco ?? true);
     ref.listen(chatControllerProvider, (_, __) => _scrollToBottom());
 
     return Scaffold(
@@ -182,7 +188,8 @@ class _AiPageState extends ConsumerState<AiPage> {
             IconButton(
               tooltip: 'Nueva conversación',
               icon: const Icon(Icons.delete_sweep_outlined),
-              onPressed: () => ref.read(chatControllerProvider.notifier).clear(),
+              onPressed: () =>
+                  ref.read(chatControllerProvider.notifier).clear(),
             ),
           const SessionMenuButton(),
         ],
@@ -209,7 +216,9 @@ class _AiPageState extends ConsumerState<AiPage> {
                     padding: AppSpacing.pagePadding,
                     itemCount: chat.messages.length + (chat.sending ? 1 : 0),
                     itemBuilder: (context, i) {
-                      if (i >= chat.messages.length) return const _TypingBubble();
+                      if (i >= chat.messages.length) {
+                        return const _TypingBubble();
+                      }
                       return _Bubble(message: chat.messages[i]);
                     },
                   ),
@@ -276,20 +285,23 @@ class _StatusBannerState extends ConsumerState<_StatusBanner> {
       loading: () => const SizedBox.shrink(),
       error: (_, __) => const SizedBox.shrink(),
       data: (s) {
-        final ok = (s.enabled && s.available && s.modelReady) ||
+        final ok =
+            (s.enabled && s.available && s.modelReady) ||
             s.mlAvailable ||
             s.rubriAvailable;
         final tone = SemanticTone.of(
-            context, ok ? SemanticKind.success : SemanticKind.warning);
+          context,
+          ok ? SemanticKind.success : SemanticKind.warning,
+        );
         final color = tone.fg;
         final bg = tone.bg;
         final text = s.enabled && s.available && s.modelReady
             ? 'Rubri disponible · modelo conversacional ${s.model ?? ''}'
             : s.mlAvailable
-                ? 'Rubri activo · modelo de predicción interno (ML en Python)'
-                : s.rubriAvailable
-                    ? 'Rubri disponible · clasificador NLP interno activo'
-                    : 'Rubri sin conexión — respuestas básicas por reglas';
+            ? 'Rubri activo · modelo de predicción interno (ML en Python)'
+            : s.rubriAvailable
+            ? 'Rubri disponible · clasificador NLP interno activo'
+            : 'Rubri sin conexión — respuestas básicas por reglas';
 
         return AnimatedSize(
           duration: const Duration(milliseconds: 200),
@@ -299,15 +311,23 @@ class _StatusBannerState extends ConsumerState<_StatusBanner> {
               : Container(
                   width: double.infinity,
                   color: bg,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: Row(
                     children: [
-                      Icon(ok ? Icons.bolt_outlined : Icons.info_outline,
-                          size: 16, color: color),
+                      Icon(
+                        ok ? Icons.bolt_outlined : Icons.info_outline,
+                        size: 16,
+                        color: color,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: Text(text,
-                            style: AppType.captionStrong.copyWith(color: color)),
+                        child: Text(
+                          text,
+                          style: AppType.captionStrong.copyWith(color: color),
+                        ),
                       ),
                     ],
                   ),
@@ -324,8 +344,7 @@ class _EmptyChat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
     final brand = SemanticTone.of(context, SemanticKind.brand);
     return ListView(
       padding: const EdgeInsets.all(24),
@@ -333,9 +352,7 @@ class _EmptyChat extends StatelessWidget {
         const SizedBox(height: 24),
         const Center(child: Rubri(size: 128)),
         const SizedBox(height: 12),
-        const Center(
-          child: Text('Hola, soy Rubri', style: AppType.h3),
-        ),
+        const Center(child: Text('Hola, soy Rubri', style: AppType.h3)),
         const SizedBox(height: 6),
         Center(
           child: Text(
@@ -374,9 +391,9 @@ class _Bubble extends StatelessWidget {
     final isUser = message.isUser;
     final isError = message.source == 'error';
     final scheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final assistantBg = isDark ? AppColors.surfaceAltDark : AppColors.surfaceAlt;
-    final assistantFg = isDark ? AppColors.textDark : AppColors.text;
+    final palette = context.palette;
+    final assistantBg = palette.surfaceAlt;
+    final assistantFg = palette.text;
     final error = SemanticTone.of(context, SemanticKind.danger);
     final bg = isUser ? scheme.primary : (isError ? error.bg : assistantBg);
     final fg = isUser ? scheme.onPrimary : (isError ? error.fg : assistantFg);
@@ -391,7 +408,9 @@ class _Bubble extends StatelessWidget {
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Row(
-        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isUser
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isUser) ...[
@@ -399,47 +418,57 @@ class _Bubble extends StatelessWidget {
             const SizedBox(width: 8),
           ],
           Container(
-        // `sizeOf` y no `of`: esto está dentro de cada burbuja del chat, que
-        // es justo la pantalla donde el teclado se abre y se cierra todo el
-        // rato. Con `MediaQuery.of`, cada burbuja visible se reconstruía en
-        // cada fotograma de la animación del teclado — para leer un ancho de
-        // pantalla que la animación no toca.
-        constraints: BoxConstraints(
-            maxWidth: MediaQuery.sizeOf(context).width * 0.78),
-        margin: const EdgeInsets.symmetric(vertical: 5),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(16),
-            topRight: const Radius.circular(16),
-            bottomLeft: Radius.circular(isUser ? 16 : 4),
-            bottomRight: Radius.circular(isUser ? 4 : 16),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment:
-              isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-          children: [
-            Text(message.content,
-                style: AppType.body.copyWith(color: fg, height: 1.35)),
-            if (!isUser && message.source == 'datos') ...[
-              const SizedBox(height: 4),
-              Text('cálculo directo con tus datos',
-                  style: AppType.caption.copyWith(color: AppColors.textMuted)),
-            ],
-            if (!isUser && message.source == 'ml') ...[
-              const SizedBox(height: 4),
-              Text('modelo de predicción interno',
-                  style: AppType.caption.copyWith(color: AppColors.textMuted)),
-            ],
-            if (!isUser && message.source == 'rules') ...[
-              const SizedBox(height: 4),
-              Text('modo básico (sin IA)',
-                  style: AppType.caption.copyWith(color: AppColors.textMuted)),
-            ],
-          ],
-        ),
+            // `sizeOf` y no `of`: esto está dentro de cada burbuja del chat, que
+            // es justo la pantalla donde el teclado se abre y se cierra todo el
+            // rato. Con `MediaQuery.of`, cada burbuja visible se reconstruía en
+            // cada fotograma de la animación del teclado — para leer un ancho de
+            // pantalla que la animación no toca.
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.sizeOf(context).width * 0.78,
+            ),
+            margin: const EdgeInsets.symmetric(vertical: 5),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(16),
+                topRight: const Radius.circular(16),
+                bottomLeft: Radius.circular(isUser ? 16 : 4),
+                bottomRight: Radius.circular(isUser ? 4 : 16),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: isUser
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+              children: [
+                Text(
+                  message.content,
+                  style: AppType.body.copyWith(color: fg, height: 1.35),
+                ),
+                if (!isUser && message.source == 'datos') ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'cálculo directo con tus datos',
+                    style: AppType.caption.copyWith(color: palette.muted),
+                  ),
+                ],
+                if (!isUser && message.source == 'ml') ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'modelo de predicción interno',
+                    style: AppType.caption.copyWith(color: palette.muted),
+                  ),
+                ],
+                if (!isUser && message.source == 'rules') ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'modo básico (sin IA)',
+                    style: AppType.caption.copyWith(color: palette.muted),
+                  ),
+                ],
+              ],
+            ),
           ),
         ],
       ),
@@ -458,16 +487,14 @@ class _TypingBubble extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 5),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: AppColors.surfaceAlt,
+          color: context.palette.surfaceAlt,
           borderRadius: BorderRadius.circular(16),
         ),
         child: const SizedBox(
           width: 40,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _Dot(), _Dot(), _Dot(),
-            ],
+            children: [_Dot(), _Dot(), _Dot()],
           ),
         ),
       ),
@@ -478,8 +505,8 @@ class _TypingBubble extends StatelessWidget {
 class _Dot extends StatelessWidget {
   const _Dot();
   @override
-  Widget build(BuildContext context) => const CircleAvatar(
-      radius: 4, backgroundColor: AppColors.textMuted);
+  Widget build(BuildContext context) =>
+      CircleAvatar(radius: 4, backgroundColor: context.palette.muted);
 }
 
 class _InputBar extends StatelessWidget {
@@ -498,8 +525,8 @@ class _InputBar extends StatelessWidget {
       top: false,
       child: Container(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-        decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: AppColors.border)),
+        decoration: BoxDecoration(
+          border: Border(top: BorderSide(color: context.palette.border)),
         ),
         child: Row(
           children: [
@@ -527,7 +554,10 @@ class _InputBar extends StatelessWidget {
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
                   : const Icon(Icons.send_outlined),
             ),
           ],

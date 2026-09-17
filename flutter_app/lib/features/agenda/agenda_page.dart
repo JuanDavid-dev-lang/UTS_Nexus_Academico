@@ -81,7 +81,8 @@ class _AgendaPageState extends ConsumerState<AgendaPage> {
     // El día que se está mirando, no siempre hoy: si el docente está en la
     // semana que viene, el evento nuevo empieza ahí.
     final ancla = ref.read(agendaAnclaProvider);
-    final offset = ref.read(agendaProximaProvider).valueOrNull?.offsetCampusMinutos ??
+    final offset =
+        ref.read(agendaProximaProvider).valueOrNull?.offsetCampusMinutos ??
         offsetCampusPorDefecto;
 
     final creado = await mostrarHojaDeEvento(
@@ -96,8 +97,9 @@ class _AgendaPageState extends ConsumerState<AgendaPage> {
 
   void _moverSemana(int pasos) {
     final actual = ref.read(agendaAnclaProvider);
-    ref.read(agendaAnclaProvider.notifier).state =
-        actual.add(Duration(days: 7 * pasos));
+    ref.read(agendaAnclaProvider.notifier).state = actual.add(
+      Duration(days: 7 * pasos),
+    );
   }
 
   @override
@@ -111,8 +113,8 @@ class _AgendaPageState extends ConsumerState<AgendaPage> {
           IconButton(
             tooltip: 'Hoy',
             icon: const Icon(Icons.today_outlined),
-            onPressed: () =>
-                ref.read(agendaAnclaProvider.notifier).state = DateTime.now().toUtc(),
+            onPressed: () => ref.read(agendaAnclaProvider.notifier).state =
+                DateTime.now().toUtc(),
           ),
           const SessionMenuButton(),
         ],
@@ -122,12 +124,12 @@ class _AgendaPageState extends ConsumerState<AgendaPage> {
       // sin que nadie recargue nada.
       floatingActionButton:
           puedeGestionarAgenda(ref.watch(authControllerProvider).user?.role)
-              ? FloatingActionButton.extended(
-                  onPressed: _nuevoEvento,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Evento'),
-                )
-              : null,
+          ? FloatingActionButton.extended(
+              onPressed: _nuevoEvento,
+              icon: const Icon(Icons.add),
+              label: const Text('Evento'),
+            )
+          : null,
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(agendaResumenProvider);
@@ -180,7 +182,7 @@ class _AgendaPageState extends ConsumerState<AgendaPage> {
               p1.mes == p2.mes
                   ? '${p1.dia} – ${p2.dia} de ${nombreMesCampus(lunes, offsetCampusPorDefecto)}'
                   : '${p1.dia} ${nombreMesCampus(lunes, offsetCampusPorDefecto)} – '
-                      '${p2.dia} ${nombreMesCampus(domingo, offsetCampusPorDefecto)}',
+                        '${p2.dia} ${nombreMesCampus(domingo, offsetCampusPorDefecto)}',
               textAlign: TextAlign.center,
               style: AppType.bodyStrong,
             ),
@@ -234,8 +236,8 @@ class _AgendaPageState extends ConsumerState<AgendaPage> {
             _pestana == 0
                 ? 'No tienes clases ni eventos hoy.'
                 : _pestana == 1
-                    ? 'No hay nada programado esta semana.'
-                    : 'No queda nada pendiente en los próximos días.',
+                ? 'No hay nada programado esta semana.'
+                : 'No queda nada pendiente en los próximos días.',
           );
         }
 
@@ -274,7 +276,10 @@ class _AgendaPageState extends ConsumerState<AgendaPage> {
     final palette = context.palette;
 
     return Padding(
-      padding: const EdgeInsets.only(top: AppSpacing.gap, bottom: AppSpacing.gapSm),
+      padding: const EdgeInsets.only(
+        top: AppSpacing.gap,
+        bottom: AppSpacing.gapSm,
+      ),
       child: Row(
         children: [
           if (esHoy) ...[
@@ -333,7 +338,11 @@ class _FilaAgenda extends StatelessWidget {
   final int offset;
   final VoidCallback onTap;
 
-  const _FilaAgenda({required this.item, required this.offset, required this.onTap});
+  const _FilaAgenda({
+    required this.item,
+    required this.offset,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -379,8 +388,8 @@ class _FilaAgenda extends StatelessWidget {
                       item.todoElDia
                           ? 'el día'
                           : item.duracionMinutos > 0
-                              ? horaCampus(item.fin, offset)
-                              : '',
+                          ? horaCampus(item.fin, offset)
+                          : '',
                       style: AppType.caption.copyWith(
                         color: palette.muted,
                         fontFeatures: const [FontFeature.tabularFigures()],
@@ -429,7 +438,8 @@ class _FilaAgenda extends StatelessWidget {
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(
                           [
-                            if (item.materia.isNotEmpty && item.materia != item.titulo)
+                            if (item.materia.isNotEmpty &&
+                                item.materia != item.titulo)
                               item.materia,
                             if (item.grupo.isNotEmpty) 'Grupo ${item.grupo}',
                             if (item.aula.isNotEmpty) 'Aula ${item.aula}',
@@ -458,22 +468,24 @@ class _DetalleAgenda extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
 
     Widget dato(String etiqueta, String valor) => Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 96,
-                child: Text(etiqueta, style: AppType.caption.copyWith(color: muted)),
-              ),
-              Expanded(child: Text(valor, style: AppType.body)),
-            ],
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 96,
+            child: Text(
+              etiqueta,
+              style: AppType.caption.copyWith(color: muted),
+            ),
           ),
-        );
+          Expanded(child: Text(valor, style: AppType.body)),
+        ],
+      ),
+    );
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -482,13 +494,19 @@ class _DetalleAgenda extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(item.titulo.isNotEmpty ? item.titulo : item.materia, style: AppType.h3),
+            Text(
+              item.titulo.isNotEmpty ? item.titulo : item.materia,
+              style: AppType.h3,
+            ),
             const SizedBox(height: 4),
             StatusPill(item.tipo.etiqueta, kind: _aspecto(item.tipo).tono),
             const SizedBox(height: AppSpacing.gap),
-            dato('Cuándo',
-                '${item.fecha} · ${item.todoElDia ? 'todo el día' : '${horaCampus(item.inicio, offset)} - ${horaCampus(item.fin, offset)}'}'),
-            if (item.duracionMinutos > 0) dato('Duración', '${item.duracionMinutos} minutos'),
+            dato(
+              'Cuándo',
+              '${item.fecha} · ${item.todoElDia ? 'todo el día' : '${horaCampus(item.inicio, offset)} - ${horaCampus(item.fin, offset)}'}',
+            ),
+            if (item.duracionMinutos > 0)
+              dato('Duración', '${item.duracionMinutos} minutos'),
             if (item.materia.isNotEmpty) dato('Materia', item.materia),
             if (item.grupo.isNotEmpty) dato('Grupo', item.grupo),
             if (item.aula.isNotEmpty) dato('Aula', item.aula),

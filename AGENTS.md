@@ -902,6 +902,35 @@ Cuatro decisiones que conviene no deshacer:
   borrado la aplicación. `leer_respuesta()` intenta abrirlo y cae a la entrada
   estándar.
 
+### Inicio con Windows, bandeja y sesión mantenida
+
+Configuración → «Inicio y sesión». Solo Windows para las dos primeras; la
+tercera vale en todos los sistemas.
+
+- **Iniciar con Windows** (`tauri-plugin-autostart`): Windows lanza la app con
+  `--segundo-plano` y arranca **sin ventana**, directamente en la bandeja.
+- **Seguir en segundo plano al cerrar** (activado por defecto, guardado en
+  `sistema.json` de la carpeta de configuración): la ✕ oculta la ventana y la
+  app sigue junto al reloj. La **primera vez en cada ejecución** sale un aviso
+  nativo que explica cómo cerrarla del todo: clic derecho en el icono →
+  «Salir». Qué hacer al cerrar lo decide `accion_al_cerrar`
+  (`src-tauri/src/segundo_plano.rs`, con pruebas de `cargo test`).
+- **Una sola instancia** (`tauri-plugin-single-instance`, **el primer plugin
+  registrado**): con la app en la bandeja, abrirla otra vez desde el menú
+  Inicio trae su ventana en vez de lanzar una segunda copia con otro icono y
+  otro socket.
+- **Por qué solo Windows**: en Linux la bandeja necesita
+  `libayatana-appindicator`, que puede no estar instalado, y un icono que no
+  aparece deja la app oculta sin forma de abrirla ni de salir. Fuera de Windows
+  los comandos responden `disponible: false` y la tarjeta no ofrece nada.
+- **Sesión siempre iniciada**: el refresh token dura 30 días y cada renovación
+  empieza otros 30, pero solo se renovaba cuando una petición recibía un 401.
+  Una app que pasaba semanas en la bandeja dejaba caducar la sesión.
+  `core/auth/keep-alive.ts` renueva una vez al día (se comprueba cada hora y al
+  enfocar la ventana) por el **mismo single-flight** del cliente HTTP: una
+  renovación en paralelo con la del 401 revocaría toda la familia de sesiones
+  por la rotación. Qué toca renovar lo decide `domain/session/keep-alive.ts`.
+
 ### WebKitGTK no es Chromium: dos cosas que en Linux se hacen a mano
 
 - **`hover:` va sin media query** (`@custom-variant hover (&:hover)` en
@@ -969,6 +998,70 @@ En los dos casos el índice existe para no romper los sitios que ya importaban d
 **El tema tiene tres modos en los dos clientes**: claro, oscuro y seguir al sistema. Dos detalles que no son opcionales:
 - **El tercer modo tiene que ser alcanzable.** Un interruptor de dos posiciones deja la app clavada en cuanto se toca una vez, y el teléfono que cambia solo al anochecer deja de hacerlo sin explicación.
 - **La preferencia se lee antes de dibujar** (`ThemeModeController.cargarInicial()` en `main()`, `initTheme()` antes de montar React). Leerla después deja el primer fotograma con el tema del sistema y lo cambia a continuación: quien eligió claro con el teléfono en oscuro ve un fogonazo.
+
+### Apariencia: tonos, color propio, visión del color y estilo
+
+Configuración → Apariencia deja a cada persona elegir, **en su equipo y sin
+pasar por el servidor**, además del modo: uno de **cinco tonos** (Institucional
+—verde y lima, el de siempre y el valor por defecto—, Océano, Amatista,
+Orquídea, Grafito) o un **color propio**; una **visión del color** (sin ajuste,
+deuteranopía, protanopía, tritanopía, acromatopsia); y el **estilo** (esquinas,
+tamaño del texto, reducir movimiento).
+
+- **Los colores los decide `domain/appearance/`, no la pantalla.**
+  `palettes.ts` genera un tono a partir de una semilla y lo **ajusta hasta pasar
+  AA** (texto, primario con su letra encima, acento, superficies del oscuro); el
+  institucional no se genera: son los valores de `tokens.css` y una prueba fija
+  que coinciden. Por eso un color propio cualquiera —amarillo puro, blanco— no
+  deja texto ilegible: el botón usa una variante del color elegido y la pantalla
+  lo dice. Los tonos generados **tiñen también los fondos** (página, tarjetas,
+  bordes, texto) en los dos modos, con la saturación acotada.
+- **Tono y visión del color son ejes separados.** El tono cambia marca e
+  interacción; la visión reescribe solo los cuatro estados semánticos
+  (`--success`… y sus `-soft`/`-border`), que son los que llevan significado. En
+  rojo-verde van en azul/amarillo/naranja (Okabe-Ito), en tritanopía en verde
+  azulado/naranja/rojo, y en acromatopsia además toda la interfaz pasa a grises
+  (`filter` en `<body>`, no en `<html>`: ver el comentario en `globals.css`). La
+  paleta `normal` es la de siempre; su rojo de peligro queda en 4.3:1 sobre su
+  chip, que es anterior a esto.
+- **El móvil replica el generador** (`flutter_app/lib/core/theme/appearance/`) y
+  las dos pruebas fijan las mismas salidas de referencia
+  (`desktop/tests/unit/appearance-palettes.test.ts`,
+  `flutter_app/test/appearance_palettes_test.dart`). Todo se redondea a enteros
+  para que JS y Dart den el mismo hex. **Cambiar el generador en uno exige
+  cambiarlo en el otro en el mismo commit**: si no, la misma persona ve otro
+  color en el teléfono y no falla nada.
+- **Escritorio**: `state/theme.store.ts` escribe los colores como propiedades en
+  línea sobre `<html>` (el color propio no se conoce de antemano, así que no
+  caben como reglas) y el estilo como `data-esquinas`, `data-texto`,
+  `data-movimiento` y `data-grises`, con sus reglas en `tokens.css`. Esquinas y
+  texto **escalan la rampa entera**; la escala sigue teniendo cinco pasos. Lo
+  guardado se sanea campo a campo con `normalizarApariencia()` (es
+  `localStorage`, entrada no confiable). Los gráficos repintan con
+  `useTheme(s => s.firma)`, que cambia con modo, tono, color propio y visión.
+  `--gradient-surface` también se escribe: `.surface-card` pinta ese degradado
+  **encima** de `--surface`, y fijo dejaba todas las tarjetas blancas u oliva
+  con cualquier tono.
+- **Móvil**: `AppPalette` es una `ThemeExtension` y `AppTheme.construir(prefs,
+  brillo)` arma el tema entero desde el tono y la visión, así que
+  `context.palette` y `SemanticTone.of` ya devuelven los colores elegidos. **No
+  escribas `isDark ? AppColors.xDark : AppColors.x` en una pantalla**: da el
+  color institucional aunque la persona haya elegido Océano, y no falla nada.
+  Tres límites conocidos: las esquinas solo cambian lo que Flutter arma desde el
+  tema (tarjetas, campos, botones, hojas, diálogos), no los `AppSpacing.radius*`
+  usados a mano, que son `const`; «reducir movimiento» quita las transiciones
+  de página (`pageTransitionsTheme`) pero no los `AnimatedContainer` con
+  `AppMotion`, porque Flutter no propaga `disableAnimations` solo; y la
+  acromatopsia es un `ColorFiltered` en el `builder` de `MaterialApp.router`.
+  La lista de tonos son filas de ancho completo, no una cuadrícula de círculos:
+  con seis tonos, en 360 dp los nombres se cortaban («Institucio…», «Color
+  pro…») y la segunda fila quedaba coja. `test/appearance_section_test.dart`
+  la pinta a 360 dp y falla si algo desborda. De paso, `AppCard` lleva ahora un
+  `Material` transparente **dentro** de su decoración: un `ListTile` o un
+  `InkWell` dentro de una tarjeta pintan su onda sobre el `Material` más
+  cercano, y el `DecoratedBox` de la tarjeta la tapaba en toda la aplicación.
+- **Los colores de un tono no se escriben en ninguna pantalla.** Una pantalla que
+  pinte `#0B5D3B` a mano se queda verde con el tono Océano; usa los tokens.
 
 ## Sistema de diseño
 

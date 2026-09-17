@@ -11,11 +11,21 @@ import '../../core/widgets/ui_kit.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/auth/permisos.dart';
 
-final scheduleProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+final scheduleProvider = FutureProvider<List<Map<String, dynamic>>>((
+  ref,
+) async {
   return ScheduleRepository().list();
 });
 
-const _dias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+const _dias = [
+  'Lunes',
+  'Martes',
+  'Miércoles',
+  'Jueves',
+  'Viernes',
+  'Sábado',
+  'Domingo',
+];
 
 /// Horario semanal del docente.
 ///
@@ -48,7 +58,8 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
   Future<void> _saveOrder() async {
     final payload = {
       'items': [
-        for (var i = 0; i < _items.length; i++) {'id': _items[i]['_id'], 'order': i},
+        for (var i = 0; i < _items.length; i++)
+          {'id': _items[i]['_id'], 'order': i},
       ],
     };
     try {
@@ -94,9 +105,10 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
     final periodo = ref.watch(selectedPeriodProvider);
     // Coordinación y secretaría consultan el horario; ordenarlo o editarlo es
     // del docente y de ADMIN, y el servidor rechazaría lo demás.
-    final editable = puedeEditarHorario(ref.watch(authControllerProvider).user?.role);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final editable = puedeEditarHorario(
+      ref.watch(authControllerProvider).user?.role,
+    );
+    final muted = context.palette.muted;
 
     return Scaffold(
       appBar: AppBar(
@@ -107,7 +119,10 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
           // respuesta no traía, así que nunca descartaba nada.
           const PeriodSelector(),
           if (_ordenSucio && editable)
-            TextButton(onPressed: _saveOrder, child: const Text('Guardar orden')),
+            TextButton(
+              onPressed: _saveOrder,
+              child: const Text('Guardar orden'),
+            ),
           const SessionMenuButton(),
         ],
       ),
@@ -116,14 +131,12 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
           if (_items.isEmpty || _periodoCargado != periodo) {
             _periodoCargado = periodo;
             _ordenSucio = false;
-            _items = items
-                .where((item) {
-                  final suyo = (item['period'] ?? '').toString();
-                  // Una franja sin periodo resuelto no se esconde: es un dato
-                  // incompleto, no un dato de otro semestre.
-                  return suyo.isEmpty || suyo == periodo;
-                })
-                .toList();
+            _items = items.where((item) {
+              final suyo = (item['period'] ?? '').toString();
+              // Una franja sin periodo resuelto no se esconde: es un dato
+              // incompleto, no un dato de otro semestre.
+              return suyo.isEmpty || suyo == periodo;
+            }).toList();
             _items.sort((a, b) {
               final ao = (a['order'] ?? 0) as int;
               final bo = (b['order'] ?? 0) as int;
@@ -131,7 +144,9 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
               final ad = (a['dayOfWeek'] ?? 1) as int;
               final bd = (b['dayOfWeek'] ?? 1) as int;
               if (ad != bd) return ad.compareTo(bd);
-              return (a['startTime'] ?? '').toString().compareTo((b['startTime'] ?? '').toString());
+              return (a['startTime'] ?? '').toString().compareTo(
+                (b['startTime'] ?? '').toString(),
+              );
             });
           }
 
@@ -244,10 +259,18 @@ class _EditarFranjaSheetState extends ConsumerState<_EditarFranjaSheet> {
   void initState() {
     super.initState();
     _dia = (widget.item['dayOfWeek'] ?? 1) as int;
-    _inicio = _leerHora(widget.item['startTime'], const TimeOfDay(hour: 7, minute: 0));
-    _fin = _leerHora(widget.item['endTime'], const TimeOfDay(hour: 9, minute: 0));
+    _inicio = _leerHora(
+      widget.item['startTime'],
+      const TimeOfDay(hour: 7, minute: 0),
+    );
+    _fin = _leerHora(
+      widget.item['endTime'],
+      const TimeOfDay(hour: 9, minute: 0),
+    );
     _modalidad = (widget.item['modality'] ?? 'PRESENTIAL').toString();
-    _aula = TextEditingController(text: (widget.item['classroom'] ?? '').toString());
+    _aula = TextEditingController(
+      text: (widget.item['classroom'] ?? '').toString(),
+    );
   }
 
   @override
@@ -268,7 +291,8 @@ class _EditarFranjaSheetState extends ConsumerState<_EditarFranjaSheet> {
   static String _texto(TimeOfDay hora) =>
       '${hora.hour.toString().padLeft(2, '0')}:${hora.minute.toString().padLeft(2, '0')}';
 
-  int get _duracion => (_fin.hour * 60 + _fin.minute) - (_inicio.hour * 60 + _inicio.minute);
+  int get _duracion =>
+      (_fin.hour * 60 + _fin.minute) - (_inicio.hour * 60 + _inicio.minute);
 
   Future<void> _guardar() async {
     if (_duracion < 30) {
@@ -282,14 +306,17 @@ class _EditarFranjaSheetState extends ConsumerState<_EditarFranjaSheet> {
     });
 
     try {
-      await ApiClient.instance.patch('/schedules/${widget.item['_id']}', data: {
-        'dayOfWeek': _dia,
-        'startTime': _texto(_inicio),
-        'endTime': _texto(_fin),
-        'durationMinutes': _duracion,
-        'classroom': _aula.text.trim(),
-        'modality': _modalidad,
-      });
+      await ApiClient.instance.patch(
+        '/schedules/${widget.item['_id']}',
+        data: {
+          'dayOfWeek': _dia,
+          'startTime': _texto(_inicio),
+          'endTime': _texto(_fin),
+          'durationMinutes': _duracion,
+          'classroom': _aula.text.trim(),
+          'modality': _modalidad,
+        },
+      );
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } catch (error) {
@@ -303,8 +330,7 @@ class _EditarFranjaSheetState extends ConsumerState<_EditarFranjaSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
     final materia = (widget.item['subjectName'] ?? '').toString();
 
     return Padding(
@@ -316,7 +342,10 @@ class _EditarFranjaSheetState extends ConsumerState<_EditarFranjaSheet> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(materia.isNotEmpty ? materia : 'Editar clase', style: AppType.h3),
+              Text(
+                materia.isNotEmpty ? materia : 'Editar clase',
+                style: AppType.h3,
+              ),
               const SizedBox(height: 4),
               Text(
                 'El cambio se aplica a todas las semanas: el horario guarda franjas '
@@ -341,8 +370,10 @@ class _EditarFranjaSheetState extends ConsumerState<_EditarFranjaSheet> {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () async {
-                        final elegida =
-                            await showTimePicker(context: context, initialTime: _inicio);
+                        final elegida = await showTimePicker(
+                          context: context,
+                          initialTime: _inicio,
+                        );
                         if (elegida != null) setState(() => _inicio = elegida);
                       },
                       icon: const Icon(Icons.play_arrow_outlined),
@@ -353,8 +384,10 @@ class _EditarFranjaSheetState extends ConsumerState<_EditarFranjaSheet> {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () async {
-                        final elegida =
-                            await showTimePicker(context: context, initialTime: _fin);
+                        final elegida = await showTimePicker(
+                          context: context,
+                          initialTime: _fin,
+                        );
                         if (elegida != null) setState(() => _fin = elegida);
                       },
                       icon: const Icon(Icons.stop_outlined),
@@ -378,7 +411,10 @@ class _EditarFranjaSheetState extends ConsumerState<_EditarFranjaSheet> {
 
               TextField(
                 controller: _aula,
-                decoration: const InputDecoration(labelText: 'Aula', hintText: '304'),
+                decoration: const InputDecoration(
+                  labelText: 'Aula',
+                  hintText: '304',
+                ),
               ),
               const SizedBox(height: 12),
 
@@ -386,19 +422,24 @@ class _EditarFranjaSheetState extends ConsumerState<_EditarFranjaSheet> {
                 initialValue: _modalidad,
                 decoration: const InputDecoration(labelText: 'Modalidad'),
                 items: const [
-                  DropdownMenuItem(value: 'PRESENTIAL', child: Text('Presencial')),
+                  DropdownMenuItem(
+                    value: 'PRESENTIAL',
+                    child: Text('Presencial'),
+                  ),
                   DropdownMenuItem(value: 'VIRTUAL', child: Text('Virtual')),
                   DropdownMenuItem(value: 'HYBRID', child: Text('Híbrida')),
                 ],
-                onChanged: (valor) => setState(() => _modalidad = valor ?? _modalidad),
+                onChanged: (valor) =>
+                    setState(() => _modalidad = valor ?? _modalidad),
               ),
 
               if (_error != null) ...[
                 const SizedBox(height: 12),
                 Text(
                   _error!,
-                  style: AppType.caption
-                      .copyWith(color: SemanticTone.of(context, SemanticKind.danger).fg),
+                  style: AppType.caption.copyWith(
+                    color: SemanticTone.of(context, SemanticKind.danger).fg,
+                  ),
                 ),
               ],
 
@@ -407,7 +448,9 @@ class _EditarFranjaSheetState extends ConsumerState<_EditarFranjaSheet> {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: _guardando ? null : () => Navigator.of(context).pop(),
+                      onPressed: _guardando
+                          ? null
+                          : () => Navigator.of(context).pop(),
                       child: const Text('Cancelar'),
                     ),
                   ),
@@ -419,7 +462,9 @@ class _EditarFranjaSheetState extends ConsumerState<_EditarFranjaSheet> {
                           ? const SizedBox(
                               height: 18,
                               width: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2.2),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.2,
+                              ),
                             )
                           : const Text('Guardar'),
                     ),

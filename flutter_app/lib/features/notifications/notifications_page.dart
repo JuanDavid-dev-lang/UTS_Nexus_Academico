@@ -43,7 +43,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                 ? const SizedBox(
                     height: 18,
                     width: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2.2))
+                    child: CircularProgressIndicator(strokeWidth: 2.2),
+                  )
                 : const Icon(Icons.radar_outlined),
             onPressed: _scanning ? null : _scanRisks,
           ),
@@ -68,9 +69,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               .length;
           final visible = _onlyUnread
               ? items
-                  .where(
-                      (n) => n.isUnread && !_optimisticallyRead.contains(n.id))
-                  .toList()
+                    .where(
+                      (n) => n.isUnread && !_optimisticallyRead.contains(n.id),
+                    )
+                    .toList()
               : items;
 
           /*
@@ -126,7 +128,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                               mensaje: _onlyUnread
                                   ? 'No tienes notificaciones pendientes por leer.'
                                   : 'Cuando el sistema detecte alertas académicas, '
-                                      'aparecerán aquí.',
+                                        'aparecerán aquí.',
                             ),
                           ],
                         )
@@ -151,7 +153,9 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                               child: _NotificationCard(
                                 key: ValueKey(notificacion.id),
                                 notification: notificacion,
-                                read: _optimisticallyRead.contains(notificacion.id),
+                                read: _optimisticallyRead.contains(
+                                  notificacion.id,
+                                ),
                                 onMarkRead: () => _abrir(notificacion),
                                 onDeslizar: () => _markRead(notificacion),
                               ),
@@ -245,16 +249,20 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     } on ApiError catch (error) {
       if (!mounted) return;
       setState(() => _optimisticallyRead.removeAll(pendientes));
-      AppToast.error(context, 'No se pudieron marcar como leídas', error.message);
+      AppToast.error(
+        context,
+        'No se pudieron marcar como leídas',
+        error.message,
+      );
     }
   }
 
   Future<void> _scanRisks() async {
     setState(() => _scanning = true);
     try {
-      final result = await ref.read(academicRepositoryProvider).scanRisks(
-            period: ref.read(selectedPeriodProvider),
-          );
+      final result = await ref
+          .read(academicRepositoryProvider)
+          .scanRisks(period: ref.read(selectedPeriodProvider));
       ref.invalidate(notificationsProvider);
       ref.invalidate(risksProvider);
       if (!mounted) return;
@@ -302,7 +310,7 @@ class _NotificationCard extends StatelessWidget {
     'ATTENDANCE': (
       Icons.event_busy_outlined,
       SemanticKind.warning,
-      'Asistencia'
+      'Asistencia',
     ),
     'CLASS': (Icons.menu_book_outlined, SemanticKind.info, 'Clase'),
     'EXAM': (Icons.assignment_outlined, SemanticKind.info, 'Examen'),
@@ -317,11 +325,11 @@ class _NotificationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
     final unread = notification.isUnread && !read;
 
-    final (icon, kind, label) = _presentation[notification.type] ??
+    final (icon, kind, label) =
+        _presentation[notification.type] ??
         (Icons.notifications_outlined, SemanticKind.info, 'Actividad');
     final tone = SemanticTone.of(context, kind);
     final color = tone.fg;
@@ -354,8 +362,9 @@ class _NotificationCard extends StatelessWidget {
                       child: Text(
                         notification.title,
                         style: AppType.bodyStrong.copyWith(
-                          fontWeight:
-                              unread ? FontWeight.w800 : FontWeight.w600,
+                          fontWeight: unread
+                              ? FontWeight.w800
+                              : FontWeight.w600,
                         ),
                       ),
                     ),

@@ -30,8 +30,7 @@ class _ThesisFormatsPageState extends ConsumerState<ThesisFormatsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
     final formatos = ref.watch(thesisFormatsProvider(_etapa));
 
     return Scaffold(
@@ -44,11 +43,20 @@ class _ThesisFormatsPageState extends ConsumerState<ThesisFormatsPage> {
         children: [
           DropdownButtonFormField<String?>(
             initialValue: _etapa,
-            decoration: const InputDecoration(labelText: 'Etapa', isDense: true),
+            decoration: const InputDecoration(
+              labelText: 'Etapa',
+              isDense: true,
+            ),
             items: [
-              const DropdownMenuItem(value: null, child: Text('Todas las etapas')),
+              const DropdownMenuItem(
+                value: null,
+                child: Text('Todas las etapas'),
+              ),
               for (final entrada in etapasTrabajoGrado.entries)
-                DropdownMenuItem(value: entrada.key, child: Text(entrada.value)),
+                DropdownMenuItem(
+                  value: entrada.key,
+                  child: Text(entrada.value),
+                ),
             ],
             onChanged: (value) => setState(() => _etapa = value),
           ),
@@ -84,9 +92,12 @@ class _ThesisFormatsPageState extends ConsumerState<ThesisFormatsPage> {
                 children: [
                   for (final etapa in etapasTrabajoGrado.keys)
                     if (porEtapa.containsKey(etapa)) ...[
-                      Text(etapasTrabajoGrado[etapa] ?? etapa,
-                          style: AppType.bodyStrong
-                              .copyWith(fontWeight: FontWeight.w700)),
+                      Text(
+                        etapasTrabajoGrado[etapa] ?? etapa,
+                        style: AppType.bodyStrong.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                       const SizedBox(height: 8),
                       for (final formato in porEtapa[etapa]!) ...[
                         _FormatoCard(
@@ -113,8 +124,11 @@ class _ThesisFormatsPageState extends ConsumerState<ThesisFormatsPage> {
       final bytes = await ref.read(thesisServiceProvider).descargar(formato.id);
       if (bytes.isEmpty) {
         if (!mounted) return;
-        AppToast.error(context, 'El archivo llegó vacío',
-            'El servidor no devolvió contenido.');
+        AppToast.error(
+          context,
+          'El archivo llegó vacío',
+          'El servidor no devolvió contenido.',
+        );
         return;
       }
 
@@ -156,8 +170,7 @@ class _FormatoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
 
     return AppCard(
       child: Column(
@@ -170,8 +183,9 @@ class _FormatoCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   formato.nombre,
-                  style: AppType.bodyStrong
-                      .copyWith(fontWeight: FontWeight.w700),
+                  style: AppType.bodyStrong.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               StatusPill('v${formato.version}'),
@@ -179,14 +193,20 @@ class _FormatoCard extends StatelessWidget {
           ),
           if (formato.descripcion.isNotEmpty) ...[
             const SizedBox(height: 4),
-            Text(formato.descripcion,
-                style: AppType.caption.copyWith(color: muted)),
+            Text(
+              formato.descripcion,
+              style: AppType.caption.copyWith(color: muted),
+            ),
           ],
           if (formato.camposALlenar.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text('QUÉ SE DILIGENCIA',
-                style: AppType.caption.copyWith(
-                    color: muted, fontWeight: FontWeight.w700)),
+            Text(
+              'QUÉ SE DILIGENCIA',
+              style: AppType.caption.copyWith(
+                color: muted,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             const SizedBox(height: 4),
             for (final campo in formato.camposALlenar)
               Padding(
@@ -203,7 +223,8 @@ class _FormatoCard extends StatelessWidget {
                   ? const SizedBox(
                       height: 15,
                       width: 15,
-                      child: CircularProgressIndicator(strokeWidth: 2))
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : const Icon(Icons.download_outlined, size: 18),
               label: const Text('Descargar'),
             ),

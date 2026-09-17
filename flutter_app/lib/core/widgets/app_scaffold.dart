@@ -456,7 +456,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         final palette = AppPalette.of(contextoHoja);
         // El rojo canónico está calibrado para texto sobre blanco; en oscuro
         // hay que aclararlo o cae por debajo del AA que exige DESIGN.md.
-        final danger = palette.isDark ? AppColors.dangerDark : AppColors.danger;
+        final danger = palette.danger.fg;
 
         return SafeArea(
           child: SingleChildScrollView(

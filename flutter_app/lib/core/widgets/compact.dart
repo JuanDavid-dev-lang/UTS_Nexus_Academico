@@ -536,9 +536,7 @@ class FilterChipCompact extends StatelessWidget {
     // un fondo dos tonos más oscuro y había que buscarlo; relleno se encuentra
     // sin buscarlo, que es lo único que un filtro activo tiene que hacer.
     final fondo = activo ? palette.primary : palette.surface;
-    final frente = activo
-        ? (palette.isDark ? AppColors.bgDark : Colors.white)
-        : palette.muted;
+    final frente = activo ? palette.onPrimary : palette.muted;
 
     return Semantics(
       button: true,

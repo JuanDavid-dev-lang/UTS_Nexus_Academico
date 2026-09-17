@@ -7,6 +7,7 @@ import { AppErrorBoundary } from '@/app/error-boundary';
 import { initTheme } from '@/state/theme.store';
 import { iniciarTelemetria } from '@/core/telemetry/reporter';
 import { useSession } from '@/state/session.store';
+import { iniciarMantenimientoDeSesion } from '@/core/auth/keep-alive';
 import '@/styles/globals.css';
 
 // Applied before the first paint so the window never flashes light then dark.
@@ -24,6 +25,10 @@ void useSession.getState().bootstrap();
  * más interesa. No se desengancha porque vive tanto como la ventana.
  */
 iniciarTelemetria();
+
+// La sesión se renueva sola una vez al día mientras la app siga abierta, también
+// en la bandeja: sin esto, semanas sin abrirla la dejaban caducar.
+iniciarMantenimientoDeSesion();
 
 const container = document.getElementById('root');
 if (!container) throw new Error('Root element #root not found');

@@ -61,7 +61,8 @@ export type ChartProps = {
 export function Chart({ buildOption, height = 280, className, ariaLabel }: ChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<echarts.ECharts | null>(null);
-  const resolvedTheme = useTheme((state) => state.resolved);
+  // La firma cambia con el modo, el tono, el color propio y la visión del color.
+  const firmaVisual = useTheme((state) => state.firma);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -103,8 +104,8 @@ export function Chart({ buildOption, height = 280, className, ariaLabel }: Chart
       },
       { notMerge: true },
     );
-    // Re-running on theme change is what repaints the chart in the new palette.
-  }, [buildOption, resolvedTheme]);
+    // Re-running on any appearance change is what repaints the chart in the new palette.
+  }, [buildOption, firmaVisual]);
 
   return (
     <div

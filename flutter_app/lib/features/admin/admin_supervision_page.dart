@@ -297,7 +297,7 @@ class _AdminSupervisionPageState extends ConsumerState<AdminSupervisionPage>
               Row(
                 children: [
                   CircleAvatar(
-                    backgroundColor: AppColors.primary,
+                    backgroundColor: ctx.palette.primary,
                     child: Text(
                       nombres.isNotEmpty ? nombres[0].toUpperCase() : 'D',
                       style: const TextStyle(
@@ -315,7 +315,7 @@ class _AdminSupervisionPageState extends ConsumerState<AdminSupervisionPage>
                         Text(
                           email,
                           style: AppType.caption.copyWith(
-                            color: AppColors.textMuted,
+                            color: ctx.palette.muted,
                           ),
                         ),
                       ],
@@ -327,7 +327,7 @@ class _AdminSupervisionPageState extends ConsumerState<AdminSupervisionPage>
                       style: const TextStyle(fontSize: 11),
                     ),
                     backgroundColor: estado == 'APROBADO'
-                        ? AppColors.primarySoft
+                        ? ctx.palette.primarySoft
                         : Colors.amber.shade100,
                   ),
                 ],
@@ -426,8 +426,7 @@ class _AdminSupervisionPageState extends ConsumerState<AdminSupervisionPage>
   @override
   Widget build(BuildContext context) {
     final isAdmin = ref.watch(authControllerProvider).user?.role == 'ADMIN';
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
 
     if (!isAdmin) {
       return Scaffold(
@@ -455,7 +454,7 @@ class _AdminSupervisionPageState extends ConsumerState<AdminSupervisionPage>
             Text(
               'Cuentas y Docentes · Modo Admin',
               style: AppType.caption.copyWith(
-                color: AppColors.primary,
+                color: context.palette.primary,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -595,13 +594,13 @@ class _AdminSupervisionPageState extends ConsumerState<AdminSupervisionPage>
                                             contentPadding: EdgeInsets.zero,
                                             leading: CircleAvatar(
                                               backgroundColor:
-                                                  AppColors.primarySoft,
+                                                  ctx.palette.primarySoft,
                                               child: Text(
                                                 nombres.isNotEmpty
                                                     ? nombres[0].toUpperCase()
                                                     : 'D',
                                                 style: TextStyle(
-                                                  color: AppColors.primary,
+                                                  color: ctx.palette.primary,
                                                   fontWeight: FontWeight.bold,
                                                 ),
                                               ),
@@ -625,7 +624,7 @@ class _AdminSupervisionPageState extends ConsumerState<AdminSupervisionPage>
                                               ),
                                               backgroundColor:
                                                   estado == 'APROBADO'
-                                                  ? AppColors.primarySoft
+                                                  ? ctx.palette.primarySoft
                                                   : Colors.amber.shade100,
                                             ),
                                             onTap: () =>
@@ -758,7 +757,7 @@ class _AdminSupervisionPageState extends ConsumerState<AdminSupervisionPage>
                                                   ? Colors.red.shade100
                                                   : role == 'COORDINATOR'
                                                   ? Colors.blue.shade100
-                                                  : AppColors.primarySoft,
+                                                  : ctx.palette.primarySoft,
                                             ),
                                             onTap: () =>
                                                 _previsualizarCuenta(u),
@@ -794,7 +793,7 @@ class _FichaCampo extends StatelessWidget {
         children: [
           Text(
             label,
-            style: AppType.caption.copyWith(color: AppColors.textMuted),
+            style: AppType.caption.copyWith(color: context.palette.muted),
           ),
           const SizedBox(height: 2),
           Text(valor, style: AppType.body),

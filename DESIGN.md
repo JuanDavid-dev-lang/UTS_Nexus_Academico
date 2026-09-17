@@ -449,12 +449,19 @@ Bar Chart · Radar · Pie · Area · Heatmap · Timeline · Predicción.
 
 ## 15. Accesibilidad
 
-- Modo oscuro y modo claro.
+- Modo oscuro, modo claro y seguir al sistema.
+- Cinco tonos de interfaz y color propio, **siempre ajustados hasta AA** por el
+  generador de paletas (ver CLAUDE.md, «Apariencia»). El institucional (§4) es
+  el valor por defecto y la identidad de marca; los demás son preferencia
+  personal y no se usan en material institucional.
+- Visión del color: deuteranopía, protanopía, tritanopía y acromatopsia
+  reescriben los estados semánticos; el estado nunca se comunica **solo** con
+  color (icono o etiqueta siempre).
 - Contraste **AA** mínimo.
 - Navegación completa con teclado.
 - Compatibilidad con lectores de pantalla (Screen Readers).
 - Etiquetas **ARIA**.
-- Tamaño de fuente configurable.
+- Tamaño de fuente configurable (normal, grande, muy grande) y reducir movimiento.
 
 ---
 
@@ -505,7 +512,7 @@ su justificación.
 
 ## 20. Futuro del diseño
 
-- Sistema de temas personalizable por facultad.
+- Tonos por facultad (hoy los tonos son preferencia personal, no institucional).
 - Componentes reutilizables documentados (design system vivo).
 - Métricas de uso para iterar sobre las pantallas más visitadas.
 - Modo de alto contraste y accesibilidad avanzada.

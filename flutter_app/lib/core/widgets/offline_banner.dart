@@ -66,9 +66,11 @@ class _OfflineBannerState extends ConsumerState<OfflineBanner> {
     final realtime = ref.watch(realtimeStatusProvider).valueOrNull;
 
     final sinDatos = datos?.desdeCache != null;
-    final reconectando = realtime == RealtimeStatus.connecting ||
+    final reconectando =
+        realtime == RealtimeStatus.connecting ||
         realtime == RealtimeStatus.disconnected;
-    final error = realtime == RealtimeStatus.error ||
+    final error =
+        realtime == RealtimeStatus.error ||
         realtime == RealtimeStatus.unauthorized ||
         sinDatos;
 
@@ -77,29 +79,30 @@ class _OfflineBannerState extends ConsumerState<OfflineBanner> {
     if (datos == null && realtime == null) return const SizedBox.shrink();
 
     final ahora = DateTime.now();
-    final sincReciente = datos?.ultimaSincronizacion != null &&
+    final sincReciente =
+        datos?.ultimaSincronizacion != null &&
         ahora.difference(datos!.ultimaSincronizacion!).inSeconds < 5;
 
     final (kind, icono, texto) = switch (true) {
       _ when error => (
-          SemanticKind.warning,
-          Icons.cloud_off_outlined,
-          sinDatos
-              ? 'Sin conexión — datos guardados ${haceCuanto(datos?.desdeCache)}'
-              : 'Sin conexión con el servidor',
-        ),
+        SemanticKind.warning,
+        Icons.cloud_off_outlined,
+        sinDatos
+            ? 'Sin conexión — datos guardados ${haceCuanto(datos?.desdeCache)}'
+            : 'Sin conexión con el servidor',
+      ),
       _ when reconectando => (
-          SemanticKind.warning,
-          Icons.sync_outlined,
-          'Reconectando…',
-        ),
+        SemanticKind.warning,
+        Icons.sync_outlined,
+        'Reconectando…',
+      ),
       _ => (
-          SemanticKind.success,
-          Icons.cloud_done_outlined,
-          sincReciente
-              ? 'Datos actualizados en tiempo real'
-              : 'Sincronizado · ${haceCuanto(datos?.ultimaSincronizacion)}',
-        ),
+        SemanticKind.success,
+        Icons.cloud_done_outlined,
+        sincReciente
+            ? 'Datos actualizados en tiempo real'
+            : 'Sincronizado · ${haceCuanto(datos?.ultimaSincronizacion)}',
+      ),
     };
 
     // Si la sincronización cambia (se recibe una nueva fecha), forzamos
@@ -149,8 +152,10 @@ class _OfflineBannerState extends ConsumerState<OfflineBanner> {
           : Material(
               color: tono.bg,
               child: Padding(
-                padding:
-                    EdgeInsets.symmetric(horizontal: 16, vertical: normal ? 4 : 8),
+                padding: EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: normal ? 4 : 8,
+                ),
                 child: Row(
                   children: [
                     Icon(icono, size: normal ? 13 : 16, color: tono.fg),
@@ -190,8 +195,7 @@ class RequiereConexion extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
 
     return Center(
       child: Padding(

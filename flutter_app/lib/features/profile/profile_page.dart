@@ -13,19 +13,18 @@ class ProfilePage extends ConsumerWidget {
   const ProfilePage({super.key});
 
   static String roleLabel(String? role) => switch (role) {
-        'ADMIN' => 'Administrador',
-        'COORDINATOR' => 'Coordinación',
-        'SECRETARY' => 'Secretaría',
-        'STUDENT' => 'Estudiante',
-        _ => 'Docente',
-      };
+    'ADMIN' => 'Administrador',
+    'COORDINATOR' => 'Coordinación',
+    'SECRETARY' => 'Secretaría',
+    'STUDENT' => 'Estudiante',
+    _ => 'Docente',
+  };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authControllerProvider).user;
     final connection = ref.watch(connectionControllerProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
     final primary = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
@@ -66,8 +65,10 @@ class ProfilePage extends ConsumerWidget {
                   style: AppType.h3.copyWith(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 4),
-                Text(user?.email ?? '',
-                    style: AppType.caption.copyWith(color: muted)),
+                Text(
+                  user?.email ?? '',
+                  style: AppType.caption.copyWith(color: muted),
+                ),
                 const SizedBox(height: 10),
                 StatusPill(roleLabel(user?.role), kind: SemanticKind.brand),
               ],
@@ -105,16 +106,19 @@ class ProfilePage extends ConsumerWidget {
                     Expanded(
                       child: Text(
                         connection.baseUrl ?? 'Sin servidor',
-                        style: AppType.caption
-                            .copyWith(fontFamily: 'monospace'),
+                        style: AppType.caption.copyWith(
+                          fontFamily: 'monospace',
+                        ),
                       ),
                     ),
                   ],
                 ),
                 if (connection.detail != null) ...[
                   const SizedBox(height: 6),
-                  Text(connection.detail!,
-                      style: AppType.caption.copyWith(color: muted)),
+                  Text(
+                    connection.detail!,
+                    style: AppType.caption.copyWith(color: muted),
+                  ),
                 ],
               ],
             ),
@@ -122,7 +126,7 @@ class ProfilePage extends ConsumerWidget {
           const SizedBox(height: 22),
           FilledButton.icon(
             style: FilledButton.styleFrom(
-              backgroundColor: AppColors.danger,
+              backgroundColor: SemanticTone.of(context, SemanticKind.danger).fg,
               foregroundColor: Colors.white,
             ),
             // El diálogo vive en `session_menu.dart`: el menú de la barra

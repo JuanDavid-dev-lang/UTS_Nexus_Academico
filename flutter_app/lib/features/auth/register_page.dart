@@ -67,7 +67,11 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   void _onSearchChanged() {
-    if (mounted) setState(() => _filtroPrograma = _searchProgramas.text.trim().toLowerCase());
+    if (mounted) {
+      setState(
+        () => _filtroPrograma = _searchProgramas.text.trim().toLowerCase(),
+      );
+    }
   }
 
   @override
@@ -109,7 +113,10 @@ class _RegisterPageState extends State<RegisterPage> {
   void _depurarProgramas() {
     final c = _catalogo;
     if (c == null || _facultad == null) return _programas.clear();
-    final validos = c.filtrar(facultad: _facultad!, niveles: _niveles).map((p) => p.id).toSet();
+    final validos = c
+        .filtrar(facultad: _facultad!, niveles: _niveles)
+        .map((p) => p.id)
+        .toSet();
     _programas.removeWhere((id) => !validos.contains(id));
   }
 
@@ -138,8 +145,15 @@ class _RegisterPageState extends State<RegisterPage> {
 
   Future<void> _enviar() async {
     if (!(_formulario.currentState?.validate() ?? false)) return;
-    if (_sede == null || _facultad == null || _niveles.isEmpty || _programas.isEmpty) {
-      AppToast.error(context, 'Faltan datos', 'Completa sede, facultad, nivel y programas.');
+    if (_sede == null ||
+        _facultad == null ||
+        _niveles.isEmpty ||
+        _programas.isEmpty) {
+      AppToast.error(
+        context,
+        'Faltan datos',
+        'Completa sede, facultad, nivel y programas.',
+      );
       return;
     }
 
@@ -150,10 +164,15 @@ class _RegisterPageState extends State<RegisterPage> {
     // a mano cuando no está en la lista (o el catálogo no trajo ninguna).
     String? institutionIdEnviar;
     String? institucionSolicitadaEnviar;
-    if (catalogo.instituciones.isEmpty || _institutionId == _otraInstitucionValor) {
+    if (catalogo.instituciones.isEmpty ||
+        _institutionId == _otraInstitucionValor) {
       final otra = _institucionOtra.text.trim();
       if (otra.isEmpty) {
-        AppToast.error(context, 'Falta la institución', 'Escribe el nombre de tu institución.');
+        AppToast.error(
+          context,
+          'Falta la institución',
+          'Escribe el nombre de tu institución.',
+        );
         return;
       }
       institucionSolicitadaEnviar = otra;
@@ -187,14 +206,17 @@ class _RegisterPageState extends State<RegisterPage> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _enviando = false);
-      AppToast.error(context, 'No se pudo enviar', ApiError.from(error).message);
+      AppToast.error(
+        context,
+        'No se pudo enviar',
+        ApiError.from(error).message,
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
 
     return Scaffold(
       appBar: AppBar(
@@ -256,7 +278,11 @@ class _RegisterPageState extends State<RegisterPage> {
                   const SizedBox(height: 16),
                   StatusPill.success('Solicitud radicada', icon: Icons.check),
                   const SizedBox(height: 12),
-                  Text('¡Solicitud enviada!', style: AppType.h2, textAlign: TextAlign.center),
+                  Text(
+                    '¡Solicitud enviada!',
+                    style: AppType.h2,
+                    textAlign: TextAlign.center,
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     _enviado!,
@@ -267,14 +293,23 @@ class _RegisterPageState extends State<RegisterPage> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusCard),
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest
+                          .withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(
+                        AppSpacing.radiusCard,
+                      ),
                       border: Border.all(color: Theme.of(context).dividerColor),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.info_outline, size: 18, color: Theme.of(context).colorScheme.primary),
+                        Icon(
+                          Icons.info_outline,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -288,7 +323,9 @@ class _RegisterPageState extends State<RegisterPage> {
                   const SizedBox(height: 24),
                   FilledButton(
                     onPressed: () => context.go('/login'),
-                    style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
                     child: const Text('Volver al inicio de sesión'),
                   ),
                 ],
@@ -311,7 +348,11 @@ class _RegisterPageState extends State<RegisterPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.lock_clock_outlined, size: 48, color: Theme.of(context).colorScheme.error),
+                  Icon(
+                    Icons.lock_clock_outlined,
+                    size: 48,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     _error ?? 'El registro está cerrado',
@@ -321,8 +362,8 @@ class _RegisterPageState extends State<RegisterPage> {
                   const SizedBox(height: 8),
                   Text(
                     _error != null
-                      ? 'Revisa la dirección del servidor en la pantalla de acceso.'
-                      : 'La administración académica tiene cerrado el autorregistro en este momento. Contacta a tu coordinación.',
+                        ? 'Revisa la dirección del servidor en la pantalla de acceso.'
+                        : 'La administración académica tiene cerrado el autorregistro en este momento. Contacta a tu coordinación.',
                     style: AppType.body.copyWith(color: muted),
                     textAlign: TextAlign.center,
                   ),
@@ -353,8 +394,8 @@ class _RegisterPageState extends State<RegisterPage> {
     final visibles = _filtroPrograma.isEmpty
         ? todosVisibles
         : todosVisibles
-            .where((p) => p.nombre.toLowerCase().contains(_filtroPrograma))
-            .toList();
+              .where((p) => p.nombre.toLowerCase().contains(_filtroPrograma))
+              .toList();
 
     return Form(
       key: _formulario,
@@ -372,7 +413,11 @@ class _RegisterPageState extends State<RegisterPage> {
                     color: Colors.white.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.school_outlined, size: 28, color: Colors.white),
+                  child: const Icon(
+                    Icons.school_outlined,
+                    size: 28,
+                    color: Colors.white,
+                  ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -386,7 +431,9 @@ class _RegisterPageState extends State<RegisterPage> {
                       const SizedBox(height: 2),
                       Text(
                         'Solicita tu cuenta institucional para gestionar tus notas y grupos.',
-                        style: AppType.caption.copyWith(color: Colors.white.withValues(alpha: 0.85)),
+                        style: AppType.caption.copyWith(
+                          color: Colors.white.withValues(alpha: 0.85),
+                        ),
                       ),
                     ],
                   ),
@@ -419,7 +466,9 @@ class _RegisterPageState extends State<RegisterPage> {
                     isDense: true,
                   ),
                   validator: (v) =>
-                      RegExp(r'^\d{6,10}$').hasMatch(v?.trim() ?? '') ? null : 'Entre 6 y 10 dígitos',
+                      RegExp(r'^\d{6,10}$').hasMatch(v?.trim() ?? '')
+                      ? null
+                      : 'Entre 6 y 10 dígitos',
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -431,7 +480,9 @@ class _RegisterPageState extends State<RegisterPage> {
                     prefixIcon: Icon(Icons.person_outline),
                     isDense: true,
                   ),
-                  validator: (v) => (v?.trim().length ?? 0) >= 2 ? null : 'Escribe tus nombres',
+                  validator: (v) => (v?.trim().length ?? 0) >= 2
+                      ? null
+                      : 'Escribe tus nombres',
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -443,7 +494,9 @@ class _RegisterPageState extends State<RegisterPage> {
                     prefixIcon: Icon(Icons.person_outline),
                     isDense: true,
                   ),
-                  validator: (v) => (v?.trim().length ?? 0) >= 2 ? null : 'Escribe tus apellidos',
+                  validator: (v) => (v?.trim().length ?? 0) >= 2
+                      ? null
+                      : 'Escribe tus apellidos',
                 ),
               ],
             ),
@@ -478,7 +531,10 @@ class _RegisterPageState extends State<RegisterPage> {
                       ...c.instituciones.map(
                         (i) => DropdownMenuItem(
                           value: i.institutionId,
-                          child: Text('${i.nombre} (${i.sigla})', overflow: TextOverflow.ellipsis),
+                          child: Text(
+                            '${i.nombre} (${i.sigla})',
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ),
                       const DropdownMenuItem(
@@ -487,7 +543,8 @@ class _RegisterPageState extends State<RegisterPage> {
                       ),
                     ],
                     onChanged: (v) => setState(() => _institutionId = v),
-                    validator: (v) => v == null || v.isEmpty ? 'Elige tu institución' : null,
+                    validator: (v) =>
+                        v == null || v.isEmpty ? 'Elige tu institución' : null,
                   ),
                   if (_institutionId == _otraInstitucionValor) ...[
                     const SizedBox(height: 12),
@@ -501,8 +558,9 @@ class _RegisterPageState extends State<RegisterPage> {
                         isDense: true,
                         counterText: '',
                       ),
-                      validator: (v) =>
-                          (v?.trim().length ?? 0) >= 2 ? null : 'Escribe el nombre de tu institución',
+                      validator: (v) => (v?.trim().length ?? 0) >= 2
+                          ? null
+                          : 'Escribe el nombre de tu institución',
                     ),
                   ],
                 ] else
@@ -516,8 +574,9 @@ class _RegisterPageState extends State<RegisterPage> {
                       isDense: true,
                       counterText: '',
                     ),
-                    validator: (v) =>
-                        (v?.trim().length ?? 0) >= 2 ? null : 'Escribe el nombre de tu institución',
+                    validator: (v) => (v?.trim().length ?? 0) >= 2
+                        ? null
+                        : 'Escribe el nombre de tu institución',
                   ),
                 const SizedBox(height: 12),
 
@@ -530,10 +589,16 @@ class _RegisterPageState extends State<RegisterPage> {
                     isDense: true,
                   ),
                   items: c.sedes
-                      .map((s) => DropdownMenuItem(value: s.id, child: Text(s.nombre)))
+                      .map(
+                        (s) => DropdownMenuItem(
+                          value: s.id,
+                          child: Text(s.nombre),
+                        ),
+                      )
                       .toList(),
                   onChanged: (v) => setState(() => _sede = v),
-                  validator: (v) => v == null || v.isEmpty ? 'Elige una sede' : null,
+                  validator: (v) =>
+                      v == null || v.isEmpty ? 'Elige una sede' : null,
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
@@ -545,22 +610,36 @@ class _RegisterPageState extends State<RegisterPage> {
                     isDense: true,
                   ),
                   items: c.facultades
-                      .map((f) => DropdownMenuItem(
-                          value: f.id, child: Text(f.nombre, overflow: TextOverflow.ellipsis)))
+                      .map(
+                        (f) => DropdownMenuItem(
+                          value: f.id,
+                          child: Text(
+                            f.nombre,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
                       .toList(),
                   onChanged: (v) => setState(() {
                     _facultad = v;
                     _depurarProgramas();
                   }),
-                  validator: (v) => v == null || v.isEmpty ? 'Elige una facultad' : null,
+                  validator: (v) =>
+                      v == null || v.isEmpty ? 'Elige una facultad' : null,
                 ),
 
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Nivel en el que dictas', style: AppType.captionStrong),
-                    Text('Elige uno o ambos', style: AppType.caption.copyWith(color: muted)),
+                    Text(
+                      'Nivel en el que dictas',
+                      style: AppType.captionStrong,
+                    ),
+                    Text(
+                      'Elige uno o ambos',
+                      style: AppType.caption.copyWith(color: muted),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -576,15 +655,23 @@ class _RegisterPageState extends State<RegisterPage> {
                           color: Colors.transparent,
                           child: InkWell(
                             onTap: () => _alternarNivel(n.id),
-                            borderRadius: BorderRadius.circular(AppSpacing.radiusCard),
+                            borderRadius: BorderRadius.circular(
+                              AppSpacing.radiusCard,
+                            ),
                             child: AnimatedContainer(
                               duration: AppMotion.fast,
-                              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 10,
+                                horizontal: 8,
+                              ),
                               decoration: BoxDecoration(
                                 color: marcado
-                                    ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
+                                    ? Theme.of(context).colorScheme.primary
+                                          .withValues(alpha: 0.1)
                                     : Theme.of(context).colorScheme.surface,
-                                borderRadius: BorderRadius.circular(AppSpacing.radiusCard),
+                                borderRadius: BorderRadius.circular(
+                                  AppSpacing.radiusCard,
+                                ),
                                 border: Border.all(
                                   color: marcado
                                       ? Theme.of(context).colorScheme.primary
@@ -596,7 +683,9 @@ class _RegisterPageState extends State<RegisterPage> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Icon(
-                                    marcado ? Icons.check_circle : Icons.school_outlined,
+                                    marcado
+                                        ? Icons.check_circle
+                                        : Icons.school_outlined,
                                     size: 18,
                                     color: marcado
                                         ? Theme.of(context).colorScheme.primary
@@ -608,7 +697,9 @@ class _RegisterPageState extends State<RegisterPage> {
                                       n.nombre,
                                       style: AppType.captionStrong.copyWith(
                                         color: marcado
-                                            ? Theme.of(context).colorScheme.primary
+                                            ? Theme.of(
+                                                context,
+                                              ).colorScheme.primary
                                             : null,
                                       ),
                                       overflow: TextOverflow.ellipsis,
@@ -632,7 +723,9 @@ class _RegisterPageState extends State<RegisterPage> {
                     if (todosVisibles.isNotEmpty)
                       StatusPill(
                         '${_programas.length} de ${todosVisibles.length}',
-                        kind: _programas.isNotEmpty ? SemanticKind.success : SemanticKind.info,
+                        kind: _programas.isNotEmpty
+                            ? SemanticKind.success
+                            : SemanticKind.info,
                       ),
                   ],
                 ),
@@ -643,8 +736,13 @@ class _RegisterPageState extends State<RegisterPage> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusCard),
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest
+                          .withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(
+                        AppSpacing.radiusCard,
+                      ),
                       border: Border.all(color: Theme.of(context).dividerColor),
                     ),
                     child: Text(
@@ -656,7 +754,9 @@ class _RegisterPageState extends State<RegisterPage> {
                   Material(
                     color: Theme.of(context).colorScheme.surface,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppSpacing.radiusCard),
+                      borderRadius: BorderRadius.circular(
+                        AppSpacing.radiusCard,
+                      ),
                       side: BorderSide(color: Theme.of(context).dividerColor),
                     ),
                     clipBehavior: Clip.antiAlias,
@@ -674,25 +774,34 @@ class _RegisterPageState extends State<RegisterPage> {
                                 suffixIcon: _filtroPrograma.isNotEmpty
                                     ? IconButton(
                                         icon: const Icon(Icons.clear, size: 16),
-                                        onPressed: () => _searchProgramas.clear(),
+                                        onPressed: () =>
+                                            _searchProgramas.clear(),
                                       )
                                     : null,
                               ),
                             ),
                           ),
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
                               TextButton(
-                                style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
-                                onPressed: () => _marcarTodosProgramas(todosVisibles),
+                                style: TextButton.styleFrom(
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                onPressed: () =>
+                                    _marcarTodosProgramas(todosVisibles),
                                 child: const Text('Marcar todos'),
                               ),
                               const SizedBox(width: 4),
                               TextButton(
-                                style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                                style: TextButton.styleFrom(
+                                  visualDensity: VisualDensity.compact,
+                                ),
                                 onPressed: _desmarcarTodosProgramas,
                                 child: const Text('Desmarcar'),
                               ),
@@ -705,16 +814,24 @@ class _RegisterPageState extends State<RegisterPage> {
                           child: ListView.separated(
                             shrinkWrap: true,
                             itemCount: visibles.length,
-                            separatorBuilder: (_, __) => const Divider(height: 1),
+                            separatorBuilder: (_, __) =>
+                                const Divider(height: 1),
                             itemBuilder: (context, i) {
                               final p = visibles[i];
                               final marcado = _programas.contains(p.id);
                               return CheckboxListTile(
                                 dense: true,
-                                controlAffinity: ListTileControlAffinity.leading,
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
                                 value: marcado,
                                 title: Text(p.nombre, style: AppType.caption),
-                                subtitle: Text(p.id, style: AppType.caption.copyWith(color: muted, fontSize: 11)),
+                                subtitle: Text(
+                                  p.id,
+                                  style: AppType.caption.copyWith(
+                                    color: muted,
+                                    fontSize: 11,
+                                  ),
+                                ),
                                 onChanged: (nuevo) {
                                   setState(() {
                                     if (nuevo == true) {
@@ -758,7 +875,10 @@ class _RegisterPageState extends State<RegisterPage> {
                     prefixIcon: Icon(Icons.mail_outline),
                     isDense: true,
                   ),
-                  validator: (v) => RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(v?.trim() ?? '')
+                  validator: (v) =>
+                      RegExp(
+                        r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+                      ).hasMatch(v?.trim() ?? '')
                       ? null
                       : 'Escribe un correo institucional válido',
                 ),
@@ -772,9 +892,16 @@ class _RegisterPageState extends State<RegisterPage> {
                     prefixIcon: const Icon(Icons.key_outlined),
                     isDense: true,
                     suffixIcon: IconButton(
-                      icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                      tooltip: _obscurePassword ? 'Mostrar contraseña' : 'Ocultar contraseña',
-                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                      tooltip: _obscurePassword
+                          ? 'Mostrar contraseña'
+                          : 'Ocultar contraseña',
+                      onPressed: () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
                     ),
                   ),
                   validator: (v) => revisarPassword(v ?? ''),
@@ -787,10 +914,22 @@ class _RegisterPageState extends State<RegisterPage> {
                     spacing: 6,
                     runSpacing: 6,
                     children: [
-                      _PasswordBadge(texto: '10+ caracteres', cumplida: _password.text.length >= minPassword),
-                      _PasswordBadge(texto: 'Mayúscula', cumplida: RegExp(r'[A-Z]').hasMatch(_password.text)),
-                      _PasswordBadge(texto: 'Minúscula', cumplida: RegExp(r'[a-z]').hasMatch(_password.text)),
-                      _PasswordBadge(texto: 'Número', cumplida: RegExp(r'[0-9]').hasMatch(_password.text)),
+                      _PasswordBadge(
+                        texto: '10+ caracteres',
+                        cumplida: _password.text.length >= minPassword,
+                      ),
+                      _PasswordBadge(
+                        texto: 'Mayúscula',
+                        cumplida: RegExp(r'[A-Z]').hasMatch(_password.text),
+                      ),
+                      _PasswordBadge(
+                        texto: 'Minúscula',
+                        cumplida: RegExp(r'[a-z]').hasMatch(_password.text),
+                      ),
+                      _PasswordBadge(
+                        texto: 'Número',
+                        cumplida: RegExp(r'[0-9]').hasMatch(_password.text),
+                      ),
                     ],
                   ),
                 ],
@@ -803,10 +942,19 @@ class _RegisterPageState extends State<RegisterPage> {
           FilledButton.icon(
             onPressed: _enviando ? null : _enviar,
             icon: _enviando
-                ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
                 : const Icon(Icons.send_outlined),
             label: Text(_enviando ? 'Enviando solicitud…' : 'Enviar solicitud'),
-            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(50),
+            ),
           ),
           const SizedBox(height: 10),
           Text(
@@ -841,8 +989,7 @@ class _CabeceraSeccion extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
 
     return Row(
       children: [
@@ -850,7 +997,9 @@ class _CabeceraSeccion extends StatelessWidget {
           width: 28,
           height: 28,
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+            color: Theme.of(
+              context,
+            ).colorScheme.primary.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(8),
           ),
           alignment: Alignment.center,
@@ -887,13 +1036,16 @@ class _PasswordBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final success = SemanticTone.of(context, SemanticKind.success);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: cumplida ? success.bg : Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        color: cumplida
+            ? success.bg
+            : Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(AppSpacing.radiusPill),
         border: Border.all(
           color: cumplida ? success.border : Theme.of(context).dividerColor,

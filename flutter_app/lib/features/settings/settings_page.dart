@@ -4,9 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/network/connection_controller.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/theme/theme_controller.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
+import './widgets/appearance_section.dart';
 import './widgets/notifications_section.dart';
 import './widgets/password_section.dart';
 import './widgets/update_section.dart';
@@ -43,8 +43,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final connection = ref.watch(connectionControllerProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final palette = context.palette;
+    final isDark = palette.isDark;
+    final muted = palette.muted;
 
     return Scaffold(
       appBar: AppBar(
@@ -67,14 +68,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
                           color: ref.watch(adminModeProvider)
-                              ? AppColors.primarySoft
+                              ? palette.primarySoft
                               : (isDark ? Colors.grey.shade800 : Colors.grey.shade200),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Icon(
                           Icons.admin_panel_settings_outlined,
                           color: ref.watch(adminModeProvider)
-                              ? AppColors.primary
+                              ? palette.primary
                               : muted,
                           size: 24,
                         ),
@@ -218,65 +219,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           const SizedBox(height: 22),
           _SectionLabel('Apariencia', muted: muted),
-          AppCard(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-            child: Builder(
-              builder: (context) {
-                final mode = ref.watch(themeModeProvider);
-                // `platformBrightnessOf` y no `MediaQuery.of`: solo interesa el
-                // brillo del sistema, no cada cambio del MediaQueryData.
-                final oscuroAhora = mode == ThemeMode.dark ||
-                    (mode == ThemeMode.system &&
-                        MediaQuery.platformBrightnessOf(context) ==
-                            Brightness.dark);
-
-                // Tres opciones y no un interruptor. Con el interruptor, tocar
-                // el tema una sola vez dejaba la app clavada en claro u oscuro
-                // para siempre: «seguir al sistema» era el estado inicial y no
-                // había forma de volver a él, así que el teléfono que cambia
-                // solo al anochecer dejaba de hacerlo sin explicación.
-                return Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: Icon(oscuroAhora
-                            ? Icons.dark_mode_outlined
-                            : Icons.light_mode_outlined),
-                        title: const Text('Tema'),
-                        subtitle: const Text('Verde profundo con lettering lima'),
-                      ),
-                      SegmentedButton<ThemeMode>(
-                        segments: const [
-                          ButtonSegment(
-                            value: ThemeMode.light,
-                            icon: Icon(Icons.light_mode_outlined),
-                            label: Text('Claro'),
-                          ),
-                          ButtonSegment(
-                            value: ThemeMode.dark,
-                            icon: Icon(Icons.dark_mode_outlined),
-                            label: Text('Oscuro'),
-                          ),
-                          ButtonSegment(
-                            value: ThemeMode.system,
-                            icon: Icon(Icons.brightness_auto_outlined),
-                            label: Text('Sistema'),
-                          ),
-                        ],
-                        selected: {mode},
-                        showSelectedIcon: false,
-                        onSelectionChanged: (seleccion) =>
-                            ref.read(themeModeProvider.notifier).set(seleccion.first),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
+          const AppearanceSection(),
           const SizedBox(height: 22),
           _SectionLabel('Ayuda', muted: muted),
           AppCard(

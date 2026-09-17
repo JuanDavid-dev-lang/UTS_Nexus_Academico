@@ -9,7 +9,11 @@ class PasoTutorial {
   final String titulo;
   final String texto;
 
-  const PasoTutorial({required this.icono, required this.titulo, required this.texto});
+  const PasoTutorial({
+    required this.icono,
+    required this.titulo,
+    required this.texto,
+  });
 }
 
 /// Guion del tutorial.
@@ -133,8 +137,7 @@ class _TutorialPageState extends State<TutorialPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
     final ultimo = _indice == pasos.length - 1;
 
     return Scaffold(
@@ -143,7 +146,10 @@ class _TutorialPageState extends State<TutorialPage> {
           children: [
             Align(
               alignment: Alignment.centerRight,
-              child: TextButton(onPressed: _terminar, child: const Text('Saltar')),
+              child: TextButton(
+                onPressed: _terminar,
+                child: const Text('Saltar'),
+              ),
             ),
             Expanded(
               child: PageView.builder(
@@ -161,18 +167,34 @@ class _TutorialPageState extends State<TutorialPage> {
                           width: 96,
                           height: 96,
                           decoration: BoxDecoration(
-                            color: SemanticTone.of(context, SemanticKind.info).bg,
+                            color: SemanticTone.of(
+                              context,
+                              SemanticKind.info,
+                            ).bg,
                             shape: BoxShape.circle,
                           ),
-                          child: Icon(paso.icono,
-                              size: 44, color: SemanticTone.of(context, SemanticKind.info).fg),
+                          child: Icon(
+                            paso.icono,
+                            size: 44,
+                            color: SemanticTone.of(
+                              context,
+                              SemanticKind.info,
+                            ).fg,
+                          ),
                         ),
                         const SizedBox(height: 28),
-                        Text(paso.titulo, style: AppType.h2, textAlign: TextAlign.center),
+                        Text(
+                          paso.titulo,
+                          style: AppType.h2,
+                          textAlign: TextAlign.center,
+                        ),
                         const SizedBox(height: 12),
                         Text(
                           paso.texto,
-                          style: AppType.body.copyWith(color: muted, height: 1.5),
+                          style: AppType.body.copyWith(
+                            color: muted,
+                            height: 1.5,
+                          ),
                           textAlign: TextAlign.center,
                         ),
                       ],
@@ -223,9 +245,9 @@ class _TutorialPageState extends State<TutorialPage> {
                       onPressed: ultimo
                           ? _terminar
                           : () => _controlador.nextPage(
-                                duration: const Duration(milliseconds: 250),
-                                curve: Curves.easeOut,
-                              ),
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeOut,
+                            ),
                       child: Text(ultimo ? 'Empezar' : 'Siguiente'),
                     ),
                   ),

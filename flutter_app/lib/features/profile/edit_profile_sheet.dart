@@ -64,8 +64,9 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
 
     setState(() => _subiendo = true);
     try {
-      final url =
-          await ref.read(profileServiceProvider).uploadImage(elegida.path);
+      final url = await ref
+          .read(profileServiceProvider)
+          .uploadImage(elegida.path);
       if (mounted) setState(() => _fotoUrl = url);
     } catch (error) {
       if (mounted) _avisar(ApiError.from(error).message);
@@ -77,7 +78,9 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
   Future<void> _guardar() async {
     setState(() => _guardando = true);
     try {
-      await ref.read(profileServiceProvider).update(
+      await ref
+          .read(profileServiceProvider)
+          .update(
             fullName: _nombre.text.trim().isEmpty ? null : _nombre.text.trim(),
             title: _cargo.text.trim().isEmpty ? null : _cargo.text.trim(),
             department: _departamento.text.trim().isEmpty
@@ -97,15 +100,15 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
   }
 
   void _avisar(String mensaje) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(mensaje)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(mensaje)));
   }
 
   @override
   Widget build(BuildContext context) {
     final perfil = ref.watch(miPerfilProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
     final primary = Theme.of(context).colorScheme.primary;
     final user = ref.watch(authControllerProvider).user;
 
@@ -187,8 +190,11 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
                                       color: Colors.white,
                                     ),
                                   )
-                                : const Icon(Icons.photo_camera_outlined,
-                                    size: 16, color: Colors.white),
+                                : const Icon(
+                                    Icons.photo_camera_outlined,
+                                    size: 16,
+                                    color: Colors.white,
+                                  ),
                           ),
                         ),
                       ),
@@ -233,7 +239,8 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
                   ),
                 ],
 
-                if (datos.institutionNombre != null || datos.institucionSolicitada != null) ...[
+                if (datos.institutionNombre != null ||
+                    datos.institucionSolicitada != null) ...[
                   const SizedBox(height: 12),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -244,7 +251,7 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
                         child: Text(
                           datos.institutionNombre != null
                               ? 'Institución: ${datos.institutionNombre}'
-                                  '${datos.institutionSigla != null ? ' (${datos.institutionSigla})' : ''}'
+                                    '${datos.institutionSigla != null ? ' (${datos.institutionSigla})' : ''}'
                               : 'Institución pendiente de aprobación: ${datos.institucionSolicitada}',
                           style: AppType.caption.copyWith(color: muted),
                         ),
@@ -274,8 +281,11 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet> {
   }
 
   static String _iniciales(String nombre) {
-    final partes =
-        nombre.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    final partes = nombre
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
     if (partes.isEmpty) return '?';
     if (partes.length == 1) return partes.first.substring(0, 1).toUpperCase();
     return (partes[0][0] + partes[1][0]).toUpperCase();

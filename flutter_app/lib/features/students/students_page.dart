@@ -41,10 +41,10 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
   @override
   Widget build(BuildContext context) {
     final students = ref.watch(directorioEstudiantesProvider);
-    final subjects = ref.watch(subjectsProvider).valueOrNull ?? const <Subject>[];
+    final subjects =
+        ref.watch(subjectsProvider).valueOrNull ?? const <Subject>[];
     final subjectFilter = ref.watch(studentSubjectFilterProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
 
     return Scaffold(
       appBar: CompactHeader(
@@ -148,7 +148,9 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
                           ),
                         ],
                         onChanged: (value) {
-                          ref.read(studentSubjectFilterProvider.notifier).state =
+                          ref
+                                  .read(studentSubjectFilterProvider.notifier)
+                                  .state =
                               value;
                           ref
                               .read(directorioEstudiantesProvider.notifier)
@@ -175,18 +177,18 @@ class _StudentsPageState extends ConsumerState<StudentsPage> {
               Expanded(
                 child: filtered.isEmpty
                     ? (estado.cargandoMas
-                        // Buscar no manda la pantalla a `AsyncLoading` —eso se
-                        // llevaría el buscador y con él el foco y el texto—,
-                        // así que el esqueleto de la búsqueda se pinta aquí.
-                        ? const Padding(
-                            padding: AppSpacing.listPadding,
-                            child: SkeletonRows(filas: 6),
-                          )
-                        : StateView.empty(
-                            term.isEmpty
-                                ? 'Todavía no hay estudiantes registrados.'
-                                : 'Sin coincidencias para "$_query".',
-                          ))
+                          // Buscar no manda la pantalla a `AsyncLoading` —eso se
+                          // llevaría el buscador y con él el foco y el texto—,
+                          // así que el esqueleto de la búsqueda se pinta aquí.
+                          ? const Padding(
+                              padding: AppSpacing.listPadding,
+                              child: SkeletonRows(filas: 6),
+                            )
+                          : StateView.empty(
+                              term.isEmpty
+                                  ? 'Todavía no hay estudiantes registrados.'
+                                  : 'Sin coincidencias para "$_query".',
+                            ))
                     : ListaProgresiva<Student>(
                         items: filtered,
                         padding: AppSpacing.listPadding,

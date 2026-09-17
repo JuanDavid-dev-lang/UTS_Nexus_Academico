@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'appearance/appearance_preferences.dart';
+import 'appearance/palettes.dart';
+
 /// Sistema de diseño — UTS Nexus Académico (móvil).
 ///
 /// Implementa los tokens de DESIGN.md: paleta institucional, colores
@@ -130,7 +133,56 @@ class AppColors {
   static const accentBorderDark = Color(0xFF585C2A);
 }
 
-/// Los colores del tema activo, resueltos una vez.
+/// `#RRGGBB` → [Color]. Los hex de [TokensDeTono] y [Semantico] ya salen
+/// normalizados (mayúsculas, con almohadilla), así que no hace falta pasar
+/// por `normalizarHex` de nuevo.
+///
+/// Pública porque la pantalla de apariencia la necesita para pintar la
+/// vista previa de un tono o una visión que todavía no es la activa —
+/// `context.palette` solo resuelve la que ya está aplicada.
+Color colorDeHex(String hex) =>
+    Color(int.parse('FF${hex.substring(1)}', radix: 16));
+
+/// Un par (color de texto/icono, fondo suave, borde) resuelto para el tono y
+/// la visión activos. Ver [AppPalette.success] y compañía.
+class SemanticTone {
+  final Color fg;
+  final Color bg;
+  final Color border;
+  const SemanticTone(this.fg, this.bg, this.border);
+
+  factory SemanticTone._deSemantico(Semantico s) =>
+      SemanticTone(colorDeHex(s.fg), colorDeHex(s.soft), colorDeHex(s.border));
+
+  static SemanticTone _lerp(SemanticTone a, SemanticTone b, double t) =>
+      SemanticTone(
+        Color.lerp(a.fg, b.fg, t) ?? a.fg,
+        Color.lerp(a.bg, b.bg, t) ?? a.bg,
+        Color.lerp(a.border, b.border, t) ?? a.border,
+      );
+
+  /// Resuelve un estado semántico contra el tema activo.
+  ///
+  /// `brand` no es un estado de [TonosSemanticos]: es énfasis de marca
+  /// (etiqueta de rol, chip de identidad) y se arma con el primario y el
+  /// acento suave del TONO, no con la visión del color.
+  static SemanticTone of(BuildContext context, SemanticKind kind) {
+    final palette = context.palette;
+    return switch (kind) {
+      SemanticKind.success => palette.success,
+      SemanticKind.warning => palette.warning,
+      SemanticKind.danger => palette.danger,
+      SemanticKind.info => palette.info,
+      SemanticKind.brand => SemanticTone(
+        palette.primary,
+        palette.accentSoft,
+        palette.accentSecondary,
+      ),
+    };
+  }
+}
+
+/// Los colores del tono activo, resueltos una vez contra el tema de Material.
 ///
 /// Existe porque `isDark ? AppColors.textMutedDark : AppColors.textMuted`
 /// aparecía cincuenta y cinco veces repartido por las pantallas. No es solo
@@ -138,8 +190,11 @@ class AppColors {
 /// olvidar el caso oscuro, y olvidarlo no da error —da texto gris oscuro sobre
 /// fondo oliva, que solo se ve cambiando de tema a mano.
 ///
-/// Se lee con `context.palette`.
-class AppPalette {
+/// Ahora además varía por tono y por visión del color: es una
+/// `ThemeExtension`, así que cada `ThemeData` que construye [AppTheme] lleva
+/// la suya y `Theme.of(context).extension<AppPalette>()` la resuelve como
+/// cualquier otro dato de tema. Se lee con `context.palette`.
+class AppPalette extends ThemeExtension<AppPalette> {
   final bool isDark;
 
   final Color bg;
@@ -152,13 +207,28 @@ class AppPalette {
   final Color muted;
   final Color subtle;
   final Color primary;
+  final Color onPrimary;
   final Color primarySoft;
   final Color primaryTint;
   final Color accent;
+  final Color onAccent;
   final Color accentStrong;
   final Color accentSecondary;
+  final Color accentSoft;
 
-  const AppPalette._({
+  /// Tres paradas del degradado de marca y el color de su velo. Ver
+  /// [AppGradients].
+  final Color brandStart;
+  final Color brandMid;
+  final Color brandEnd;
+  final Color veil;
+
+  final SemanticTone success;
+  final SemanticTone warning;
+  final SemanticTone danger;
+  final SemanticTone info;
+
+  const AppPalette({
     required this.isDark,
     required this.bg,
     required this.surface,
@@ -170,60 +240,182 @@ class AppPalette {
     required this.muted,
     required this.subtle,
     required this.primary,
+    required this.onPrimary,
     required this.primarySoft,
     required this.primaryTint,
     required this.accent,
+    required this.onAccent,
     required this.accentStrong,
     required this.accentSecondary,
+    required this.accentSoft,
+    required this.brandStart,
+    required this.brandMid,
+    required this.brandEnd,
+    required this.veil,
+    required this.success,
+    required this.warning,
+    required this.danger,
+    required this.info,
   });
 
-  static const light = AppPalette._(
-    isDark: false,
-    bg: AppColors.bg,
-    surface: AppColors.surface,
-    surfaceAlt: AppColors.surfaceAlt,
-    surfaceSunken: AppColors.surfaceSunken,
-    border: AppColors.border,
-    borderStrong: AppColors.borderStrong,
-    text: AppColors.text,
-    muted: AppColors.textMuted,
-    subtle: AppColors.textSubtle,
-    primary: AppColors.primary,
-    primarySoft: AppColors.primarySoft,
-    primaryTint: AppColors.primaryTint,
-    accent: AppColors.lime,
-    accentStrong: AppColors.accentStrong,
-    accentSecondary: AppColors.accentSecondary,
+  /// Arma la paleta a partir de los tokens de un tono y los tonos semánticos
+  /// de una visión del color — la misma pareja de argumentos que recibe
+  /// `tokensDeTono()`/`tonosSemanticos()` del lado del escritorio.
+  factory AppPalette.desde({
+    required TokensDeTono tokens,
+    required TonosSemanticos semanticos,
+    required bool isDark,
+  }) {
+    Color c(String hex) => colorDeHex(hex);
+    return AppPalette(
+      isDark: isDark,
+      bg: c(tokens.bg),
+      surface: c(tokens.surface),
+      surfaceAlt: c(tokens.surfaceAlt),
+      surfaceSunken: c(tokens.surfaceSunken),
+      border: c(tokens.border),
+      borderStrong: c(tokens.borderStrong),
+      text: c(tokens.text),
+      muted: c(tokens.textMuted),
+      subtle: c(tokens.textSubtle),
+      primary: c(tokens.primary),
+      onPrimary: c(tokens.onPrimary),
+      primarySoft: c(tokens.primarySoft),
+      primaryTint: c(tokens.primaryTint),
+      accent: c(tokens.accent),
+      onAccent: c(tokens.onAccent),
+      accentStrong: c(tokens.accentStrong),
+      accentSecondary: c(tokens.accentSecondary),
+      accentSoft: c(tokens.accentSoft),
+      brandStart: c(tokens.brandStart),
+      brandMid: c(tokens.brandMid),
+      brandEnd: c(tokens.brandEnd),
+      veil: c(tokens.veil),
+      success: SemanticTone._deSemantico(semanticos.success),
+      warning: SemanticTone._deSemantico(semanticos.warning),
+      danger: SemanticTone._deSemantico(semanticos.danger),
+      info: SemanticTone._deSemantico(semanticos.info),
+    );
+  }
+
+  /// Paleta institucional en visión normal: lo que se pintaba antes de que
+  /// existiera el tono elegible, y lo que se usa cuando el widget que pide
+  /// `context.palette` no cuelga de un `ThemeData` construido por
+  /// [AppTheme] (por ejemplo, una prueba que arma su propio `MaterialApp`
+  /// sin tema).
+  static AppPalette _institucionalDe(Brightness brightness) {
+    final modo = brightness == Brightness.dark
+        ? ModoResuelto.dark
+        : ModoResuelto.light;
+    return AppPalette.desde(
+      tokens: tokensDeTono(Tono.institucional, modo),
+      semanticos: tonosSemanticos(VisionColor.normal, modo),
+      isDark: brightness == Brightness.dark,
+    );
+  }
+
+  static AppPalette of(BuildContext context) {
+    final theme = Theme.of(context);
+    return theme.extension<AppPalette>() ?? _institucionalDe(theme.brightness);
+  }
+
+  @override
+  AppPalette copyWith({
+    bool? isDark,
+    Color? bg,
+    Color? surface,
+    Color? surfaceAlt,
+    Color? surfaceSunken,
+    Color? border,
+    Color? borderStrong,
+    Color? text,
+    Color? muted,
+    Color? subtle,
+    Color? primary,
+    Color? onPrimary,
+    Color? primarySoft,
+    Color? primaryTint,
+    Color? accent,
+    Color? onAccent,
+    Color? accentStrong,
+    Color? accentSecondary,
+    Color? accentSoft,
+    Color? brandStart,
+    Color? brandMid,
+    Color? brandEnd,
+    Color? veil,
+    SemanticTone? success,
+    SemanticTone? warning,
+    SemanticTone? danger,
+    SemanticTone? info,
+  }) => AppPalette(
+    isDark: isDark ?? this.isDark,
+    bg: bg ?? this.bg,
+    surface: surface ?? this.surface,
+    surfaceAlt: surfaceAlt ?? this.surfaceAlt,
+    surfaceSunken: surfaceSunken ?? this.surfaceSunken,
+    border: border ?? this.border,
+    borderStrong: borderStrong ?? this.borderStrong,
+    text: text ?? this.text,
+    muted: muted ?? this.muted,
+    subtle: subtle ?? this.subtle,
+    primary: primary ?? this.primary,
+    onPrimary: onPrimary ?? this.onPrimary,
+    primarySoft: primarySoft ?? this.primarySoft,
+    primaryTint: primaryTint ?? this.primaryTint,
+    accent: accent ?? this.accent,
+    onAccent: onAccent ?? this.onAccent,
+    accentStrong: accentStrong ?? this.accentStrong,
+    accentSecondary: accentSecondary ?? this.accentSecondary,
+    accentSoft: accentSoft ?? this.accentSoft,
+    brandStart: brandStart ?? this.brandStart,
+    brandMid: brandMid ?? this.brandMid,
+    brandEnd: brandEnd ?? this.brandEnd,
+    veil: veil ?? this.veil,
+    success: success ?? this.success,
+    warning: warning ?? this.warning,
+    danger: danger ?? this.danger,
+    info: info ?? this.info,
   );
 
-  static const dark = AppPalette._(
-    isDark: true,
-    bg: AppColors.bgDark,
-    surface: AppColors.surfaceDark,
-    surfaceAlt: AppColors.surfaceAltDark,
-    surfaceSunken: AppColors.surfaceSunkenDark,
-    border: AppColors.borderDark,
-    borderStrong: AppColors.borderStrongDark,
-    text: AppColors.textDark,
-    muted: AppColors.textMutedDark,
-    subtle: AppColors.textSubtleDark,
-    // En oscuro la lima es el color primario de interacción (DESIGN.md §4).
-    primary: AppColors.lime,
-    primarySoft: AppColors.primarySoftDark,
-    primaryTint: AppColors.primaryTintDark,
-    accent: AppColors.lime,
-    // Sobre las superficies oliva la lima ya llega a 9.9:1: bajarla como en
-    // claro la haría ilegible.
-    accentStrong: AppColors.lime,
-    accentSecondary: Color(0xFF999E3C),
-  );
-
-  static AppPalette of(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark ? dark : light;
+  @override
+  AppPalette lerp(ThemeExtension<AppPalette>? other, double t) {
+    if (other is! AppPalette) return this;
+    Color lc(Color a, Color b) => Color.lerp(a, b, t) ?? a;
+    return AppPalette(
+      isDark: t < 0.5 ? isDark : other.isDark,
+      bg: lc(bg, other.bg),
+      surface: lc(surface, other.surface),
+      surfaceAlt: lc(surfaceAlt, other.surfaceAlt),
+      surfaceSunken: lc(surfaceSunken, other.surfaceSunken),
+      border: lc(border, other.border),
+      borderStrong: lc(borderStrong, other.borderStrong),
+      text: lc(text, other.text),
+      muted: lc(muted, other.muted),
+      subtle: lc(subtle, other.subtle),
+      primary: lc(primary, other.primary),
+      onPrimary: lc(onPrimary, other.onPrimary),
+      primarySoft: lc(primarySoft, other.primarySoft),
+      primaryTint: lc(primaryTint, other.primaryTint),
+      accent: lc(accent, other.accent),
+      onAccent: lc(onAccent, other.onAccent),
+      accentStrong: lc(accentStrong, other.accentStrong),
+      accentSecondary: lc(accentSecondary, other.accentSecondary),
+      accentSoft: lc(accentSoft, other.accentSoft),
+      brandStart: lc(brandStart, other.brandStart),
+      brandMid: lc(brandMid, other.brandMid),
+      brandEnd: lc(brandEnd, other.brandEnd),
+      veil: lc(veil, other.veil),
+      success: SemanticTone._lerp(success, other.success, t),
+      warning: SemanticTone._lerp(warning, other.warning, t),
+      danger: SemanticTone._lerp(danger, other.danger, t),
+      info: SemanticTone._lerp(info, other.info, t),
+    );
+  }
 }
 
 extension AppPaletteContext on BuildContext {
-  /// Colores del tema activo. Ver [AppPalette].
+  /// Colores del tono activo. Ver [AppPalette].
   AppPalette get palette => AppPalette.of(this);
 }
 
@@ -234,32 +426,27 @@ extension AppPaletteContext on BuildContext {
 /// lista: el degradado cambia de tono a lo largo del bloque y cada fila
 /// acabaría sobre un fondo distinto.
 class AppGradients {
-  /// En oscuro NO es lima: DESIGN.md §4 regla 2 prohíbe la lima como fondo de
-  /// superficie grande. Es la rampa oliva subiendo un paso.
-  static LinearGradient brand(bool isDark) => isDark
-      ? const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF3F4534), Color(0xFF33332A), Color(0xFF262B21)],
-          stops: [0, 0.55, 1],
-        )
-      : const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF0D6E46), Color(0xFF0B5D3B), Color(0xFF08472E)],
-          stops: [0, 0.55, 1],
-        );
+  /// Las tres paradas del tono activo, de la esquina clara a la oscura. En
+  /// oscuro NUNCA es el color de acento puro: DESIGN.md §4 regla 2 prohíbe el
+  /// acento como fondo de superficie grande, y `brandStart/Mid/End` de cada
+  /// tono ya son la rampa neutra apagada que sustituye a la lima ahí.
+  static LinearGradient brand(AppPalette palette) => LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [palette.brandStart, palette.brandMid, palette.brandEnd],
+    stops: const [0, 0.55, 1],
+  );
 
-  /// Velo lima sobre el degradado de marca: profundidad sin tocar el contraste
-  /// del texto, porque solo aclara una esquina.
-  static RadialGradient veil(bool isDark) => RadialGradient(
-        center: const Alignment(0.7, -1),
-        radius: 1.2,
-        colors: [
-          AppColors.lime.withValues(alpha: isDark ? 0.12 : 0.22),
-          AppColors.lime.withValues(alpha: 0),
-        ],
-      );
+  /// Velo del color de acento sobre el degradado de marca: profundidad sin
+  /// tocar el contraste del texto, porque solo aclara una esquina.
+  static RadialGradient veil(AppPalette palette) => RadialGradient(
+    center: const Alignment(0.7, -1),
+    radius: 1.2,
+    colors: [
+      palette.veil.withValues(alpha: palette.isDark ? 0.12 : 0.22),
+      palette.veil.withValues(alpha: 0),
+    ],
+  );
 
   static const accent = LinearGradient(
     begin: Alignment.topLeft,
@@ -276,45 +463,45 @@ class AppGradients {
 /// apoyarse en nada.
 class AppShadows {
   static List<BoxShadow> sm(bool isDark) => [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.04),
-          blurRadius: 2,
-          offset: const Offset(0, 1),
-        ),
-        BoxShadow(
-          color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.06),
-          blurRadius: 3,
-          offset: const Offset(0, 1),
-        ),
-      ];
+    BoxShadow(
+      color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.04),
+      blurRadius: 2,
+      offset: const Offset(0, 1),
+    ),
+    BoxShadow(
+      color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.06),
+      blurRadius: 3,
+      offset: const Offset(0, 1),
+    ),
+  ];
 
   static List<BoxShadow> md(bool isDark) => [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: isDark ? 0.24 : 0.04),
-          blurRadius: 4,
-          offset: const Offset(0, 2),
-        ),
-        BoxShadow(
-          color: Colors.black.withValues(alpha: isDark ? 0.34 : 0.08),
-          blurRadius: 16,
-          spreadRadius: -4,
-          offset: const Offset(0, 8),
-        ),
-      ];
+    BoxShadow(
+      color: Colors.black.withValues(alpha: isDark ? 0.24 : 0.04),
+      blurRadius: 4,
+      offset: const Offset(0, 2),
+    ),
+    BoxShadow(
+      color: Colors.black.withValues(alpha: isDark ? 0.34 : 0.08),
+      blurRadius: 16,
+      spreadRadius: -4,
+      offset: const Offset(0, 8),
+    ),
+  ];
 
   static List<BoxShadow> lg(bool isDark) => [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.05),
-          blurRadius: 8,
-          offset: const Offset(0, 4),
-        ),
-        BoxShadow(
-          color: Colors.black.withValues(alpha: isDark ? 0.44 : 0.12),
-          blurRadius: 32,
-          spreadRadius: -8,
-          offset: const Offset(0, 20),
-        ),
-      ];
+    BoxShadow(
+      color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.05),
+      blurRadius: 8,
+      offset: const Offset(0, 4),
+    ),
+    BoxShadow(
+      color: Colors.black.withValues(alpha: isDark ? 0.44 : 0.12),
+      blurRadius: 32,
+      spreadRadius: -8,
+      offset: const Offset(0, 20),
+    ),
+  ];
 }
 
 /// Estado semántico: éxito, advertencia, peligro, información.
@@ -327,59 +514,6 @@ class AppShadows {
 /// identidad). Vive aquí para que esos realces se resuelvan por tema igual que
 /// los demás, en vez de fijar el verde institucional que el modo oscuro no lee.
 enum SemanticKind { success, warning, danger, info, brand }
-
-/// Par resuelto (color de texto/icono, fondo suave, borde) para un estado.
-///
-/// El borde llegó con los chips: sin él, un fondo suave sobre `surfaceAlt` no
-/// tiene contorno y el bloque de color deja de leerse como una insignia.
-class SemanticTone {
-  final Color fg;
-  final Color bg;
-  final Color border;
-  const SemanticTone(this.fg, this.bg, this.border);
-
-  static SemanticTone resolve(SemanticKind kind, bool isDark) {
-    switch (kind) {
-      case SemanticKind.success:
-        return isDark
-            ? const SemanticTone(AppColors.successDark, AppColors.successSoftDark,
-                AppColors.successBorderDark)
-            : const SemanticTone(
-                AppColors.success, AppColors.successSoft, AppColors.successBorder);
-      case SemanticKind.warning:
-        return isDark
-            ? const SemanticTone(AppColors.warningDark, AppColors.warningSoftDark,
-                AppColors.warningBorderDark)
-            // En claro el ámbar de marca no llega a AA como texto: se usa el
-            // ámbar oscuro para la letra y el de marca queda para indicadores.
-            : const SemanticTone(
-                AppColors.warningText, AppColors.warningSoft, AppColors.warningBorder);
-      case SemanticKind.danger:
-        return isDark
-            ? const SemanticTone(
-                AppColors.dangerDark, AppColors.dangerSoftDark, AppColors.dangerBorderDark)
-            : const SemanticTone(
-                AppColors.danger, AppColors.dangerSoft, AppColors.dangerBorder);
-      case SemanticKind.info:
-        return isDark
-            ? const SemanticTone(
-                AppColors.infoDark, AppColors.infoSoftDark, AppColors.infoBorderDark)
-            : const SemanticTone(AppColors.info, AppColors.infoSoft, AppColors.infoBorder);
-      case SemanticKind.brand:
-        // El verde institucional desaparece sobre las superficies oliva; en
-        // oscuro la marca la lleva la lima, que §4 admite en badges pequeños.
-        return isDark
-            ? const SemanticTone(
-                AppColors.lime, AppColors.accentSoftDark, AppColors.accentBorderDark)
-            : const SemanticTone(
-                AppColors.primary, AppColors.accentSoft, AppColors.accentBorder);
-    }
-  }
-
-  /// Resuelve contra el tema activo.
-  static SemanticTone of(BuildContext context, SemanticKind kind) =>
-      resolve(kind, Theme.of(context).brightness == Brightness.dark);
-}
 
 /// Espaciado y radios (DESIGN.md §7), en su escala compacta.
 ///
@@ -424,12 +558,20 @@ class AppSpacing {
   ///
   /// El extra al final no es decorativo: sin él, la última fila queda debajo
   /// de la barra de navegación y no se puede tocar.
-  static const EdgeInsets pagePadding =
-      EdgeInsets.fromLTRB(page, gap, page, page + tapTarget);
+  static const EdgeInsets pagePadding = EdgeInsets.fromLTRB(
+    page,
+    gap,
+    page,
+    page + tapTarget,
+  );
 
   /// Relleno de una lista que ya trae sus propias separaciones.
-  static const EdgeInsets listPadding =
-      EdgeInsets.fromLTRB(page, gapSm, page, tapTarget + gap);
+  static const EdgeInsets listPadding = EdgeInsets.fromLTRB(
+    page,
+    gapSm,
+    page,
+    tapTarget + gap,
+  );
 }
 
 /// Duraciones de animación (DESIGN.md §17).
@@ -483,18 +625,32 @@ class AppType {
   );
 
   /// Texto general.
-  static const body = TextStyle(fontSize: 16, fontWeight: FontWeight.w400, height: 1.45);
+  static const body = TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.w400,
+    height: 1.45,
+  );
 
   /// Texto general con énfasis (etiquetas de botón, valores destacados).
-  static const bodyStrong =
-      TextStyle(fontSize: 16, fontWeight: FontWeight.w600, height: 1.35);
+  static const bodyStrong = TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.w600,
+    height: 1.35,
+  );
 
   /// Metadatos, etiquetas y notas al pie.
-  static const caption = TextStyle(fontSize: 13, fontWeight: FontWeight.w400, height: 1.35);
+  static const caption = TextStyle(
+    fontSize: 13,
+    fontWeight: FontWeight.w400,
+    height: 1.35,
+  );
 
   /// Metadatos con énfasis (insignias, encabezados de columna).
-  static const captionStrong =
-      TextStyle(fontSize: 13, fontWeight: FontWeight.w600, height: 1.3);
+  static const captionStrong = TextStyle(
+    fontSize: 13,
+    fontWeight: FontWeight.w600,
+    height: 1.3,
+  );
 
   /// Cifra de una métrica: la misma escala, pero con las cifras de ancho fijo.
   ///
@@ -555,98 +711,174 @@ class RiskStyle {
     this.label,
   );
 
-  static RiskStyle of(String nivel, {bool isDark = false}) {
+  /// Resuelve contra el tema activo (tono y visión del color incluidos).
+  static RiskStyle from(BuildContext context, String nivel) {
     switch (nivel.toUpperCase()) {
       case 'ALTO':
       case 'HIGH':
-        final t = SemanticTone.resolve(SemanticKind.danger, isDark);
+        final t = SemanticTone.of(context, SemanticKind.danger);
         return RiskStyle(
-            t.fg, t.bg, t.border, Icons.gpp_maybe_outlined, '🔴', 'Riesgo Alto');
+          t.fg,
+          t.bg,
+          t.border,
+          Icons.gpp_maybe_outlined,
+          '🔴',
+          'Riesgo Alto',
+        );
       case 'MEDIO':
       case 'MEDIUM':
-        final t = SemanticTone.resolve(SemanticKind.warning, isDark);
+        final t = SemanticTone.of(context, SemanticKind.warning);
         return RiskStyle(
-            t.fg, t.bg, t.border, Icons.warning_amber_rounded, '🟡', 'Riesgo Medio');
+          t.fg,
+          t.bg,
+          t.border,
+          Icons.warning_amber_rounded,
+          '🟡',
+          'Riesgo Medio',
+        );
       default:
-        final t = SemanticTone.resolve(SemanticKind.success, isDark);
+        final t = SemanticTone.of(context, SemanticKind.success);
         return RiskStyle(
-            t.fg, t.bg, t.border, Icons.check_circle_outline, '🟢', 'Sin riesgo');
+          t.fg,
+          t.bg,
+          t.border,
+          Icons.check_circle_outline,
+          '🟢',
+          'Sin riesgo',
+        );
     }
   }
-
-  /// Resuelve contra el tema activo.
-  static RiskStyle from(BuildContext context, String nivel) =>
-      of(nivel, isDark: Theme.of(context).brightness == Brightness.dark);
 }
 
 class AppTheme {
-  static ThemeData get light {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: AppColors.primary,
-      brightness: Brightness.light,
-    ).copyWith(
-      primary: AppColors.primary,
-      onPrimary: Colors.white,
-      primaryContainer: AppColors.primarySoft,
-      onPrimaryContainer: AppColors.primary,
-      secondary: AppColors.secondary,
-      onSecondary: AppColors.text,
-      secondaryContainer: AppColors.accentSoft,
-      onSecondaryContainer: AppColors.accentStrong,
-      error: AppColors.danger,
-      surface: AppColors.surface,
-      onSurface: AppColors.text,
-      surfaceContainerHighest: AppColors.surfaceAlt,
-      outline: AppColors.border,
-      outlineVariant: AppColors.borderStrong,
+  /// Tema institucional en visión normal, esquinas suaves. Es lo que
+  /// pintaba la aplicación antes de que existiera la apariencia elegible, y
+  /// lo que usan las pruebas y widgets que no necesitan una preferencia real.
+  static ThemeData get light =>
+      construir(AparienciaPreferencias.defecto, Brightness.light);
+
+  static ThemeData get dark =>
+      construir(AparienciaPreferencias.defecto, Brightness.dark);
+
+  /// Arma el `ThemeData` de una combinación (tono, color propio, visión del
+  /// color, esquinas) para un brillo dado. `app.dart` la llama una vez por
+  /// brillo en cada build de `MaterialApp.router`; recalcularla es barato
+  /// —son operaciones aritméticas sobre un puñado de colores, no E/S— y es lo
+  /// que permite que cambiar el tono en Ajustes se vea al instante en las dos
+  /// variantes (`theme`/`darkTheme`) sin reiniciar la aplicación.
+  static ThemeData construir(
+    AparienciaPreferencias prefs,
+    Brightness brightness,
+  ) {
+    final isDark = brightness == Brightness.dark;
+    final modo = isDark ? ModoResuelto.dark : ModoResuelto.light;
+    final tokens = tokensDeTono(prefs.tono, modo, prefs.colorPropio);
+    final semanticos = tonosSemanticos(prefs.vision, modo);
+    final palette = AppPalette.desde(
+      tokens: tokens,
+      semanticos: semanticos,
+      isDark: isDark,
     );
-    return _base(scheme, AppPalette.light);
+
+    final scheme = isDark
+        ? ColorScheme.fromSeed(
+            seedColor: palette.primary,
+            brightness: Brightness.dark,
+          ).copyWith(
+            // En oscuro el acento del tono ES el primario de interacción
+            // (DESIGN.md §4): `tokens.primary` ya vale lo mismo que
+            // `tokens.accent` ahí.
+            primary: palette.primary,
+            onPrimary: palette.onPrimary,
+            primaryContainer: palette.primarySoft,
+            onPrimaryContainer: palette.primary,
+            // Acento apagado, no el mismo tono otra vez: DESIGN.md §4 limita
+            // a dos tonos de acento visibles por pantalla y el primario ya
+            // gasta uno.
+            secondary: palette.accentSecondary,
+            onSecondary: palette.bg,
+            secondaryContainer: palette.accentSoft,
+            onSecondaryContainer: palette.primary,
+            error: palette.danger.fg,
+            onError: palette.bg,
+            surface: palette.surface,
+            onSurface: palette.text,
+            surfaceContainerHighest: palette.surfaceAlt,
+            outline: palette.borderStrong,
+            outlineVariant: palette.border,
+          )
+        : ColorScheme.fromSeed(
+            seedColor: palette.primary,
+            brightness: Brightness.light,
+          ).copyWith(
+            primary: palette.primary,
+            onPrimary: palette.onPrimary,
+            primaryContainer: palette.primarySoft,
+            onPrimaryContainer: palette.primary,
+            secondary: palette.accent,
+            onSecondary: palette.text,
+            secondaryContainer: palette.accentSoft,
+            onSecondaryContainer: palette.accentStrong,
+            error: palette.danger.fg,
+            surface: palette.surface,
+            onSurface: palette.text,
+            surfaceContainerHighest: palette.surfaceAlt,
+            outline: palette.border,
+            outlineVariant: palette.borderStrong,
+          );
+
+    return _base(
+      scheme,
+      palette,
+      prefs.esquinas.factor,
+      sinTransiciones: prefs.reducirMovimiento,
+    );
   }
 
-  static ThemeData get dark {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: AppColors.seedDark,
-      brightness: Brightness.dark,
-    ).copyWith(
-      primary: AppColors.lime, // La lima es el acento principal en oscuro
-      onPrimary: AppColors.bgDark, // Texto oliva oscuro sobre lima
-      primaryContainer: AppColors.primarySoftDark,
-      onPrimaryContainer: AppColors.lime,
-      // Oliva apagado, no lima otra vez: DESIGN.md §4 limita a dos tonos de
-      // lima/oliva visibles por pantalla y el primario ya gasta uno.
-      secondary: AppColors.accentSecondary,
-      onSecondary: AppColors.bgDark,
-      secondaryContainer: AppColors.accentSoftDark,
-      onSecondaryContainer: AppColors.lime,
-      error: AppColors.dangerDark,
-      onError: AppColors.bgDark,
-      surface: AppColors.surfaceDark,
-      onSurface: AppColors.textDark,
-      surfaceContainerHighest: AppColors.surfaceAltDark,
-      outline: AppColors.borderStrongDark,
-      outlineVariant: AppColors.borderDark,
-    );
-    return _base(scheme, AppPalette.dark);
-  }
-
-  static ThemeData _base(ColorScheme scheme, AppPalette palette) {
+  static ThemeData _base(
+    ColorScheme scheme,
+    AppPalette palette,
+    double radio, {
+    bool sinTransiciones = false,
+  }) {
     final text = palette.text;
     final border = palette.border;
     final surface = palette.surface;
 
+    // Cada radio de AppSpacing multiplicado por el factor de la preferencia
+    // de esquinas (0.4 rectas, 1.0 suaves, 1.4 redondeadas). AppSpacing sigue
+    // fijando las constantes: lo único que cambia aquí es la forma de los
+    // componentes que Flutter arma desde el `ThemeData` — tarjetas, campos,
+    // botones, hojas y diálogos —, no ningún valor `const`.
+    double r(double base) => base * radio;
+
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
+      extensions: [palette],
+      // «Reducir movimiento» tiene que apagar algo visible. `disableAnimations`
+      // en el MediaQuery no lo hace solo —Flutter no lo propaga a las rutas—,
+      // así que las transiciones de página se quitan aquí, que es de donde las
+      // lee GoRouter para todas sus `GoRoute(builder:)`.
+      pageTransitionsTheme: sinTransiciones
+          ? const PageTransitionsTheme(
+              builders: {
+                TargetPlatform.android: _SinTransicion(),
+                TargetPlatform.iOS: _SinTransicion(),
+                TargetPlatform.linux: _SinTransicion(),
+                TargetPlatform.macOS: _SinTransicion(),
+                TargetPlatform.windows: _SinTransicion(),
+                TargetPlatform.fuchsia: _SinTransicion(),
+              },
+            )
+          : null,
       scaffoldBackgroundColor: palette.bg,
       // Inter va empaquetada; Roboto es el respaldo declarado por DESIGN.md §5
       // y además la fuente del sistema en Android, así que un fallo de carga
       // degrada a algo previsible en vez de a la fuente genérica del motor.
       fontFamily: 'Inter',
       fontFamilyFallback: const ['Roboto'],
-      textTheme: AppType.textTheme.apply(
-        bodyColor: text,
-        displayColor: text,
-      ),
+      textTheme: AppType.textTheme.apply(bodyColor: text, displayColor: text),
       appBarTheme: AppBarTheme(
         // La cabecera va del color del FONDO, no de la superficie de card.
         // Con `surface` la barra era un rectángulo claro sobre el fondo de la
@@ -668,18 +900,21 @@ class AppTheme {
         fillColor: surface,
         // 12 en vez de 14: en un formulario de seis campos son 24 dp menos
         // sin que el campo deje de ser cómodo de tocar (sigue en 48 de alto).
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
         hintStyle: AppType.body.copyWith(color: palette.subtle),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusInput),
+          borderRadius: BorderRadius.circular(r(AppSpacing.radiusInput)),
           borderSide: BorderSide(color: border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusInput),
+          borderRadius: BorderRadius.circular(r(AppSpacing.radiusInput)),
           borderSide: BorderSide(color: border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusInput),
+          borderRadius: BorderRadius.circular(r(AppSpacing.radiusInput)),
           borderSide: BorderSide(color: scheme.primary, width: 1.6),
         ),
       ),
@@ -690,7 +925,7 @@ class AppTheme {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           minimumSize: const Size(0, AppSpacing.tapTarget),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppSpacing.radiusInput),
+            borderRadius: BorderRadius.circular(r(AppSpacing.radiusInput)),
           ),
           textStyle: AppType.bodyStrong.copyWith(fontWeight: FontWeight.w700),
         ),
@@ -702,7 +937,7 @@ class AppTheme {
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
           minimumSize: const Size(0, AppSpacing.tapTarget),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppSpacing.radiusInput),
+            borderRadius: BorderRadius.circular(r(AppSpacing.radiusInput)),
           ),
           textStyle: AppType.bodyStrong,
         ),
@@ -711,10 +946,13 @@ class AppTheme {
         backgroundColor: surface,
         indicatorColor: palette.primarySoft,
         selectedIconTheme: IconThemeData(color: scheme.primary),
-        selectedLabelTextStyle:
-            AppType.captionStrong.copyWith(color: scheme.primary),
+        selectedLabelTextStyle: AppType.captionStrong.copyWith(
+          color: scheme.primary,
+        ),
         unselectedIconTheme: IconThemeData(color: palette.muted),
-        unselectedLabelTextStyle: AppType.caption.copyWith(color: palette.muted),
+        unselectedLabelTextStyle: AppType.caption.copyWith(
+          color: palette.muted,
+        ),
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: surface,
@@ -745,9 +983,9 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         showDragHandle: true,
         dragHandleColor: palette.borderStrong,
-        shape: const RoundedRectangleBorder(
+        shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(
-            top: Radius.circular(AppSpacing.radiusLarge),
+            top: Radius.circular(r(AppSpacing.radiusLarge)),
           ),
         ),
       ),
@@ -755,9 +993,12 @@ class AppTheme {
         backgroundColor: surface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusCard),
+          borderRadius: BorderRadius.circular(r(AppSpacing.radiusCard)),
         ),
-        titleTextStyle: AppType.bodyStrong.copyWith(color: text, fontWeight: FontWeight.w700),
+        titleTextStyle: AppType.bodyStrong.copyWith(
+          color: text,
+          fontWeight: FontWeight.w700,
+        ),
         contentTextStyle: AppType.body.copyWith(color: palette.muted),
       ),
       /*
@@ -782,7 +1023,7 @@ class AppTheme {
         selectedColor: scheme.primary,
         selectedTileColor: palette.primarySoft,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusInput),
+          borderRadius: BorderRadius.circular(r(AppSpacing.radiusInput)),
         ),
       ),
       chipTheme: ChipThemeData(
@@ -791,7 +1032,7 @@ class AppTheme {
         side: BorderSide(color: border),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusPill),
+          borderRadius: BorderRadius.circular(r(AppSpacing.radiusPill)),
         ),
       ),
       cardTheme: CardThemeData(
@@ -799,20 +1040,34 @@ class AppTheme {
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusCard),
+          borderRadius: BorderRadius.circular(r(AppSpacing.radiusCard)),
           side: BorderSide(color: border),
         ),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: palette.isDark ? AppColors.surfaceAltDark : AppColors.text,
+        backgroundColor: palette.isDark ? palette.surfaceAlt : palette.text,
         contentTextStyle: AppType.body.copyWith(
-          color: palette.isDark ? AppColors.textDark : Colors.white,
+          color: palette.isDark ? palette.text : Colors.white,
         ),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusInput),
+          borderRadius: BorderRadius.circular(r(AppSpacing.radiusInput)),
         ),
       ),
     );
   }
+}
+
+/// Transición de página que no anima: la ruta nueva aparece en su sitio.
+class _SinTransicion extends PageTransitionsBuilder {
+  const _SinTransicion();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) => child;
 }

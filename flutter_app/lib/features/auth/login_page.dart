@@ -93,15 +93,18 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       setState(() => _showManualServer = false);
       AppToast.success(context, 'Servidor conectado');
     } else {
-      AppToast.error(context, 'No responde', 'Verifica la dirección y que el servidor esté encendido.');
+      AppToast.error(
+        context,
+        'No responde',
+        'Verifica la dirección y que el servidor esté encendido.',
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final connection = ref.watch(connectionControllerProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
 
     return Scaffold(
       body: SafeArea(
@@ -118,8 +121,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     'assets/logo.webp',
                     height: 96,
                     // Ídem: se descodifica a los 96 dp a los que se dibuja.
-                    cacheHeight:
-                        (96 * MediaQuery.devicePixelRatioOf(context)).round(),
+                    cacheHeight: (96 * MediaQuery.devicePixelRatioOf(context))
+                        .round(),
                     errorBuilder: (_, __, ___) => Icon(
                       Icons.school_outlined,
                       size: 72,
@@ -167,12 +170,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       prefixIcon: const Icon(Icons.lock_outline),
                       errorText: _passwordError,
                       suffixIcon: IconButton(
-                        icon: Icon(_obscurePassword
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined),
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                        ),
                         tooltip: _obscurePassword ? 'Mostrar' : 'Ocultar',
-                        onPressed: () =>
-                            setState(() => _obscurePassword = !_obscurePassword),
+                        onPressed: () => setState(
+                          () => _obscurePassword = !_obscurePassword,
+                        ),
                       ),
                     ),
                   ),
@@ -218,8 +224,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       onRetry: () => ref
                           .read(connectionControllerProvider.notifier)
                           .discover(),
-                      onManual: () =>
-                          setState(() => _showManualServer = !_showManualServer),
+                      onManual: () => setState(
+                        () => _showManualServer = !_showManualServer,
+                      ),
                     ),
                   ],
 
@@ -233,7 +240,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         labelText: 'Dirección del servidor',
                         hintText: '192.168.1.10',
                         prefixIcon: Icon(Icons.dns_outlined),
-                        helperText: 'Solo si la búsqueda automática no lo encuentra',
+                        helperText:
+                            'Solo si la búsqueda automática no lo encuentra',
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -259,12 +267,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 /// decidir qué hacer con ella. Con una lista, la fase nueva se colaría o se
 /// quedaría muda sin que nadie lo notara.
 bool _muestraConexion(ConnectionPhase fase) => switch (fase) {
-      ConnectionPhase.checking => false,
-      ConnectionPhase.connected => false,
-      ConnectionPhase.discovering => true,
-      ConnectionPhase.degraded => true,
-      ConnectionPhase.notFound => true,
-    };
+  ConnectionPhase.checking => false,
+  ConnectionPhase.connected => false,
+  ConnectionPhase.discovering => true,
+  ConnectionPhase.degraded => true,
+  ConnectionPhase.notFound => true,
+};
 
 /// Estado de la conexión, en lenguaje de usuario.
 class _ConnectionBanner extends StatelessWidget {
@@ -280,96 +288,99 @@ class _ConnectionBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
 
     // `switch` como expresión: el analizador comprueba que estén todos los
     // casos del enum, así que añadir una fase nueva rompe la compilación en vez
     // de dejar la pantalla en blanco.
     return switch (state.phase) {
       ConnectionPhase.checking => _row(
-          icon: Icons.wifi_find_outlined,
-          color: muted,
-          text: 'Comprobando el servidor…',
-        ),
+        icon: Icons.wifi_find_outlined,
+        color: muted,
+        text: 'Comprobando el servidor…',
+      ),
       ConnectionPhase.discovering => Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _row(
-              icon: Icons.travel_explore_outlined,
-              color: AppColors.info,
-              text: 'Buscando el servidor en tu red…',
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _row(
+            icon: Icons.travel_explore_outlined,
+            color: SemanticTone.of(context, SemanticKind.info).fg,
+            text: 'Buscando el servidor en tu red…',
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: state.progress == 0 ? null : state.progress,
+              minHeight: 4,
             ),
-            const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: LinearProgressIndicator(
-                value: state.progress == 0 ? null : state.progress,
-                minHeight: 4,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
+      ),
       ConnectionPhase.connected => _row(
-          icon: Icons.check_circle_outline,
-          color: SemanticTone.of(context, SemanticKind.success).fg,
-          text: state.detail ?? 'Servidor encontrado',
-        ),
+        icon: Icons.check_circle_outline,
+        color: SemanticTone.of(context, SemanticKind.success).fg,
+        text: state.detail ?? 'Servidor encontrado',
+      ),
 
       ConnectionPhase.degraded => Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _row(
-              icon: Icons.warning_amber_outlined,
-              color: SemanticTone.of(context, SemanticKind.warning).fg,
-              text: 'El servidor no alcanza la base de datos',
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Podrás abrir la app, pero no habrá datos hasta que se resuelva.',
-              style: AppType.caption.copyWith(color: muted),
-            ),
-          ],
-        ),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _row(
+            icon: Icons.warning_amber_outlined,
+            color: SemanticTone.of(context, SemanticKind.warning).fg,
+            text: 'El servidor no alcanza la base de datos',
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Podrás abrir la app, pero no habrá datos hasta que se resuelva.',
+            style: AppType.caption.copyWith(color: muted),
+          ),
+        ],
+      ),
       ConnectionPhase.notFound => Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _row(
-              icon: Icons.wifi_off_outlined,
-              color: AppColors.danger,
-              text: 'No encontramos el servidor',
-            ),
-            const SizedBox(height: 4),
-            Text(
-              state.detail ??
-                  'Verifica que el servidor esté encendido y que estés en la misma red Wi-Fi.',
-              style: AppType.caption.copyWith(color: muted),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: onRetry,
-                    icon: const Icon(Icons.refresh, size: 18),
-                    label: const Text('Buscar de nuevo'),
-                  ),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _row(
+            icon: Icons.wifi_off_outlined,
+            color: SemanticTone.of(context, SemanticKind.danger).fg,
+            text: 'No encontramos el servidor',
+          ),
+          const SizedBox(height: 4),
+          Text(
+            state.detail ??
+                'Verifica que el servidor esté encendido y que estés en la misma red Wi-Fi.',
+            style: AppType.caption.copyWith(color: muted),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('Buscar de nuevo'),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextButton(
-                    onPressed: onManual,
-                    child: const Text('Escribir dirección'),
-                  ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextButton(
+                  onPressed: onManual,
+                  child: const Text('Escribir dirección'),
                 ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+        ],
+      ),
     };
   }
 
-  Widget _row({required IconData icon, required Color color, required String text}) {
+  Widget _row({
+    required IconData icon,
+    required Color color,
+    required String text,
+  }) {
     return Row(
       children: [
         Icon(icon, size: 18, color: color),

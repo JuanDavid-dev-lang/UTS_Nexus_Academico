@@ -83,8 +83,13 @@ class _EventSheetState extends ConsumerState<EventSheet> {
   /// campus. Con `DateTime.now()` local, un teléfono en otra zona guardaría el
   /// parcial a una hora distinta de la que se tecleó.
   DateTime _instante() {
-    return DateTime.utc(_fecha.year, _fecha.month, _fecha.day, _hora.hour, _hora.minute)
-        .subtract(Duration(minutes: widget.offsetCampusMinutos));
+    return DateTime.utc(
+      _fecha.year,
+      _fecha.month,
+      _fecha.day,
+      _hora.hour,
+      _hora.minute,
+    ).subtract(Duration(minutes: widget.offsetCampusMinutos));
   }
 
   Future<void> _guardar() async {
@@ -129,8 +134,7 @@ class _EventSheetState extends ConsumerState<EventSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
     final materias = ref.watch(periodSubjectsProvider).valueOrNull ?? const [];
 
     return Padding(
@@ -167,7 +171,10 @@ class _EventSheetState extends ConsumerState<EventSheet> {
                 decoration: const InputDecoration(labelText: 'Tipo'),
                 items: [
                   for (final entrada in _tipos.entries)
-                    DropdownMenuItem(value: entrada.key, child: Text(entrada.value)),
+                    DropdownMenuItem(
+                      value: entrada.key,
+                      child: Text(entrada.value),
+                    ),
                 ],
                 onChanged: (valor) => setState(() => _tipo = valor ?? 'EXAM'),
               ),
@@ -185,8 +192,13 @@ class _EventSheetState extends ConsumerState<EventSheet> {
                           lastDate: DateTime.utc(_fecha.year + 2),
                         );
                         if (elegida != null) {
-                          setState(() => _fecha =
-                              DateTime.utc(elegida.year, elegida.month, elegida.day));
+                          setState(
+                            () => _fecha = DateTime.utc(
+                              elegida.year,
+                              elegida.month,
+                              elegida.day,
+                            ),
+                          );
                         }
                       },
                       icon: const Icon(Icons.event_outlined),
@@ -200,8 +212,10 @@ class _EventSheetState extends ConsumerState<EventSheet> {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () async {
-                        final elegida =
-                            await showTimePicker(context: context, initialTime: _hora);
+                        final elegida = await showTimePicker(
+                          context: context,
+                          initialTime: _hora,
+                        );
                         if (elegida != null) setState(() => _hora = elegida);
                       },
                       icon: const Icon(Icons.schedule_outlined),
@@ -214,16 +228,27 @@ class _EventSheetState extends ConsumerState<EventSheet> {
                 ],
               ),
               const SizedBox(height: 4),
-              Text('Hora del campus', style: AppType.caption.copyWith(color: muted)),
+              Text(
+                'Hora del campus',
+                style: AppType.caption.copyWith(color: muted),
+              ),
               const SizedBox(height: 12),
 
               DropdownButtonFormField<String?>(
                 initialValue: _materiaId,
-                decoration: const InputDecoration(labelText: 'Materia (opcional)'),
+                decoration: const InputDecoration(
+                  labelText: 'Materia (opcional)',
+                ),
                 items: [
-                  const DropdownMenuItem<String?>(value: null, child: Text('Sin materia')),
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Sin materia'),
+                  ),
                   for (final materia in materias)
-                    DropdownMenuItem<String?>(value: materia.id, child: Text(materia.name)),
+                    DropdownMenuItem<String?>(
+                      value: materia.id,
+                      child: Text(materia.name),
+                    ),
                 ],
                 onChanged: (valor) => setState(() => _materiaId = valor),
               ),
@@ -231,7 +256,10 @@ class _EventSheetState extends ConsumerState<EventSheet> {
 
               TextField(
                 controller: _lugar,
-                decoration: const InputDecoration(labelText: 'Lugar', hintText: 'Aula 304'),
+                decoration: const InputDecoration(
+                  labelText: 'Lugar',
+                  hintText: 'Aula 304',
+                ),
               ),
               const SizedBox(height: 12),
 
@@ -239,7 +267,9 @@ class _EventSheetState extends ConsumerState<EventSheet> {
                 controller: _descripcion,
                 maxLines: 2,
                 textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(labelText: 'Descripción (opcional)'),
+                decoration: const InputDecoration(
+                  labelText: 'Descripción (opcional)',
+                ),
               ),
               const SizedBox(height: 12),
 
@@ -252,13 +282,17 @@ class _EventSheetState extends ConsumerState<EventSheet> {
                   DropdownMenuItem(value: 'HIGH', child: Text('Alta')),
                   DropdownMenuItem(value: 'URGENT', child: Text('Urgente')),
                 ],
-                onChanged: (valor) => setState(() => _prioridad = valor ?? 'MEDIUM'),
+                onChanged: (valor) =>
+                    setState(() => _prioridad = valor ?? 'MEDIUM'),
               ),
               const SizedBox(height: AppSpacing.gap),
 
               Text(
                 'RECORDATORIOS',
-                style: AppType.captionStrong.copyWith(color: muted, letterSpacing: 0.8),
+                style: AppType.captionStrong.copyWith(
+                  color: muted,
+                  letterSpacing: 0.8,
+                ),
               ),
               const SizedBox(height: 8),
               Wrap(
@@ -296,7 +330,9 @@ class _EventSheetState extends ConsumerState<EventSheet> {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: _guardando ? null : () => Navigator.of(context).pop(),
+                      onPressed: _guardando
+                          ? null
+                          : () => Navigator.of(context).pop(),
                       child: const Text('Cancelar'),
                     ),
                   ),
@@ -308,7 +344,9 @@ class _EventSheetState extends ConsumerState<EventSheet> {
                           ? const SizedBox(
                               height: 18,
                               width: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2.2),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.2,
+                              ),
                             )
                           : const Text('Crear'),
                     ),
@@ -334,7 +372,9 @@ Future<bool> mostrarHojaDeEvento(
     context: context,
     showDragHandle: true,
     isScrollControlled: true,
-    constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.92),
+    constraints: BoxConstraints(
+      maxHeight: MediaQuery.sizeOf(context).height * 0.92,
+    ),
     builder: (_) => EventSheet(
       diaSugerido: diaSugerido,
       offsetCampusMinutos: offsetCampusMinutos,
@@ -342,4 +382,3 @@ Future<bool> mostrarHojaDeEvento(
   );
   return creado == true;
 }
-

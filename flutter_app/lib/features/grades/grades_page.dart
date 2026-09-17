@@ -48,12 +48,14 @@ class _GradesPageState extends ConsumerState<GradesPage> {
     final user = ref.read(authControllerProvider).user;
     final filas =
         ref.read(consolidatedProvider(subjectId)).valueOrNull ?? const [];
-    final existente =
-        filas.where((row) => row.studentId == studentId).toList();
+    final existente = filas.where((row) => row.studentId == studentId).toList();
     final row = existente.isNotEmpty
         ? existente.first
         : filaVaciaDeEstudiante(
-            studentId: studentId, code: code, fullName: fullName);
+            studentId: studentId,
+            code: code,
+            fullName: fullName,
+          );
 
     showGradeBreakdown(
       context,
@@ -86,16 +88,17 @@ class _GradesPageState extends ConsumerState<GradesPage> {
           .students(subjectId: subjectId);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ApiError.from(error).message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(ApiError.from(error).message)));
       return;
     }
     if (!mounted) return;
     if (estudiantes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Esta materia no tiene estudiantes matriculados.')),
+          content: Text('Esta materia no tiene estudiantes matriculados.'),
+        ),
       );
       return;
     }
@@ -128,8 +131,7 @@ class _GradesPageState extends ConsumerState<GradesPage> {
   Widget build(BuildContext context) {
     final subjects = ref.watch(periodSubjectsProvider);
     final rows = ref.watch(consolidatedProvider(_subjectId));
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
 
     final rol = ref.watch(authControllerProvider).user?.role;
     final puedeRegistrar =
@@ -187,12 +189,16 @@ class _GradesPageState extends ConsumerState<GradesPage> {
                     ),
                     items: [
                       const DropdownMenuItem(
-                          value: null, child: Text('Todas las materias')),
+                        value: null,
+                        child: Text('Todas las materias'),
+                      ),
                       for (final subject in items)
                         DropdownMenuItem(
                           value: subject.id,
-                          child: Text('${subject.name} (${subject.code})',
-                              overflow: TextOverflow.ellipsis),
+                          child: Text(
+                            '${subject.name} (${subject.code})',
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                     ],
                     onChanged: (value) => setState(() => _subjectId = value),
@@ -232,10 +238,12 @@ class _GradesPageState extends ConsumerState<GradesPage> {
                 final filtered = term.isEmpty
                     ? items
                     : items
-                        .where((row) =>
-                            row.fullName.toLowerCase().contains(term) ||
-                            row.code.toLowerCase().contains(term))
-                        .toList();
+                          .where(
+                            (row) =>
+                                row.fullName.toLowerCase().contains(term) ||
+                                row.code.toLowerCase().contains(term),
+                          )
+                          .toList();
 
                 if (items.isEmpty) {
                   return StateView.empty(
@@ -341,8 +349,10 @@ class _PendingBanner extends ConsumerWidget {
         final tone = SemanticTone.of(context, SemanticKind.warning);
 
         final palette = context.palette;
-        final totalFaltantes =
-            conFaltantes.fold<int>(0, (suma, materia) => suma + materia.missing);
+        final totalFaltantes = conFaltantes.fold<int>(
+          0,
+          (suma, materia) => suma + materia.missing,
+        );
 
         return Padding(
           padding: const EdgeInsets.only(bottom: AppSpacing.gap + 2),
@@ -362,7 +372,11 @@ class _PendingBanner extends ConsumerWidget {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.assignment_late_outlined, size: 18, color: tone.fg),
+                    Icon(
+                      Icons.assignment_late_outlined,
+                      size: 18,
+                      color: tone.fg,
+                    ),
                     const SizedBox(width: AppSpacing.gapSm),
                     Expanded(
                       child: Text(
@@ -392,9 +406,14 @@ class _PendingBanner extends ConsumerWidget {
                     '${materia.name} · ${materia.missing} notas',
                     style: AppType.captionStrong.copyWith(color: palette.text),
                   ),
-                  for (final corte in materia.cuts.where((cut) => cut.missing > 0))
+                  for (final corte in materia.cuts.where(
+                    (cut) => cut.missing > 0,
+                  ))
                     Padding(
-                      padding: const EdgeInsets.only(left: AppSpacing.gapSm, top: 2),
+                      padding: const EdgeInsets.only(
+                        left: AppSpacing.gapSm,
+                        top: 2,
+                      ),
                       child: Text(
                         'Corte ${corte.cut}: '
                         '${corte.components.where((c) => c.missing > 0).map((c) => '${_shortLabels[c.component] ?? c.component} ${c.missing}/${c.total}').join(' · ')}',
@@ -418,11 +437,13 @@ class _Summary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final graded = rows.where((row) => row.cuts.any((cut) => cut.complete || cut.grade > 0)).toList();
+    final graded = rows
+        .where((row) => row.cuts.any((cut) => cut.complete || cut.grade > 0))
+        .toList();
     final average = graded.isEmpty
         ? 0.0
         : graded.map((r) => r.finalGrade).reduce((a, b) => a + b) /
-            graded.length;
+              graded.length;
     final passing = graded.where((row) => row.passed).length;
     final complete = rows.where((row) => row.complete).length;
 

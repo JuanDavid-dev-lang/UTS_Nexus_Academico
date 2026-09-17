@@ -34,8 +34,11 @@ class _SubjectDetailPageState extends ConsumerState<SubjectDetailPage> {
   @override
   Widget build(BuildContext context) {
     final roster = ref.watch(subjectRosterProvider(widget.subjectId));
-    final subject = ref.watch(subjectsProvider).maybeWhen(
-          data: (items) => items.where((s) => s.id == widget.subjectId).firstOrNull,
+    final subject = ref
+        .watch(subjectsProvider)
+        .maybeWhen(
+          data: (items) =>
+              items.where((s) => s.id == widget.subjectId).firstOrNull,
           orElse: () => null,
         );
 
@@ -75,7 +78,8 @@ class _SubjectDetailPageState extends ConsumerState<SubjectDetailPage> {
         error: (error, _) => StateView.error(
           ApiError.from(error).message,
           action: FilledButton(
-            onPressed: () => ref.invalidate(subjectRosterProvider(widget.subjectId)),
+            onPressed: () =>
+                ref.invalidate(subjectRosterProvider(widget.subjectId)),
             child: const Text('Reintentar'),
           ),
         ),
@@ -88,15 +92,18 @@ class _SubjectDetailPageState extends ConsumerState<SubjectDetailPage> {
           }
 
           final filtered = students.where((entry) {
-            if (_riskFilter != null && entry.riskLevel != _riskFilter) return false;
+            if (_riskFilter != null && entry.riskLevel != _riskFilter) {
+              return false;
+            }
             if (_query.isEmpty) return true;
             final term = _query.toLowerCase();
             return entry.student.fullName.toLowerCase().contains(term) ||
                 entry.student.code.toLowerCase().contains(term);
           }).toList();
 
-          final atRisk =
-              students.where((s) => s.riskLevel != RiskLevel.low).length;
+          final atRisk = students
+              .where((s) => s.riskLevel != RiskLevel.low)
+              .length;
 
           return RefreshIndicator(
             onRefresh: () async {
@@ -126,15 +133,21 @@ class _SubjectDetailPageState extends ConsumerState<SubjectDetailPage> {
                       _FilterChip(
                         label: 'En riesgo ($atRisk)',
                         selected: _riskFilter == RiskLevel.high,
-                        onTap: () => setState(() => _riskFilter =
-                            _riskFilter == RiskLevel.high ? null : RiskLevel.high),
+                        onTap: () => setState(
+                          () => _riskFilter = _riskFilter == RiskLevel.high
+                              ? null
+                              : RiskLevel.high,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       _FilterChip(
                         label: 'Seguimiento',
                         selected: _riskFilter == RiskLevel.medium,
-                        onTap: () => setState(() => _riskFilter =
-                            _riskFilter == RiskLevel.medium ? null : RiskLevel.medium),
+                        onTap: () => setState(
+                          () => _riskFilter = _riskFilter == RiskLevel.medium
+                              ? null
+                              : RiskLevel.medium,
+                        ),
                       ),
                     ],
                   ),
@@ -151,10 +164,7 @@ class _SubjectDetailPageState extends ConsumerState<SubjectDetailPage> {
                   )
                 else
                   for (final entry in filtered) ...[
-                    _StudentRow(
-                      entry: entry,
-                      subjectId: widget.subjectId,
-                    ),
+                    _StudentRow(entry: entry, subjectId: widget.subjectId),
                     const SizedBox(height: 10),
                   ],
               ],
@@ -176,7 +186,8 @@ class _SummaryStrip extends StatelessWidget {
     final graded = students.where((s) => s.isPassing != null).toList();
     final average = graded.isEmpty
         ? 0.0
-        : graded.map((s) => s.finalGrade!).reduce((a, b) => a + b) / graded.length;
+        : graded.map((s) => s.finalGrade!).reduce((a, b) => a + b) /
+              graded.length;
     final passing = graded.where((s) => s.isPassing == true).length;
     final atRisk = students.where((s) => s.riskLevel != RiskLevel.low).length;
 
@@ -243,18 +254,14 @@ class _StudentRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
     final style = RiskStyle.from(context, entry.riskLevel.name);
     final grade = entry.finalGrade;
 
     return AppCard(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      onTap: () => showStudentDetailSheet(
-        context,
-        entry: entry,
-        subjectId: subjectId,
-      ),
+      onTap: () =>
+          showStudentDetailSheet(context, entry: entry, subjectId: subjectId),
       child: Row(
         children: [
           // Franja de color a la izquierda: identifica el riesgo sin ocupar
@@ -272,7 +279,9 @@ class _StudentRow extends StatelessWidget {
           const SizedBox(width: 12),
           CircleAvatar(
             radius: 20,
-            backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+            backgroundColor: Theme.of(
+              context,
+            ).colorScheme.primary.withValues(alpha: 0.12),
             child: Text(
               _initials(entry.student.fullName),
               style: AppType.captionStrong.copyWith(
@@ -314,7 +323,9 @@ class _StudentRow extends StatelessWidget {
                   fontWeight: FontWeight.w800,
                   color: grade == null || grade == 0
                       ? muted
-                      : (grade >= 3 ? AppColors.success : AppColors.danger),
+                      : (grade >= 3
+                            ? SemanticTone.of(context, SemanticKind.success).fg
+                            : SemanticTone.of(context, SemanticKind.danger).fg),
                 ),
               ),
               if (entry.riskLevel != RiskLevel.low)
@@ -333,7 +344,11 @@ class _StudentRow extends StatelessWidget {
   }
 
   static String _initials(String name) {
-    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    final parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
     if (parts.isEmpty) return '?';
     if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
     return (parts[0][0] + parts[1][0]).toUpperCase();

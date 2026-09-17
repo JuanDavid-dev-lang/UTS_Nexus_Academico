@@ -14,7 +14,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # OS credential vault: DPAPI on Windows, Keychain on macOS, Secret Service on Linux.
@@ -39,6 +39,15 @@ tauri-plugin-notification = "2"
 [target.'cfg(target_os = "linux")'.dependencies]
 chacha20poly1305 = "0.10"
 sha2 = "0.10"
+
+# Solo Windows: iniciar con el sistema. La bandeja va en `tauri` (tray-icon);
+# en Linux no se usa todavía, ver `src/segundo_plano.rs`.
+[target.'cfg(windows)'.dependencies]
+tauri-plugin-autostart = "2"
+# Con la app en la bandeja, abrirla otra vez desde el menú Inicio lanzaría una
+# segunda copia con su propio icono y su propio socket. Esto trae la ventana
+# de la que ya está abierta.
+tauri-plugin-single-instance = "2"
 
 [features]
 # This feature is used for production builds where `devPath` points to the filesystem.

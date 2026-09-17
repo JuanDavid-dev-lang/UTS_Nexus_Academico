@@ -34,7 +34,8 @@ class _ScanSheetPageState extends ConsumerState<ScanSheetPage> {
 
   final _servicio = AttendanceScanService();
 
-  bool get _fechasCompletas => _fechas.isNotEmpty && _fechas.every((f) => f != null);
+  bool get _fechasCompletas =>
+      _fechas.isNotEmpty && _fechas.every((f) => f != null);
 
   bool get _fechasRepetidas {
     final dias = _fechas
@@ -62,7 +63,10 @@ class _ScanSheetPageState extends ConsumerState<ScanSheetPage> {
     });
 
     try {
-      final resultado = await _servicio.escanear(groupId: grupo, rutaImagen: foto.path);
+      final resultado = await _servicio.escanear(
+        groupId: grupo,
+        rutaImagen: foto.path,
+      );
       if (!mounted) return;
       setState(() {
         _escaneo = resultado;
@@ -71,7 +75,9 @@ class _ScanSheetPageState extends ConsumerState<ScanSheetPage> {
         // aviso de arriba dice cuáles no se pudieron leer.
         _fechas = List<DateTime?>.generate(
           resultado.columnasFecha,
-          (i) => i < resultado.fechasSugeridas.length ? resultado.fechasSugeridas[i] : null,
+          (i) => i < resultado.fechasSugeridas.length
+              ? resultado.fechasSugeridas[i]
+              : null,
         );
         _paso = _Paso.revisar;
       });
@@ -97,12 +103,20 @@ class _ScanSheetPageState extends ConsumerState<ScanSheetPage> {
         filas: escaneo.filas,
       );
       if (!mounted) return;
-      AppToast.success(context, 'Asistencia importada', '$guardados registros guardados');
+      AppToast.success(
+        context,
+        'Asistencia importada',
+        '$guardados registros guardados',
+      );
       Navigator.of(context).pop(true);
     } catch (error) {
       if (!mounted) return;
       setState(() => _paso = _Paso.revisar);
-      AppToast.error(context, 'No se pudo guardar', ApiError.from(error).message);
+      AppToast.error(
+        context,
+        'No se pudo guardar',
+        ApiError.from(error).message,
+      );
     }
   }
 
@@ -113,15 +127,15 @@ class _ScanSheetPageState extends ConsumerState<ScanSheetPage> {
       body: switch (_paso) {
         _Paso.elegir => _elegir(),
         _Paso.leyendo => const Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 14),
-                Text('Leyendo la planilla…'),
-              ],
-            ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 14),
+              Text('Leyendo la planilla…'),
+            ],
           ),
+        ),
         _ => _revisar(),
       },
     );
@@ -129,8 +143,7 @@ class _ScanSheetPageState extends ConsumerState<ScanSheetPage> {
 
   Widget _elegir() {
     final grupos = ref.watch(groupsProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
 
     return ListView(
       padding: AppSpacing.pagePadding,
@@ -143,17 +156,25 @@ class _ScanSheetPageState extends ConsumerState<ScanSheetPage> {
               const SizedBox(height: 12),
               grupos.when(
                 loading: () => const SkeletonBox(height: 52, radius: 12),
-                error: (error, _) => Text(ApiError.from(error).message, style: AppType.caption),
+                error: (error, _) =>
+                    Text(ApiError.from(error).message, style: AppType.caption),
                 data: (items) => DropdownButtonFormField<String>(
                   initialValue: _groupId,
                   isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Grupo', isDense: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Grupo',
+                    isDense: true,
+                  ),
                   items: items
-                      .map((g) => DropdownMenuItem(
-                            value: g.id,
-                            child: Text('${g.name} · ${g.period}',
-                                overflow: TextOverflow.ellipsis),
-                          ))
+                      .map(
+                        (g) => DropdownMenuItem(
+                          value: g.id,
+                          child: Text(
+                            '${g.name} · ${g.period}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
                       .toList(),
                   onChanged: (valor) => setState(() => _groupId = valor),
                 ),
@@ -163,13 +184,17 @@ class _ScanSheetPageState extends ConsumerState<ScanSheetPage> {
         ),
         const SizedBox(height: 16),
         FilledButton.icon(
-          onPressed: _groupId == null ? null : () => _tomarFoto(ImageSource.camera),
+          onPressed: _groupId == null
+              ? null
+              : () => _tomarFoto(ImageSource.camera),
           icon: const Icon(Icons.photo_camera_outlined),
           label: const Text('Tomar la foto'),
         ),
         const SizedBox(height: 10),
         OutlinedButton.icon(
-          onPressed: _groupId == null ? null : () => _tomarFoto(ImageSource.gallery),
+          onPressed: _groupId == null
+              ? null
+              : () => _tomarFoto(ImageSource.gallery),
           icon: const Icon(Icons.image_outlined),
           label: const Text('Elegir de la galería'),
         ),
@@ -185,8 +210,11 @@ class _ScanSheetPageState extends ConsumerState<ScanSheetPage> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.error_outline,
-                    size: 18, color: SemanticTone.of(context, SemanticKind.danger).fg),
+                Icon(
+                  Icons.error_outline,
+                  size: 18,
+                  color: SemanticTone.of(context, SemanticKind.danger).fg,
+                ),
                 const SizedBox(width: 8),
                 Expanded(child: Text(_error!, style: AppType.caption)),
               ],
@@ -199,8 +227,7 @@ class _ScanSheetPageState extends ConsumerState<ScanSheetPage> {
 
   Widget _revisar() {
     final escaneo = _escaneo!;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final muted = isDark ? AppColors.textMutedDark : AppColors.textMuted;
+    final muted = context.palette.muted;
     final sinAsignar = escaneo.filas.where((f) => f.studentId == null).length;
 
     return Column(
@@ -214,8 +241,14 @@ class _ScanSheetPageState extends ConsumerState<ScanSheetPage> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.warning_amber_outlined,
-                          size: 18, color: SemanticTone.of(context, SemanticKind.warning).fg),
+                      Icon(
+                        Icons.warning_amber_outlined,
+                        size: 18,
+                        color: SemanticTone.of(
+                          context,
+                          SemanticKind.warning,
+                        ).fg,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(child: Text(aviso, style: AppType.caption)),
                     ],
@@ -226,7 +259,9 @@ class _ScanSheetPageState extends ConsumerState<ScanSheetPage> {
 
               StatusPill(
                 '${escaneo.filas.length - sinAsignar} de ${escaneo.filas.length} identificados',
-                kind: sinAsignar > 0 ? SemanticKind.warning : SemanticKind.success,
+                kind: sinAsignar > 0
+                    ? SemanticKind.warning
+                    : SemanticKind.success,
               ),
               const SizedBox(height: 16),
 
@@ -257,8 +292,9 @@ class _ScanSheetPageState extends ConsumerState<ScanSheetPage> {
                 Text(
                   'Hay fechas repetidas. Cada columna es una clase distinta; si se repiten, '
                   'una sobrescribiría a la otra.',
-                  style: AppType.caption
-                      .copyWith(color: SemanticTone.of(context, SemanticKind.danger).fg),
+                  style: AppType.caption.copyWith(
+                    color: SemanticTone.of(context, SemanticKind.danger).fg,
+                  ),
                 ),
 
               const SizedBox(height: 18),
@@ -280,7 +316,8 @@ class _ScanSheetPageState extends ConsumerState<ScanSheetPage> {
             child: SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: _paso == _Paso.guardando ||
+                onPressed:
+                    _paso == _Paso.guardando ||
                         !_fechasCompletas ||
                         _fechasRepetidas ||
                         escaneo.filas.every((f) => f.studentId == null)
@@ -288,7 +325,10 @@ class _ScanSheetPageState extends ConsumerState<ScanSheetPage> {
                     : _guardar,
                 child: _paso == _Paso.guardando
                     ? const SizedBox(
-                        height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2.4))
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2.4),
+                      )
                     : const Text('Guardar asistencia'),
               ),
             ),
@@ -325,7 +365,10 @@ class _FilaRevision extends StatelessWidget {
           children: [
             if (identificada) ...[
               Text(fila.fullName ?? '', style: AppType.body),
-              Text(fila.code ?? '', style: AppType.caption.copyWith(color: muted)),
+              Text(
+                fila.code ?? '',
+                style: AppType.caption.copyWith(color: muted),
+              ),
               if (fila.nivel != NivelCoincidencia.exacta) ...[
                 const SizedBox(height: 6),
                 StatusPill(
@@ -339,20 +382,27 @@ class _FilaRevision extends StatelessWidget {
               Text(
                 'Se leyó «${fila.cedulaLeida.isEmpty ? fila.nombreLeido : fila.cedulaLeida}» '
                 'y no coincide con nadie del grupo.',
-                style: AppType.caption
-                    .copyWith(color: SemanticTone.of(context, SemanticKind.danger).fg),
+                style: AppType.caption.copyWith(
+                  color: SemanticTone.of(context, SemanticKind.danger).fg,
+                ),
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
                 isExpanded: true,
                 decoration: const InputDecoration(
-                    labelText: '¿A quién corresponde?', isDense: true),
+                  labelText: '¿A quién corresponde?',
+                  isDense: true,
+                ),
                 items: matriculados
-                    .map((m) => DropdownMenuItem(
-                          value: m.id,
-                          child: Text('${m.fullName} · ${m.code}',
-                              overflow: TextOverflow.ellipsis),
-                        ))
+                    .map(
+                      (m) => DropdownMenuItem(
+                        value: m.id,
+                        child: Text(
+                          '${m.fullName} · ${m.code}',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
                     .toList(),
                 onChanged: (valor) {
                   fila.asignar(
@@ -365,9 +415,12 @@ class _FilaRevision extends StatelessWidget {
             for (final aviso in fila.avisos)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
-                child: Text(aviso,
-                    style: AppType.caption
-                        .copyWith(color: SemanticTone.of(context, SemanticKind.warning).fg)),
+                child: Text(
+                  aviso,
+                  style: AppType.caption.copyWith(
+                    color: SemanticTone.of(context, SemanticKind.warning).fg,
+                  ),
+                ),
               ),
             const SizedBox(height: 10),
             Wrap(

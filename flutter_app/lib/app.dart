@@ -8,6 +8,8 @@ import './core/auth/auth_controller.dart';
 import './core/network/realtime_service.dart';
 import './core/storage/offline_status.dart';
 import './core/theme/app_theme.dart';
+import './core/theme/appearance/appearance_preferences.dart';
+import './core/theme/appearance/palettes.dart' show pideEscalaDeGrises;
 import './core/theme/theme_controller.dart';
 import './core/widgets/app_scaffold.dart';
 import './core/widgets/update_prompt.dart';
@@ -81,7 +83,10 @@ final router = GoRouter(
     // y el tutorial se abre en pantalla completa sobre cualquier estado.
     GoRoute(path: '/registro', builder: (_, __) => const RegisterPage()),
     GoRoute(path: '/tutorial', builder: (_, __) => const TutorialPage()),
-    GoRoute(path: '/admin-supervision', builder: (_, __) => const AdminSupervisionPage()),
+    GoRoute(
+      path: '/admin-supervision',
+      builder: (_, __) => const AdminSupervisionPage(),
+    ),
 
     /// Shell con estado por pestaña.
     ///
@@ -97,7 +102,8 @@ final router = GoRouter(
     /// ramas se construyen la primera vez que se entra, no al arrancar, así
     /// que abrir la aplicación no cuesta más que antes.
     StatefulShellRoute.indexedStack(
-      builder: (_, __, navigationShell) => AppScaffold(navigationShell: navigationShell),
+      builder: (_, __, navigationShell) =>
+          AppScaffold(navigationShell: navigationShell),
       /*
        * El ORDEN de estas ramas es el contrato con `rutasDeRama` de
        * `app_scaffold.dart`: la rama N atiende a `rutasDeRama[N]`.
@@ -126,8 +132,11 @@ final router = GoRouter(
         // `?item=` lo pone la notificación: al tocarla se abre esa clase, no la
         // agenda genérica. Sin eso, el aviso obliga a repetir a mano la
         // búsqueda que él mismo ya había hecho.
-        _rama('/agenda',
-            (_, state) => AgendaPage(itemDestacado: state.uri.queryParameters['item'])),
+        _rama(
+          '/agenda',
+          (_, state) =>
+              AgendaPage(itemDestacado: state.uri.queryParameters['item']),
+        ),
         _rama('/ai', (_, __) => const AiPage()),
 
         // ── A partir de aquí, lo que vive dentro de «Más» ──────────────
@@ -142,8 +151,11 @@ final router = GoRouter(
         ),
         // Igual que la agenda, `?item=` lo pone el aviso de vencimiento para
         // abrir exactamente esa entrega.
-        _rama('/actividades',
-            (_, state) => ActivitiesPage(itemDestacado: state.uri.queryParameters['item'])),
+        _rama(
+          '/actividades',
+          (_, state) =>
+              ActivitiesPage(itemDestacado: state.uri.queryParameters['item']),
+        ),
         _rama('/schedule', (_, __) => const SchedulePage()),
         _rama('/reports', (_, __) => const ReportsPage()),
         _rama('/avisos', (_, __) => const AnnouncementsPage()),
@@ -253,18 +265,22 @@ class _UtsAppState extends ConsumerState<UtsApp> {
         final prioridad = carga['priority']?.toString() ?? 'INFO';
         final enlace = carga['link']?.toString();
 
-        unawaited(LocalNotificationsService.instance.mostrarAhora(
-          clave: carga['_id']?.toString() ?? titulo,
-          titulo: titulo,
-          mensaje: carga['message']?.toString() ?? '',
-          canalId: switch (prioridad) {
-            'URGENT' => 'uts_urgente',
-            'IMPORTANT' => 'uts_importante',
-            'SYSTEM' => 'uts_sistema',
-            _ => 'uts_informativa',
-          },
-          ruta: (enlace != null && enlace.startsWith('/')) ? enlace : '/notifications',
-        ));
+        unawaited(
+          LocalNotificationsService.instance.mostrarAhora(
+            clave: carga['_id']?.toString() ?? titulo,
+            titulo: titulo,
+            mensaje: carga['message']?.toString() ?? '',
+            canalId: switch (prioridad) {
+              'URGENT' => 'uts_urgente',
+              'IMPORTANT' => 'uts_importante',
+              'SYSTEM' => 'uts_sistema',
+              _ => 'uts_informativa',
+            },
+            ruta: (enlace != null && enlace.startsWith('/'))
+                ? enlace
+                : '/notifications',
+          ),
+        );
 
         ref.invalidate(notificationsProvider);
       });
@@ -411,13 +427,15 @@ class _UtsAppState extends ConsumerState<UtsApp> {
           // push y se programan los avisos de la semana. Es el único momento en
           // que el docente entiende para qué se le pide el permiso, y las
           // alarmas quedan puestas aunque cierre la aplicación a continuación.
-          unawaited(LocalNotificationsService.instance.pedirPermisos().then((_) async {
-            // El token se ata al usuario que acaba de entrar: en un teléfono
-            // compartido, el docente nuevo no puede heredar las alertas del
-            // anterior.
-            await PushService.instance.registrar();
-            await _reprogramarRecordatorios();
-          }));
+          unawaited(
+            LocalNotificationsService.instance.pedirPermisos().then((_) async {
+              // El token se ata al usuario que acaba de entrar: en un teléfono
+              // compartido, el docente nuevo no puede heredar las alertas del
+              // anterior.
+              await PushService.instance.registrar();
+              await _reprogramarRecordatorios();
+            }),
+          );
         } else {
           // Al cerrar sesión no pueden quedar alarmas con el nombre de las
           // clases del docente anterior, ni un token que le siga empujando sus
@@ -436,20 +454,72 @@ class _UtsAppState extends ConsumerState<UtsApp> {
       );
     }
 
+    final apariencia = ref.watch(aparienciaProvider);
+
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
       title: 'UTS Nexus Académico',
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
+      theme: AppTheme.construir(apariencia, Brightness.light),
+      darkTheme: AppTheme.construir(apariencia, Brightness.dark),
       themeMode: ref.watch(themeModeProvider),
       routerConfig: router,
       // Envuelve todas las rutas: la versión nueva se avisa también en el
       // login, que es donde se queda quien no puede entrar por culpa de la
       // vieja. Va aquí y no dentro del shell porque necesita un Navigator.
-      builder: (_, child) => UpdateGate(
-        navigatorKey: rootNavigatorKey,
-        child: child ?? const SizedBox.shrink(),
-      ),
+      //
+      // Las cuatro adaptaciones de apariencia que no son un color viven aquí
+      // porque las tres aplican por igual a cualquier pantalla y ninguna
+      // pantalla debería acordarse de aplicarlas por su cuenta:
+      //  - Acromatopsia: la interfaz entera pasa a escala de grises. El color
+      //    ya no distingue nada para quien la eligió, así que envolver solo
+      //    algunos widgets dejaría un semáforo en rojo/verde vivo en medio de
+      //    una pantalla gris.
+      //  - Tamaño de texto: multiplica el que ya pide el sistema — no lo
+      //    sustituye, para que alguien con la letra grande del teléfono la
+      //    seleccionada aquí siga sumando y no reemplazando.
+      //  - Reducir movimiento: `disableAnimations` queda como señal para quien
+      //    la lea (`MediaQuery.disableAnimationsOf`), pero Flutter NO la
+      //    propaga a `AnimatedContainer` ni a las rutas. Lo que de verdad se
+      //    apaga son las transiciones de página, desde el tema
+      //    (`AppTheme.construir`, `pageTransitionsTheme`).
+      builder: (context, child) {
+        // Multiplica el factor sobre lo que el sistema ya pide, nunca lo
+        // reemplaza: quien tiene la letra grande del teléfono y además elige
+        // "Grande" aquí termina con las dos, no con una pisando a la otra.
+        final escalaCombinada = TextScaler.linear(
+          MediaQuery.textScalerOf(context).scale(14) /
+              14 *
+              apariencia.tamanoTexto.factor,
+        );
+        final contenido = MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: escalaCombinada,
+            disableAnimations: apariencia.reducirMovimiento,
+          ),
+          child: UpdateGate(
+            navigatorKey: rootNavigatorKey,
+            child: child ?? const SizedBox.shrink(),
+          ),
+        );
+
+        if (!pideEscalaDeGrises(apariencia.vision)) return contenido;
+
+        return ColorFiltered(
+          colorFilter: const ColorFilter.matrix(_matrizEscalaDeGrises),
+          child: contenido,
+        );
+      },
     );
   }
 }
+
+/// Matriz de saturación 0: cada canal de salida es la misma luminancia
+/// perceptual (Rec. 601) para los tres canales de entrada, así que el color
+/// desaparece y solo queda el contraste. Es la misma transformación que usa
+/// CSS `filter: grayscale(1)`.
+const List<double> _matrizEscalaDeGrises = [
+  0.2126, 0.7152, 0.0722, 0, 0, //
+  0.2126, 0.7152, 0.0722, 0, 0, //
+  0.2126, 0.7152, 0.0722, 0, 0, //
+  0, 0, 0, 1, 0,
+];

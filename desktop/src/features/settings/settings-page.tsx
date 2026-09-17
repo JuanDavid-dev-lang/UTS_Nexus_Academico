@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Check, LogOut, Monitor, Moon, Server, ShieldCheck, Sun, Wifi } from 'lucide-react';
+import { LogOut, Server, ShieldCheck, Wifi } from 'lucide-react';
 import {
   Button,
   Card,
@@ -19,7 +19,6 @@ import {
 import { ProfileCard } from '@/features/settings/components/profile-card';
 import { useSession } from '@/state/session.store';
 import { useSync } from '@/state/sync.store';
-import { useTheme, type ThemePreference } from '@/state/theme.store';
 import { platform } from '@/core/platform/tauri';
 import { explicarAlmacen, type AlmacenDeCredenciales } from '@/core/platform/paquete';
 import { normalizeServerUrl, env } from '@/core/config/env';
@@ -34,13 +33,8 @@ import { PasswordCard } from './components/password-card';
 import { DownloadsCard } from './components/downloads-card';
 import { NotificationsCard } from './components/notifications-card';
 import { AdminModeCard } from './components/admin-mode-card';
-
-const THEME_OPTIONS: { value: ThemePreference; label: string; description: string; Icon: typeof Sun }[] =
-  [
-    { value: 'light', label: 'Claro', description: 'Verde institucional', Icon: Sun },
-    { value: 'dark', label: 'Oscuro', description: 'Verde profundo con lima', Icon: Moon },
-    { value: 'system', label: 'Automático', description: 'Sigue al sistema', Icon: Monitor },
-  ];
+import { AppearanceCard } from './components/appearance-card';
+import { StartupCard } from './components/startup-card';
 
 const SHORTCUTS = [
   { keys: `${modKeyLabel} K`, action: 'Búsqueda global' },
@@ -55,8 +49,6 @@ export default function SettingsPage() {
   const changeServerUrl = useSession((state) => state.changeServerUrl);
   const logout = useSession((state) => state.logout);
   const syncStatus = useSync((state) => state.status);
-  const preference = useTheme((state) => state.preference);
-  const setPreference = useTheme((state) => state.setPreference);
 
   const [serverDraft, setServerDraft] = useState(serverUrl);
   const [checking, setChecking] = useState(false);
@@ -130,43 +122,9 @@ export default function SettingsPage() {
           y es lo que más se busca aquí. Lo de administración viene después. */}
       <PasswordCard />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Apariencia</CardTitle>
-          <CardDescription>
-            El tema se aplica de inmediato y se recuerda entre sesiones.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3 @xl:grid-cols-3">
-          {THEME_OPTIONS.map((option) => {
-            const active = preference === option.value;
-            return (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => setPreference(option.value)}
-                aria-pressed={active}
-                className={cn(
-                  'flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition-all',
-                  active
-                    ? 'border-primary bg-primary/5 shadow-sm'
-                    : 'border-border hover:border-border-strong',
-                )}
-              >
-                <span className="flex w-full items-center justify-between">
-                  <option.Icon
-                    className={cn('size-5', active ? 'text-primary' : 'text-muted')}
-                    aria-hidden
-                  />
-                  {active ? <Check className="size-4 text-primary" aria-hidden /> : null}
-                </span>
-                <span className="text-body font-semibold text-text">{option.label}</span>
-                <span className="text-caption text-muted">{option.description}</span>
-              </button>
-            );
-          })}
-        </CardContent>
-      </Card>
+      <AppearanceCard />
+
+      <StartupCard />
 
       <Card>
         <CardHeader>

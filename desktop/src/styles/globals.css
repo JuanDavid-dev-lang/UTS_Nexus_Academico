@@ -176,6 +176,29 @@
       scroll-behavior: auto !important;
     }
   }
+
+  /* Lo mismo, pedido desde Configuración → Apariencia. Hace falta aparte: hay
+     quien necesita la interfaz quieta sin tocar el ajuste de todo su sistema. */
+  html[data-movimiento='reducido'] *,
+  html[data-movimiento='reducido'] *::before,
+  html[data-movimiento='reducido'] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /*
+   * Acromatopsia: la interfaz entera en grises.
+   *
+   * El filtro va en <body> y no en <html>. Un `filter` crea bloque contenedor
+   * para los `position: fixed` de dentro; en <body>, que ocupa la ventana
+   * entera y no se desplaza (el scroll vive dentro de #root), ese bloque
+   * coincide con la ventana y los menús y diálogos siguen donde estaban.
+   */
+  html[data-grises='si'] body {
+    filter: grayscale(1);
+  }
 }
 
 @layer components {

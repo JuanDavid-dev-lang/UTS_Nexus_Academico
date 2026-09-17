@@ -6,6 +6,7 @@ import './core/telemetry/error_reporter.dart';
 import './core/network/backend_bootstrap.dart';
 import './core/notifications/local_notifications_service.dart';
 import './core/notifications/push_service.dart';
+import './core/theme/appearance/appearance_preferences.dart';
 import './core/theme/theme_controller.dart';
 
 Future<void> main() async {
@@ -28,11 +29,16 @@ Future<void> main() async {
   // con el modo del sistema y lo cambiaba a continuación, que es el fogonazo
   // que veía quien había elegido claro con el teléfono en oscuro.
   final temaInicial = await ThemeModeController.cargarInicial();
+  // Igual que el modo: tono, color propio, visión del color y estilo se leen
+  // antes de dibujar, para que el primer fotograma ya salga con la apariencia
+  // elegida en vez de con la institucional por defecto.
+  final aparienciaInicial = await AparienciaController.cargarInicial();
 
   runApp(
     ProviderScope(
       overrides: [
         themeModeProvider.overrideWith((ref) => ThemeModeController(temaInicial)),
+        aparienciaProvider.overrideWith((ref) => AparienciaController(aparienciaInicial)),
       ],
       child: const UtsApp(),
     ),

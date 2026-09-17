@@ -39,8 +39,37 @@ const browserFallback = {
   remove: (key: string) => sessionStorage.removeItem(`uts.${key}`),
 };
 
+/** Inicio con Windows y bandeja. Ver `src-tauri/src/segundo_plano.rs`. */
+export type AjustesSistema = {
+  /** Falso fuera de Windows y en el navegador: la pantalla no ofrece nada. */
+  disponible: boolean;
+  iniciarConWindows: boolean;
+  segundoPlano: boolean;
+};
+
+const SIN_AJUSTES_DE_SISTEMA: AjustesSistema = {
+  disponible: false,
+  iniciarConWindows: false,
+  segundoPlano: false,
+};
+
 export const platform = {
   isDesktop,
+
+  sistema: {
+    async ajustes(): Promise<AjustesSistema> {
+      if (!isDesktop) return SIN_AJUSTES_DE_SISTEMA;
+      return call<AjustesSistema>('sistema_ajustes');
+    },
+
+    async iniciarConWindows(activo: boolean): Promise<void> {
+      await call<void>('sistema_iniciar_con_windows', { activo });
+    },
+
+    async segundoPlano(activo: boolean): Promise<void> {
+      await call<void>('sistema_segundo_plano', { activo });
+    },
+  },
 
   secureStore: {
     async set(key: string, value: string): Promise<void> {
