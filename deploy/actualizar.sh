@@ -33,13 +33,13 @@ echo "── 2. Ejecutando compilación y reinicio en el servidor ──"
 ssh -o StrictHostKeyChecking=accept-new "$USUARIO@$SERVIDOR" "$DESTINO/actualizar.sh"
 
 echo "── 3. Verificando endpoint público vía Cloudflare ──"
-if curl -fsS --max-time 5 "https://nexus.victabares.com/health" >/dev/null 2>&1; then
+if curl -fsS --max-time 5 "https://nexusback.ciaiuts.com/health" >/dev/null 2>&1; then
   echo ""
   echo "════════════════════════════════════════════════════════════"
   echo "  Despliegue verificado en producción exitosamente"
-  echo "  API:     https://nexus.victabares.com"
-  echo "  Health:  https://nexus.victabares.com/health"
-  echo "  Docs:    https://nexus.victabares.com/docs"
+  echo "  API:     https://nexusback.ciaiuts.com"
+  echo "  Health:  https://nexusback.ciaiuts.com/health"
+  echo "  Docs:    https://nexusback.ciaiuts.com/docs"
   echo "════════════════════════════════════════════════════════════"
 else
   echo "Advertencia: El endpoint público tardó en responder. Revisa la conectividad del túnel."

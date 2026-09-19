@@ -435,7 +435,7 @@ paquetes. La AppImage es la respuesta a «mi distribución no está ahí».
 > que el workflow sobrescribe en cada publicación. Es lo esperado — está
 > explicado en [`docs/PUBLICAR_VERSION.md`](docs/PUBLICAR_VERSION.md) §1.3.
 
-**¿A qué servidor se conectan?** A `https://nexus.victabares.com`, escrito en
+**¿A qué servidor se conectan?** A `https://nexusback.ciaiuts.com`, escrito en
 `desktop/src/core/config/env.ts` y en `flutter_app/lib/core/config.dart`. Se
 puede cambiar sin recompilar: en el escritorio, `Configuración → Servidor`; en
 el móvil, `Ajustes → Servidor`, que además **barre la red local** preguntando por
@@ -505,9 +505,9 @@ En Linux, macOS o Git Bash: `chmod +x iniciar.sh && ./iniciar.sh`.
 
 | Qué | Dónde |
 |---|---|
-| API (Producción) | `https://nexus.victabares.com/api/v1` (Local: `http://localhost:4000/api/v1`) |
-| Swagger interactivo | `https://nexus.victabares.com/docs` (Local: `http://localhost:4000/docs`) |
-| Sonda de salud | `https://nexus.victabares.com/health` (Local: `http://localhost:4000/health`) |
+| API (Producción) | `https://nexusback.ciaiuts.com/api/v1` (Local: `http://localhost:4000/api/v1`) |
+| Swagger interactivo | `https://nexusback.ciaiuts.com/docs` (Local: `http://localhost:4000/docs`) |
+| Sonda de salud | `https://nexusback.ciaiuts.com/health` (Local: `http://localhost:4000/health`) |
 | Panel de Servidores | `https://servidores.victabares.com` (Cockpit) |
 
 El backend escucha en `0.0.0.0`, no en `127.0.0.1`: es lo que permite que un

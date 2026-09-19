@@ -149,7 +149,7 @@ if (!origin || origin === '*') {
     console.log(`  ${red('✗')} CLIENT_ORIGIN        ${texto}`);
     problems.push(
       'CLIENT_ORIGIN es "*" con NODE_ENV=production: el servidor se niega a arrancar.\n' +
-        '    Declara el dominio público, p. ej. CLIENT_ORIGIN=https://nexus.victabares.com\n' +
+        '    Declara el dominio público, p. ej. CLIENT_ORIGIN=https://nexusback.ciaiuts.com\n' +
         '    Los orígenes de la app de escritorio los añade el backend solo.',
     );
   } else {
