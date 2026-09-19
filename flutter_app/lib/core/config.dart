@@ -11,7 +11,7 @@
 ///     flutter run --dart-define=SERVER_URL=http://10.0.2.2:4000
 class AppConfig {
   /// Servidor de producción. Una sola definición para HTTP y WebSocket.
-  static const String servidorPorDefecto = 'https://nexus.victabares.com';
+  static const String servidorPorDefecto = 'https://nexusback.ciaiuts.com';
 
   /// Permite apuntar a otro servidor al compilar, sin modificar el código.
   static const String _servidorCompilado =

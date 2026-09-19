@@ -32,7 +32,7 @@ export type AppConfig = z.infer<typeof schema>;
  * Se puede cambiar en tiempo de compilación con `VITE_SERVER_URL`, que es lo
  * que usa el desarrollo local contra `http://127.0.0.1:4000`.
  */
-const DEFAULT_SERVER_URL = 'https://nexus.victabares.com';
+const DEFAULT_SERVER_URL = 'https://nexusback.ciaiuts.com';
 
 /**
  * Direcciones que fueron el valor de fábrica en versiones anteriores.
@@ -49,7 +49,7 @@ const DEFAULT_SERVER_URL = 'https://nexus.victabares.com';
  * de nadie: es un resto, y se descarta en favor del actual. Una dirección que
  * el usuario haya escrito a mano nunca va a estar en esta lista.
  */
-const DEFAULTS_SUPERADOS = new Set(['http://127.0.0.1:4000', 'http://localhost:4000', 'https://3-14-147-55.sslip.io']);
+const DEFAULTS_SUPERADOS = new Set(['http://127.0.0.1:4000', 'http://localhost:4000', 'https://3-14-147-55.sslip.io', 'https://nexus.victabares.com']);
 
 /**
  * Servidor con el que arrancar: el guardado, salvo que sea un residuo.
