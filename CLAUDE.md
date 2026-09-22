@@ -1376,6 +1376,8 @@ imprime la matriz; CI la ejecuta en cada push.
 | Linux | soportada | AppImage, deb, rpm | actualizador de Tauri |
 | Android | soportada | APK | API de Releases + instalador del sistema |
 | Web | soportada | — (Vercel) | despliegue continuo en cada push |
+
+La web no se compila en la publicación: la despliega Vercel sola. Lo que hace el trabajo `web` de `release.yml` es **comprobar** que `utsnexusweb.ciaiuts.com/version.json` ya sirve la versión etiquetada —ese archivo lo escribe `build:web` desde `package.json`— y ponerse en rojo si a los veinte minutos no llegó. Sin eso, un despliegue fallido dejaba la web en la versión anterior sin que nada lo dijera.
 | macOS | planificada | app, dmg | actualizador de Tauri |
 | iOS | planificada | ipa | App Store (el actualizador propio no aplica) |
 

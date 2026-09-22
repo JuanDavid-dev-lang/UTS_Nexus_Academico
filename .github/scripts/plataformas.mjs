@@ -146,6 +146,9 @@ export const PLATAFORMAS = [
     // `clave` —igual que el APK— y el manifiesto del actualizador no la echa
     // de menos.
     actualizacion: 'Despliegue continuo en Vercel (cada push a main)',
+    // Dónde vive, en un solo sitio: lo lee el trabajo `web` de `release.yml`
+    // para comprobar que la versión etiquetada ya está servida.
+    url: 'https://utsnexusweb.ciaiuts.com',
     formatos: [{ id: 'spa', extension: '', etiqueta: 'https://utsnexusweb.ciaiuts.com' }],
   },
   {

@@ -412,6 +412,7 @@ El workflow `.github/workflows/release.yml` se dispara con cualquier etiqueta `v
 ```
 desktop (Windows) ──┬── linux ────┐
                     └── android ──┴── manifiesto ── espejo ── dropbox
+web (Vercel) ── en paralelo, no espera a nadie
 ```
 
 1. **`desktop`** compila el escritorio en Windows, lo firma y **crea** el Release en el
@@ -421,7 +422,17 @@ desktop (Windows) ──┬── linux ────┐
 3. **`android`** compila el APK firmado y lo adjunta también.
 4. **`manifiesto`** compone `latest.json` con lo que hay publicado, lo sube, y publica el
    espejo en este repositorio.
-5. **`dropbox`** sobrescribe los tres archivos de los botones de la página, en este
+5. **`web`** no compila nada: la versión web la publica Vercel desde el mismo
+   empujón que trajo la etiqueta. Este trabajo **espera y comprueba** que
+   `https://utsnexusweb.ciaiuts.com/version.json` ya diga la versión
+   etiquetada, hasta veinte minutos. Sin él, «publicado» solo describía a los
+   instaladores: un despliegue fallido en Vercel dejaba la web en la versión
+   anterior sin que nada lo dijera, porque una aplicación de una sola página no
+   enseña su versión por ninguna parte observable. Va en paralelo —no depende
+   de los instaladores— y su dirección sale del registro de plataformas. Si la
+   etiqueta llega sin commit nuevo no hay despliegue que esperar; para ese caso
+   existe el secreto opcional `VERCEL_DEPLOY_HOOK`, que lo pide.
+6. **`dropbox`** sobrescribe los tres archivos de los botones de la página, en este
    orden: **Android, Windows y Linux**. El APK va primero porque es el más pesado
    (unos 65 MB frente a 4 del `.exe`), así que si algo falla por tamaño o por tiempo
    de espera se sabe antes de haber sobrescrito los otros dos.

@@ -1,8 +1,38 @@
 // `vitest/config` re-exports Vite's defineConfig with the `test` block typed.
 import { defineConfig } from 'vitest/config';
+import type { PluginOption } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
+
+const { version } = JSON.parse(
+  readFileSync(path.resolve(__dirname, 'package.json'), 'utf8'),
+) as { version: string };
+
+/**
+ * Sello de versión de la web.
+ *
+ * `version.json` se sirve junto a la aplicación y dice qué versión está
+ * publicada. Existe por dos razones: la publicación (`release.yml`) comprueba
+ * con él que Vercel ya desplegó la etiqueta antes de dar la versión por
+ * publicada —sin eso, «publicado» solo describiría a los instaladores—, y
+ * desde fuera es la única forma de saber qué hay servido, porque una SPA no
+ * lleva su versión en ningún sitio observable.
+ */
+function selloDeVersion(): PluginOption {
+  return {
+    name: 'uts-sello-de-version',
+    apply: 'build',
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'version.json',
+        source: JSON.stringify({ version, compilado: new Date().toISOString() }, null, 2),
+      });
+    },
+  };
+}
 
 /**
  * Vite configuration.
@@ -11,7 +41,15 @@ import path from 'node:path';
  * native shell can attach to it reliably.
  */
 export default defineConfig(({ mode }) => ({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), ...(mode === 'web' ? [selloDeVersion()] : [])],
+  /*
+   * La versión que la aplicación enseña sale de `package.json`, que es el
+   * archivo que sube `subir-version.mjs`. Antes no la ponía nadie y el valor
+   * por defecto de `env.ts` —un `2.0.0` escrito hace tiempo— era lo que veía
+   * quien abría la web. En el escritorio no se notaba porque el actualizador
+   * pregunta a Tauri, que lee la suya del binario.
+   */
+  define: { 'import.meta.env.VITE_APP_VERSION': JSON.stringify(version) },
   /*
    * La versión web (`npm run build:web`, modo `web`) se publica en Vercel bajo
    * su propio dominio, así que va en la raíz igual que la de escritorio. Lo

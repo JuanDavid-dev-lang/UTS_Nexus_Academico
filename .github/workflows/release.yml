@@ -502,6 +502,71 @@ jobs:
         working-directory: flutter_app/android
         run: rm -f upload-keystore.jks key.properties
 
+  # ── La versión web ──────────────────────────────────────────────────────
+  #
+  # La web no se compila aquí: la publica Vercel desde el mismo empujón que
+  # trajo esta etiqueta. Lo que hace este trabajo es **comprobar que llegó**,
+  # y por eso no espera a los instaladores —correría por detrás sin motivo—.
+  #
+  # Sin esta comprobación, «versión publicada» solo describía a los
+  # instaladores: la web podía quedarse en la anterior por un despliegue
+  # fallido en Vercel y nadie se enteraba, porque una aplicación de una sola
+  # página no enseña su versión en ninguna parte observable desde fuera. De
+  # ahí `version.json`, que el `build:web` escribe con la versión de
+  # `package.json`.
+  web:
+    name: Web (Vercel)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # La dirección sale del registro de plataformas, que es donde está
+      # declarado todo lo demás de cada una.
+      - name: Dónde vive la web
+        id: donde
+        run: |
+          set -euo pipefail
+          url=$(node -e "import('./.github/scripts/plataformas.mjs').then(m => process.stdout.write(m.PLATAFORMAS.find(p => p.id === 'web').url))")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      # Gancho opcional. Vercel ya despliega solo con el empujón a `main`; esto
+      # es para el caso en que la etiqueta llegue sin commit nuevo (una
+      # reetiquetada), donde no habría nada que disparara el despliegue.
+      - name: Pedir un despliegue, si hay gancho configurado
+        env:
+          GANCHO: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+        if: ${{ env.GANCHO != '' }}
+        run: curl -fsS -X POST "$GANCHO" -o /dev/null
+
+      # Se espera, no se comprueba una sola vez: compilar y propagar el
+      # despliegue tarda un par de minutos, y fallar por llegar pronto sería
+      # ruido. Veinte minutos es tiempo de sobra; pasados, es un fallo real y
+      # conviene verlo en rojo.
+      - name: Esperar a que la web sirva esta versión
+        env:
+          URL: ${{ steps.donde.outputs.url }}
+        run: |
+          set -uo pipefail
+          esperada="${GITHUB_REF_NAME#v}"
+          limite=$(( SECONDS + 20 * 60 ))
+          servida=""
+          while [ "$SECONDS" -lt "$limite" ]; do
+            servida=$(curl -fsS --max-time 20 "$URL/version.json" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{process.stdout.write(JSON.parse(s).version??'')}catch{process.stdout.write('')}})" || true)
+            if [ "$servida" = "$esperada" ]; then
+              echo "La web sirve $servida."
+              echo "- Web: $URL · versión $servida" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "Sirve «${servida:-nada}», se espera «$esperada». Reintento en 20 s."
+            sleep 20
+          done
+          echo "::error::$URL sigue sin servir $esperada tras 20 minutos. Revisa el despliegue en Vercel; los instaladores no dependen de esto."
+          exit 1
+
   manifiesto:
     name: Manifiesto y espejo
     runs-on: ubuntu-latest
