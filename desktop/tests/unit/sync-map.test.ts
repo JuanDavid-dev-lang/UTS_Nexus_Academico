@@ -40,6 +40,8 @@ const ENTIDADES_DEL_BACKEND: SyncEntity[] = [
   'institution',
   'attendanceSession',
   'risk',
+  'gradeTemplate',
+  'gradeStructure',
 ];
 
 describe('mapa de invalidación', () => {

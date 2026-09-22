@@ -92,6 +92,19 @@ export const queryKeys = {
   },
 
   /**
+   * Plantillas de corte y estructuras aplicadas. Raíz propia: cambian cuando
+   * el docente las edita, no con cada nota, y `grades.all` se invalida con
+   * cada nota guardada.
+   */
+  gradeTemplates: {
+    all: ['gradeTemplates'] as const,
+    list: () => ['gradeTemplates', 'list'] as const,
+    structures: (period: string) => ['gradeTemplates', 'structures', period] as const,
+    current: (period: string, subjectId: string, groupId: string) =>
+      ['gradeTemplates', 'current', period, subjectId, groupId] as const,
+  },
+
+  /**
    * Asistencia por QR: la sesión y quién va marcando. Raíz propia y no bajo
    * `attendance`, para que una marca a mano en otra pantalla no la tire.
    */

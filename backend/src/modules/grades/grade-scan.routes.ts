@@ -19,6 +19,8 @@ import { exigirPeriodoAbierto } from '../../shared/period-guard.js';
 import { mlFetch } from '../../shared/ml-client.js';
 import { ENTRADA_DE_ESCANER, exigirTipoReal, filtroPorMimetype } from '../../shared/uploads.js';
 import { limiteLotes } from '../../middlewares/rate-limit.js';
+import { resolverPeso } from '../../domains/grading/plantilla-notas.js';
+import { estructuraDelCorte, estructuraPara } from './grade-templates.service.js';
 
 /**
  * Importación de calificaciones en dos pasos, con el mismo contrato que el
@@ -210,9 +212,16 @@ gradeScanRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR'), limiteLotes, as
         corte: z.union([z.literal(1), z.literal(2), z.literal(3)]),
         componentType: z.enum(['TRABAJOS', 'PARCIALES', 'AUTOEVALUACION']),
         labels: z.array(z.string().trim().min(1).max(60)).min(1).max(10),
+        // Peso relativo por columna, alineado con `labels`. Sin él, cada
+        // columna pesa lo que diga la plantilla aplicada al grupo, o 1.
+        weights: z.array(z.number().min(0.01).max(1000)).max(10).optional(),
         filas: z.array(filaBulkSchema).min(1).max(500),
       })
       .parse(req.body);
+
+    if (body.weights && body.weights.length !== body.labels.length) {
+      return res.status(400).json({ ok: false, message: 'Debe venir un peso por cada etiqueta de columna.' });
+    }
 
     if (new Set(body.labels).size !== body.labels.length) {
       return res.status(400).json({ ok: false, message: 'Hay etiquetas de columna repetidas.' });
@@ -269,7 +278,14 @@ gradeScanRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR'), limiteLotes, as
      * registra la auditoría en una sola inserción.
      */
     let omitidas = 0;
-    const celdas: Array<{ studentId: string; label: string; score: number }> = [];
+    const estructura = estructuraDelCorte(
+      await estructuraPara({ subjectId: String(group.subjectId), groupId: body.groupId, period }),
+      body.corte,
+    );
+    const pesoDeColumna = body.labels.map((label, i) =>
+      resolverPeso(body.weights?.[i], estructura, body.componentType, label),
+    );
+    const celdas: Array<{ studentId: string; label: string; score: number; weight: number }> = [];
     for (const fila of body.filas) {
       for (let i = 0; i < body.labels.length; i++) {
         const score = fila.scores[i];
@@ -277,7 +293,12 @@ gradeScanRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR'), limiteLotes, as
           omitidas++;
           continue;
         }
-        celdas.push({ studentId: fila.studentId, label: body.labels[i] as string, score });
+        celdas.push({
+          studentId: fila.studentId,
+          label: body.labels[i] as string,
+          score,
+          weight: pesoDeColumna[i] as number,
+        });
       }
     }
 
@@ -317,6 +338,7 @@ gradeScanRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR'), limiteLotes, as
                 teacherId: teacherObjectId,
                 score: celda.score,
                 maxScore: 5,
+                weight: celda.weight,
                 deletedAt: null,
               },
             },

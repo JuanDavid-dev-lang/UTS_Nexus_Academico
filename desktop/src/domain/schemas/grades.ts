@@ -26,6 +26,8 @@ export const gradeSchema = mongoDoc.extend({
   label: z.string().optional().default('Nota'),
   score: numberish,
   maxScore: numberish.optional().default(5),
+  /** Peso relativo dentro del componente; 1 si nadie lo indicó. */
+  weight: numberish.optional().default(1),
   period: z.string().optional().default(''),
 });
 export type Grade = z.infer<typeof gradeSchema>;
@@ -40,6 +42,11 @@ export const gradeInputSchema = z.object({
   label: z.string().min(1).default('Nota'),
   score: z.number().min(0, 'Mínimo 0.0').max(5, 'Máximo 5.0'),
   period: z.string().min(4),
+  /**
+   * Peso relativo dentro del componente. Opcional: sin él, el servidor toma el
+   * de la plantilla aplicada al grupo y, si no hay, 1.
+   */
+  weight: z.number().min(0.01).max(1000).optional(),
 });
 export type GradeInput = z.infer<typeof gradeInputSchema>;
 
@@ -48,6 +55,13 @@ export const gradeDetailSchema = z.object({
   id: z.string(),
   label: z.string(),
   score: numberish,
+  /*
+   * Peso con el que entró y su fracción del componente. Opcionales con
+   * defecto: un servidor anterior no los manda y el desglose se pinta como
+   * promedio simple, que es lo que era.
+   */
+  weight: numberish.optional().default(1),
+  pesoRelativo: numberish.optional(),
 });
 export type GradeDetail = z.infer<typeof gradeDetailSchema>;
 
@@ -158,3 +172,62 @@ export const escaneoNotasSchema = z.object({
   sinFila: z.array(z.object({ id: objectId, code: z.string(), fullName: z.string() })),
 });
 export type EscaneoNotas = z.infer<typeof escaneoNotasSchema>;
+
+// ── Plantillas de corte y estructuras aplicadas ─────────────────────────────
+// Una plantilla es del docente: qué notas lleva cada componente y con qué peso
+// relativo. Aplicarla a una materia (y a un grupo) deja una estructura por
+// corte que la captura usa para proponer lo que falta. Ver
+// `backend/src/domains/grading/plantilla-notas.ts`.
+
+export const notaPlantillaSchema = z.object({
+  label: z.string().min(1, 'Escribe el nombre').max(60, 'Máximo 60 caracteres'),
+  weight: z.number().min(0.01, 'Mayor que 0').max(1000, 'Máximo 1000'),
+});
+export type NotaPlantilla = z.infer<typeof notaPlantillaSchema>;
+
+export const componentePlantillaSchema = z.object({
+  tipo: componentType,
+  notas: z.array(notaPlantillaSchema).max(20),
+});
+export type ComponentePlantilla = z.infer<typeof componentePlantillaSchema>;
+
+export const plantillaNotasSchema = mongoDoc.extend({
+  professorId: objectId,
+  name: z.string(),
+  componentes: z.array(componentePlantillaSchema).optional().default([]),
+});
+export type PlantillaNotas = z.infer<typeof plantillaNotasSchema>;
+
+export const plantillaNotasInputSchema = z.object({
+  name: z.string().trim().min(1, 'Ponle un nombre').max(80),
+  componentes: z.array(componentePlantillaSchema).max(3),
+});
+export type PlantillaNotasInput = z.infer<typeof plantillaNotasInputSchema>;
+
+export const corteEstructuraSchema = z.object({
+  corte: numberish,
+  componentes: z.array(componentePlantillaSchema).optional().default([]),
+});
+export type CorteEstructura = z.infer<typeof corteEstructuraSchema>;
+
+export const estructuraNotasSchema = z.object({
+  _id: objectId,
+  subjectId: objectId,
+  groupId: objectId.nullable().optional().default(null),
+  period: z.string(),
+  professorId: objectId,
+  plantillaId: objectId.nullable().optional().default(null),
+  nombre: z.string().optional().default(''),
+  cortes: z.array(corteEstructuraSchema).optional().default([]),
+});
+export type EstructuraNotas = z.infer<typeof estructuraNotasSchema>;
+
+export const estructuraNotasInputSchema = z.object({
+  subjectId: objectId,
+  groupId: objectId.nullable().optional(),
+  period: z.string().min(4),
+  plantillaId: objectId.nullable().optional(),
+  nombre: z.string().max(80).optional(),
+  cortes: z.array(z.object({ corte: cutNumber, componentes: z.array(componentePlantillaSchema).max(3) })).min(1).max(3),
+});
+export type EstructuraNotasInput = z.infer<typeof estructuraNotasInputSchema>;

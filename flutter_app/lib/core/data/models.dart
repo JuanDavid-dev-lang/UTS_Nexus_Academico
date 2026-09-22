@@ -113,16 +113,28 @@ class GradeDetail {
   final String label;
   final double score;
 
+  /// Peso relativo dentro del componente; 1 si nadie lo indicó.
+  final double weight;
+
+  /// Fracción del componente (peso ÷ suma de pesos), si el servidor la mandó.
+  final double? pesoRelativo;
+
   const GradeDetail({
     required this.id,
     required this.label,
     required this.score,
+    this.weight = 1,
+    this.pesoRelativo,
   });
 
   factory GradeDetail.fromJson(Map<String, dynamic> json) => GradeDetail(
         id: _toStr(json['id']),
         label: _toStr(json['label'], 'Nota'),
         score: _toDouble(json['score']),
+        weight: json['weight'] == null ? 1 : _toDouble(json['weight']),
+        pesoRelativo: json['pesoRelativo'] == null
+            ? null
+            : _toDouble(json['pesoRelativo']),
       );
 }
 

@@ -340,6 +340,121 @@ async function ejecutar(puerto: number) {
   ok('Otro docente no puede calificar ese grupo → 403',
     notaAjena.status === 403, `status ${notaAjena.status}`);
 
+  // ── 4b. Plantillas de corte y pesos por nota ────────────────────────────
+  seccion('4b) Plantillas de corte y pesos por nota');
+  /*
+   * La plantilla dice cómo reparte el docente las notas de un componente
+   * —teórico 60, práctico 40— y al aplicarla al grupo, `POST /grades` pone
+   * el peso sin que el cliente lo mande. Se comprueba con un estudiante y se
+   * deshace al final: las secciones siguientes esperan las notas de la
+   * planilla tal cual.
+   */
+  const plantilla = await post(
+    '/grades/plantillas',
+    {
+      name: 'Teórico y práctico',
+      componentes: [
+        {
+          tipo: 'PARCIALES',
+          notas: [
+            { label: 'Parcial teórico', weight: 60 },
+            { label: 'Parcial práctico', weight: 40 },
+          ],
+        },
+      ],
+    },
+    docente,
+  );
+  ok('Crear plantilla → 201', plantilla.status === 201, JSON.stringify(plantilla.json).slice(0, 140));
+  const plantillaId = String(plantilla.json?.item?._id ?? '');
+
+  const plantillaRepetida = await post(
+    '/grades/plantillas',
+    {
+      name: 'Mal hecha',
+      componentes: [{ tipo: 'PARCIALES', notas: [{ label: 'P', weight: 1 }, { label: 'p ', weight: 1 }] }],
+    },
+    docente,
+  );
+  ok('Plantilla con etiqueta repetida → 400', plantillaRepetida.status === 400, `status ${plantillaRepetida.status}`);
+
+  const aplicada = await put(
+    '/grades/estructuras',
+    {
+      subjectId,
+      groupId,
+      period: PERIODO,
+      plantillaId,
+      nombre: 'Teórico y práctico',
+      cortes: [{ corte: 1, componentes: plantilla.json?.item?.componentes ?? [] }],
+    },
+    docente,
+  );
+  ok('Aplicar la plantilla al grupo → 201', aplicada.status === 201, JSON.stringify(aplicada.json).slice(0, 140));
+  const estructuraId = String(aplicada.json?.item?._id ?? '');
+
+  const estructuraAjena = await put(
+    '/grades/estructuras',
+    { subjectId, groupId, period: PERIODO, cortes: [{ corte: 1, componentes: [] }] },
+    otroDocente,
+  );
+  ok('Otro docente no puede aplicar una plantilla a ese grupo → 403', estructuraAjena.status === 403, `status ${estructuraAjena.status}`);
+
+  const vigente = await get(`/grades/estructuras/vigente?period=${PERIODO}&subjectId=${subjectId}&groupId=${groupId}`, docente);
+  ok('La estructura vigente es la del grupo', vigente.json?.item?._id === estructuraId,
+    JSON.stringify(vigente.json).slice(0, 140));
+
+  const estudiantePeso = porId.get('90001001');
+  const base = {
+    studentId: estudiantePeso,
+    subjectId,
+    groupId,
+    teacherId: docenteId,
+    corte: 1,
+    componentType: 'PARCIALES',
+    period: PERIODO,
+  };
+  const teorico = await post('/grades', { ...base, label: 'Parcial teórico', score: 5 }, docente);
+  ok('Nota con etiqueta de la plantilla toma su peso (60) sin mandarlo',
+    teorico.status === 201 && teorico.json?.item?.weight === 60, JSON.stringify(teorico.json).slice(0, 160));
+  const practico = await post('/grades', { ...base, label: 'parcial PRÁCTICO', score: 2.5 }, docente);
+  ok('La etiqueta casa sin distinguir mayúsculas → peso 40',
+    practico.status === 201 && practico.json?.item?.weight === 40, JSON.stringify(practico.json).slice(0, 160));
+  const explicito = await post('/grades', { ...base, label: 'Quiz sorpresa', score: 4, weight: 2 }, docente);
+  ok('Un peso explícito se guarda tal cual', explicito.json?.item?.weight === 2,
+    JSON.stringify(explicito.json).slice(0, 160));
+  const fueraDePlantilla = await post('/grades', { ...base, label: 'Otra cosa', score: 4 }, docente);
+  ok('Fuera de la plantilla y sin peso → 1', fueraDePlantilla.json?.item?.weight === 1,
+    JSON.stringify(fueraDePlantilla.json).slice(0, 160));
+  const pesoMalo = await post('/grades', { ...base, label: 'Peso cero', score: 4, weight: 0 }, docente);
+  ok('Peso 0 → 400', pesoMalo.status === 400, `status ${pesoMalo.status}`);
+
+  const conPesos = await get(`/grades/consolidado?period=${PERIODO}&subjectId=${subjectId}`, docente);
+  const filaPeso = ((conPesos.json?.items ?? []) as { code: string; cortes: { corte: number; componentes: { tipo: string; promedio: number; notas: { label: string; weight: number; pesoRelativo: number }[] }[] }[] }[])
+    .find(f => f.code === '90001001');
+  const parcialesPeso = filaPeso?.cortes.find(c => c.corte === 1)?.componentes.find(c => c.tipo === 'PARCIALES');
+  // Notas de PARCIALES del corte 1: 'Nota' (planilla, peso 1), teórico 5 (60),
+  // práctico 2.5 (40), quiz 4 (2), otra 4 (1). Suma de pesos 104.
+  const notaPlanilla = NOTAS['90001001'] as number;
+  const esperado = Math.round(((notaPlanilla * 1 + 5 * 60 + 2.5 * 40 + 4 * 2 + 4 * 1) / 104) * 100) / 100;
+  ok('El consolidado pondera por peso dentro del componente',
+    parcialesPeso?.promedio === esperado, `promedio ${parcialesPeso?.promedio} vs ${esperado}`);
+  ok('Cada nota vuelve con su peso y su fracción',
+    (parcialesPeso?.notas ?? []).some(n => n.label === 'Parcial teórico' && n.weight === 60 && Math.abs(n.pesoRelativo - 60 / 104) < 0.001),
+    JSON.stringify(parcialesPeso?.notas).slice(0, 200));
+
+  // Deshacer: las secciones siguientes esperan la planilla tal cual.
+  for (const nota of [teorico, practico, explicito, fueraDePlantilla]) {
+    const id = nota.json?.item?._id;
+    if (id) await del(`/grades/${id}`, docente);
+  }
+  const retirada = await del(`/grades/estructuras/${estructuraId}`, docente);
+  ok('Retirar la estructura → 200', retirada.status === 200, `status ${retirada.status}`);
+  const sinEstructura = await get(`/grades/estructuras/vigente?period=${PERIODO}&subjectId=${subjectId}&groupId=${groupId}`, docente);
+  ok('Sin estructura vigente tras retirarla', sinEstructura.json?.item === null, JSON.stringify(sinEstructura.json).slice(0, 100));
+  const borrada = await del(`/grades/plantillas/${plantillaId}`, docente);
+  ok('Borrar la plantilla → 200', borrada.status === 200, `status ${borrada.status}`);
+
   // ── 5. Asistencia ───────────────────────────────────────────────────────
   seccion('5) Registro de asistencia');
   // Tres clases con fechas fijas. La tercera estudiante falta a todas: es lo

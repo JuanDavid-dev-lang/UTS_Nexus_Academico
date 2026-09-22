@@ -120,6 +120,53 @@ describe('calcularCorte', () => {
   });
 });
 
+describe('calcularCorte con pesos por nota', () => {
+  it('pondera dentro del componente: teórico 60 y práctico 40', () => {
+    const resumen = calcularCorte(1, [
+      { ...nota(1, 'PARCIALES', 5.0, 'Teórico'), weight: 60 },
+      { ...nota(1, 'PARCIALES', 2.5, 'Práctico'), weight: 40 },
+    ]);
+    const parciales = resumen.componentes.find(c => c.tipo === 'PARCIALES')!;
+    // 5.0*0.6 + 2.5*0.4 = 3 + 1 = 4.0 (con promedio simple sería 3.75)
+    expect(parciales.promedio).toBe(4);
+    expect(parciales.notas.map(n => n.pesoRelativo)).toEqual([0.6, 0.4]);
+    expect(resumen.nota).toBe(2.4);
+  });
+
+  it('los pesos son relativos: 60/40 y 3/2 dan lo mismo', () => {
+    const a = calcularCorte(1, [
+      { ...nota(1, 'PARCIALES', 5.0), weight: 60 },
+      { ...nota(1, 'PARCIALES', 2.5), weight: 40 },
+    ]);
+    const b = calcularCorte(1, [
+      { ...nota(1, 'PARCIALES', 5.0), weight: 3 },
+      { ...nota(1, 'PARCIALES', 2.5), weight: 2 },
+    ]);
+    expect(a.nota).toBe(b.nota);
+  });
+
+  it('sin peso vale 1: una nota sin peso junto a otras con peso cuenta como una unidad', () => {
+    const resumen = calcularCorte(1, [
+      { ...nota(1, 'TRABAJOS', 4.0), weight: 2 },
+      nota(1, 'TRABAJOS', 1.0),
+    ]);
+    const trabajos = resumen.componentes.find(c => c.tipo === 'TRABAJOS')!;
+    // (4*2 + 1*1) / 3 = 3
+    expect(trabajos.promedio).toBe(3);
+    expect(trabajos.notas.map(n => n.weight)).toEqual([2, 1]);
+  });
+
+  it('un peso inválido (0, negativo, NaN) se trata como 1 y no rompe la división', () => {
+    const resumen = calcularCorte(1, [
+      { ...nota(1, 'TRABAJOS', 4.0), weight: 0 },
+      { ...nota(1, 'TRABAJOS', 2.0), weight: -5 },
+      { ...nota(1, 'TRABAJOS', 3.0), weight: Number.NaN },
+    ]);
+    const trabajos = resumen.componentes.find(c => c.tipo === 'TRABAJOS')!;
+    expect(trabajos.promedio).toBe(3);
+  });
+});
+
 describe('calcularNotaFinal', () => {
   const corteCompleto = (corte: CorteNumero, valor: number): NotaComponente[] => [
     nota(corte, 'TRABAJOS', valor),

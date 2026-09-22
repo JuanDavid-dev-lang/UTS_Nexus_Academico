@@ -369,10 +369,10 @@ class _ComponentBlock extends StatelessWidget {
           ),
           if (component.count > 1) ...[
             const SizedBox(height: 4),
-            // La cuenta explícita: promedio = suma de las notas / cuántas hay.
+            // La cuenta explícita: suma ÷ cuántas hay, o cada nota por su
+            // peso cuando el docente los puso distintos.
             Text(
-              '${component.notes.map((n) => n.score.toStringAsFixed(1)).join(' + ')}'
-              ' ÷ ${component.count}',
+              _formulaDe(component.notes),
               style: AppType.caption.copyWith(color: muted),
             ),
           ],
@@ -522,4 +522,21 @@ class _AgregarNotaFilaState extends State<_AgregarNotaFila> {
       ),
     );
   }
+}
+
+/// «3.5 + 2.5 ÷ 2» con pesos iguales; «3.5×60% + 2.5×40%» si difieren.
+String _formulaDe(List<GradeDetail> notas) {
+  final primero = notas.isEmpty ? 1.0 : notas.first.weight;
+  final iguales = notas.every((n) => n.weight == primero);
+  if (iguales) {
+    return '${notas.map((n) => n.score.toStringAsFixed(1)).join(' + ')}'
+        ' ÷ ${notas.length}';
+  }
+  final suma = notas.fold<double>(0, (total, n) => total + n.weight);
+  return notas
+      .map((n) {
+        final fraccion = n.pesoRelativo ?? (suma > 0 ? n.weight / suma : 0);
+        return '${n.score.toStringAsFixed(1)}×${(fraccion * 100).round()}%';
+      })
+      .join(' + ');
 }

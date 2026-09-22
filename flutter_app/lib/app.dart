@@ -333,6 +333,13 @@ class _UtsAppState extends ConsumerState<UtsApp> {
           // que escanea recargaba el panel del teléfono del docente.
           case 'attendanceSession':
             break;
+          // Una plantilla de corte es del docente y se gestiona en el
+          // escritorio; el móvil no tiene esa pantalla. Aplicarla sí cambia el
+          // desglose (qué falta y con qué peso se guardará la siguiente nota).
+          case 'gradeTemplate':
+            break;
+          case 'gradeStructure':
+            ref.invalidate(consolidatedGradesProvider);
           // El horario alimenta la agenda: cambiarlo mueve las clases y, con
           // ellas, los recordatorios que el teléfono tenía programados.
           case 'schedule':

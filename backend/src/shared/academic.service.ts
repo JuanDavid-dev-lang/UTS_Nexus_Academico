@@ -113,7 +113,7 @@ export async function computeAcademicRecords(filter: AcademicFilter): Promise<Ac
       ClaveAgrupada & {
         groupId: unknown;
         teacherId: unknown;
-        notas: { corte: number; tipo: string; score: number }[];
+        notas: { corte: number; tipo: string; score: number; weight?: number | null }[];
       }
     >([
       // El corte y el componente tienen que ser válidos: el filtro estaba antes
@@ -125,7 +125,12 @@ export async function computeAcademicRecords(filter: AcademicFilter): Promise<Ac
           groupId: { $first: '$groupId' },
           teacherId: { $first: '$teacherId' },
           notas: {
-            $push: { corte: '$corte', tipo: '$componentType', score: { $ifNull: ['$score', 0] } },
+            $push: {
+              corte: '$corte',
+              tipo: '$componentType',
+              score: { $ifNull: ['$score', 0] },
+              weight: { $ifNull: ['$weight', 1] },
+            },
           },
         },
       },
@@ -205,6 +210,7 @@ export async function computeAcademicRecords(filter: AcademicFilter): Promise<Ac
         corte: nota.corte as CorteNumero,
         tipo: nota.tipo as ComponenteTipo,
         score: Number(nota.score ?? 0),
+        ...(typeof nota.weight === 'number' ? { weight: nota.weight } : {}),
       });
     }
   }

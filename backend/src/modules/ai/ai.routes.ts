@@ -132,7 +132,12 @@ aiRouter.post('/predict', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), asyn
     // Usa el motor canónico: nada de fórmulas paralelas.
     const notas: NotaComponente[] = grades
       .filter(g => (g.corte === 1 || g.corte === 2 || g.corte === 3) && !!g.componentType)
-      .map(g => ({ corte: g.corte as CorteNumero, tipo: g.componentType as ComponenteTipo, score: Number(g.score ?? 0) }));
+      .map(g => ({
+        corte: g.corte as CorteNumero,
+        tipo: g.componentType as ComponenteTipo,
+        score: Number(g.score ?? 0),
+        ...(typeof g.weight === 'number' ? { weight: g.weight } : {}),
+      }));
     const resumen = calcularNotaFinal(notas);
     const riesgo = evaluarRiesgo({
       notas,

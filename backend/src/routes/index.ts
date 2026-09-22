@@ -7,6 +7,7 @@ import { analyticsRouter } from '../modules/analytics/analytics.routes.js';
 import { aiRouter } from '../modules/ai/ai.routes.js';
 import { gradeRouter } from '../modules/grades/grade.routes.js';
 import { gradeScanRouter } from '../modules/grades/grade-scan.routes.js';
+import { gradeTemplatesRouter } from '../modules/grades/grade-templates.routes.js';
 import { enrollmentRouter } from '../modules/enrollment/enrollment.routes.js';
 import { attendanceRouter } from '../modules/attendance/attendance.routes.js';
 import { announcementRouter } from '../modules/announcements/announcement.routes.js';
@@ -78,6 +79,8 @@ apiRouter.use('/ai', aiRouter);
 // El importador va antes por la misma razón que el escáner de asistencia: sus
 // rutas son más específicas.
 apiRouter.use('/grades', gradeScanRouter);
+// Las plantillas también: `/plantillas/:id` caería en el `PATCH /:id` de notas.
+apiRouter.use('/grades', gradeTemplatesRouter);
 apiRouter.use('/grades', gradeRouter);
 apiRouter.use('/enrollments', enrollmentRouter);
 // El escáner va antes: sus rutas son más específicas y si `attendanceRouter`

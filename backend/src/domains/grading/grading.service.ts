@@ -45,6 +45,15 @@ export type NotaComponente = {
    */
   id?: string;
   label?: string;
+  /**
+   * Peso RELATIVO dentro de su componente. Un parcial teórico con 60 y uno
+   * práctico con 40 pesan 60 % y 40 % de «Parciales»; sin peso vale 1, así
+   * que un componente donde nadie puso pesos sigue siendo el promedio simple
+   * de siempre. Es relativo y no un porcentaje para que 60/40, 6/4 y 3/2
+   * signifiquen lo mismo y para que añadir una nota no obligue a recuadrar
+   * las demás.
+   */
+  weight?: number;
 };
 
 /** Una nota tal y como se le muestra al docente dentro de su componente. */
@@ -52,6 +61,10 @@ export type NotaDetalle = {
   id: string;
   label: string;
   score: number;
+  /** Peso relativo con el que entró (1 si no se indicó). */
+  weight: number;
+  /** Fracción del componente que representa: weight ÷ suma de pesos. */
+  pesoRelativo: number;
 };
 
 export type ResumenComponente = {
@@ -98,9 +111,18 @@ export function acotar(valor: number): number {
   return Math.min(RUBRICA.NOTA_MAXIMA, Math.max(RUBRICA.NOTA_MINIMA, valor));
 }
 
+/** Peso efectivo de una nota: el indicado si es positivo y finito, 1 si no. */
+export function pesoDeNota(nota: Pick<NotaComponente, 'weight'>): number {
+  const peso = nota.weight;
+  return typeof peso === 'number' && Number.isFinite(peso) && peso > 0 ? peso : 1;
+}
+
 /**
  * Calcula el resumen de un único corte a partir de sus notas.
- * Si un tipo tiene varias notas, se promedian. Si no tiene ninguna, aporta 0.
+ *
+ * Si un tipo tiene varias notas se promedian **ponderadas por su peso
+ * relativo**; con todos los pesos en 1 (lo que hay cuando nadie los indicó) es
+ * el promedio simple. Si no tiene ninguna, aporta 0.
  */
 export function calcularCorte(corte: CorteNumero, notas: NotaComponente[]): ResumenCorte {
   const delCorte = notas.filter(n => n.corte === corte);
@@ -110,8 +132,9 @@ export function calcularCorte(corte: CorteNumero, notas: NotaComponente[]): Resu
   ).map(tipo => {
     const peso = RUBRICA.COMPONENTES[tipo];
     const registros = delCorte.filter(n => n.tipo === tipo);
+    const sumaPesos = registros.reduce((sum, n) => sum + pesoDeNota(n), 0);
     const promedio = registros.length
-      ? acotar(registros.reduce((sum, n) => sum + n.score, 0) / registros.length)
+      ? acotar(registros.reduce((sum, n) => sum + n.score * pesoDeNota(n), 0) / sumaPesos)
       : 0;
     return {
       tipo,
@@ -126,6 +149,8 @@ export function calcularCorte(corte: CorteNumero, notas: NotaComponente[]): Resu
         id: n.id ?? `${corte}-${tipo}-${indice}`,
         label: n.label?.trim() || 'Nota',
         score: n.score,
+        weight: pesoDeNota(n),
+        pesoRelativo: Math.round((pesoDeNota(n) / sumaPesos) * 10000) / 10000,
       })),
     };
   });

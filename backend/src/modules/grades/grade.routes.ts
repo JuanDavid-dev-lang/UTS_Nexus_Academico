@@ -19,6 +19,8 @@ import {
   type CorteNumero,
   type ComponenteTipo,
 } from '../../domains/grading/grading.service.js';
+import { resolverPeso } from '../../domains/grading/plantilla-notas.js';
+import { estructuraDeEstudiante, estructuraDelCorte } from './grade-templates.service.js';
 
 export const gradeRouter = Router();
 gradeRouter.use(identificar);
@@ -35,7 +37,14 @@ const corteEnum = z.union([z.literal(1), z.literal(2), z.literal(3)]);
  * buscarla en otra pantalla.
  */
 function aNotasComponente(
-  docs: Array<{ _id?: unknown; corte?: number; componentType?: string; score?: number; label?: string }>
+  docs: Array<{
+    _id?: unknown;
+    corte?: number;
+    componentType?: string;
+    score?: number;
+    label?: string;
+    weight?: number | null;
+  }>
 ): NotaComponente[] {
   return docs
     .filter(d => (d.corte === 1 || d.corte === 2 || d.corte === 3) && !!d.componentType)
@@ -45,8 +54,12 @@ function aNotasComponente(
       score: Number(d.score ?? 0),
       ...(d._id ? { id: String(d._id) } : {}),
       ...(d.label ? { label: d.label } : {}),
+      ...(typeof d.weight === 'number' ? { weight: d.weight } : {}),
     }));
 }
+
+/** Peso relativo de una nota dentro de su componente. Ver `pesoDeNota`. */
+const pesoSchema = z.number().min(0.01).max(1000);
 
 // Listado plano de notas (scoped a profesor o al propio estudiante).
 gradeRouter.get('/', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR', 'STUDENT'), async (req, res, next) => {
@@ -291,6 +304,9 @@ gradeRouter.post('/', requireRole('ADMIN', 'PROFESSOR'), async (req, res, next) 
       score: z.number().min(0).max(5),
       maxScore: z.number().positive().default(5),
       period: z.string().min(4),
+      // Opcional: sin él se toma el de la plantilla aplicada al grupo, y sin
+      // plantilla vale 1 (promedio simple de siempre).
+      weight: pesoSchema.optional(),
     }).parse(req.body);
 
     // Un periodo cerrado ya tiene fotografía oficial: admitir una nota más la
@@ -352,9 +368,26 @@ gradeRouter.post('/', requireRole('ADMIN', 'PROFESSOR'), async (req, res, next) 
       }
     }
 
+    // El peso lo decide el dominio: el explícito manda, después la plantilla
+    // aplicada al grupo del estudiante, y si no hay nada, 1. Se resuelve aquí
+    // y no en el cliente para que el móvil —que no pide peso— quede igual de
+    // bien ponderado que el escritorio.
+    const estructura = await estructuraDeEstudiante({
+      subjectId: body.subjectId,
+      studentId: body.studentId,
+      groupId: body.groupId,
+      period: body.period,
+    });
+    const weight = resolverPeso(
+      body.weight,
+      estructuraDelCorte(estructura, body.corte as CorteNumero),
+      body.componentType,
+      body.label,
+    );
+
     const item = await GradeModel.findOneAndUpdate(
       key,
-      { $set: body },
+      { $set: { ...body, weight } },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
     await auditChange({
@@ -377,6 +410,7 @@ gradeRouter.patch('/:id', requireRole('ADMIN', 'PROFESSOR'), async (req, res, ne
     const body = z.object({
       score: z.number().min(0).max(5).optional(),
       label: z.string().min(1).optional(),
+      weight: pesoSchema.optional(),
     }).parse(req.body);
     const before = await GradeModel.findById(req.params.id).lean();
     if (req.user?.role === 'PROFESSOR' && before?.teacherId && String(before.teacherId) !== req.user.id) {

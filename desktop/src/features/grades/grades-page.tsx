@@ -3,6 +3,7 @@ import {
   CalendarRange,
   CheckCircle2,
   FileUp,
+  LayoutTemplate,
   ListChecks,
   ListTree,
   Plus,
@@ -30,6 +31,8 @@ import {
   useEnrolledStudents,
 } from '@/features/grades/hooks/use-grades';
 import { GradesImportDialog } from '@/features/grades/components/grades-import-dialog';
+import { GradeTemplatesDialog } from '@/features/grades/components/grade-templates-dialog';
+import { useCurrentStructure } from '@/features/grades/hooks/use-grade-templates';
 import { PendingGradesCard } from '@/features/grades/components/pending-grades-card';
 import { StudentBreakdownDialog } from '@/features/grades/components/student-breakdown-dialog';
 import { useGroups, useSubjects } from '@/features/subjects/hooks/use-subjects';
@@ -53,6 +56,7 @@ export default function GradesPage() {
   const [period, setPeriod] = useState(currentPeriod());
   const [subjectId, setSubjectId] = useState('');
   const [importOpen, setImportOpen] = useState(false);
+  const [plantillasOpen, setPlantillasOpen] = useState(false);
   // Se guarda el ID y no la fila: la fila es una foto, y el desglose ahora
   // también registra notas — con la foto, cada nota añadida no se vería hasta
   // cerrar y volver a abrir. Con el ID, la fila se re-deriva del consolidado
@@ -81,6 +85,9 @@ export default function GradesPage() {
     true,
   );
   const enrolled = useEnrolledStudents({ subjectId, period, groupId: grupoElegido || undefined });
+  // La plantilla aplicada a esta materia y grupo: el desglose propone con ella
+  // lo que falta, y el servidor pone el peso al guardar.
+  const estructura = useCurrentStructure({ period, subjectId: subjectId || undefined, groupId: grupoElegido || undefined });
 
   // Default to the first subject of the selected period so the page is useful
   // immediately instead of showing an empty selector.
@@ -227,6 +234,10 @@ export default function GradesPage() {
         actions={
           canWrite ? (
             <>
+              <Button variant="secondary" onClick={() => setPlantillasOpen(true)}>
+                <LayoutTemplate aria-hidden />
+                Plantillas
+              </Button>
               <Button variant="secondary" onClick={() => setImportOpen(true)}>
                 <FileUp aria-hidden />
                 Importar notas
@@ -258,6 +269,17 @@ export default function GradesPage() {
       ) : null}
 
       {canWrite && <GradesImportDialog open={importOpen} onOpenChange={setImportOpen} />}
+      {canWrite && (
+        <GradeTemplatesDialog
+          open={plantillasOpen}
+          onOpenChange={setPlantillasOpen}
+          period={period}
+          subjects={periodSubjects}
+          groups={(groups.data ?? []).filter((group) => !group.period || group.period === period)}
+          {...(subjectId ? { subjectId } : {})}
+          {...(grupoElegido ? { groupId: grupoElegido } : {})}
+        />
+      )}
 
       {/* Los filtros van en un pozo: son lo que acota la tabla de abajo, y
           sueltos sobre el fondo parecían dos campos de un formulario. */}
@@ -315,6 +337,16 @@ export default function GradesPage() {
               </NativeSelect>
             )}
           </Field>
+        ) : null}
+
+        {/* Qué plantilla rige lo que se va a registrar. Sin ella no se dice
+            nada: «sin plantilla» sonaría a que falta algo. */}
+        {estructura.data ? (
+          <span className="ml-auto inline-flex items-center gap-1.5 self-center text-caption text-muted">
+            <LayoutTemplate className="size-3.5 text-primary" aria-hidden />
+            Plantilla: <strong className="font-semibold text-text">{estructura.data.nombre || 'aplicada'}</strong>
+            {estructura.data.groupId ? ' (del grupo)' : ' (toda la materia)'}
+          </span>
         ) : null}
       </div>
 
@@ -399,6 +431,7 @@ export default function GradesPage() {
           ? { students: enrolled.data, onSelectStudent: setDesgloseId }
           : {})}
         canWrite={canWrite}
+        estructura={estructura.data ?? null}
         {...(canWrite && subjectId && user
           ? { capture: { subjectId, teacherId: user.id, period } }
           : {})}

@@ -27,6 +27,11 @@ const schema = new Schema(
     component: { type: String, default: null },
     score: { type: Number, required: true, min: 0, max: 5 },
     maxScore: { type: Number, default: 5 },
+    /**
+     * Peso relativo dentro de su componente (ver `pesoDeNota` en el motor).
+     * Por defecto 1: las notas anteriores a este campo siguen promediando igual.
+     */
+    weight: { type: Number, default: 1, min: 0.01 },
     period: { type: String, required: true, index: true },
   },
   { timestamps: true }

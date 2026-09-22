@@ -38,7 +38,9 @@ export type SyncEntity =
   | 'user'
   | 'institution'
   | 'attendanceSession'
-  | 'risk';
+  | 'risk'
+  | 'gradeTemplate'
+  | 'gradeStructure';
 
 /**
  * Estado de la sincronización.
@@ -117,6 +119,12 @@ export const INVALIDATION_MAP: Record<SyncEntity, readonly (readonly unknown[])[
   // La plantilla cambia lo que muestran el editor y la vista previa abiertos
   // en otras sesiones de administración.
   reportTemplate: [queryKeys.reports.all],
+  // Una plantilla nueva o editada aparece en el diálogo de plantillas de la
+  // otra sesión del mismo docente.
+  gradeTemplate: [queryKeys.gradeTemplates.all],
+  // Aplicar una plantilla cambia lo que el desglose propone y con qué peso se
+  // guardará la siguiente nota: se tira también el consolidado.
+  gradeStructure: [queryKeys.gradeTemplates.all, queryKeys.grades.all],
   // Una sugerencia nueva aparece en la bandeja del admin; un cambio de estado,
   // en la lista del docente que la envió.
   feedback: [queryKeys.feedback.all],

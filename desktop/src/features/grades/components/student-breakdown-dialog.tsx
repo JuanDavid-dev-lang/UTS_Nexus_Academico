@@ -10,12 +10,15 @@ import {
   NativeSelect,
 } from '@/shared/ui';
 import { formatGrade } from '@/shared/lib/format';
+import { cn } from '@/shared/lib/cn';
 import { useDeleteGrade, useSaveGrade } from '@/features/grades/hooks/use-grades';
 import type {
   ComponentType,
   ConsolidatedRow,
   CutNumber,
+  EstructuraNotas,
   GradeDetail,
+  NotaPlantilla,
 } from '@/domain/schemas/academic';
 
 /**
@@ -61,6 +64,46 @@ const ESTRUCTURA_VACIA = {
 
 export type BreakdownStudent = { studentId: string; code: string; fullName: string };
 
+/** Fracción del componente que representa cada nota, por si el servidor no la mandó. */
+function fraccionesDe(notas: GradeDetail[]): number[] {
+  const suma = notas.reduce((total, n) => total + (n.weight ?? 1), 0);
+  return notas.map((n) => n.pesoRelativo ?? (suma > 0 ? (n.weight ?? 1) / suma : 0));
+}
+
+function pesosIguales(notas: GradeDetail[]): boolean {
+  const primero = notas[0]?.weight ?? 1;
+  return notas.every((n) => (n.weight ?? 1) === primero);
+}
+
+/**
+ * La cuenta explícita del promedio. Con todos los pesos iguales es la de
+ * siempre —suma ÷ cantidad—; con pesos distintos, cada nota por su fracción.
+ */
+function formulaDe(notas: GradeDetail[]): string {
+  if (pesosIguales(notas)) {
+    return `${notas.map((n) => formatGrade(n.score)).join(' + ')} ÷ ${notas.length}`;
+  }
+  const fracciones = fraccionesDe(notas);
+  return notas
+    .map((n, i) => `${formatGrade(n.score)}×${Math.round((fracciones[i] ?? 0) * 100)}%`)
+    .join(' + ');
+}
+
+/** Notas de la plantilla que este estudiante todavía no tiene en ese componente del corte. */
+function pendientesDe(
+  estructura: EstructuraNotas | null | undefined,
+  corte: number,
+  tipo: ComponentType,
+  existentes: GradeDetail[],
+): NotaPlantilla[] {
+  const componente = estructura?.cortes
+    .find((c) => c.corte === corte)
+    ?.componentes.find((c) => c.tipo === tipo);
+  if (!componente) return [];
+  const usadas = new Set(existentes.map((n) => n.label.trim().toLocaleLowerCase('es')));
+  return componente.notas.filter((n) => !usadas.has(n.label.trim().toLocaleLowerCase('es')));
+}
+
 /** Contexto necesario para poder registrar desde el desglose. */
 export type CaptureScope = { subjectId: string; teacherId: string; period: string };
 
@@ -73,6 +116,7 @@ export function StudentBreakdownDialog({
   onSelectStudent,
   canWrite,
   capture,
+  estructura,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -86,6 +130,8 @@ export function StudentBreakdownDialog({
   canWrite: boolean;
   /** Sin esto el diálogo es solo lectura (falta materia, docente o periodo). */
   capture?: CaptureScope;
+  /** Plantilla aplicada al grupo: propone lo que falta y su peso. */
+  estructura?: EstructuraNotas | null;
 }) {
   const deleteGrade = useDeleteGrade();
   const [borrando, setBorrando] = useState<GradeDetail | null>(null);
@@ -159,10 +205,8 @@ export function StudentBreakdownDialog({
                       </span>
                       {componente.registros > 0 ? (
                         <span className="font-mono text-caption tabular-nums text-muted">
-                          {/* La cuenta explícita: promedio = suma / cantidad. */}
-                          {componente.notas.map((n) => formatGrade(n.score)).join(' + ')}
-                          {' ÷ '}
-                          {componente.registros}
+                          {/* La cuenta explícita: suma ÷ cantidad, o cada nota por su peso. */}
+                          {formulaDe(componente.notas)}
                           {' = '}
                           <span className="font-semibold text-text">
                             {formatGrade(componente.promedio)}
@@ -175,7 +219,7 @@ export function StudentBreakdownDialog({
 
                     {componente.notas.length > 0 ? (
                       <ul className="mt-2 flex flex-col gap-1">
-                        {componente.notas.map((nota) => (
+                        {componente.notas.map((nota, indice) => (
                           <li
                             key={nota.id}
                             className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-surface-hover"
@@ -183,6 +227,13 @@ export function StudentBreakdownDialog({
                             <span className="min-w-0 flex-1 truncate text-caption text-text">
                               {nota.label}
                             </span>
+                            {/* El peso solo se muestra cuando no son todos iguales: con
+                                promedio simple «33 %» en cada fila es ruido. */}
+                            {pesosIguales(componente.notas) ? null : (
+                              <span className="font-mono text-caption tabular-nums text-subtle">
+                                {Math.round((fraccionesDe(componente.notas)[indice] ?? 0) * 100)}%
+                              </span>
+                            )}
                             <span className="font-mono text-caption tabular-nums text-text">
                               {formatGrade(nota.score)}
                             </span>
@@ -207,6 +258,7 @@ export function StudentBreakdownDialog({
                         corte={corte.corte as CutNumber}
                         componentType={componente.tipo}
                         capture={capture}
+                        pendientes={pendientesDe(estructura, corte.corte, componente.tipo, componente.notas)}
                       />
                     ) : null}
                   </div>
@@ -258,22 +310,31 @@ function InlineAddNote({
   corte,
   componentType,
   capture,
+  pendientes,
 }: {
   studentId: string;
   corte: CutNumber;
   componentType: ComponentType;
   capture: CaptureScope;
+  /** Lo que la plantilla del grupo dice que falta aquí. */
+  pendientes: NotaPlantilla[];
 }) {
   const saveGrade = useSaveGrade();
   const [label, setLabel] = useState('');
   const [score, setScore] = useState('');
+  // Peso relativo. Vacío = que lo decida el servidor (plantilla o 1).
+  const [peso, setPeso] = useState('');
   const [error, setError] = useState<string>();
 
   function guardar() {
     const numero = Number(score.replace(',', '.'));
+    const pesoNumero = peso.trim() ? Number(peso.replace(',', '.')) : undefined;
     if (!label.trim()) return setError('Escribe qué actividad fue.');
     if (!Number.isFinite(numero)) return setError('La nota debe ser un número.');
     if (numero < 0 || numero > 5) return setError('Entre 0.0 y 5.0.');
+    if (pesoNumero !== undefined && (!Number.isFinite(pesoNumero) || pesoNumero <= 0 || pesoNumero > 1000)) {
+      return setError('El peso debe ser un número mayor que 0.');
+    }
 
     setError(undefined);
     saveGrade.mutate(
@@ -286,18 +347,45 @@ function InlineAddNote({
         label: label.trim(),
         score: numero,
         period: capture.period,
+        ...(pesoNumero !== undefined ? { weight: pesoNumero } : {}),
       },
       {
         onSuccess() {
           setLabel('');
           setScore('');
+          setPeso('');
         },
       },
     );
   }
 
   return (
-    <div className="mt-2 flex flex-col gap-1">
+    <div className="mt-2 flex flex-col gap-1.5">
+      {/* La plantilla propone; no obliga. Tocar una rellena nombre y peso y
+          deja solo la nota por escribir, que es lo único que el docente sabe
+          y el sistema no. */}
+      {pendientes.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-1.5" aria-label="Pendientes según la plantilla">
+          <span className="text-caption text-subtle">Faltan:</span>
+          {pendientes.map((nota) => (
+            <button
+              key={nota.label}
+              type="button"
+              onClick={() => {
+                setLabel(nota.label);
+                setPeso(String(nota.weight));
+              }}
+              className={cn(
+                'rounded-full border border-dashed border-border px-2 py-0.5 text-caption text-muted',
+                'transition-colors hover:border-primary hover:bg-primary-soft hover:text-primary',
+                label === nota.label && 'border-solid border-primary bg-primary-soft text-primary',
+              )}
+            >
+              {nota.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <div className="flex items-center gap-2">
         <Input
           value={label}
@@ -314,6 +402,16 @@ function InlineAddNote({
           inputMode="decimal"
           aria-label="Nota"
           className="h-8 w-20 text-caption"
+          onKeyDown={(event) => event.key === 'Enter' && guardar()}
+        />
+        <Input
+          value={peso}
+          onChange={(event) => setPeso(event.target.value)}
+          placeholder="Peso"
+          inputMode="decimal"
+          aria-label="Peso relativo dentro del componente (opcional)"
+          title="Peso relativo dentro del componente. Vacío: el de la plantilla, o 1. Ejemplo: teórico 60 y práctico 40."
+          className="h-8 w-16 text-caption"
           onKeyDown={(event) => event.key === 'Enter' && guardar()}
         />
         <Button
