@@ -95,6 +95,20 @@ const ESTADOS_DE_REGISTRO = new Set(['PENDIENTE', 'RECHAZADO']);
 /** Tope del texto del servidor. El motivo del rechazo llega hasta 300. */
 const MAX_MENSAJE = 400;
 
+/**
+ * 403 de la versión web: «esto está en la aplicación de escritorio». Lo
+ * escribe `restringirCanalWeb` para la persona y lleva su marca (`codigo`).
+ */
+function soloEnLaApp(status: number, body: unknown): boolean {
+  return (
+    status === 403 &&
+    !!body &&
+    typeof body === 'object' &&
+    'codigo' in body &&
+    body.codigo === 'SOLO_EN_APP'
+  );
+}
+
 function estadoDeRegistro(status: number, body: unknown): boolean {
   return (
     status === 403 &&
@@ -125,7 +139,7 @@ export function appErrorFromResponse(status: number, body: unknown): AppError {
   // por la heurística de arriba: el motivo del rechazo es texto libre y un
   // guion bajo o la palabra «Error» dentro lo habría tumbado al genérico.
   const message =
-    serverMessage && estadoDeRegistro(status, body)
+    serverMessage && (estadoDeRegistro(status, body) || soloEnLaApp(status, body))
       ? serverMessage.slice(0, MAX_MENSAJE)
       : USER_FACING_STATUSES.has(status) && !looksInternal
         ? serverMessage

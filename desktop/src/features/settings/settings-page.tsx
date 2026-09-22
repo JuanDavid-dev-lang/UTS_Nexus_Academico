@@ -16,7 +16,7 @@ import {
 } from '@/shared/ui';
 import { ProfileCard } from '@/features/settings/components/profile-card';
 import { useSession } from '@/state/session.store';
-import { platform } from '@/core/platform/tauri';
+import { esWeb, platform } from '@/core/platform/tauri';
 import { explicarAlmacen, type AlmacenDeCredenciales } from '@/core/platform/paquete';
 import { env } from '@/core/config/env';
 import { modKeyLabel } from '@/shared/hooks/use-hotkeys';
@@ -96,8 +96,9 @@ export default function SettingsPage() {
 
       <StartupCard />
 
-      {/* Solo ADMIN: ver el comentario del componente. */}
-      <ServerCard />
+      {/* Solo ADMIN: ver el comentario del componente. En la web no: el
+          servidor es el que sirve la página, y cambiarlo la dejaría huérfana. */}
+      {esWeb ? null : <ServerCard />}
 
       <Card>
         <CardHeader>

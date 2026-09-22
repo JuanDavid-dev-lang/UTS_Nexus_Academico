@@ -22,6 +22,8 @@ import { useTheme } from '@/state/theme.store';
 import { useDebounce } from '@/shared/hooks/use-debounce';
 import { can, type Capability } from '@/core/auth/permissions';
 import { useUserRole } from '@/state/session.store';
+import { rutaEnWeb } from '@/domain/platform/web-access';
+import { esWeb } from '@/core/platform/tauri';
 
 /**
  * Global command palette (Ctrl+K).
@@ -40,6 +42,8 @@ type Command = {
   run: () => void;
   /** Sin ella, el comando va a una pantalla que la ruta devolvería al panel. */
   capability?: Capability;
+  /** Pantalla a la que lleva, para no ofrecerla en la versión web si no está. */
+  ruta?: string;
 };
 
 export function CommandPalette({
@@ -97,15 +101,15 @@ export function CommandPalette({
     };
 
     const todos: Command[] = [
-      { id: 'nav-dashboard', label: 'Ir al panel', group: 'Navegación', icon: ArrowRight, run: go('/') },
-      { id: 'nav-students', label: 'Ir a estudiantes', group: 'Navegación', icon: Users, run: go('/estudiantes'), capability: 'students.read' },
-      { id: 'nav-subjects', label: 'Ir a materias', group: 'Navegación', icon: BookOpen, run: go('/materias'), capability: 'subjects.read' },
-      { id: 'nav-grades', label: 'Ir a notas', group: 'Navegación', icon: GraduationCap, run: go('/notas'), capability: 'grades.read' },
-      { id: 'nav-agenda', label: 'Ir a la agenda', group: 'Navegación', icon: CalendarDays, run: go('/agenda') },
-      { id: 'nav-attendance', label: 'Ir a asistencia', group: 'Navegación', icon: ArrowRight, run: go('/asistencia'), capability: 'attendance.read' },
-      { id: 'nav-risk', label: 'Ir a riesgo académico', group: 'Navegación', icon: ArrowRight, run: go('/riesgo'), capability: 'analytics.risks' },
-      { id: 'nav-assistant', label: 'Abrir asistente IA', group: 'Navegación', icon: ArrowRight, run: go('/asistente'), capability: 'assistant.use' },
-      { id: 'nav-reports', label: 'Ir a reportes', group: 'Navegación', icon: ArrowRight, run: go('/reportes'), capability: 'reports.export' },
+      { id: 'nav-dashboard', label: 'Ir al panel', group: 'Navegación', icon: ArrowRight, run: go('/'), ruta: '/' },
+      { id: 'nav-students', label: 'Ir a estudiantes', group: 'Navegación', icon: Users, run: go('/estudiantes'), ruta: '/estudiantes', capability: 'students.read' },
+      { id: 'nav-subjects', label: 'Ir a materias', group: 'Navegación', icon: BookOpen, run: go('/materias'), ruta: '/materias', capability: 'subjects.read' },
+      { id: 'nav-grades', label: 'Ir a notas', group: 'Navegación', icon: GraduationCap, run: go('/notas'), ruta: '/notas', capability: 'grades.read' },
+      { id: 'nav-agenda', label: 'Ir a la agenda', group: 'Navegación', icon: CalendarDays, run: go('/agenda'), ruta: '/agenda' },
+      { id: 'nav-attendance', label: 'Ir a asistencia', group: 'Navegación', icon: ArrowRight, run: go('/asistencia'), ruta: '/asistencia', capability: 'attendance.read' },
+      { id: 'nav-risk', label: 'Ir a riesgo académico', group: 'Navegación', icon: ArrowRight, run: go('/riesgo'), ruta: '/riesgo', capability: 'analytics.risks' },
+      { id: 'nav-assistant', label: 'Abrir asistente IA', group: 'Navegación', icon: ArrowRight, run: go('/asistente'), ruta: '/asistente', capability: 'assistant.use' },
+      { id: 'nav-reports', label: 'Ir a reportes', group: 'Navegación', icon: ArrowRight, run: go('/reportes'), ruta: '/reportes', capability: 'reports.export' },
       {
         id: 'action-theme',
         label: 'Cambiar tema (claro / oscuro / automático)',
@@ -117,7 +121,11 @@ export function CommandPalette({
         },
       },
     ];
-    const navigation = todos.filter((comando) => !comando.capability || can(role, comando.capability));
+    const navigation = todos.filter(
+      (comando) =>
+        (!comando.capability || can(role, comando.capability)) &&
+        (!comando.ruta || rutaEnWeb(comando.ruta, esWeb, role)),
+    );
 
     const term = debouncedQuery.trim().toLowerCase();
     if (term.length < 2) return navigation;

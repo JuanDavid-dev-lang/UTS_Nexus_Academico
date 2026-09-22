@@ -10,8 +10,14 @@ import path from 'node:path';
  * Tauri runs the dev server on a fixed port and needs a strict port so the
  * native shell can attach to it reliably.
  */
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react(), tailwindcss()],
+  /*
+   * La versión web (`npm run build:web`, modo `web`) se publica en Vercel bajo
+   * su propio dominio, así que va en la raíz igual que la de escritorio. Lo
+   * único que cambia es la carpeta de salida, para no pisar la que empaqueta
+   * Tauri.
+   */
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -27,7 +33,9 @@ export default defineConfig({
     },
   },
   build: {
-    // Tauri targets modern WebViews only, so we can ship smaller output.
+    outDir: mode === 'web' ? 'dist-web' : 'dist',
+    // Tauri targets modern WebViews only, so we can ship smaller output. La
+    // web se abre en navegadores de escritorio actuales: el mismo destino vale.
     target: 'esnext',
     minify: 'esbuild',
     sourcemap: false,
@@ -52,4 +60,4 @@ export default defineConfig({
     setupFiles: ['./tests/setup.ts'],
     include: ['tests/**/*.test.{ts,tsx}', 'src/**/*.test.{ts,tsx}'],
   },
-});
+}));

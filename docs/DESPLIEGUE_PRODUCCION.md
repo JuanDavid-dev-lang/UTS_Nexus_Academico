@@ -73,6 +73,26 @@ curl -s http://127.0.0.1:4000/health
 
 ---
 
+## Versión web
+
+`https://utsnexusweb.ciaiuts.com` es el cliente de escritorio compilado para
+navegador. **No la sirve este servidor**: vive en Vercel, que la compila desde
+`desktop/` (`npm run build:web`, salida `dist-web`, configuración en
+`desktop/vercel.json`) en cada push a `main`. El dominio se apunta a Vercel con
+un CNAME en Cloudflare.
+
+Lo único que el backend necesita para ella es su origen en `CLIENT_ORIGIN`:
+
+```env
+CLIENT_ORIGIN=https://nexusback.ciaiuts.com,https://utsnexusweb.ciaiuts.com
+```
+
+Sin esa línea el inicio de sesión desde la web falla con «error de red» y nada
+menciona CORS. Qué ofrece la web y qué deja para la aplicación está en
+CLAUDE.md, «Versión web».
+
+---
+
 ## 4. Configuración de Clientes (Escritorio y Móvil)
 
 Los clientes de escritorio (`desktop/`) y móvil (`flutter_app/`) vienen preconfigurados por defecto apuntando a:

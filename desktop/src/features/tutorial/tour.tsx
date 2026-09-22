@@ -6,6 +6,9 @@ import { ArrowLeft, ArrowRight, X } from 'lucide-react';
 import { Button, Rubri } from '@/shared/ui';
 import { useTheme } from '@/state/theme.store';
 import { PASOS, type PasoTour } from './pasos';
+import { useUserRole } from '@/state/session.store';
+import { esWeb } from '@/core/platform/tauri';
+import { INICIO_WEB, rutaEnWeb } from '@/domain/platform/web-access';
 
 const CLAVE = 'uts.tutorial.visto';
 
@@ -114,13 +117,26 @@ export function Tour({ onFinish }: { onFinish: () => void }) {
   const sinMovimiento = Boolean(prefiereMenos) || reducirMovimiento;
   const transicion = sinMovimiento ? { duration: 0 } : RESORTE;
 
-  const paso: PasoTour | undefined = PASOS[indice];
-  const ultimo = indice === PASOS.length - 1;
+  // En la versión web el recorrido no pasa por pantallas que no están: los
+  // pasos que señalan algo de ellas se quitan, y los de apertura y cierre
+  // (sin nada que señalar) se hacen en Materias, que es donde entra la web.
+  const rol = useUserRole();
+  const pasos = useMemo(
+    () =>
+      PASOS.flatMap((p): PasoTour[] => {
+        if (!p.ruta || rutaEnWeb(p.ruta, esWeb, rol)) return [p];
+        return p.selector ? [] : [{ ...p, ruta: INICIO_WEB }];
+      }),
+    [rol],
+  );
+
+  const paso: PasoTour | undefined = pasos[indice];
+  const ultimo = indice === pasos.length - 1;
 
   const avanzar = useCallback(() => {
     setDireccion(1);
-    setIndice((i) => Math.min(i + 1, PASOS.length - 1));
-  }, []);
+    setIndice((i) => Math.min(i + 1, pasos.length - 1));
+  }, [pasos.length]);
   const retroceder = useCallback(() => {
     setDireccion(-1);
     setIndice((i) => Math.max(i - 1, 0));
@@ -216,7 +232,7 @@ export function Tour({ onFinish }: { onFinish: () => void }) {
   if (!paso) return null;
 
   const Icono = paso.icono;
-  const progreso = ((indice + 1) / PASOS.length) * 100;
+  const progreso = ((indice + 1) / pasos.length) * 100;
 
   return createPortal(
     <div className="fixed inset-0 z-[100]" role="dialog" aria-modal="true" aria-label="Tutorial">
@@ -299,7 +315,7 @@ export function Tour({ onFinish }: { onFinish: () => void }) {
       >
         <div className="mb-2 flex items-start justify-between gap-2">
           <span className="text-caption font-semibold uppercase tracking-wide text-primary">
-            Paso {indice + 1} de {PASOS.length}
+            Paso {indice + 1} de {pasos.length}
           </span>
           <button
             type="button"

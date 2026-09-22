@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { meResponseSchema } from '@/domain/schemas/auth';
 import { tokenService } from '@/core/auth/token.service';
 import { __reiniciarIdDelEquipoParaPruebas, idDelEquipo } from '@/core/auth/device-id';
 
@@ -59,5 +60,26 @@ describe('identificador del equipo', () => {
     const id = await idDelEquipo();
     await tokenService.clear();
     expect(guardado('device_id')).toBe(id);
+  });
+});
+
+describe('usuario de la sesión', () => {
+  const usuario = {
+    email: 'docente@uts.edu.co',
+    role: 'PROFESSOR',
+    fullName: 'Docente Demo UTS',
+    photoUrl: null,
+  };
+
+  it('acepta el `_id` con el que respondía `/auth/me`', () => {
+    // Con el esquema pidiendo solo `id`, restaurar la sesión al arrancar
+    // fallaba en silencio y borraba unos tokens válidos.
+    const leido = meResponseSchema.parse({ ok: true, user: { _id: 'abc123', ...usuario } });
+    expect(leido.user.id).toBe('abc123');
+  });
+
+  it('y el `id` que devuelve `/auth/login`', () => {
+    const leido = meResponseSchema.parse({ ok: true, user: { id: 'abc123', ...usuario } });
+    expect(leido.user.id).toBe('abc123');
   });
 });

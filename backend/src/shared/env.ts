@@ -305,7 +305,7 @@ export function validarProduccion(): void {
  * puede presentarse con estos orígenes. Un cliente nativo, además, manda la
  * cabecera `Origin` que quiera.
  */
-const ORIGENES_APP_ESCRITORIO = [
+export const ORIGENES_APP_ESCRITORIO = [
   'http://tauri.localhost',
   'https://tauri.localhost',
   'tauri://localhost',

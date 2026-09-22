@@ -36,32 +36,36 @@ import { userRouter } from '../modules/users/user.routes.js';
 import { institutionRouter } from '../modules/institutions/institution.routes.js';
 import { uniplannerRouter } from '../modules/uniplanner/uniplanner.routes.js';
 import { attendanceQrRouter } from '../modules/attendance-qr/attendance-qr.routes.js';
-import { identificar, bloquearSoloLectura } from '../middlewares/auth.js';
+import { identificar, bloquearSoloLectura, restringirCanalWeb } from '../middlewares/auth.js';
 import { limiteEscritura, limiteGeneral } from '../middlewares/rate-limit.js';
 import { cargarAlcance } from '../middlewares/scope.js';
 
 export const apiRouter = Router();
 
 /**
- * Cinco pasos antes de cualquier módulo, en este orden y no en otro:
+ * Seis pasos antes de cualquier módulo, en este orden y no en otro:
  *
  * 1. `identificar` — dice quién llama. No corta nada; los módulos lo repiten
  *    porque también se montan sueltos en las pruebas.
- * 2. `limiteGeneral` — cupo de peticiones. **Va después de `identificar`** y no
+ * 2. `restringirCanalWeb` — en la versión web, fuera de ADMIN, corta lo que
+ *    solo existe en la app instalada (`domains/scope/web-access.ts`). Va antes
+ *    de los cupos: una petición que no se va a atender no debería gastarlos.
+ * 3. `limiteGeneral` — cupo de peticiones. **Va después de `identificar`** y no
  *    en `app.ts`, que es donde estaba: allí corre antes de saber quién llama,
  *    así que solo podía contar por IP, y un campus entero comparte una.
- * 3. `limiteEscritura` — cupo aparte y mucho más corto para lo que modifica
+ * 4. `limiteEscritura` — cupo aparte y mucho más corto para lo que modifica
  *    algo. Es lo único que impide que un bucle de reintentos —o un script—
  *    escriba cientos de miles de documentos: los topes por petición acotan
  *    cuánto cabe en una, pero no cuántas caben en una ventana.
- * 4. `bloquearSoloLectura` — cierra la escritura a los perfiles de consulta
+ * 5. `bloquearSoloLectura` — cierra la escritura a los perfiles de consulta
  *    (secretaría). Va aquí, y no en cada módulo, porque marcar ruta por ruta
  *    cuál escribe deja abierta la que se añada mañana.
- * 5. `cargarAlcance` — deja en `req.alcance` los programas de coordinación o
+ * 6. `cargarAlcance` — deja en `req.alcance` los programas de coordinación o
  *    secretaría. Global por la misma razón: una ruta que se olvidara de pedirlo
  *    consultaría sin acotar y devolvería datos de otra carrera con un 200.
  */
 apiRouter.use(identificar);
+apiRouter.use(restringirCanalWeb);
 apiRouter.use(limiteGeneral);
 apiRouter.use(limiteEscritura);
 apiRouter.use(bloquearSoloLectura);

@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
 import { AppShell } from '@/shared/layouts/app-shell';
 import { useSession } from '@/state/session.store';
 import { Con } from '@/app/require-capability';
+import { GuardaWeb } from '@/features/web/guarda-web';
 import { BootScreen, UnreachableScreen } from '@/app/boot-screen';
 
 /**
@@ -76,6 +77,11 @@ export const router = createBrowserRouter([
       {
         element: <AppShell />,
         children: [
+          {
+          // En la versión web, lo que vive en la aplicación se cambia por su
+          // invitación a descargarla (`features/web/guarda-web.tsx`).
+          element: <GuardaWeb />,
+          children: [
           { path: '/', element: <DashboardPage /> },
           { path: '/estudiantes', element: <Con capacidad="students.read"><StudentsPage /></Con> },
           { path: '/materias', element: <Con capacidad="subjects.read"><SubjectsPage /></Con> },
@@ -100,9 +106,15 @@ export const router = createBrowserRouter([
           { path: '/notificaciones', element: <NotificationsPage /> },
           { path: '/configuracion', element: <SettingsPage /> },
           { path: '/supervision-admin', element: <Con capacidad="staff.manage"><SupervisionAdminPage /></Con> },
+          ],
+          },
         ],
       },
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },
-]);
+], {
+  // En la versión web la aplicación vive en `/web` del servidor (`base` de
+  // Vite en modo web); en la de escritorio, en la raíz.
+  basename: import.meta.env.BASE_URL.replace(/\/$/, '') || '/',
+});

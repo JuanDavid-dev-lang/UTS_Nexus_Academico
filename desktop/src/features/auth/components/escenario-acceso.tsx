@@ -4,6 +4,7 @@ import { ClipboardCheck, Maximize2, Minimize2, QrCode, ShieldCheck, Sparkles } f
 import { Logo } from '@/shared/ui/logo';
 import { Kbd } from '@/shared/ui/primitives';
 import { cn } from '@/shared/lib/cn';
+import { esWeb } from '@/core/platform/tauri';
 import { RESORTE } from './resorte';
 import {
   alternarPantallaCompleta,
@@ -158,7 +159,9 @@ export function HeroAcceso() {
 
       <motion.p variants={sube} className="flex items-center gap-2 text-caption opacity-75">
         <ShieldCheck className="size-4" aria-hidden />
-        Sesión cifrada por el sistema y atada a este equipo.
+        {esWeb
+          ? 'Versión web. La aplicación añade agenda, reportes y el asistente completo.'
+          : 'Sesión cifrada por el sistema y atada a este equipo.'}
       </motion.p>
     </motion.section>
   );

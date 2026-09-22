@@ -2,11 +2,12 @@ import type { RequestHandler } from 'express';
 import { verifyAccessToken } from '../shared/jwt.js';
 import { autorizadoPorRol, puedeEscribir } from '../domains/scope/role-access.js';
 import type { Role } from '../shared/types.js';
+import { MENSAJE_SOLO_APP, soloEnApp, type Canal } from '../domains/scope/web-access.js';
 
 declare global {
   namespace Express {
     interface Request {
-      user?: { id: string; role: Role; tenantId?: string; studentId?: string };
+      user?: { id: string; role: Role; tenantId?: string; studentId?: string; canal?: Canal };
     }
   }
 }
@@ -35,6 +36,7 @@ export const identificar: RequestHandler = (req, res, next) => {
       role: payload.role,
       tenantId: payload.tenantId,
       studentId: payload.studentId,
+      canal: payload.canal ?? 'app',
     };
     next();
   } catch {
@@ -91,4 +93,18 @@ export const bloquearSoloLectura: RequestHandler = (req, res, next) => {
     ok: false,
     message: 'Tu perfil es de consulta: puedes ver y exportar, pero no modificar. Pídele el cambio a coordinación.',
   });
+};
+
+/**
+ * Corta en la versión web lo que solo existe en la aplicación instalada.
+ *
+ * Global sobre `apiRouter`, igual que `bloquearSoloLectura`: la decisión vive
+ * en `domains/scope/web-access.ts` y no repartida por los módulos. ADMIN no
+ * tiene recorte. Responde 403 con `codigo: 'SOLO_EN_APP'`, que el cliente web
+ * convierte en «descarga la aplicación».
+ */
+export const restringirCanalWeb: RequestHandler = (req, res, next) => {
+  if (req.user?.canal !== 'web' || req.user.role === 'ADMIN') return next();
+  if (!soloEnApp(req.method, req.path)) return next();
+  return res.status(403).json({ ok: false, codigo: 'SOLO_EN_APP', message: MENSAJE_SOLO_APP });
 };

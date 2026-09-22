@@ -14,6 +14,7 @@ import { useTheme } from '@/state/theme.store';
 import { useSession, useUserRole } from '@/state/session.store';
 import { can } from '@/core/auth/permissions';
 import { menuEsHorizontal } from '@/domain/appearance/preferences';
+import { AvisoWeb } from '@/features/web/aviso-web';
 
 /** Title and subtitle per route, so the top bar always says where the user is. */
 const ROUTE_META: Record<string, { title: string; subtitle: string }> = {
@@ -143,6 +144,7 @@ export function AppShell() {
           onOpenSearch={() => setPaletteOpen(true)}
           onOpenNav={narrow ? () => setDrawerOpen(true) : undefined}
         />
+        <AvisoWeb />
 
         {/*
           `@container` es lo que hace que el contenido mida el hueco que le

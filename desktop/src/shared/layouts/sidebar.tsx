@@ -42,6 +42,8 @@ import { useUnreadCount } from '@/features/notifications/hooks/use-notifications
 import { profileRepository } from '@/infrastructure/repositories/profile.repository';
 import { queryKeys } from '@/core/api/query-keys';
 import type { PosicionMenu } from '@/domain/appearance/preferences';
+import { rutaEnWeb } from '@/domain/platform/web-access';
+import { esWeb } from '@/core/platform/tauri';
 
 type NavItem = {
   to: string;
@@ -216,7 +218,9 @@ export function Sidebar({
     }
     return (
       (!item.capability || can(role, item.capability)) &&
-      (!item.requiresDirector || esDirector)
+      (!item.requiresDirector || esDirector) &&
+      // En la versión web, solo lo que la web ofrece (`domain/platform/web-access.ts`).
+      rutaEnWeb(item.to, esWeb, role)
     );
   }
 

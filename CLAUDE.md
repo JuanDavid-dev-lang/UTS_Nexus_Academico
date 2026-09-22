@@ -1040,6 +1040,61 @@ tercera vale en todos los sistemas.
   aplica al arrancar, y el estado se relee al cambiar de tamaño: salir por otra
   vía no deja el botón diciendo lo contrario.
 
+### Versión web (`utsnexusweb.ciaiuts.com`)
+
+El mismo cliente de `desktop/`, compilado para navegador con `npm run build:web`
+(modo `web` de Vite: misma raíz, salida en `dist-web/`) y publicado en **Vercel**
+con su propio dominio; el backend sigue donde estaba y **no la sirve**. Se
+redespliega sola en cada push a `main` (`desktop/vercel.json`: `build:web`,
+`dist-web`, y toda ruta reescrita a `index.html` — sin eso, recargar en `/notas`
+da 404).
+
+**Lo único que el servidor necesita** es el origen de la web en `CLIENT_ORIGIN`
+(ver `deploy/.env.produccion.example`). Sin él, el navegador corta la petición
+antes de enviarla y el inicio de sesión falla con «error de red» sin mencionar
+CORS por ninguna parte. Las URL de vista previa de Vercel no están en esa lista
+a propósito: se añade la que haga falta mientras se prueba.
+
+**Qué ofrece.** Fuera de ADMIN, que lo ve todo: Materias, Estudiantes, Notas y
+Asistencia (con **Exportar** Excel/PDF desde la propia pantalla y la lista por
+QR), Riesgo, Sugerencias y Configuración. El Asistente IA sale en el menú como
+invitación («funciona con machine learning; para usarlo completo, descarga la
+aplicación»), y el resto —panel, agenda, actividades, avisos, reportes, trabajos
+de grado, coordinación, importar por foto/PDF/XLSX— enseña «Esta función está en
+la aplicación» con el botón a la página de descargas. La web entra por Materias.
+
+**Dos lados, la misma lista.**
+- Cliente: `domain/platform/web-access.ts` (`rutaEnWeb`, con pruebas) filtra el
+  menú, la paleta de comandos y el recorrido guiado, y `features/web/guarda-web.tsx`
+  es una ruta de layout entre `AppShell` y las pantallas que cambia las que
+  faltan por su invitación. `useRecorteWeb()` esconde, en las pantallas que sí
+  están, los botones de importar por archivo. `esWeb` = no es Tauri
+  (`core/platform/tauri.ts`).
+- Servidor: el canal de la sesión (`canal: 'app' | 'web'`) **lo decide el
+  servidor por el `Origin`** al iniciar sesión (`canalDeOrigen`): los orígenes
+  de Tauri y la ausencia de `Origin` (el móvil) son `app`, cualquier navegador
+  es `web`. Viaja en los dos tokens y la renovación lo hereda.
+  `restringirCanalWeb`, justo detrás de `identificar`, responde 403
+  `codigo: 'SOLO_EN_APP'` a lo que marca `soloEnApp()`
+  (`domains/scope/web-access.ts`, con pruebas): `/ai`, `/agenda`, `/schedules`,
+  `/activities`, `/avisos`, `/trabajos-grado`, `/coordinacion`, los cuatro
+  escaneos y todo `/reports` salvo `GET /reports/{pdf|excel}/{grades|attendance}`.
+  **Es lista de lo que se corta, no de lo que pasa**, y no es un permiso: rol y
+  alcance siguen decidiendo lo demás; una lista de permitidos dejaría una
+  pantalla de la web respondiendo 403 el día que cambie una ruta.
+- El cliente enseña el mensaje de ese 403 tal cual (`errors.ts`, como el del
+  registro pendiente).
+
+**Sesión en la web**: sin casilla de recordar. Los tokens van a
+`sessionStorage`, así que recargar no echa a nadie y cerrar la pestaña termina
+la sesión. Guardarlos quince días exige un almacén que el navegador no tiene:
+eso es de la aplicación, que usa el llavero del sistema. El servidor es el de
+producción y Configuración no ofrece cambiarlo.
+
+**En desarrollo**, `npm run dev` también es un navegador: fuera de ADMIN se ve
+la versión recortada, y el backend la aplica igual (el `Origin` es
+`localhost:5183`). Para la aplicación completa, `desktop:dev` o una cuenta ADMIN.
+
 ### Acceso del escritorio (`features/auth/login-page.tsx`)
 
 Sigue al acceso del móvil: la pantalla entera es la superficie de marca con
@@ -1296,6 +1351,7 @@ Leídas por `backend/src/shared/env.ts`. **Un nombre mal escrito no da error: ca
   (`shared/env.ts`) y `tests/cors-origins.test.ts` fija que estén los tres. No abre
   nada: CORS protege al navegador de una página web, y ninguna página puede
   presentarse con esos orígenes.
+- **`CLIENT_ORIGIN` lleva también el dominio de la web** (`https://utsnexusweb.ciaiuts.com`): la web vive en Vercel y llama a esta API desde otro dominio.
 - `CLIENT_ORIGIN=*` para uso local. En producción es obligatoria y lleva el dominio del
   servidor; el de desarrollo del escritorio es `http://localhost:5183`. Si apunta a otro
   puerto, el login falla con un error de red que **no** menciona CORS.
@@ -1319,6 +1375,7 @@ imprime la matriz; CI la ejecuta en cada push.
 | Windows | soportada | NSIS, MSI | actualizador de Tauri |
 | Linux | soportada | AppImage, deb, rpm | actualizador de Tauri |
 | Android | soportada | APK | API de Releases + instalador del sistema |
+| Web | soportada | — (Vercel) | despliegue continuo en cada push |
 | macOS | planificada | app, dmg | actualizador de Tauri |
 | iOS | planificada | ipa | App Store (el actualizador propio no aplica) |
 

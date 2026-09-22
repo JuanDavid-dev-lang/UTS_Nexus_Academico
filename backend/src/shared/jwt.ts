@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import { env } from './env.js';
 import type { SignOptions } from 'jsonwebtoken';
 import type { Role } from './types.js';
+import type { Canal } from '../domains/scope/web-access.js';
 
 export type JwtPayload = {
   sub: string;
@@ -9,6 +10,12 @@ export type JwtPayload = {
   tenantId?: string;
   /** Presente solo para role === 'STUDENT': id del documento Estudiante vinculado. */
   studentId?: string;
+  /**
+   * Por dónde se inició la sesión (`domains/scope/web-access.ts`). Viaja en
+   * los dos tokens y la renovación lo copia: si saliera de cada petición, un
+   * navegador podría estrenar canal en cada una.
+   */
+  canal?: Canal;
 };
 
 /**

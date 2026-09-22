@@ -12,6 +12,8 @@ import type { Role } from '../../shared/types.js';
 import rateLimit from 'express-rate-limit';
 import { passwordEntrante, passwordNueva } from '../../shared/validation.js';
 import { buscarPrograma } from '../../domains/catalog/uts.js';
+import { ORIGENES_APP_ESCRITORIO } from '../../shared/env.js';
+import { canalDeOrigen, type Canal } from '../../domains/scope/web-access.js';
 import {
   DIAS_DE_SESION,
   PATRON_ID_DISPOSITIVO,
@@ -36,8 +38,20 @@ const campoIdDispositivo = z.string().trim().regex(PATRON_ID_DISPOSITIVO).option
 
 const hashDeDispositivo = (deviceId: string | undefined) => (deviceId ? hashToken(deviceId) : null);
 
-const signPair = (user: { id: string; role: Role; tenantId?: string; studentId?: string }) => {
-  const payload = { sub: user.id, role: user.role, tenantId: user.tenantId, studentId: user.studentId };
+const signPair = (user: {
+  id: string;
+  role: Role;
+  tenantId?: string;
+  studentId?: string;
+  canal?: Canal;
+}) => {
+  const payload = {
+    sub: user.id,
+    role: user.role,
+    tenantId: user.tenantId,
+    studentId: user.studentId,
+    canal: user.canal ?? 'app',
+  };
   const accessToken = signAccessToken(payload);
   const refreshToken = signRefreshToken(payload);
   return { accessToken, refreshToken };
@@ -165,6 +179,9 @@ authRouter.post('/login', async (req, res, next) => {
       role: user.role as Role,
       tenantId: user.tenantId?.toString(),
       studentId: user.studentId?.toString(),
+      // El canal lo decide el servidor por el `Origin`, no el cuerpo: un
+      // navegador no puede declararse app.
+      canal: canalDeOrigen(req.headers.origin, ORIGENES_APP_ESCRITORIO),
     });
 
     await SessionModel.create({
@@ -239,6 +256,8 @@ authRouter.post('/refresh', async (req, res, next) => {
       role: user.role as Role,
       tenantId: user.tenantId?.toString(),
       studentId: user.studentId?.toString(),
+      // Se hereda del token que se canjea: renovar no cambia de canal.
+      canal: payload.canal ?? 'app',
     });
 
     /**
@@ -396,6 +415,7 @@ authRouter.post('/password', identificar, exigirSesion, passwordChangeLimit, asy
       role: user.role,
       tenantId: user.tenantId?.toString(),
       studentId: user.studentId?.toString(),
+      canal: req.user!.canal ?? 'app',
     });
     await SessionModel.create({
       userId: user.id,
@@ -499,5 +519,10 @@ authRouter.get('/me', identificar, exigirSesion, async (req, res) => {
   const user = await UserModel.findById(req.user!.id)
     .select('_id email role fullName studentId tenantId photoUrl lastLoginAt createdAt updatedAt')
     .lean();
-  res.json({ ok: true, user });
+  if (!user) return res.status(404).json({ ok: false, message: 'Not found' });
+  // `id`, no el `_id` crudo de `lean()`: es la misma forma que devuelve
+  // `/auth/login`, y el escritorio valida las dos respuestas con el mismo
+  // esquema. Con `_id` el parse fallaba al restaurar la sesión y la aplicación
+  // arrancaba pidiendo entrar de nuevo, sin decir por qué.
+  res.json({ ok: true, user: { ...user, id: user._id.toString() } });
 });

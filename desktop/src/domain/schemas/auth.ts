@@ -1,13 +1,30 @@
 import { z } from 'zod';
 import { objectId, role } from './common';
 
-export const userSchema = z.object({
+/**
+ * El usuario de la sesión.
+ *
+ * Acepta `_id` además de `id`, y ese detalle no es cosmético: `GET /auth/me`
+ * respondía con el documento tal cual sale de Mongo (`_id`), mientras que
+ * `/auth/login` devuelve `id`. Entrar funcionaba y **restaurar la sesión al
+ * arrancar no**: el parse fallaba, el error no es reintentable, y `bootstrap`
+ * borraba unos tokens perfectamente válidos y mandaba al inicio de sesión. Sin
+ * ningún error en pantalla: se leía como «la aplicación no recuerda la sesión».
+ * El servidor ya devuelve `id` en las dos rutas, pero esto se queda porque un
+ * cliente publicado habla con servidores de cualquier versión.
+ */
+export const userSchema = z.preprocess((valor) => {
+  if (valor && typeof valor === 'object' && '_id' in valor && !('id' in valor)) {
+    return { ...valor, id: (valor as { _id: unknown })._id };
+  }
+  return valor;
+}, z.object({
   id: objectId,
   email: z.string().email(),
   role,
   fullName: z.string(),
   photoUrl: z.string().nullable().optional(),
-});
+}));
 
 export type User = z.infer<typeof userSchema>;
 

@@ -22,6 +22,7 @@ import { useStudents, useStudentSearch } from '@/features/students/hooks/use-stu
 import { useDebounce } from '@/shared/hooks/use-debounce';
 import { useEnrollStudent, useImportRoster } from '../hooks/use-enrollment';
 import { useCreateGroup, useGroups, useRenameGroup, useSubjects } from '../hooks/use-subjects';
+import { useRecorteWeb } from '@/shared/hooks/use-recorte-web';
 
 type Props = {
   open: boolean;
@@ -43,6 +44,9 @@ export function RosterImportDialog({ open, onOpenChange, subjectId, subjectName 
   const [term, setTerm] = useState('');
   const [chosenGroup, setChosenGroup] = useState('');
   const [leyendo, setLeyendo] = useState(false);
+  // En la versión web solo se lee lo que se lee aquí (CSV, texto): XLSX, PDF y
+  // fotos pasan por el servidor y son de la aplicación.
+  const recorteWeb = useRecorteWeb();
   const [nombreGrupo, setNombreGrupo] = useState('');
   /** Con grupos ya creados, el formulario de uno nuevo se abre a petición. */
   const [creandoOtro, setCreandoOtro] = useState(false);
@@ -355,7 +359,7 @@ export function RosterImportDialog({ open, onOpenChange, subjectId, subjectName 
               <input
                 ref={fileInput}
                 type="file"
-                accept=".csv,.txt,.tsv,.xlsx,.pdf,image/*"
+                accept={recorteWeb ? '.csv,.txt,.tsv' : '.csv,.txt,.tsv,.xlsx,.pdf,image/*'}
                 className="hidden"
                 onChange={(event) => {
                   const file = event.target.files?.[0];
@@ -372,7 +376,7 @@ export function RosterImportDialog({ open, onOpenChange, subjectId, subjectName 
                 onClick={() => fileInput.current?.click()}
               >
                 <FileUp className="size-4" aria-hidden />
-                Abrir XLSX, CSV, PDF o foto
+                {recorteWeb ? 'Abrir CSV' : 'Abrir XLSX, CSV, PDF o foto'}
               </Button>
               <span className="text-caption text-muted">o pega la lista abajo</span>
             </div>

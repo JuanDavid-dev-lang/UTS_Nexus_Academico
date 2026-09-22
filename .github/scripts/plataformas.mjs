@@ -134,6 +134,21 @@ export const PLATAFORMAS = [
     formatos: [{ id: 'apk', extension: '.apk', etiqueta: 'APK firmado' }],
   },
   {
+    id: 'web',
+    nombre: 'Web',
+    estado: 'soportada',
+    // Es el cliente de escritorio compilado para navegador: su versión es la
+    // de `desktop/`, así que no declara archivos de versión propios.
+    cliente: 'escritorio',
+    arquitecturas: ['navegador'],
+    // No hay nada que descargar ni actualizar: cada push a `main` la vuelve a
+    // publicar y quien la abre ya tiene la última. Por eso su formato no lleva
+    // `clave` —igual que el APK— y el manifiesto del actualizador no la echa
+    // de menos.
+    actualizacion: 'Despliegue continuo en Vercel (cada push a main)',
+    formatos: [{ id: 'spa', extension: '', etiqueta: 'https://utsnexusweb.ciaiuts.com' }],
+  },
+  {
     id: 'macos',
     nombre: 'macOS',
     estado: 'planificada',

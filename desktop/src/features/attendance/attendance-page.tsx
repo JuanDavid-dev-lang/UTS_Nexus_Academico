@@ -19,6 +19,8 @@ import { useAttendance, useMarkAttendance } from '@/features/attendance/hooks/us
 import { useEnrolledStudents } from '@/features/grades/hooks/use-grades';
 import { useGroups, useSubjects } from '@/features/subjects/hooks/use-subjects';
 import { useCurrentUser, useUserRole } from '@/state/session.store';
+import { ExportButton } from '@/features/reports/components/export-button';
+import { useRecorteWeb } from '@/shared/hooks/use-recorte-web';
 import { can } from '@/core/auth/permissions';
 import {
   currentPeriod,
@@ -61,6 +63,10 @@ export default function AttendancePage() {
   const user = useCurrentUser();
   const role = useUserRole();
   const canWrite = can(role, 'attendance.write');
+  const puedeExportar = can(role, 'reports.export');
+  // Leer una planilla desde una foto pasa por el servicio de visión: en la
+  // versión web no está. El QR sí: proyectarlo desde el navegador funciona igual.
+  const recorteWeb = useRecorteWeb();
 
   const subjects = useSubjects();
   const groups = useGroups();
@@ -203,9 +209,18 @@ export default function AttendancePage() {
         title="Asistencia"
         subtitle="Registra la asistencia de una clase; cada marca se guarda al instante"
         actions={
-          canWrite ? (
+          canWrite || puedeExportar ? (
             <div className="flex flex-wrap gap-2">
-              {puedeQr ? (
+              {puedeExportar ? (
+                <ExportButton
+                  kind="attendance"
+                  period={period}
+                  subjectId={subjectId || undefined}
+                  groupId={grupoElegido || undefined}
+                  subjectCode={materiaActiva?.code}
+                />
+              ) : null}
+              {canWrite && puedeQr ? (
                 <Button
                   variant={sesionQr.data ? 'primary' : 'secondary'}
                   onClick={() => setQrOpen(true)}
@@ -214,11 +229,13 @@ export default function AttendancePage() {
                   {sesionQr.data ? 'Lista por QR en curso' : 'Pasar lista con QR'}
                 </Button>
               ) : null}
-              <Button variant="secondary" onClick={() => setScanOpen(true)}>
-                <Camera aria-hidden />
-                Importar desde una foto
-              </Button>
-              {!faltaGrupo && enrolled.data.length > 0 ? (
+              {canWrite && !recorteWeb ? (
+                <Button variant="secondary" onClick={() => setScanOpen(true)}>
+                  <Camera aria-hidden />
+                  Importar desde una foto
+                </Button>
+              ) : null}
+              {canWrite && !faltaGrupo && enrolled.data.length > 0 ? (
                 <Button variant="secondary" onClick={markAllPresent}>
                   <Check aria-hidden />
                   Marcar todos presentes

@@ -37,6 +37,8 @@ import { PendingGradesCard } from '@/features/grades/components/pending-grades-c
 import { StudentBreakdownDialog } from '@/features/grades/components/student-breakdown-dialog';
 import { useGroups, useSubjects } from '@/features/subjects/hooks/use-subjects';
 import { useCurrentUser, useUserRole } from '@/state/session.store';
+import { ExportButton } from '@/features/reports/components/export-button';
+import { useRecorteWeb } from '@/shared/hooks/use-recorte-web';
 import { can } from '@/core/auth/permissions';
 import { currentPeriod, formatGrade, recentPeriods } from '@/shared/lib/format';
 import type { ConsolidatedRow, CutNumber } from '@/domain/schemas/academic';
@@ -66,6 +68,9 @@ export default function GradesPage() {
   const user = useCurrentUser();
   const role = useUserRole();
   const canWrite = can(role, 'grades.write');
+  const puedeExportar = can(role, 'reports.export');
+  // Importar lee Excel, PDF o fotos en el servidor: en la versión web no está.
+  const recorteWeb = useRecorteWeb();
 
   const subjects = useSubjects();
   const groups = useGroups();
@@ -232,27 +237,42 @@ export default function GradesPage() {
         title="Notas"
         subtitle="Captura por componente; el consolidado lo calcula el motor académico"
         actions={
-          canWrite ? (
+          canWrite || puedeExportar ? (
             <>
-              <Button variant="secondary" onClick={() => setPlantillasOpen(true)}>
-                <LayoutTemplate aria-hidden />
-                Plantillas
-              </Button>
-              <Button variant="secondary" onClick={() => setImportOpen(true)}>
-                <FileUp aria-hidden />
-                Importar notas
-              </Button>
-              <Button
-                variant="primary"
-                // Abre el menú completo del primer matriculado: el desglose es
-                // ahora donde se registra, con cada componente y sus subnotas
-                // a la vista y un selector para cambiar de estudiante.
-                onClick={() => setDesgloseId(enrolled.data[0]?._id ?? null)}
-                disabled={!subjectId || enrolled.data.length === 0}
-              >
-                <Plus aria-hidden />
-                Registrar nota
-              </Button>
+              {puedeExportar ? (
+                <ExportButton
+                  kind="grades"
+                  period={period}
+                  subjectId={subjectId || undefined}
+                  groupId={grupoElegido || undefined}
+                  subjectCode={materiaActiva?.code}
+                />
+              ) : null}
+              {canWrite ? (
+                <Button variant="secondary" onClick={() => setPlantillasOpen(true)}>
+                  <LayoutTemplate aria-hidden />
+                  Plantillas
+                </Button>
+              ) : null}
+              {canWrite && !recorteWeb ? (
+                <Button variant="secondary" onClick={() => setImportOpen(true)}>
+                  <FileUp aria-hidden />
+                  Importar notas
+                </Button>
+              ) : null}
+              {canWrite ? (
+                <Button
+                  variant="primary"
+                  // Abre el menú completo del primer matriculado: el desglose es
+                  // ahora donde se registra, con cada componente y sus subnotas
+                  // a la vista y un selector para cambiar de estudiante.
+                  onClick={() => setDesgloseId(enrolled.data[0]?._id ?? null)}
+                  disabled={!subjectId || enrolled.data.length === 0}
+                >
+                  <Plus aria-hidden />
+                  Registrar nota
+                </Button>
+              ) : null}
             </>
           ) : null
         }

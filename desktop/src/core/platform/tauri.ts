@@ -17,6 +17,12 @@ import {
 export const isDesktop: boolean =
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
+/**
+ * La versión web: este cliente servido en un navegador (`npm run build:web`).
+ * Tiene menos funciones que la aplicación, ver `domain/platform/web-access.ts`.
+ */
+export const esWeb: boolean = !isDesktop;
+
 async function call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   return invoke<T>(command, args);
 }
@@ -140,13 +146,19 @@ export const platform = {
       const bytes = Array.from(new Uint8Array(await blob.arrayBuffer()));
 
       if (!isDesktop) {
-        // Browser: fall back to a regular anchor download.
+        // Navegador (la versión web): descarga con un enlace. Va dentro del
+        // documento y el blob se suelta un poco después, no en el acto:
+        // Firefox ignora el clic en un enlace suelto y Safari cancela la
+        // descarga si la URL ya no existe cuando la empieza.
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
         anchor.href = url;
         anchor.download = fileName;
+        anchor.style.display = 'none';
+        document.body.appendChild(anchor);
         anchor.click();
-        URL.revokeObjectURL(url);
+        anchor.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
         return fileName;
       }
 

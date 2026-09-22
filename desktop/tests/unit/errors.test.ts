@@ -137,4 +137,13 @@ describe('appErrorFromResponse', () => {
     const error = appErrorFromResponse(403, { estado: 'PENDIENTE' });
     expect(error.message).toBe('No tienes permisos para realizar esta acción.');
   });
+
+  it('el 403 de la versión web enseña su mensaje: descarga la aplicación', () => {
+    const error = appErrorFromResponse(403, {
+      ok: false,
+      codigo: 'SOLO_EN_APP',
+      message: 'Esta función está disponible en la aplicación de escritorio.',
+    });
+    expect(error.message).toBe('Esta función está disponible en la aplicación de escritorio.');
+  });
 });

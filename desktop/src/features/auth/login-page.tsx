@@ -17,7 +17,7 @@ import { useSinMovimiento } from '@/shared/hooks/use-sin-movimiento';
 import { useSession } from '@/state/session.store';
 import { toast } from '@/state/toast.store';
 import { toAppError } from '@/core/api/errors';
-import { platform } from '@/core/platform/tauri';
+import { esWeb, platform } from '@/core/platform/tauri';
 import { guardarRecordarSesion, leerRecordarSesion } from '@/core/auth/recordar-sesion';
 import { loginInputSchema } from '@/domain/schemas/auth';
 import { normalizeServerUrl } from '@/core/config/env';
@@ -78,6 +78,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [verPassword, setVerPassword] = useState(false);
   const [mayusculas, setMayusculas] = useState(false);
+  // En la web no se ofrece elegir: la sesión vive lo que la pestaña. Los
+  // tokens van a `sessionStorage` —así recargar no echa a nadie— y se pierden
+  // al cerrarla. Recordarla quince días exige un almacén que el navegador no
+  // tiene: es de la aplicación, que guarda en el llavero del sistema.
   const [recordar, setRecordar] = useState(leerRecordarSesion);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [submitting, setSubmitting] = useState(false);
@@ -140,9 +144,9 @@ export default function LoginPage() {
 
     setErrors({});
     setSubmitting(true);
-    guardarRecordarSesion(recordar);
+    if (!esWeb) guardarRecordarSesion(recordar);
     try {
-      await login(parsed.data.email, parsed.data.password, recordar);
+      await login(parsed.data.email, parsed.data.password, esWeb || recordar);
     } catch (error) {
       const appError = toAppError(error);
       const credenciales = appError.kind === 'unauthorized';
@@ -302,24 +306,26 @@ export default function LoginPage() {
                     </AnimatePresence>
                   </motion.div>
 
-                  <motion.label
-                    variants={pieza}
-                    className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-border bg-surface-alt/60 px-3.5 py-3 transition-colors hover:border-border-strong"
-                  >
-                    <span className="flex flex-col">
-                      <span className="text-body font-semibold text-text">
-                        Mantener la sesión iniciada
+                  {esWeb ? null : (
+                    <motion.label
+                      variants={pieza}
+                      className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-border bg-surface-alt/60 px-3.5 py-3 transition-colors hover:border-border-strong"
+                    >
+                      <span className="flex flex-col">
+                        <span className="text-body font-semibold text-text">
+                          Mantener la sesión iniciada
+                        </span>
+                        <span className="text-caption text-muted">
+                          Hasta 15 días sin volver a entrar, solo en este equipo.
+                        </span>
                       </span>
-                      <span className="text-caption text-muted">
-                        Hasta 15 días sin volver a entrar, solo en este equipo.
-                      </span>
-                    </span>
-                    <Switch
-                      checked={recordar}
-                      onCheckedChange={setRecordar}
-                      aria-label="Mantener la sesión iniciada"
-                    />
-                  </motion.label>
+                      <Switch
+                        checked={recordar}
+                        onCheckedChange={setRecordar}
+                        aria-label="Mantener la sesión iniciada"
+                      />
+                    </motion.label>
+                  )}
 
                   <motion.div variants={pieza}>
                     <Button
@@ -376,22 +382,27 @@ export default function LoginPage() {
                           <Server className="mt-0.5 size-3.5 shrink-0" aria-hidden />
                           <span>
                             No hay respuesta de <span className="font-mono">{serverUrl}</span>.
-                            Comprueba tu conexión, o escribe abajo otra dirección.
+                            {esWeb
+                              ? 'Comprueba tu conexión e inténtalo de nuevo.'
+                              : 'Comprueba tu conexión, o escribe abajo otra dirección.'}
                           </span>
                         </p>
 
-                        <div className="mt-3 flex gap-2">
-                          <Input
-                            value={serverDraft}
-                            onChange={(event) => setServerDraft(event.target.value)}
-                            placeholder="https://servidor.uts.edu.co"
-                            aria-label="Dirección del servidor"
-                            className="font-mono text-caption"
-                          />
-                          <Button variant="secondary" onClick={() => void handleSaveServer()}>
-                            Guardar
-                          </Button>
-                        </div>
+                        {/* En la web el servidor es el que sirve la página: no hay otro que elegir. */}
+                        {esWeb ? null : (
+                          <div className="mt-3 flex gap-2">
+                            <Input
+                              value={serverDraft}
+                              onChange={(event) => setServerDraft(event.target.value)}
+                              placeholder="https://servidor.uts.edu.co"
+                              aria-label="Dirección del servidor"
+                              className="font-mono text-caption"
+                            />
+                            <Button variant="secondary" onClick={() => void handleSaveServer()}>
+                              Guardar
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     </motion.div>
                   ) : null}
