@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -76,6 +77,14 @@ class LocalNotificationsService {
 
   Future<void> init() async {
     if (_iniciado) return;
+    // Solo Android: el plugin se inicializa con ajustes de Android y nada más.
+    // En Windows (`flutter run -d windows` para mirar la interfaz) esa llamada
+    // **no termina nunca** y la app se queda sin pintar el primer fotograma:
+    // ventana oculta y ningún error.
+    if (!Platform.isAndroid) {
+      _iniciado = true;
+      return;
+    }
 
     // Se programa sobre instantes absolutos (UTC), no sobre horas de pared: la
     // hora de la clase ya viene resuelta del servidor. Fijar la zona local a

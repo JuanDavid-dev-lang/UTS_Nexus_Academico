@@ -656,6 +656,48 @@ paginación sea estable.
 - Final = C1×0.33 + C2×0.33 + C3×0.34; aprobado ≥ 3.0 (escala 0–5).
 - Asistencia ponderada por minutos: `minutos presentes ÷ minutos totales`.
 - El dashboard y el riesgo usan `calcularPromedioParcial()` (solo cortes calificados, pesos renormalizados) para evitar falsos positivos a mitad de semestre.
+- **Dentro de un componente, cada nota tiene un peso relativo** (`Nota.weight`,
+  por defecto 1). Un parcial teórico con 60 y uno práctico con 40 pesan 60 % y
+  40 % de «Parciales»; con todos los pesos en 1 es el promedio simple de
+  siempre, así que nada anterior cambia. Es relativo y no un porcentaje a
+  propósito: 60/40, 6/4 y 3/2 son lo mismo, y añadir una nota no obliga a
+  recuadrar las demás. `pesoDeNota()` trata un peso ausente, cero, negativo o
+  `NaN` como 1 —no divide por cero ni descarta la nota—. El consolidado
+  devuelve en cada nota `weight` y `pesoRelativo` (su fracción), y los dos
+  clientes pintan «a×60% + b×40%» solo cuando los pesos difieren.
+
+### Plantillas de corte (`domains/grading/plantilla-notas.ts`, `modules/grades/grade-templates.*`)
+
+Un docente que siempre pone tres talleres, un parcial teórico al 60 % y uno
+práctico al 40 % no lo teclea estudiante por estudiante: lo guarda una vez como
+**plantilla** (`PlantillaNotas`, del docente, colección `plantillas_notas`) y
+la **aplica** a una materia —y a un grupo, si quiere— en un periodo. Lo
+aplicado es una **estructura** (`EstructuraNotas`, `estructuras_notas`, única
+por materia + grupo + periodo; `groupId: null` vale para todos los grupos y la
+de un grupo manda sobre la de la materia).
+
+- **Aplicar copia, no enlaza.** Editar la plantilla después no cambia cómo se
+  calificó a un grupo que ya la tenía puesta; `plantillaId` es solo el rastro.
+- **La plantilla propone; no escribe ninguna nota.** El desglose del estudiante
+  enseña «Faltan: Parcial teórico, Parcial práctico» y al tocar una rellena
+  nombre y peso. Una nota fuera de la plantilla sigue valiendo.
+- **El peso lo resuelve el servidor** (`resolverPeso`): el explícito del
+  cuerpo manda; si no viene, el de la estructura del grupo del estudiante por
+  etiqueta (sin distinguir mayúsculas); si no, 1. Por eso el móvil, que no pide
+  peso, queda igual de bien ponderado que el escritorio. `/grades/bulk` acepta
+  `weights[]` alineado con `labels[]` y resuelve igual.
+- Rutas: `GET|POST|PATCH|DELETE /grades/plantillas`, `GET /grades/estructuras`
+  (acotado al alcance), `GET /grades/estructuras/vigente`, `PUT|DELETE
+  /grades/estructuras`. Montadas **antes** de `gradeRouter`: `/plantillas/:id`
+  caería en su `PATCH /:id`. Solo ADMIN y el docente dueño de la materia y el
+  grupo escriben; coordinación lee.
+- Emiten `gradeTemplate` y `gradeStructure` por `sync:update`; la segunda tira
+  también el consolidado en los dos clientes. Lo cubre `tests/plantilla-notas.test.ts`
+  y la sección 4b de la E2E.
+- Escritorio: botón «Plantillas» en Notas (`grade-templates-dialog.tsx`), la
+  plantilla vigente se enseña junto a los filtros y el desglose lleva el campo
+  «Peso» opcional. El móvil solo pinta los pesos; las plantillas se gestionan
+  desde el escritorio.
 
 ### Sincronización en tiempo real
 El backend emite un evento único `sync:update` con payload `{entity, action, id}` — no una familia de eventos por entidad. El escritorio v2 mapea cada `entity` a las claves de caché de TanStack Query que invalida (`desktop/src/core/realtime/socket.ts`) y el móvil a sus providers de Riverpod (`flutter_app/lib/app.dart`). Al añadir una entidad o mutación nueva, emitir `sync:update` y registrar el mapeo de invalidación **en los dos clientes**.
@@ -745,6 +787,63 @@ sobre qué es un metadato. Ninguna era peor; el problema era que fueran tres.
 
 **La densidad no se gana encogiendo lo que se toca**: 48 dp de objetivo táctil,
 44 de mínimo absoluto. Detalle en DESIGN.md §7.2.
+
+### Lavado de cara del móvil (septiembre de 2026)
+
+Todo dentro de los tokens de DESIGN.md; ningún color en crudo. Lo que cambió
+vive en las piezas compartidas para que las pantallas lo hereden:
+
+- **`AppCard` pinta `AppGradients.surface`** (superficie → 35 % hacia la
+  alterna), el mismo degradado casi invisible que `.surface-card` en el
+  escritorio. Seleccionada, el tinte de marca manda y no hay degradado.
+- **`CompactStat`** lleva el icono en su cuadro a la derecha y la cifra en
+  w800 con tracking negativo; **`CompactSectionHeader`** abre con una marca de
+  acento de 3×12 en el primario. **`InitialsAvatar(cuadrado: true)`** es para lo
+  que no es una persona (una materia); el círculo queda para la gente.
+- **`StateView.empty` y `.error` llevan a Rubri** (tranquilo y triste);
+  `rubri:` es opcional y sin él sigue el icono en su halo. **Ojo con
+  `uiautomator dump`**: Rubri flota sin parar y la pantalla nunca está
+  «idle», así que el volcado de accesibilidad falla en toda pantalla con Rubri.
+- **Panel**: `SaludoPanel` (fecha en versalitas, «Buenas tardes, Nombre» con
+  el nombre en primario, Rubri a la derecha) y `AvisoDeAtencion` (solo si hay
+  estudiantes en riesgo; un aviso con «0» sería ruido). La cabecera dice
+  «Panel»: el saludo ya no cabe en 56 dp.
+- **Acceso** (`login_page.dart`): la pantalla entera es la superficie de
+  marca, pintada por un `CustomPainter` tras `RepaintBoundary` con tres nubes
+  de la paleta que respiran en un ciclo de 14 s (es la única animación continua
+  a pantalla completa; si hubiera tirones en gama baja, primero dos nubes).
+  Encima, una apertura de 800 ms con un solo reloj: el logo cae con resorte,
+  Rubri entra con un giro de saludo —y pone la cara «sin conexión» si no se
+  encuentra el servidor—, título y frase escalonados y la tarjeta del
+  formulario sube con `AppMotion.spring`. Cada pieza se mueve una vez, por eso
+  pasa de los 320 ms de `AppMotion.slow`. El `Stack` va con
+  `StackFit.expand`: sin ella el degradado terminaba donde la tarjeta y
+  dejaba una costura en pantallas altas. «Reducir movimiento» para las nubes y
+  salta la apertura al final aunque se active con la pantalla abierta, y los
+  `Opacity` llevan `alwaysIncludeSemantics` para que el lector encuentre el
+  formulario desde el primer fotograma. `test/login_page_test.dart` lo fija a
+  360×640 con teclado en claro y oscuro. Se eligió entre tres propuestas
+  (aurora, cabecera con onda, editorial sobre fondo de página); del botón de la
+  editorial viene la sombra que baja al enviar y la barra de 3 dp con su alto
+  reservado.
+- **Barra inferior**: indicador en píldora (`indicatorShape`), filo superior y
+  sombra hacia arriba. Sigue siendo un `NavigationBar`: el recorrido la mide
+  por partes iguales. **Avatar de sesión** con anillo de degradado de marca;
+  **Ajustes** abre con `PerfilResumen` (nombre, correo, rol → perfil). Las
+  celdas de «Más» llevan el icono siempre en tinta de marca.
+- **Título de cabecera se queda en 16 px**: probado con h3 (24), «Mis materias»
+  se truncaba a «Mis mate…» con el periodo y las acciones al lado en 360 dp.
+
+Dos cosas del recorrido que se aprendieron probándolo en el emulador:
+**el objetivo se acepta solo con dos lecturas iguales seguidas** (la hoja de
+«Más» sube animada y la primera lectura de una celda daba un hueco fuera de
+pantalla que nunca se corregía), y **tras cada `addPostFrameCallback` se pide
+un fotograma** (`scheduleFrame`): con la pantalla quieta nadie lo pide y la
+medición se paraba justo antes de la lectura estable. Y una del arranque:
+`LocalNotificationsService.init()` **sale en cualquier plataforma que no sea
+Android** — en Windows (`flutter run -d windows` para mirar la interfaz) la
+inicialización del plugin no terminaba nunca y la app se quedaba con la
+ventana oculta y sin error.
 
 ### Escritorio v2 — capas
 `domain/` (esquemas Zod + puertos, sin React) → `infrastructure/` (adaptadores HTTP de los puertos) → `features/` (una pantalla por capacidad) → `shared/` (design system según `DESIGN.md`). Estado de servidor con TanStack Query, estado de cliente con Zustand. Tokens en `keyring` (Rust) vía `src-tauri/src/commands/`. `desktop_python/` (PySide6) está **muerto**: su lanzador se eliminó y no recibe cambios. No añadir nada ahí ni tomarlo como referencia.
@@ -1062,6 +1161,48 @@ tamaño del texto, reducir movimiento).
   cercano, y el `DecoratedBox` de la tarjeta la tapaba en toda la aplicación.
 - **Los colores de un tono no se escriben en ninguna pantalla.** Una pantalla que
   pinte `#0B5D3B` a mano se queda verde con el tono Océano; usa los tokens.
+- **La posición del menú** (`posicionMenu`: izquierda, derecha, arriba, abajo)
+  es parte de la misma preferencia y solo del escritorio. `AppShell` pone el
+  menú antes o después del contenido y cambia la dirección del contenedor:
+  cuatro disposiciones son el mismo árbol con otra clase. `Sidebar` recibe
+  `position` y de ahí salen el borde, el lado del tooltip y el indicador de
+  activo; arriba y abajo es una barra horizontal (`--navbar-height`) que **se
+  compacta sola a iconos cuando las etiquetas no caben** —un ADMIN en modo
+  admin tiene 24 entradas— midiendo el ancho necesario solo mientras hay
+  etiquetas. El cajón del modo estrecho es siempre vertical, y el botón de
+  Rubri se aparta lo que mida el menú cuando está abajo o a la derecha. El
+  tutorial no asume ningún lado: coloca la tarjeta donde haya más sitio.
+- **El tutorial** (`features/tutorial/tour.tsx`) ilumina con **un solo `div`
+  con una sombra de 200vmax** movido por un resorte de framer-motion. Antes era
+  un velo a pantalla completa con `backdrop-blur` recortado por una máscara
+  SVG, que obliga a desenfocar toda la ventana en cada fotograma y se notaba
+  como un tirón en WebView2 y WebKitGTK. El elemento se espera con
+  `requestAnimationFrame` hasta 1,2 s en vez de un temporizador fijo, el resize
+  se mide una vez por fotograma, y «reducir movimiento» (del sistema o de
+  Apariencia) deja todo en cero. Cada paso lleva su icono en `pasos.ts`; los de
+  apertura y cierre llevan a Rubri. **En el móvil el recorrido también señala
+  la pantalla real** (`features/tutorial/tour_overlay.dart`): un velo con un
+  hueco (un solo `CustomPaint` con `Path.combine`) sobre la pestaña de la barra
+  o la celda de «Más» de la que se habla, y la tarjeta encima o debajo según
+  dónde esté el hueco. **Quién es el objetivo lo decide `AppScaffold`**, no el
+  overlay: es quien sabe qué cuatro destinos están en la barra (el orden lo
+  elige cada docente), cuáles viven en «Más» y cómo abrir esa hoja; cada paso
+  lleva su `ruta` en `pasos` y se resuelve en el momento —casilla de la barra
+  (el ancho repartido a partes iguales), celda de la hoja (con `GlobalKey`) o
+  centrado—, y lo que el rol no ve se salta. Va en el `Overlay` raíz para
+  quedar por encima de la hoja modal; el objetivo se mide tras pintar y se
+  reintenta hasta ~1,2 s. Ajustes lo pide con `tourSolicitadoProvider` (un
+  contador). En una tableta con riel no hay barra que señalar y se usa la
+  página a pantalla completa de siempre (`tutorial_page.dart`, ahora con
+  parallax atado al gesto). `test/tour_overlay_test.dart` y
+  `test/tutorial_page_test.dart` usan `pump` con tiempo y no `pumpAndSettle`:
+  Rubri y el anillo respiran sin parar.
+- **La tarjeta «Servidor» de Configuración es solo de ADMIN** en los dos
+  clientes (`server-card.tsx`; en el móvil, la sección plegada de Ajustes). A
+  un docente o a coordinación no le sirve —el servidor lo fija la
+  institución— y sí le puede dejar la aplicación apuntando a ninguna parte con
+  un «error de red» que no dice por qué. La pantalla de inicio de sesión sigue
+  ofreciéndola a quien la necesite antes de entrar.
 
 ## Sistema de diseño
 

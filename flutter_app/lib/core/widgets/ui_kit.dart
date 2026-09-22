@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'rubri.dart';
 import '../theme/app_theme.dart';
 
 /// Componentes reutilizables del sistema de diseño (DESIGN.md §8, §12, §18).
@@ -48,6 +50,11 @@ class AppCard extends StatelessWidget {
       padding: padding,
       decoration: BoxDecoration(
         color: selected ? palette.primarySoft : palette.surface,
+        // El mismo degradado casi invisible que `.surface-card` en el
+        // escritorio: de la superficie a un 35 % hacia la alterna. Es lo que
+        // hace que una tarjeta se lea como un objeto con luz encima y no como
+        // un rectángulo plano; seleccionada, el tinte de marca manda.
+        gradient: selected ? null : AppGradients.surface(palette),
         borderRadius: radio,
         border: Border.all(
           color: selected ? palette.primary : palette.border,
@@ -593,12 +600,19 @@ class StateView extends StatelessWidget {
   final String title;
   final String message;
   final Widget? action;
+
+  /// Con emoción, Rubri ocupa el sitio del icono. Un vacío con Rubri
+  /// tranquilo dice «aquí no falta nada»; un error con Rubri triste dice
+  /// «esto es un problema» sin un triángulo rojo.
+  final RubriEmotion? rubri;
+
   const StateView({
     super.key,
     required this.icon,
     required this.title,
     required this.message,
     this.action,
+    this.rubri,
   });
 
   factory StateView.loading([String message = 'Cargando información…']) =>
@@ -614,6 +628,7 @@ class StateView extends StatelessWidget {
     icon: Icons.inbox_outlined,
     title: 'Sin datos',
     message: message,
+    rubri: RubriEmotion.neutral,
   );
 
   factory StateView.error(String message, {Widget? action}) => StateView(
@@ -621,6 +636,7 @@ class StateView extends StatelessWidget {
     title: 'Ocurrió un problema',
     message: message,
     action: action,
+    rubri: RubriEmotion.sad,
   );
 
   @override
@@ -637,26 +653,38 @@ class StateView extends StatelessWidget {
             // no cargó. El halo le da un sitio donde estar y convierte el
             // bloque en algo intencionado, que es lo que un estado vacío tiene
             // que comunicar: aquí no falta nada, todavía no hay nada.
-            Container(
-              width: 76,
-              height: 76,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: palette.surfaceAlt,
-                shape: BoxShape.circle,
-              ),
-              child: Container(
-                width: 54,
-                height: 54,
+            if (rubri != null)
+              Container(
+                width: 112,
+                height: 112,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: palette.surface,
+                  color: palette.surfaceAlt,
                   shape: BoxShape.circle,
-                  boxShadow: AppShadows.sm(palette.isDark),
                 ),
-                child: Icon(icon, size: 26, color: palette.muted),
+                child: Rubri(emotion: rubri!, size: 84),
+              )
+            else
+              Container(
+                width: 76,
+                height: 76,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: palette.surfaceAlt,
+                  shape: BoxShape.circle,
+                ),
+                child: Container(
+                  width: 54,
+                  height: 54,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: palette.surface,
+                    shape: BoxShape.circle,
+                    boxShadow: AppShadows.sm(palette.isDark),
+                  ),
+                  child: Icon(icon, size: 26, color: palette.muted),
+                ),
               ),
-            ),
             const SizedBox(height: AppSpacing.gap + 4),
             Text(
               title,

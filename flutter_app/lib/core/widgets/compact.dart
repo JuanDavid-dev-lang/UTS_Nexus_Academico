@@ -249,7 +249,17 @@ class AcademicRow extends StatelessWidget {
 class InitialsAvatar extends StatelessWidget {
   final String nombre;
   final double size;
-  const InitialsAvatar(this.nombre, {super.key, this.size = 34});
+
+  /// Cuadrado con esquinas en vez de círculo: para lo que no es una persona
+  /// (una materia, un grupo). El círculo queda para la gente.
+  final bool cuadrado;
+
+  const InitialsAvatar(
+    this.nombre, {
+    super.key,
+    this.size = 34,
+    this.cuadrado = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -271,7 +281,10 @@ class InitialsAvatar extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: tono.bg,
-        shape: BoxShape.circle,
+        shape: cuadrado ? BoxShape.rectangle : BoxShape.circle,
+        borderRadius: cuadrado
+            ? BorderRadius.circular(AppSpacing.radiusInput - 2)
+            : null,
         // El anillo separa el avatar de la fila sin dibujar un borde de 1 px:
         // en una lista de treinta, treinta bordes son treinta líneas más
         // compitiendo con las que ya separan las filas.
@@ -407,36 +420,47 @@ class CompactStat extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (icono != null) ...[
-                      Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: semantico?.bg ?? palette.primarySoft,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Icon(icono, size: 13, color: color),
-                      ),
-                      const SizedBox(width: AppSpacing.gapSm),
-                    ],
                     Expanded(
-                      child: Text(
-                        etiqueta.toUpperCase(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppType.captionStrong.copyWith(
-                          letterSpacing: 0.6,
-                          color: palette.muted,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 3),
+                        child: Text(
+                          etiqueta.toUpperCase(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppType.captionStrong.copyWith(
+                            letterSpacing: 0.6,
+                            color: palette.muted,
+                          ),
                         ),
                       ),
                     ),
+                    // El icono a la derecha, en su cuadro de tono: identifica
+                    // la tarjeta sin robarle sitio a la etiqueta, que era lo
+                    // que pasaba con el icono delante en 360 dp.
+                    if (icono != null)
+                      Container(
+                        width: 28,
+                        height: 28,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: semantico?.bg ?? palette.primarySoft,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(icono, size: 15, color: color),
+                      ),
                   ],
                 ),
-                const SizedBox(height: AppSpacing.gapSm),
+                const SizedBox(height: AppSpacing.gapXs),
                 Text(
                   valor,
                   maxLines: 1,
-                  style: AppType.metric.copyWith(color: color),
+                  style: AppType.metric.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
                 ),
                 if (progreso != null) ...[
                   const SizedBox(height: AppSpacing.gapSm),
@@ -1059,11 +1083,22 @@ class CompactSectionHeader extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: AppSpacing.gapSm),
       child: Row(
         children: [
+          // Una marca de acento de 3×12: convierte el título en un ancla que
+          // el ojo encuentra al desplazar, sin gastar una línea más de alto.
+          Container(
+            width: 3,
+            height: 12,
+            margin: const EdgeInsets.only(right: AppSpacing.gapSm),
+            decoration: BoxDecoration(
+              color: palette.primary,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
           Text(
             titulo.toUpperCase(),
             style: AppType.captionStrong.copyWith(
               letterSpacing: 0.8,
-              color: palette.muted,
+              color: palette.text,
               fontWeight: FontWeight.w700,
             ),
           ),

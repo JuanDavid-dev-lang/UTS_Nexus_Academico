@@ -10,6 +10,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/compact.dart';
 import '../../core/widgets/debounced_search_field.dart';
 import '../../core/widgets/period_selector.dart';
+import '../../core/widgets/rubri.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
 
@@ -50,8 +51,11 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
       constructor: (_) => _FormularioMateria(period: period),
     );
     if (creada == true && mounted) {
-      AppToast.success(this.context, 'Materia creada',
-          'Con su grupo, lista para matricular estudiantes.');
+      AppToast.success(
+        this.context,
+        'Materia creada',
+        'Con su grupo, lista para matricular estudiantes.',
+      );
     }
   }
 
@@ -123,23 +127,35 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
                   final visibles = q.isEmpty
                       ? items
                       : items
-                          .where((m) =>
-                              m.name.toLowerCase().contains(q) ||
-                              m.code.toLowerCase().contains(q))
-                          .toList();
+                            .where(
+                              (m) =>
+                                  m.name.toLowerCase().contains(q) ||
+                                  m.code.toLowerCase().contains(q),
+                            )
+                            .toList();
 
                   if (visibles.isEmpty) {
+                    // Estado vacío a página completa, con Rubri: es la pantalla
+                    // entera la que está vacía, no una sección.
                     return ListView(
                       padding: AppSpacing.listPadding,
                       children: [
-                        CompactEmpty(
-                          icono: Icons.menu_book_outlined,
-                          mensaje: q.isEmpty
-                              ? 'No tienes materias en el periodo $period. Crea '
-                                  'una con el botón +, cambia de periodo o pide '
-                                  'que te asignen una.'
-                              : 'Ninguna materia coincide con «$_query».',
-                        ),
+                        const SizedBox(height: AppSpacing.gap * 2),
+                        q.isEmpty
+                            ? StateView(
+                                icon: Icons.menu_book_outlined,
+                                rubri: RubriEmotion.neutral,
+                                title: 'Sin materias en $period',
+                                message:
+                                    'Crea una con el botón +, cambia de periodo '
+                                    'o pide que te asignen una.',
+                              )
+                            : StateView(
+                                icon: Icons.search_off_outlined,
+                                title: 'Nada por aquí',
+                                message:
+                                    'Ninguna materia coincide con «$_query».',
+                              ),
                       ],
                     );
                   }
@@ -150,7 +166,8 @@ class _SubjectsPageState extends ConsumerState<SubjectsPage> {
                     itemCount: visibles.length,
                     separatorBuilder: (_, __) =>
                         const SizedBox(height: AppSpacing.gapSm),
-                    itemBuilder: (_, indice) => _FilaMateria(subject: visibles[indice]),
+                    itemBuilder: (_, indice) =>
+                        _FilaMateria(subject: visibles[indice]),
                   );
                 },
               ),
@@ -181,17 +198,26 @@ class _FilaMateria extends ConsumerWidget {
       // números para poder entrar a la materia sería esperar por nada.
       loading: () => AcademicRow(
         titulo: subject.name,
-        metadatos: [subject.code, '${subject.credits} créditos', subject.period],
+        avatar: InitialsAvatar(subject.name, cuadrado: true),
+        metadatos: [
+          subject.code,
+          '${subject.credits} créditos',
+          subject.period,
+        ],
         onTap: () => context.go('/subjects/${subject.id}'),
       ),
       // Un fallo al contar no debe ocultar la materia.
       error: (_, __) => AcademicRow(
         titulo: subject.name,
+        avatar: InitialsAvatar(subject.name, cuadrado: true),
         metadatos: [subject.code, 'sin cifras disponibles'],
         onTap: () => context.go('/subjects/${subject.id}'),
       ),
       data: (data) => AcademicRow(
         titulo: subject.name,
+        // Las iniciales identifican la materia de un vistazo en una lista
+        // donde todas empiezan por el mismo icono.
+        avatar: InitialsAvatar(subject.name, cuadrado: true),
         metadatos: [
           subject.code,
           '${data.students} estudiantes',
@@ -208,7 +234,9 @@ class _FilaMateria extends ConsumerWidget {
                     : SemanticKind.danger,
               )
             : null,
-        estado: data.atRisk > 0 ? StatusPill.warning('${data.atRisk} riesgo') : null,
+        estado: data.atRisk > 0
+            ? StatusPill.warning('${data.atRisk} riesgo')
+            : null,
         acento: data.atRisk > 0 ? SemanticKind.warning : null,
         onTap: () => context.go('/subjects/${subject.id}'),
       ),
@@ -257,8 +285,10 @@ class _FormularioMateriaState extends ConsumerState<_FormularioMateria> {
     final grupo = _grupo.text.trim().toUpperCase();
     final creditos = int.tryParse(_creditos.text.trim()) ?? 0;
     if (nombre.length < 3 || codigo.length < 2) {
-      setState(() => _error =
-          'El nombre necesita al menos 3 caracteres y el código 2.');
+      setState(
+        () =>
+            _error = 'El nombre necesita al menos 3 caracteres y el código 2.',
+      );
       return;
     }
     if (grupo.isEmpty) {
@@ -266,8 +296,10 @@ class _FormularioMateriaState extends ConsumerState<_FormularioMateria> {
       return;
     }
     if (grupo.replaceAll(' ', '') == codigo.toUpperCase().replaceAll(' ', '')) {
-      setState(() => _error =
-          'El grupo no es el código de la materia: usa la etiqueta del grupo (por ejemplo A194).');
+      setState(
+        () => _error =
+            'El grupo no es el código de la materia: usa la etiqueta del grupo (por ejemplo A194).',
+      );
       return;
     }
     final professorId = ref.read(authControllerProvider).user?.id;

@@ -10,6 +10,8 @@ import './widgets/appearance_section.dart';
 import './widgets/notifications_section.dart';
 import './widgets/password_section.dart';
 import './widgets/update_section.dart';
+import './widgets/perfil_resumen.dart';
+import '../tutorial/tour_overlay.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/admin/admin_mode_provider.dart';
 
@@ -55,6 +57,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       body: ListView(
         padding: AppSpacing.pagePadding,
         children: [
+          if (ref.watch(authControllerProvider).user case final usuario?) ...[
+            PerfilResumen(user: usuario),
+            const SizedBox(height: 22),
+          ],
           if (ref.watch(authControllerProvider).user?.role == 'ADMIN') ...[
             _SectionLabel('Modo de Interfaz Administrador', muted: muted),
             AppCard(
@@ -69,7 +75,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         decoration: BoxDecoration(
                           color: ref.watch(adminModeProvider)
                               ? palette.primarySoft
-                              : (isDark ? Colors.grey.shade800 : Colors.grey.shade200),
+                              : (isDark
+                                    ? Colors.grey.shade800
+                                    : Colors.grey.shade200),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Icon(
@@ -113,7 +121,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       width: double.infinity,
                       child: FilledButton.tonalIcon(
                         onPressed: () => context.push('/admin-supervision'),
-                        icon: const Icon(Icons.travel_explore_outlined, size: 18),
+                        icon: const Icon(
+                          Icons.travel_explore_outlined,
+                          size: 18,
+                        ),
                         label: const Text('Supervisión de Cuentas y Docentes'),
                       ),
                     ),
@@ -123,101 +134,117 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ),
             const SizedBox(height: 22),
           ],
-          _SectionLabel('Servidor', muted: muted),
-          AppCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      switch (connection.phase) {
-                        ConnectionPhase.connected => Icons.check_circle_outline,
-                        ConnectionPhase.degraded =>
-                          Icons.warning_amber_outlined,
-                        ConnectionPhase.discovering =>
-                          Icons.travel_explore_outlined,
-                        ConnectionPhase.checking => Icons.wifi_find_outlined,
-                        ConnectionPhase.notFound => Icons.wifi_off_outlined,
-                      },
-                      size: 20,
-                      color: switch (connection.phase) {
-                        ConnectionPhase.connected =>
-                          SemanticTone.of(context, SemanticKind.success).fg,
-                        ConnectionPhase.degraded =>
-                          SemanticTone.of(context, SemanticKind.warning).fg,
-                        ConnectionPhase.notFound =>
-                          SemanticTone.of(context, SemanticKind.danger).fg,
-                        _ => muted,
-                      },
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            connection.baseUrl ?? 'Sin servidor',
-                            style: AppType.caption
-                                .copyWith(fontFamily: 'monospace'),
-                          ),
-                          if (connection.detail != null)
-                            Text(connection.detail!,
-                                style:
-                                    AppType.caption.copyWith(color: muted)),
-                        ],
+          // Solo ADMIN. La app descubre el servidor sola y en producción es
+          // uno fijo; a un docente esta tarjeta solo le sirve para quedarse
+          // apuntando a ninguna parte. El escritorio hace lo mismo.
+          if (ref.watch(authControllerProvider).user?.role == 'ADMIN') ...[
+            _SectionLabel('Servidor', muted: muted),
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        switch (connection.phase) {
+                          ConnectionPhase.connected =>
+                            Icons.check_circle_outline,
+                          ConnectionPhase.degraded =>
+                            Icons.warning_amber_outlined,
+                          ConnectionPhase.discovering =>
+                            Icons.travel_explore_outlined,
+                          ConnectionPhase.checking => Icons.wifi_find_outlined,
+                          ConnectionPhase.notFound => Icons.wifi_off_outlined,
+                        },
+                        size: 20,
+                        color: switch (connection.phase) {
+                          ConnectionPhase.connected => SemanticTone.of(
+                            context,
+                            SemanticKind.success,
+                          ).fg,
+                          ConnectionPhase.degraded => SemanticTone.of(
+                            context,
+                            SemanticKind.warning,
+                          ).fg,
+                          ConnectionPhase.notFound => SemanticTone.of(
+                            context,
+                            SemanticKind.danger,
+                          ).fg,
+                          _ => muted,
+                        },
                       ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              connection.baseUrl ?? 'Sin servidor',
+                              style: AppType.caption.copyWith(
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                            if (connection.detail != null)
+                              Text(
+                                connection.detail!,
+                                style: AppType.caption.copyWith(color: muted),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _working ? null : _rediscover,
+                          icon: _working
+                              ? const SizedBox(
+                                  height: 15,
+                                  width: 15,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.refresh, size: 18),
+                          label: const Text('Buscar servidor'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () =>
+                              setState(() => _showManual = !_showManual),
+                          child: Text(_showManual ? 'Ocultar' : 'Manual'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_showManual) ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _manualServer,
+                      keyboardType: TextInputType.url,
+                      autocorrect: false,
+                      decoration: const InputDecoration(
+                        labelText: 'Dirección del servidor',
+                        hintText: '192.168.1.10',
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    FilledButton(
+                      onPressed: _applyManual,
+                      child: const Text('Conectar'),
                     ),
                   ],
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _working ? null : _rediscover,
-                        icon: _working
-                            ? const SizedBox(
-                                height: 15,
-                                width: 15,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2))
-                            : const Icon(Icons.refresh, size: 18),
-                        label: const Text('Buscar servidor'),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () =>
-                            setState(() => _showManual = !_showManual),
-                        child: Text(_showManual ? 'Ocultar' : 'Manual'),
-                      ),
-                    ),
-                  ],
-                ),
-                if (_showManual) ...[
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _manualServer,
-                    keyboardType: TextInputType.url,
-                    autocorrect: false,
-                    decoration: const InputDecoration(
-                      labelText: 'Dirección del servidor',
-                      hintText: '192.168.1.10',
-                      isDense: true,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  FilledButton(
-                    onPressed: _applyManual,
-                    child: const Text('Conectar'),
-                  ),
                 ],
-              ],
+              ),
             ),
-          ),
-          const SizedBox(height: 22),
+            const SizedBox(height: 22),
+          ],
           _SectionLabel('Apariencia', muted: muted),
           const AppearanceSection(),
           const SizedBox(height: 22),
@@ -229,7 +256,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               title: const Text('Ver el tutorial'),
               subtitle: const Text('Un recorrido por las secciones de la app'),
               trailing: const Icon(Icons.chevron_right_outlined),
-              onTap: () => context.push('/tutorial'),
+              // El recorrido lo lanza el scaffold: es quien tiene la barra y
+              // las celdas que hay que señalar.
+              onTap: () => ref.read(tourSolicitadoProvider.notifier).state++,
             ),
           ),
           const SizedBox(height: 22),
@@ -272,8 +301,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       setState(() => _showManual = false);
       AppToast.success(context, 'Servidor conectado');
     } else {
-      AppToast.error(context, 'No responde',
-          'Verifica la dirección y que el servidor esté encendido.');
+      AppToast.error(
+        context,
+        'No responde',
+        'Verifica la dirección y que el servidor esté encendido.',
+      );
     }
   }
 }

@@ -430,6 +430,18 @@ class AppGradients {
   /// oscuro NUNCA es el color de acento puro: DESIGN.md §4 regla 2 prohíbe el
   /// acento como fondo de superficie grande, y `brandStart/Mid/End` de cada
   /// tono ya son la rampa neutra apagada que sustituye a la lima ahí.
+  /// Degradado de tarjeta: de la superficie a un 35 % hacia la alterna, de
+  /// arriba abajo. Casi invisible a propósito: da volumen sin cambiar el color
+  /// que el sistema de diseño asigna a la superficie.
+  static LinearGradient surface(AppPalette palette) => LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [
+      palette.surface,
+      Color.lerp(palette.surface, palette.surfaceAlt, 0.35)!,
+    ],
+  );
+
   static LinearGradient brand(AppPalette palette) => LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
@@ -960,6 +972,11 @@ class AppTheme {
         // sobre nada más, así que no hace falta translucidez, y una tinta
         // opaca no cambia de tono si algún día la barra deja de ser blanca.
         indicatorColor: palette.primarySoft,
+        // Píldora y no el óvalo ancho de Material 3: abraza el icono y deja
+        // claro cuál es la pestaña sin pintar media barra.
+        indicatorShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(r(AppSpacing.radiusInput)),
+        ),
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         labelTextStyle: WidgetStateProperty.resolveWith((estados) {

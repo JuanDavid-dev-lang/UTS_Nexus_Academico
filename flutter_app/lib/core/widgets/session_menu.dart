@@ -86,14 +86,27 @@ class SessionMenuButton extends ConsumerWidget {
       ],
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: CircleAvatar(
-          radius: 16,
-          backgroundColor: scheme.primary,
-          foregroundImage:
-              user.photoUrl != null ? NetworkImage(user.photoUrl!) : null,
-          child: Text(
-            initialsOf(user.fullName),
-            style: AppType.captionStrong.copyWith(color: scheme.onPrimary),
+        // Degradado de marca con un anillo claro: es la misma superficie que
+        // identifica a la aplicación, en pequeño, y se distingue de cualquier
+        // otro círculo de color de la barra.
+        child: Container(
+          width: 34,
+          height: 34,
+          padding: const EdgeInsets.all(1.5),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: AppGradients.brand(context.palette),
+            boxShadow: AppShadows.sm(context.palette.isDark),
+          ),
+          child: CircleAvatar(
+            backgroundColor: scheme.primary,
+            foregroundImage: user.photoUrl != null
+                ? NetworkImage(user.photoUrl!)
+                : null,
+            child: Text(
+              initialsOf(user.fullName),
+              style: AppType.captionStrong.copyWith(color: scheme.onPrimary),
+            ),
           ),
         ),
       ),
@@ -103,8 +116,11 @@ class SessionMenuButton extends ConsumerWidget {
 
 /// Iniciales para el avatar. Dos como mucho: con tres ya no se leen a 32 px.
 String initialsOf(String name) {
-  final parts =
-      name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  final parts = name
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((p) => p.isNotEmpty)
+      .toList();
   if (parts.isEmpty) return '?';
   if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
   return (parts[0][0] + parts[1][0]).toUpperCase();
@@ -130,8 +146,9 @@ Future<void> confirmLogout(BuildContext context, WidgetRef ref) async {
           child: const Text('Cancelar'),
         ),
         FilledButton(
-          style:
-              FilledButton.styleFrom(backgroundColor: dialogContext.palette.danger.fg),
+          style: FilledButton.styleFrom(
+            backgroundColor: dialogContext.palette.danger.fg,
+          ),
           onPressed: () => Navigator.pop(dialogContext, true),
           child: const Text('Cerrar sesión'),
         ),

@@ -13,6 +13,7 @@ import '../../core/theme/app_theme.dart';
 import '../activities/data/activity_models.dart';
 import '../agenda/widgets/next_class_card.dart';
 import './intervention_sheet.dart';
+import './widgets/saludo_panel.dart';
 import '../../core/widgets/compact.dart';
 import '../../core/widgets/period_selector.dart';
 import '../../core/widgets/session_menu.dart';
@@ -44,13 +45,17 @@ class DashboardPage extends ConsumerWidget {
 
     final nombre = (user?.fullName ?? 'Docente').split(' ').first;
 
+    // Cuántos piden atención, para el aviso bajo el saludo. Sale del resumen
+    // (que ya lo trae calculado) y no de contar la lista de riesgo, que llega
+    // aparte y acotada a cinco.
+    final enRiesgo = dashboard.valueOrNull?.summary.riskStudents ?? 0;
+
     return Scaffold(
-      // Solo el saludo: el periodo ya lo muestra (y lo cambia) el
-      // `PeriodSelector` de la derecha, y repetirlo junto al nombre era decir
-      // «2026-2» dos veces en la misma línea.
-      appBar: CompactHeader(
-        titulo: 'Hola, $nombre',
-        acciones: const [PeriodSelector(), SessionMenuButton()],
+      // La cabecera lleva la marca y el contexto —periodo y cuenta—; el saludo
+      // va en el cuerpo, grande, como en el escritorio.
+      appBar: const CompactHeader(
+        titulo: 'Panel',
+        acciones: [PeriodSelector(), SessionMenuButton()],
       ),
       body: RefreshIndicator(
         onRefresh: () async {
@@ -62,6 +67,15 @@ class DashboardPage extends ConsumerWidget {
         child: ListView(
           padding: AppSpacing.listPadding,
           children: [
+            SaludoPanel(nombre: nombre, ahora: DateTime.now()),
+            if (enRiesgo > 0) ...[
+              AvisoDeAtencion(
+                enRiesgo: enRiesgo,
+                onTap: () => context.go('/notifications'),
+              ),
+              const SizedBox(height: AppSpacing.gap),
+            ],
+
             // ── ¿Qué tengo ahora? ─────────────────────────────────────
             // Lo primero, antes que cualquier indicador: lo que un docente
             // mira al sacar el teléfono es a qué hora es la siguiente clase.
