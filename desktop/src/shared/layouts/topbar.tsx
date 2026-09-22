@@ -2,7 +2,9 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
   Check,
   LogOut,
+  Maximize2,
   Menu,
+  Minimize2,
   Monitor,
   Moon,
   RefreshCw,
@@ -21,6 +23,10 @@ import { useSession } from '@/state/session.store';
 import { useSync } from '@/state/sync.store';
 import { useTheme, type ThemePreference } from '@/state/theme.store';
 import { modKeyLabel } from '@/shared/hooks/use-hotkeys';
+import {
+  alternarPantallaCompleta,
+  usePantallaCompleta,
+} from '@/core/platform/pantalla-completa';
 
 /**
  * Los cuatro estados que el docente necesita distinguir.
@@ -171,6 +177,8 @@ export function TopBar({
         </span>
       </Tooltip>
 
+      <BotonPantallaCompleta />
+
       <span className="h-6 w-px shrink-0 bg-border" aria-hidden />
 
       <DropdownMenu.Root>
@@ -243,5 +251,25 @@ export function TopBar({
         </DropdownMenu.Portal>
       </DropdownMenu.Root>
     </header>
+  );
+}
+
+/** Entra y sale de pantalla completa; F11 hace lo mismo desde cualquier sitio. */
+function BotonPantallaCompleta() {
+  const completa = usePantallaCompleta();
+  const etiqueta = completa ? 'Salir de pantalla completa (F11)' : 'Pantalla completa (F11)';
+  return (
+    <Tooltip content={etiqueta}>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="no-drag shrink-0"
+        onClick={() => void alternarPantallaCompleta()}
+        aria-label={etiqueta}
+        aria-pressed={completa}
+      >
+        {completa ? <Minimize2 aria-hidden /> : <Maximize2 aria-hidden />}
+      </Button>
+    </Tooltip>
   );
 }

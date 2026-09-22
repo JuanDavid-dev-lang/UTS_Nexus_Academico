@@ -9,6 +9,7 @@ import {
 } from '@/domain/schemas/auth';
 import { okResponse } from '@/domain/schemas/common';
 import { tokenService } from '@/core/auth/token.service';
+import { idDelEquipo } from '@/core/auth/device-id';
 import type { AuthRepository } from '@/domain/repositories/ports';
 
 export const authRepository: AuthRepository = {
@@ -17,6 +18,7 @@ export const authRepository: AuthRepository = {
       email: input.email.trim().toLowerCase(),
       password: input.password,
       device: 'desktop',
+      deviceId: await idDelEquipo(),
     }, {
       schema: loginResponseSchema,
       anonymous: true,
@@ -51,7 +53,11 @@ export const authRepository: AuthRepository = {
    * lugar de como la medida que es.
    */
   async changePassword(input) {
-    const data = await http.post('/auth/password', input, { schema: changePasswordSchema });
+    const data = await http.post(
+      '/auth/password',
+      { ...input, deviceId: await idDelEquipo() },
+      { schema: changePasswordSchema },
+    );
     await tokenService.set({ accessToken: data.accessToken, refreshToken: data.refreshToken });
     return { message: data.message };
   },

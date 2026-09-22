@@ -21,6 +21,12 @@ const schema = new Schema(
     revokedAt: { type: Date, default: null, index: true },
     expiresAt: { type: Date, required: true },
     device: { type: String, default: 'unknown' },
+    /**
+     * Hash del identificador del equipo que inició la sesión, o `null` si el
+     * cliente no lo mandó. Con valor, solo ese equipo puede renovarla
+     * (`domains/session/session-policy.ts`).
+     */
+    deviceIdHash: { type: String, default: null },
   },
   { timestamps: true }
 );

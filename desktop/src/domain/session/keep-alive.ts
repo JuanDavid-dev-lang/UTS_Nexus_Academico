@@ -1,8 +1,8 @@
 /**
  * Cuándo renovar la sesión aunque nadie haga ninguna petición.
  *
- * El refresh token dura 30 días y cada renovación empieza otros 30 (rotación,
- * ver `POST /auth/refresh`). La renovación normal solo ocurre cuando una
+ * La sesión dura 15 días sin uso y cada renovación empieza otros 15 (rotación,
+ * ver `POST /auth/refresh` y `domains/session/session-policy.ts` del backend). La renovación normal solo ocurre cuando una
  * petición recibe un 401, así que una aplicación que pasa semanas en la bandeja
  * sin que nadie la abra dejaba caducar la sesión y la próxima vez pedía entrar
  * de nuevo. Renovar una vez al día basta para que eso no pase nunca mientras la

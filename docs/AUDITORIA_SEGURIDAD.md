@@ -123,7 +123,7 @@ solo aviso y con:
 | | Valor efectivo | Consecuencia |
 |---|---|---|
 | `JWT_ACCESS_SECRET` | `'dev-access'` | Escrito **en este repositorio**. Cualquiera que lo lea firma un token con `role: 'ADMIN'`. |
-| `JWT_REFRESH_SECRET` | `'dev-refresh'` | Ídem, con 30 días de validez. |
+| `JWT_REFRESH_SECRET` | `'dev-refresh'` | Ídem, con 15 días de validez (antes 30). |
 | `CLIENT_ORIGIN` | `'*'` | CORS abierto a cualquier origen. |
 | Límite de login | **desactivado** | Fuerza bruta con el cupo general de 250/15 min. |
 | `trust proxy` | desactivado | Detrás de un proxy, el limitador cuenta a toda la institución como un cliente. |

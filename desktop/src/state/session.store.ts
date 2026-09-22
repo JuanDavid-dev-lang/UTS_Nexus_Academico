@@ -34,7 +34,12 @@ type SessionState = {
   reconnect: () => Promise<void>;
   /** Drops the saved session without asking the server: it did not answer. */
   forget: () => Promise<void>;
-  login: (email: string, password: string) => Promise<void>;
+  /**
+   * `recordar`: guardar la sesión en el almacén del sistema para que cerrar la
+   * aplicación no la termine (15 días sin uso, solo en este equipo). Sin
+   * marcar, la sesión vive lo que la ventana.
+   */
+  login: (email: string, password: string, recordar?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   changeServerUrl: (url: string) => Promise<void>;
   /**
@@ -106,10 +111,10 @@ export const useSession = create<SessionState>((set, get) => ({
     set({ status: 'anonymous', user: null });
   },
 
-  async login(email: string, password: string) {
+  async login(email: string, password: string, recordar = true) {
     try {
       const { user, accessToken, refreshToken } = await authRepository.login({ email, password });
-      await tokenService.set({ accessToken, refreshToken });
+      await tokenService.set({ accessToken, refreshToken }, { persistir: recordar });
       await tokenService.setServerUrl(get().serverUrl);
       set({ status: 'authenticated', user });
     } catch (error) {

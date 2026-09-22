@@ -16,6 +16,7 @@ import { z, type ZodType, type ZodTypeDef } from 'zod';
 import { apiBaseUrl, env } from '@/core/config/env';
 import { AppError, appErrorFromResponse, messageFor, toAppError } from '@/core/api/errors';
 import { tokenService } from '@/core/auth/token.service';
+import { idDelEquipo } from '@/core/auth/device-id';
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
@@ -97,7 +98,9 @@ async function refreshSession(): Promise<RefreshOutcome> {
     response = await fetch(buildUrl('/auth/refresh'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
+      // El servidor solo renueva una sesión atada a un equipo si la pide ese
+      // mismo equipo (ver `core/auth/device-id.ts`).
+      body: JSON.stringify({ refreshToken, deviceId: await idDelEquipo() }),
       signal: AbortSignal.timeout(env.requestTimeoutMs),
     });
   } catch {

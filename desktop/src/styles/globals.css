@@ -348,6 +348,57 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /*
+   * Pantalla de acceso: nubes de color que respiran detrás del formulario.
+   *
+   * Solo `transform` en un elemento ya desenfocado: el navegador rasteriza el
+   * desenfoque una vez y después solo mueve la capa, así que no cuesta una
+   * pasada de desenfoque por fotograma (que es lo que hacía tirones en
+   * WebView2 y WebKitGTK con el velo del tutorial). Es la versión de escritorio
+   * del `_FondoAurora` del móvil: mismo ciclo de 14 s, ida y vuelta.
+   */
+  .acceso-nube {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(72px);
+    will-change: transform;
+    animation: acceso-respira 14s ease-in-out infinite alternate;
+  }
+
+  @keyframes acceso-respira {
+    from {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    to {
+      transform: translate3d(var(--nube-x, 5%), var(--nube-y, 4%), 0) scale(1.08);
+    }
+  }
+
+  /* Anillo que gira detrás del logo. */
+  .acceso-anillo {
+    animation: acceso-gira 18s linear infinite;
+  }
+
+  @keyframes acceso-gira {
+    to {
+      transform: rotate(1turn);
+    }
+  }
+
+  /* «Reducir movimiento» de Apariencia pone las duraciones a cero, pero estas
+     dos animaciones llevan la suya: sin esta regla seguirían moviéndose. */
+  html[data-movimiento='reducido'] .acceso-nube,
+  html[data-movimiento='reducido'] .acceso-anillo {
+    animation: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .acceso-nube,
+    .acceso-anillo {
+      animation: none;
+    }
+  }
+
   /* Entrada de un bloque. Corta y solo hacia arriba: una animación de entrada
      que además desplaza en horizontal se lee como un error de maquetación. */
   .animate-rise {

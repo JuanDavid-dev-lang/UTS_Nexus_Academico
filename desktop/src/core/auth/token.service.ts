@@ -19,6 +19,16 @@ type Tokens = { accessToken: string; refreshToken: string };
 let memory: Partial<Tokens> = {};
 let hydrated = false;
 
+/**
+ * Si los tokens se guardan en el almacén del sistema o solo en memoria.
+ *
+ * Lo decide la casilla «Mantener la sesión iniciada» del inicio de sesión. Sin
+ * ella la sesión dura lo que la ventana: cerrar la aplicación la termina, que
+ * es lo que se espera en un equipo compartido de la sala de docentes. La
+ * elección se conserva en las renovaciones, que llaman a `set` sin opciones.
+ */
+let persistir = true;
+
 /** Decoded JWT payload we care about. */
 type JwtPayload = {
   sub?: string;
@@ -78,13 +88,28 @@ export const tokenService = {
     return memory.refreshToken;
   },
 
-  async set(tokens: Tokens): Promise<void> {
+  async set(tokens: Tokens, opciones?: { persistir?: boolean }): Promise<void> {
+    if (opciones?.persistir !== undefined) persistir = opciones.persistir;
     memory = tokens;
     hydrated = true;
+    if (!persistir) {
+      // Quitar lo que hubiera de una sesión anterior que sí se guardó: si no,
+      // el siguiente arranque la recuperaría.
+      await Promise.all([
+        platform.secureStore.remove(ACCESS_KEY),
+        platform.secureStore.remove(REFRESH_KEY),
+      ]);
+      return;
+    }
     await Promise.all([
       platform.secureStore.set(ACCESS_KEY, tokens.accessToken),
       platform.secureStore.set(REFRESH_KEY, tokens.refreshToken),
     ]);
+  },
+
+  /** ¿La sesión actual sobrevive a cerrar la aplicación? */
+  seGuarda(): boolean {
+    return persistir;
   },
 
   async clear(): Promise<void> {
@@ -108,5 +133,6 @@ export const tokenService = {
   __resetForTests(): void {
     memory = {};
     hydrated = false;
+    persistir = true;
   },
 };

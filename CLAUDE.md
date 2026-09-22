@@ -376,6 +376,8 @@ Configuración → «Cuentas del personal»; la gestión continua, en Personal.
 ### Cuentas, sesión y recuperación
 - **`POST /auth/register` es solo para ADMIN.** Acepta `role: 'ADMIN'` y la ficha de docente nace `APROBADO`, así que abierto era un generador público de administradores que además saltaba entero el diseño de `/registro`. Quien se da de alta por su cuenta pasa por `/registro`: interruptor de la administración, estado `PENDIENTE` y revisión humana.
 - **`POST /auth/refresh` rota el token** (RTR): cada canje quema el anterior sobre la misma sesión. Reutilizar uno ya rotado revoca **toda** la familia de sesiones del usuario, que es la única señal disponible de que alguien copió un token.
+- **Una sesión dura 15 días sin uso y queda atada al equipo** (`domains/session/session-policy.ts`, con pruebas). Cada renovación empieza otros 15, y el escritorio renueva una vez al día mientras está abierto, así que solo caduca quien cierra la aplicación y no vuelve en dos semanas. El escritorio manda `deviceId` —aleatorio, generado una vez y guardado en el almacén del sistema (`core/auth/device-id.ts`), **no se borra al cerrar sesión**— en `/login`, `/refresh` y `/password`; el servidor guarda su hash en `Sesion.deviceIdHash` y solo deja rotar esa sesión al mismo equipo, dentro del mismo `findOneAndUpdate`. Un refresh token presentado desde otro equipo (o sin `deviceId`) **revoca esa sesión** y responde 401. Las sesiones sin `deviceIdHash` —el móvil, que aún no lo manda, y las anteriores— siguen como antes, y una anterior queda atada al primer equipo que la renueva con identificador. `REFRESH_TOKEN_TTL` baja a `15d` por defecto; la caducidad que manda es `Sesion.expiresAt`.
+- **«Mantener la sesión iniciada»** (casilla del acceso del escritorio, marcada por defecto y recordada en `localStorage`): desmarcada, `tokenService.set(..., { persistir: false })` deja los tokens solo en memoria y borra los guardados, y las renovaciones conservan esa elección. Es para la sala común: cerrar la ventana termina la sesión.
 - **Solo el servidor termina una sesión; no contestar no la termina.** El refresco del escritorio distingue `rejected` (el servidor dijo que no: se borra) de `unreachable` (sin conexión, 5xx o 429: se conserva y la petición falla como `network`). Al arrancar, un `/auth/me` sin respuesta deja la sesión en `unreachable` —pantalla que reintenta sola cada 15 s— en vez de borrarla. Antes cualquier fallo al arrancar borraba los tokens, y abrir la app con el servidor apagado o aún despertando acababa siempre en el inicio de sesión.
 - **El código de recuperación se envía por correo, nunca en la respuesta.** Solo vuelve en `devCode` con `ALLOW_DEV_RECOVERY_CODE=1`, fuera de producción y sin `SMTP_HOST`: las tres condiciones a la vez. Devolverlo siempre convierte `/recovery/request` en una toma de cuenta de un solo paso, porque basta conocer un correo del directorio. Antes bastaban las dos últimas condiciones, es decir, **se deducía de dos ausencias**: un despliegue que olvidara `NODE_ENV` y no tuviera SMTP lo devolvía sin que nadie lo hubiera decidido. Deducir un permiso a partir de lo que falta es lo contrario de conceder un permiso.
 - **`POST /auth/password` cambia la contraseña propia y lo puede hacer cualquier rol** (incluida secretaría: escribe sobre su cuenta y sobre nada más, por eso está en la lista blanca de `role-access.ts`). Exige la actual —con solo el token, un equipo desbloqueado sería una toma de cuenta en dos clics—, **revoca todas las sesiones** y devuelve un par nuevo: sin eso, cambiarse la contraseña echaba al propio usuario al inicio de sesión y se leía como una avería. Está en Configuración de los dos clientes.
@@ -1022,13 +1024,37 @@ tercera vale en todos los sistemas.
   `libayatana-appindicator`, que puede no estar instalado, y un icono que no
   aparece deja la app oculta sin forma de abrirla ni de salir. Fuera de Windows
   los comandos responden `disponible: false` y la tarjeta no ofrece nada.
-- **Sesión siempre iniciada**: el refresh token dura 30 días y cada renovación
-  empieza otros 30, pero solo se renovaba cuando una petición recibía un 401.
+- **Sesión siempre iniciada**: la sesión dura 15 días sin uso y cada renovación
+  empieza otros 15, pero solo se renovaba cuando una petición recibía un 401.
   Una app que pasaba semanas en la bandeja dejaba caducar la sesión.
   `core/auth/keep-alive.ts` renueva una vez al día (se comprueba cada hora y al
   enfocar la ventana) por el **mismo single-flight** del cliente HTTP: una
   renovación en paralelo con la del 401 revocaría toda la familia de sesiones
   por la rotación. Qué toca renovar lo decide `domain/session/keep-alive.ts`.
+
+- **Pantalla completa** (`core/platform/pantalla-completa.ts`): F11 desde
+  cualquier pantalla, un botón en la barra superior y otro en el acceso. En
+  Tauri es `setFullscreen` de la ventana (permisos `allow-set-fullscreen` e
+  `allow-is-fullscreen` en `capabilities/default.json`); en el navegador de
+  desarrollo, la Fullscreen API. La elección se recuerda en el equipo y se
+  aplica al arrancar, y el estado se relee al cambiar de tamaño: salir por otra
+  vía no deja el botón diciendo lo contrario.
+
+### Acceso del escritorio (`features/auth/login-page.tsx`)
+
+Sigue al acceso del móvil: la pantalla entera es la superficie de marca con
+tres nubes que respiran en 14 s (`.acceso-nube`, solo `transform` sobre un
+elemento ya desenfocado, con un paralaje corto que sigue al puntero), el logo
+cae con resorte sobre un anillo que gira, el héroe entra escalonado, Rubri se
+asoma sobre la tarjeta —feliz, triste tras un fallo, «sin conexión» sin
+servidor— y la tarjeta sube con resorte y **se sacude** ante un error. La capa
+visual vive en `components/escenario-acceso.tsx`; la lógica (sondeo del
+servidor, salida de emergencia para cambiar la dirección) es la de siempre.
+Dos detalles: la sacudida va con `useAnimate` sobre un `div` normal, porque un
+`animate` propio en la tarjeta abre otro contexto de variantes y sus piezas se
+quedaban invisibles; y el campo de contraseña oculta `::-ms-reveal`, el ojo
+nativo de WebView2, que duplicaba el propio. «Reducir movimiento» (sistema o
+Apariencia, `useSinMovimiento`) lo para todo, las nubes incluidas.
 
 ### WebKitGTK no es Chromium: dos cosas que en Linux se hacen a mano
 
@@ -1219,6 +1245,7 @@ tamaño del texto, reducir movimiento).
 - **En modo oscuro los semánticos van aclarados** (`#4ADE80`, `#FBBF24`, `#F87171`, `#38BDF8`), no con los hex canónicos de §4: esos están calibrados para texto sobre blanco y sobre `#33332A` caen a 2.4–4.0:1, por debajo del AA que exigen §4 regla 5 y §15.
 - **El lima `#CAD225` es el acento en los dos modos** y nunca es color de texto ni fondo de superficie grande — solo botones, badges, selección y foco (§4 reglas 2 y 4). En claro, cuando el acento tiene que *ser* texto se usa `--accent-strong` / `AppColors.accentStrong` (`#626D0F`), que es la misma rampa bajada hasta AA.
 - **En el móvil, los colores del tema se leen con `context.palette`** (`AppPalette` en `app_theme.dart`), no con `isDark ? XDark : X` repetido en cada pantalla: cada copia de ese ternario es un sitio donde se puede olvidar el caso oscuro, y olvidarlo no da error, da texto gris sobre fondo oliva.
+- **`cn()` conoce la rampa tipográfica** (`shared/lib/cn.ts`, `extendTailwindMerge`). Sin eso tailwind-merge tomaba `text-body` por un color y borraba el anterior: todo botón primario perdía `text-on-primary` (etiqueta oscura sobre verde) y las etiquetas de formulario perdían su `text-caption`. `tests/unit/cn.test.ts` lo fija. Si se añade un paso a la rampa, va también ahí.
 - **La superficie de marca (`surface-brand` / `BrandSurface`) es solo para lo que representa a la aplicación** — cabecera del panel, clase en curso, acceso. Nunca detrás de una tabla o una lista: el degradado cambia de tono a lo largo del bloque y cada fila acabaría sobre un fondo distinto.
 - Inter va empaquetada en los dos clientes (`@fontsource/inter` en escritorio, `.ttf` en `flutter_app/assets/fonts/`). No la sustituyas por una carga remota: el CSP de Tauri no tiene `font-src` y la app móvil se usa sin red fiable.
 - **Las Inter del móvil van recortadas a latín y hay que mantenerlas así.** Flutter

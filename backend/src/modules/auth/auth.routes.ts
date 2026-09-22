@@ -13,6 +13,11 @@ import rateLimit from 'express-rate-limit';
 import { passwordEntrante, passwordNueva } from '../../shared/validation.js';
 import { buscarPrograma } from '../../domains/catalog/uts.js';
 import {
+  DIAS_DE_SESION,
+  PATRON_ID_DISPOSITIVO,
+  dispositivoAutorizado,
+} from '../../domains/session/session-policy.js';
+import {
   RECOVERY_INVALID_MESSAGE,
   RECOVERY_PUBLIC_MESSAGE,
   requestPasswordReset,
@@ -25,6 +30,11 @@ import {
 // la más floja de las tres.
 
 export const authRouter = Router();
+
+/** Identificador del equipo que manda el cliente. Opcional: el móvil no lo manda. */
+const campoIdDispositivo = z.string().trim().regex(PATRON_ID_DISPOSITIVO).optional();
+
+const hashDeDispositivo = (deviceId: string | undefined) => (deviceId ? hashToken(deviceId) : null);
 
 const signPair = (user: { id: string; role: Role; tenantId?: string; studentId?: string }) => {
   const payload = { sub: user.id, role: user.role, tenantId: user.tenantId, studentId: user.studentId };
@@ -92,7 +102,7 @@ authRouter.post('/register', identificar, requireRole('ADMIN'), async (req, res,
     await SessionModel.create({
       userId: user.id,
       refreshTokenHash: hashToken(refreshToken),
-      expiresAt: daysFromNow(30),
+      expiresAt: daysFromNow(DIAS_DE_SESION),
     });
 
     res.status(201).json({
@@ -112,6 +122,7 @@ authRouter.post('/login', async (req, res, next) => {
       email: z.string().trim().toLowerCase().email().max(160),
       password: passwordEntrante,
       device: z.string().trim().max(80).optional(),
+      deviceId: campoIdDispositivo,
     }).parse(req.body);
 
     const user = await UserModel.findOne({ email: body.email, deletedAt: null });
@@ -159,8 +170,9 @@ authRouter.post('/login', async (req, res, next) => {
     await SessionModel.create({
       userId: user.id,
       refreshTokenHash: hashToken(refreshToken),
-      expiresAt: daysFromNow(30),
+      expiresAt: daysFromNow(DIAS_DE_SESION),
       device: body.device ?? 'web',
+      deviceIdHash: hashDeDispositivo(body.deviceId),
     });
 
     res.json({
@@ -190,9 +202,12 @@ authRouter.post('/login', async (req, res, next) => {
  */
 authRouter.post('/refresh', async (req, res, next) => {
   try {
-    const body = z.object({ refreshToken: z.string().min(1).max(4096) }).parse(req.body);
+    const body = z
+      .object({ refreshToken: z.string().min(1).max(4096), deviceId: campoIdDispositivo })
+      .parse(req.body);
     const payload = verifyRefreshToken(body.refreshToken);
     const tokenHash = hashToken(body.refreshToken);
+    const deviceIdHash = hashDeDispositivo(body.deviceId);
 
     const user = await UserModel.findById(payload.sub);
     if (!user || user.deletedAt) {
@@ -246,17 +261,43 @@ authRouter.post('/refresh', async (req, res, next) => {
         refreshTokenHash: tokenHash,
         revokedAt: null,
         expiresAt: { $gt: new Date() },
+        // Misma operación atómica: una sesión atada a un equipo solo rota si
+        // el que la pide es ese equipo (`dispositivoAutorizado`).
+        deviceIdHash: deviceIdHash ? { $in: [null, deviceIdHash] } : null,
       },
       {
         $set: {
           refreshTokenHash: hashToken(pair.refreshToken),
           previousRefreshTokenHash: tokenHash,
-          expiresAt: daysFromNow(30),
+          expiresAt: daysFromNow(DIAS_DE_SESION),
+          // Una sesión anterior a la atadura queda atada al primer equipo que
+          // la renueva mandando su identificador: es el que ya la tenía.
+          ...(deviceIdHash ? { deviceIdHash } : {}),
         },
       },
     );
 
     if (!session) {
+      /**
+       * ¿Existe la sesión y está viva, pero la pide otro equipo? Es un refresh
+       * token que salió de la máquina donde se emitió. Se cierra esa sesión:
+       * quien lo copió no entra, y el dueño solo tiene que volver a iniciar
+       * sesión en su equipo, que es lo que tocaba para cortar el acceso.
+       */
+      const viva = await SessionModel.findOne({
+        userId: payload.sub,
+        refreshTokenHash: tokenHash,
+        revokedAt: null,
+        expiresAt: { $gt: new Date() },
+      })
+        .select('deviceIdHash')
+        .lean();
+      if (viva && !dispositivoAutorizado(viva.deviceIdHash, deviceIdHash)) {
+        await SessionModel.updateOne({ _id: viva._id }, { $set: { revokedAt: new Date() } });
+        console.warn(`[auth] refresh desde otro equipo para ${payload.sub}: sesión revocada.`);
+        return res.status(401).json({ ok: false, message: 'Invalid session' });
+      }
+
       /**
        * ¿El hash que llegó es el que la ÚLTIMA rotación dejó atrás? Entonces
        * alguien está reutilizando un token ya canjeado por el siguiente, y no
@@ -317,7 +358,11 @@ const passwordChangeLimit = rateLimit({
 authRouter.post('/password', identificar, exigirSesion, passwordChangeLimit, async (req, res, next) => {
   try {
     const body = z
-      .object({ currentPassword: passwordEntrante, newPassword: passwordNueva })
+      .object({
+        currentPassword: passwordEntrante,
+        newPassword: passwordNueva,
+        deviceId: campoIdDispositivo,
+      })
       .parse(req.body);
 
     const user = await UserModel.findOne({ _id: req.user!.id, deletedAt: null });
@@ -355,8 +400,11 @@ authRouter.post('/password', identificar, exigirSesion, passwordChangeLimit, asy
     await SessionModel.create({
       userId: user.id,
       refreshTokenHash: hashToken(refreshToken),
-      expiresAt: daysFromNow(30),
+      expiresAt: daysFromNow(DIAS_DE_SESION),
       device: 'cambio-de-contraseña',
+      // La sesión nueva sigue atada al equipo que cambió la contraseña: sin
+      // esto, cambiarla soltaba la atadura hasta el siguiente inicio de sesión.
+      deviceIdHash: hashDeDispositivo(body.deviceId),
     });
 
     // Queda el hecho, nunca el dato: `auditChange` sanea al escribir, pero una

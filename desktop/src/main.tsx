@@ -8,6 +8,7 @@ import { initTheme } from '@/state/theme.store';
 import { iniciarTelemetria } from '@/core/telemetry/reporter';
 import { useSession } from '@/state/session.store';
 import { iniciarMantenimientoDeSesion } from '@/core/auth/keep-alive';
+import { iniciarPantallaCompleta } from '@/core/platform/pantalla-completa';
 import '@/styles/globals.css';
 
 // Applied before the first paint so the window never flashes light then dark.
@@ -29,6 +30,9 @@ iniciarTelemetria();
 // La sesión se renueva sola una vez al día mientras la app siga abierta, también
 // en la bandeja: sin esto, semanas sin abrirla la dejaban caducar.
 iniciarMantenimientoDeSesion();
+
+// F11 y la pantalla completa recordada del último uso.
+iniciarPantallaCompleta();
 
 const container = document.getElementById('root');
 if (!container) throw new Error('Root element #root not found');
