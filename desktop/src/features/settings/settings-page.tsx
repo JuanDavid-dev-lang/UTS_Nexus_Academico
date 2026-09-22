@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { LogOut, Server, ShieldCheck, Wifi } from 'lucide-react';
+import { LogOut, ShieldCheck } from 'lucide-react';
 import {
   Button,
   Card,
@@ -10,21 +10,16 @@ import {
   CardHeader,
   CardTitle,
   ConfirmDialog,
-  Field,
-  Input,
   Kbd,
   PageContainer,
   PageHeader,
 } from '@/shared/ui';
 import { ProfileCard } from '@/features/settings/components/profile-card';
 import { useSession } from '@/state/session.store';
-import { useSync } from '@/state/sync.store';
 import { platform } from '@/core/platform/tauri';
 import { explicarAlmacen, type AlmacenDeCredenciales } from '@/core/platform/paquete';
-import { normalizeServerUrl, env } from '@/core/config/env';
-import { toast } from '@/state/toast.store';
+import { env } from '@/core/config/env';
 import { modKeyLabel } from '@/shared/hooks/use-hotkeys';
-import { cn } from '@/shared/lib/cn';
 import { CUENTAS_PERSONAL_HASH, desplazarASeccion } from '@/shared/lib/scroll-to-hash';
 import { UpdateCard } from './components/update-card';
 import { RegistrationCard } from './components/registration-card';
@@ -35,6 +30,7 @@ import { NotificationsCard } from './components/notifications-card';
 import { AdminModeCard } from './components/admin-mode-card';
 import { AppearanceCard } from './components/appearance-card';
 import { StartupCard } from './components/startup-card';
+import { ServerCard } from './components/server-card';
 
 const SHORTCUTS = [
   { keys: `${modKeyLabel} K`, action: 'Búsqueda global' },
@@ -45,13 +41,8 @@ const SHORTCUTS = [
 
 export default function SettingsPage() {
   const user = useSession((state) => state.user);
-  const serverUrl = useSession((state) => state.serverUrl);
-  const changeServerUrl = useSession((state) => state.changeServerUrl);
   const logout = useSession((state) => state.logout);
-  const syncStatus = useSync((state) => state.status);
 
-  const [serverDraft, setServerDraft] = useState(serverUrl);
-  const [checking, setChecking] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
 
   /**
@@ -79,30 +70,9 @@ export default function SettingsPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  useEffect(() => setServerDraft(serverUrl), [serverUrl]);
-
   useEffect(() => {
     if (location.hash === CUENTAS_PERSONAL_HASH) desplazarASeccion(location.hash);
   }, [location.hash]);
-
-  async function handleSaveServer() {
-    setChecking(true);
-    try {
-      const normalized = normalizeServerUrl(serverDraft);
-      const online = await platform.backend.health(normalized);
-
-      await changeServerUrl(normalized);
-      queryClient.clear();
-
-      if (online) {
-        toast.success('Servidor actualizado', normalized);
-      } else {
-        toast.warning('Servidor guardado, pero sin respuesta', `No hay respuesta en ${normalized}.`);
-      }
-    } finally {
-      setChecking(false);
-    }
-  }
 
   async function handleLogout() {
     await logout();
@@ -112,7 +82,7 @@ export default function SettingsPage() {
 
   return (
     <PageContainer>
-      <PageHeader title="Configuración" subtitle="Apariencia, servidor, atajos y sesión" />
+      <PageHeader title="Configuración" subtitle="Apariencia, atajos y sesión" />
 
       {/* Sustituye a la tarjeta "Cuenta", que solo mostraba lo que ya venía en
           la sesión sin forma de cambiar nada. */}
@@ -126,58 +96,8 @@ export default function SettingsPage() {
 
       <StartupCard />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Server className="size-4 text-muted" aria-hidden />
-            Servidor
-          </CardTitle>
-          <CardDescription>
-            Dirección del backend académico. Cambiarla limpia la caché local.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div className="flex items-end gap-2">
-            <Field label="Dirección del servidor" className="flex-1">
-              {(props) => (
-                <Input
-                  {...props}
-                  value={serverDraft}
-                  onChange={(event) => setServerDraft(event.target.value)}
-                  placeholder="http://127.0.0.1:4000"
-                  className="font-mono text-caption"
-                />
-              )}
-            </Field>
-            <Button
-              variant="primary"
-              onClick={() => void handleSaveServer()}
-              loading={checking}
-              disabled={normalizeServerUrl(serverDraft) === serverUrl}
-            >
-              Guardar
-            </Button>
-          </div>
-
-          <div className="flex items-center gap-2 text-caption text-muted">
-            <Wifi
-              className={cn(
-                'size-3.5',
-                syncStatus === 'connected' ? 'text-success' : 'text-muted',
-              )}
-              aria-hidden
-            />
-            Sincronización en tiempo real:{' '}
-            <strong className="font-semibold text-text">
-              {syncStatus === 'connected'
-                ? 'activa'
-                : syncStatus === 'connecting'
-                  ? 'conectando'
-                  : 'inactiva'}
-            </strong>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Solo ADMIN: ver el comentario del componente. */}
+      <ServerCard />
 
       <Card>
         <CardHeader>

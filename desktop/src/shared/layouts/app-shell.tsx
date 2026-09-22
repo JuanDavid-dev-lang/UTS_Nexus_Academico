@@ -13,6 +13,7 @@ import { Rubri } from '@/shared/ui';
 import { useTheme } from '@/state/theme.store';
 import { useSession, useUserRole } from '@/state/session.store';
 import { can } from '@/core/auth/permissions';
+import { menuEsHorizontal } from '@/domain/appearance/preferences';
 
 /** Title and subtitle per route, so the top bar always says where the user is. */
 const ROUTE_META: Record<string, { title: string; subtitle: string }> = {
@@ -26,7 +27,7 @@ const ROUTE_META: Record<string, { title: string; subtitle: string }> = {
   '/asistente': { title: 'Asistente IA', subtitle: 'Consulta tus datos académicos en lenguaje natural' },
   '/reportes': { title: 'Reportes', subtitle: 'Exporta consolidados en PDF y Excel' },
   '/notificaciones': { title: 'Notificaciones', subtitle: 'Alertas de riesgo y recordatorios' },
-  '/configuracion': { title: 'Configuración', subtitle: 'Apariencia, servidor y sesión' },
+  '/configuracion': { title: 'Configuración', subtitle: 'Apariencia, atajos y sesión' },
 };
 
 const FALLBACK_META = { title: 'UTS Nexus Académico', subtitle: 'Espacio docente' };
@@ -72,6 +73,9 @@ export function AppShell() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const navigate = useNavigate();
   const cycleTheme = useTheme((state) => state.cycle);
+  // Dónde va el menú: preferencia de este equipo (Configuración → Apariencia).
+  const posicionMenu = useTheme((state) => state.apariencia.posicionMenu);
+  const menuHorizontal = menuEsHorizontal(posicionMenu);
 
   const meta = ROUTE_META[location.pathname] ?? FALLBACK_META;
 
@@ -97,13 +101,23 @@ export function AppShell() {
     'mod+8': () => navigate('/agenda'),
   });
 
+  // El menú va antes o después del contenido según el lado; la dirección
+  // del contenedor hace el resto. Así izquierda/derecha y arriba/abajo son
+  // el mismo árbol con otra clase, no cuatro disposiciones.
+  const menuAlFinal = posicionMenu === 'derecha' || posicionMenu === 'abajo';
+  const menu = !narrow ? (
+    <Sidebar collapsed={collapsed} onToggle={toggleSidebar} position={posicionMenu} />
+  ) : null;
+
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-bg">
-      {/* Ancho o compacto: el menú ocupa su sitio en la fila. */}
-      {!narrow ? <Sidebar collapsed={collapsed} onToggle={toggleSidebar} /> : null}
+    <div className={cn('flex h-screen w-screen overflow-hidden bg-bg', menuHorizontal && 'flex-col')}>
+      {/* Ancho o compacto: el menú ocupa su sitio en la fila (o en la columna). */}
+      {!menuAlFinal ? menu : null}
 
       {/* Estrecho: el menú se superpone. El fondo oscurecido es lo que permite
-          cerrarlo con un clic fuera, que es donde va la mano por costumbre. */}
+          cerrarlo con un clic fuera, que es donde va la mano por costumbre.
+          El cajón siempre es vertical: una barra horizontal no cabe en un
+          ancho donde ya no cabía el menú lateral. */}
       {narrow && drawerOpen ? (
         <>
           <button
@@ -112,13 +126,17 @@ export function AppShell() {
             onClick={() => setDrawerOpen(false)}
             className="fixed inset-0 z-40 bg-black/40"
           />
-          <div className="fixed inset-y-0 left-0 z-50 shadow-pop">
-            <Sidebar collapsed={false} onToggle={() => setDrawerOpen(false)} />
+          <div className={cn('fixed inset-y-0 z-50 shadow-pop', posicionMenu === 'derecha' ? 'right-0' : 'left-0')}>
+            <Sidebar
+              collapsed={false}
+              onToggle={() => setDrawerOpen(false)}
+              position={posicionMenu === 'derecha' ? 'derecha' : 'izquierda'}
+            />
           </div>
         </>
       ) : null}
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <TopBar
           title={meta.title}
           subtitle={meta.subtitle}
@@ -161,6 +179,8 @@ export function AppShell() {
         </main>
       </div>
 
+      {menuAlFinal ? menu : null}
+
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       {puedeAsistente && location.pathname !== '/asistente' ? (
         <button
@@ -168,6 +188,15 @@ export function AppShell() {
           aria-label="Abrir a Rubri, asistente de UTS Nexus"
           title="Pregúntale a Rubri"
           onClick={() => navigate('/asistente', { state: { rubriContext: { page: location.pathname } } })}
+          // El botón flota sobre el contenido, no sobre el menú: con el menú
+          // abajo o a la derecha se aparta lo que mida el menú.
+          style={{
+            bottom: posicionMenu === 'abajo' && !narrow ? 'calc(var(--navbar-height) + 1.25rem)' : undefined,
+            right:
+              posicionMenu === 'derecha' && !narrow
+                ? `calc(${collapsed ? 'var(--sidebar-width-collapsed)' : 'var(--sidebar-width)'} + 1.25rem)`
+                : undefined,
+          }}
           className={cn(
             'fixed bottom-5 right-5 z-30 grid size-16 place-items-center overflow-hidden rounded-full',
             'border border-border bg-surface shadow-pop',

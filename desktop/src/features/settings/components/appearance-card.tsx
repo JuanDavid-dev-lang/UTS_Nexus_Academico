@@ -28,6 +28,7 @@ import { cn } from '@/shared/lib/cn';
 import {
   MUESTRAS_COLOR_PROPIO,
   OPCIONES_ESQUINAS,
+  OPCIONES_POSICION_MENU,
   OPCIONES_MODO,
   OPCIONES_TEXTO,
   OPCIONES_TONO,
@@ -323,10 +324,20 @@ function SeccionEstilo() {
   const esquinas = useTheme((state) => state.apariencia.esquinas);
   const tamanoTexto = useTheme((state) => state.apariencia.tamanoTexto);
   const reducirMovimiento = useTheme((state) => state.apariencia.reducirMovimiento);
+  const posicionMenu = useTheme((state) => state.apariencia.posicionMenu);
   const setApariencia = useTheme((state) => state.setApariencia);
 
   return (
     <Seccion titulo="Estilo">
+      {/* Dónde va el menú. Se aplica al instante: el propio menú se mueve
+          mientras se elige, que es la mejor vista previa posible. */}
+      <GrupoCompacto
+        etiqueta="Posición del menú"
+        opciones={OPCIONES_POSICION_MENU}
+        valor={posicionMenu}
+        onChange={(valor) => setApariencia({ posicionMenu: valor })}
+        columnas={4}
+      />
       <GrupoCompacto
         etiqueta="Esquinas"
         opciones={OPCIONES_ESQUINAS}
@@ -361,16 +372,22 @@ function GrupoCompacto<T extends string>({
   opciones,
   valor,
   onChange,
+  columnas = 3,
 }: {
   etiqueta: string;
   opciones: { value: T; label: string; description: string }[];
   valor: T;
   onChange: (valor: T) => void;
+  columnas?: 3 | 4;
 }) {
   return (
     <div className="flex flex-col gap-2">
       <span className="text-caption font-medium text-muted">{etiqueta}</span>
-      <div role="group" aria-label={etiqueta} className="grid grid-cols-3 gap-2">
+      <div
+        role="group"
+        aria-label={etiqueta}
+        className={cn('grid gap-2', columnas === 4 ? 'grid-cols-2 @xl:grid-cols-4' : 'grid-cols-3')}
+      >
         {opciones.map((opcion) => (
           <Opcion
             key={opcion.value}

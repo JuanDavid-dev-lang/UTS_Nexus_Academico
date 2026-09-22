@@ -183,6 +183,13 @@ describe('preferencias guardadas', () => {
     expect(normalizarApariencia('basura')).toEqual(APARIENCIA_POR_DEFECTO);
   });
 
+  it('la posición del menú cae a la izquierda si lo guardado no es una de las cuatro', () => {
+    expect(normalizarApariencia({ posicionMenu: 'abajo' }).posicionMenu).toBe('abajo');
+    expect(normalizarApariencia({ posicionMenu: 'centro' }).posicionMenu).toBe('izquierda');
+    // Una preferencia guardada antes de que existiera el campo.
+    expect(normalizarApariencia({ tono: 'oceano' }).posicionMenu).toBe('izquierda');
+  });
+
   it('las variables CSS por defecto son las de tokens.css', () => {
     for (const modo of MODOS) {
       const variables = variablesCss(APARIENCIA_POR_DEFECTO, modo);

@@ -201,6 +201,8 @@
   --sidebar-width: 264px;
   --sidebar-width-collapsed: 72px;
   --topbar-height: 64px;
+  /* El menú como barra horizontal (posición arriba o abajo). */
+  --navbar-height: 56px;
 
   /*
    * Código QR de asistencia. **Igual en los dos modos, a propósito**: el lector

@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
@@ -17,6 +18,8 @@ import {
   CalendarCheck,
   CalendarDays,
   ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
   FileSpreadsheet,
   GraduationCap,
   Landmark,
@@ -38,6 +41,7 @@ import { can, type Capability } from '@/core/auth/permissions';
 import { useUnreadCount } from '@/features/notifications/hooks/use-notifications';
 import { profileRepository } from '@/infrastructure/repositories/profile.repository';
 import { queryKeys } from '@/core/api/query-keys';
+import type { PosicionMenu } from '@/domain/appearance/preferences';
 
 type NavItem = {
   to: string;
@@ -129,15 +133,58 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+
+/** Cómo se dibuja el menú según su posición. Todo lo que depende del lado vive aquí. */
+const POR_POSICION: Record<
+  PosicionMenu,
+  {
+    horizontal: boolean;
+    borde: string;
+    tooltip: 'right' | 'left' | 'top' | 'bottom';
+    indicador: string;
+  }
+> = {
+  izquierda: { horizontal: false, borde: 'border-r', tooltip: 'right', indicador: 'left-0 h-5 w-[3px] rounded-r-full' },
+  derecha: { horizontal: false, borde: 'border-l', tooltip: 'left', indicador: 'right-0 h-5 w-[3px] rounded-l-full' },
+  arriba: { horizontal: true, borde: 'border-b', tooltip: 'bottom', indicador: 'bottom-0 left-2 right-2 h-[3px] rounded-t-full' },
+  abajo: { horizontal: true, borde: 'border-t', tooltip: 'top', indicador: 'top-0 left-2 right-2 h-[3px] rounded-b-full' },
+};
+
 export function Sidebar({
-  collapsed,
+  collapsed: collapsedPedido,
   onToggle,
+  position = 'izquierda',
 }: {
   collapsed: boolean;
   onToggle: () => void;
+  /** Dónde está el menú. Arriba y abajo lo pintan como barra horizontal. */
+  position?: PosicionMenu;
 }) {
   const role = useUserRole();
   const unread = useUnreadCount();
+  const forma = POR_POSICION[position];
+  const horizontal = forma.horizontal;
+
+  // Como barra, con etiquetas puede no caber (un ADMIN en modo admin tiene
+  // 24 entradas): si el ancho que piden las etiquetas supera el disponible,
+  // se compacta a iconos aunque nadie lo haya pedido. El ancho necesario se
+  // mide solo mientras hay etiquetas; compactada ya no se puede medir, así
+  // que se conserva el último valor y con él se decide cuándo volver.
+  const navRef = useRef<HTMLElement>(null);
+  const [anchoNecesario, setAnchoNecesario] = useState(0);
+  const [anchoDisponible, setAnchoDisponible] = useState(Number.POSITIVE_INFINITY);
+  const desborda = horizontal && anchoNecesario > anchoDisponible;
+  const collapsed = collapsedPedido || desborda;
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (!horizontal || !nav) return;
+    const observador = new ResizeObserver(() => {
+      setAnchoDisponible(nav.clientWidth);
+      if (!collapsed) setAnchoNecesario(nav.scrollWidth);
+    });
+    observador.observe(nav);
+    return () => observador.disconnect();
+  }, [horizontal, collapsed]);
 
   // El flag vive en la ficha, no en el token: consultarlo aquí hace que
   // activarlo desde administración encienda el menú sin cerrar sesión (el
@@ -195,6 +242,9 @@ export function Sidebar({
             'group relative flex items-center gap-3 rounded-lg py-2 pl-3 pr-2 text-body font-medium',
             'transition-colors duration-200 ease-out',
             collapsed && 'justify-center px-0',
+            horizontal && 'shrink-0 py-1.5',
+            horizontal && !collapsed && 'pl-2.5',
+            horizontal && collapsed && 'size-9',
             isActive
               ? 'bg-primary-soft font-semibold text-primary'
               : 'text-muted hover:bg-surface-alt hover:text-text',
@@ -206,17 +256,18 @@ export function Sidebar({
             {isActive ? (
               <motion.span
                 layoutId="nav-active-indicator"
-                className="absolute left-0 h-5 w-[3px] rounded-r-full bg-primary"
+                className={cn('absolute bg-primary', forma.indicador)}
                 transition={{ type: 'spring', stiffness: 500, damping: 36 }}
               />
             ) : null}
             <item.icon className="size-4 shrink-0" aria-hidden />
-            {!collapsed ? <span className="flex-1 truncate">{item.label}</span> : null}
+            {!collapsed ? <span className={cn('truncate', !horizontal && 'flex-1')}>{item.label}</span> : null}
             {badgeCount > 0 ? (
               <span
                 className={cn(
                   'grid min-w-5 place-items-center rounded-full bg-danger px-1.5 text-caption font-bold tabular text-white',
                   collapsed && 'absolute right-2 top-1 min-w-4 px-1',
+                  collapsed && horizontal && 'right-0 top-0',
                 )}
               >
                 {badgeCount > 99 ? '99+' : badgeCount}
@@ -230,7 +281,7 @@ export function Sidebar({
     // When collapsed the label is gone, so the tooltip becomes the only
     // way to know what an icon does.
     return collapsed ? (
-      <Tooltip key={item.to} content={item.label} side="right">
+      <Tooltip key={item.to} content={item.label} side={forma.tooltip}>
         <div>{link}</div>
       </Tooltip>
     ) : (
@@ -238,42 +289,127 @@ export function Sidebar({
     );
   }
 
+  const cabecera = (
+    <div
+      className={cn(
+        'drag-region flex items-center gap-2.5',
+        horizontal ? 'h-full shrink-0 px-3' : 'h-16 border-b border-border px-4',
+      )}
+    >
+      <Logo size={horizontal ? 30 : 34} className="shrink-0" alt="" />
+      {!collapsed ? (
+        <div className="flex min-w-0 flex-col">
+          <div className="flex items-center gap-1.5">
+            <span className="truncate text-body font-bold leading-tight text-text">UTS Nexus</span>
+            {role === 'ADMIN' && (
+              <span
+                className={cn(
+                  'rounded px-1 text-[9px] font-bold uppercase tracking-wider',
+                  isAdminMode
+                    ? 'bg-primary/20 text-primary'
+                    : 'bg-surface-alt text-muted',
+                )}
+                title={isAdminMode ? 'Modo Administrador activo' : 'Modo Normal activo'}
+              >
+                {isAdminMode ? 'Admin' : 'Normal'}
+              </span>
+            )}
+          </div>
+          {/* El acento de marca aparece exactamente una vez en el menú, aquí.
+              Repetido en cada sección dejaría de señalar nada. */}
+          {!horizontal ? (
+            <span className="truncate text-caption font-semibold uppercase tracking-wide leading-tight text-accent-strong">
+              Académico
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+
+  const botonAdmin =
+    role === 'ADMIN' ? (
+      <button
+        type="button"
+        onClick={toggleAdminMode}
+        className={cn(
+          'flex items-center rounded-lg text-caption font-medium transition-colors',
+          horizontal ? 'shrink-0 gap-1.5 px-2 py-1.5' : 'mb-1 justify-between px-2.5 py-1.5',
+          isAdminMode
+            ? 'bg-primary-soft/60 text-primary hover:bg-primary-soft'
+            : 'text-muted hover:bg-surface-alt hover:text-text',
+        )}
+        title="Alternar entre Modo Normal y Modo Administrador"
+      >
+        <span className="flex items-center gap-2">
+          <Shield className="size-3.5 shrink-0" aria-hidden />
+          {!collapsed || !horizontal ? <span>{isAdminMode ? 'Modo Admin' : 'Modo Normal'}</span> : null}
+        </span>
+        {!horizontal ? (
+          <span className="rounded bg-primary/20 px-1 py-0.5 text-[9px] font-bold text-primary">
+            {isAdminMode ? 'ACTIVO' : 'ACTIVAR'}
+          </span>
+        ) : null}
+      </button>
+    ) : null;
+
+  const IconoContraer = horizontal ? ChevronsLeft : position === 'derecha' ? ChevronRight : ChevronLeft;
+  const botonContraer = (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={collapsed ? 'Expandir menú' : 'Contraer menú'}
+      className={cn(
+        'flex items-center gap-3 rounded-lg text-caption font-medium text-subtle',
+        'transition-colors hover:bg-surface-alt hover:text-text',
+        horizontal ? 'size-9 shrink-0 justify-center' : 'py-2 pl-3 pr-2',
+        collapsed && !horizontal && 'justify-center px-0',
+      )}
+    >
+      <IconoContraer
+        className={cn('size-4 shrink-0 transition-transform duration-200', collapsed && 'rotate-180')}
+        aria-hidden
+      />
+      {!collapsed && !horizontal ? 'Contraer' : null}
+    </button>
+  );
+
+  if (horizontal) {
+    return (
+      <aside
+        className={cn('flex w-full shrink-0 items-center gap-1 border-border bg-surface', forma.borde)}
+        style={{ height: 'var(--navbar-height)' }}
+      >
+        {cabecera}
+        <nav ref={navRef} className="scrollbar-slim flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto px-1">
+          {groups.map((group, index) => (
+            <div key={group.title ?? 'principal'} className="flex shrink-0 items-center gap-0.5">
+              {/* Entre grupos, una raya vertical: es la única pista de que
+                  estos iconos van juntos cuando no hay sitio para el título. */}
+              {index > 0 ? <span className="mx-1 h-5 border-l border-border" aria-hidden /> : null}
+              {group.items.map(renderItem)}
+            </div>
+          ))}
+        </nav>
+        <div className="flex shrink-0 items-center gap-0.5 px-2">
+          {botonAdmin}
+          {renderItem({ to: '/configuracion', label: 'Configuración', icon: Settings })}
+          {botonContraer}
+        </div>
+      </aside>
+    );
+  }
+
   return (
     <aside
       className={cn(
-        'flex h-full shrink-0 flex-col border-r border-border bg-surface',
+        'flex h-full shrink-0 flex-col border-border bg-surface',
+        forma.borde,
         'transition-[width] duration-200 ease-out',
       )}
       style={{ width: collapsed ? 'var(--sidebar-width-collapsed)' : 'var(--sidebar-width)' }}
     >
-      <div className="drag-region flex h-16 items-center gap-2.5 border-b border-border px-4">
-        <Logo size={34} className="shrink-0" alt="" />
-        {!collapsed ? (
-          <div className="flex min-w-0 flex-col">
-            <div className="flex items-center gap-1.5">
-              <span className="truncate text-body font-bold leading-tight text-text">UTS Nexus</span>
-              {role === 'ADMIN' && (
-                <span
-                  className={cn(
-                    'rounded px-1 text-[9px] font-bold uppercase tracking-wider',
-                    isAdminMode
-                      ? 'bg-primary/20 text-primary'
-                      : 'bg-surface-alt text-muted',
-                  )}
-                  title={isAdminMode ? 'Modo Administrador activo' : 'Modo Normal activo'}
-                >
-                  {isAdminMode ? 'Admin' : 'Normal'}
-                </span>
-              )}
-            </div>
-            {/* El acento de marca aparece exactamente una vez en el menú, aquí.
-                Repetido en cada sección dejaría de señalar nada. */}
-            <span className="truncate text-caption font-semibold uppercase tracking-wide leading-tight text-accent-strong">
-              Académico
-            </span>
-          </div>
-        ) : null}
-      </div>
+      {cabecera}
 
       <nav className="scrollbar-slim flex flex-1 flex-col gap-0.5 overflow-y-auto p-2">
         {groups.map((group, index) => (
@@ -301,49 +437,14 @@ export function Sidebar({
       </nav>
 
       <div className="flex flex-col gap-0.5 border-t border-border p-2">
-        {role === 'ADMIN' && !collapsed && (
-          <button
-            type="button"
-            onClick={toggleAdminMode}
-            className={cn(
-              'mb-1 flex items-center justify-between rounded-lg px-2.5 py-1.5 text-caption font-medium transition-colors',
-              isAdminMode
-                ? 'bg-primary-soft/60 text-primary hover:bg-primary-soft'
-                : 'text-muted hover:bg-surface-alt hover:text-text',
-            )}
-            title="Alternar entre Modo Normal y Modo Administrador"
-          >
-            <span className="flex items-center gap-2">
-              <Shield className="size-3.5 shrink-0" aria-hidden />
-              <span>{isAdminMode ? 'Modo Admin' : 'Modo Normal'}</span>
-            </span>
-            <span className="rounded bg-primary/20 px-1 py-0.5 text-[9px] font-bold text-primary">
-              {isAdminMode ? 'ACTIVO' : 'ACTIVAR'}
-            </span>
-          </button>
-        )}
+        {!collapsed ? botonAdmin : null}
 
         {/* Configuración vive al pie y no dentro de «Administración»: no es una
             tarea de administrar la institución, es la de ajustar esta copia de
             la aplicación, y se busca en la esquina donde se busca siempre. */}
         {renderItem({ to: '/configuracion', label: 'Configuración', icon: Settings })}
 
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-label={collapsed ? 'Expandir menú' : 'Contraer menú'}
-          className={cn(
-            'flex items-center gap-3 rounded-lg py-2 pl-3 pr-2 text-caption font-medium text-subtle',
-            'transition-colors hover:bg-surface-alt hover:text-text',
-            collapsed && 'justify-center px-0',
-          )}
-        >
-          <ChevronLeft
-            className={cn('size-4 shrink-0 transition-transform duration-200', collapsed && 'rotate-180')}
-            aria-hidden
-          />
-          {!collapsed ? 'Contraer' : null}
-        </button>
+        {botonContraer}
       </div>
     </aside>
   );

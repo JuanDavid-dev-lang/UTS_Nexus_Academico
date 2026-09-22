@@ -25,6 +25,18 @@ export type Esquinas = (typeof ESQUINAS)[number];
 export const TAMANOS_TEXTO = ['normal', 'grande', 'muy-grande'] as const;
 export type TamanoTexto = (typeof TAMANOS_TEXTO)[number];
 
+/**
+ * Dónde va el menú de navegación. A la izquierda es lo de siempre; a la
+ * derecha es el mismo menú reflejado; arriba y abajo lo convierten en una
+ * barra horizontal. Es una preferencia de este equipo, como el tono.
+ */
+export const POSICIONES_MENU = ['izquierda', 'derecha', 'arriba', 'abajo'] as const;
+export type PosicionMenu = (typeof POSICIONES_MENU)[number];
+
+export function menuEsHorizontal(posicion: PosicionMenu): boolean {
+  return posicion === 'arriba' || posicion === 'abajo';
+}
+
 export type Apariencia = {
   tono: Tono;
   colorPropio: string;
@@ -32,6 +44,7 @@ export type Apariencia = {
   esquinas: Esquinas;
   tamanoTexto: TamanoTexto;
   reducirMovimiento: boolean;
+  posicionMenu: PosicionMenu;
 };
 
 export const APARIENCIA_POR_DEFECTO: Apariencia = {
@@ -41,6 +54,7 @@ export const APARIENCIA_POR_DEFECTO: Apariencia = {
   esquinas: 'suaves',
   tamanoTexto: 'normal',
   reducirMovimiento: false,
+  posicionMenu: 'izquierda',
 };
 
 function unoDe<T extends string>(lista: readonly T[], valor: unknown, porDefecto: T): T {
@@ -62,6 +76,7 @@ export function normalizarApariencia(crudo: unknown): Apariencia {
     esquinas: unoDe(ESQUINAS, o.esquinas, d.esquinas),
     tamanoTexto: unoDe(TAMANOS_TEXTO, o.tamanoTexto, d.tamanoTexto),
     reducirMovimiento: typeof o.reducirMovimiento === 'boolean' ? o.reducirMovimiento : false,
+    posicionMenu: unoDe(POSICIONES_MENU, o.posicionMenu, d.posicionMenu),
   };
 }
 
@@ -134,6 +149,7 @@ export function atributosDocumento(apariencia: Apariencia): Record<string, strin
     texto: apariencia.tamanoTexto,
     movimiento: apariencia.reducirMovimiento ? 'reducido' : 'normal',
     grises: pideEscalaDeGrises(apariencia.vision) ? 'si' : 'no',
+    menu: apariencia.posicionMenu,
   };
 }
 

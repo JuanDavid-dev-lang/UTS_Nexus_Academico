@@ -2,7 +2,7 @@
  * Textos de las opciones de apariencia. Solo presentación: qué colores produce
  * cada opción lo decide `domain/appearance/`.
  */
-import type { Esquinas, TamanoTexto } from '@/domain/appearance/preferences';
+import type { Esquinas, PosicionMenu, TamanoTexto } from '@/domain/appearance/preferences';
 import type { Tono, VisionColor } from '@/domain/appearance/palettes';
 import type { ThemePreference } from '@/state/theme.store';
 
@@ -90,4 +90,11 @@ export const MUESTRAS_COLOR_PROPIO = [
   '#15803D',
   '#475569',
   '#78350F',
+];
+
+export const OPCIONES_POSICION_MENU: Opcion<PosicionMenu>[] = [
+  { value: 'izquierda', label: 'Izquierda', description: 'Como siempre' },
+  { value: 'derecha', label: 'Derecha', description: 'El mismo menú, reflejado' },
+  { value: 'arriba', label: 'Arriba', description: 'Barra horizontal' },
+  { value: 'abajo', label: 'Abajo', description: 'Como en el teléfono' },
 ];
