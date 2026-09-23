@@ -22,8 +22,9 @@ import { Button } from '@/shared/ui/button';
 import { useSession } from '@/state/session.store';
 import { useSync } from '@/state/sync.store';
 import { useTheme, type ThemePreference } from '@/state/theme.store';
-import { modKeyLabel } from '@/shared/hooks/use-hotkeys';
+import { formatearAtajo } from '@/core/platform/teclado';
 import {
+  ATAJO_PANTALLA_COMPLETA,
   alternarPantallaCompleta,
   usePantallaCompleta,
 } from '@/core/platform/pantalla-completa';
@@ -141,7 +142,7 @@ export function TopBar({
         <Search className="size-4 shrink-0 transition-colors group-hover:text-primary" aria-hidden />
         <span className="hidden flex-1 text-left md:block">Buscar…</span>
         <span className="hidden xl:block">
-          <Kbd>{modKeyLabel} K</Kbd>
+          <Kbd>{formatearAtajo('mod+k')}</Kbd>
         </span>
       </button>
 
@@ -254,10 +255,10 @@ export function TopBar({
   );
 }
 
-/** Entra y sale de pantalla completa; F11 hace lo mismo desde cualquier sitio. */
+/** Entra y sale de pantalla completa; el atajo hace lo mismo desde cualquier sitio. */
 function BotonPantallaCompleta() {
   const completa = usePantallaCompleta();
-  const etiqueta = completa ? 'Salir de pantalla completa (F11)' : 'Pantalla completa (F11)';
+  const etiqueta = `${completa ? 'Salir de pantalla completa' : 'Pantalla completa'} (${ATAJO_PANTALLA_COMPLETA})`;
   return (
     <Tooltip content={etiqueta}>
       <Button

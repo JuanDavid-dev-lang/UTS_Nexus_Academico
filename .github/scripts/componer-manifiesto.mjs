@@ -118,6 +118,11 @@ function autoprueba() {
     'UTS Nexus Academico_1.0.4_amd64.deb',
     'UTS Nexus Academico-1.0.4-1.x86_64.rpm',
     'uts-nexus-academico-v1.0.4.apk',
+    // GitHub puede renombrar un asset al subirlo (los espacios pasan a
+    // puntos), y este no lleva ni versión ni arquitectura en el nombre: por
+    // eso se reconoce por la extensión.
+    'UTS.Nexus.Académico.app.tar.gz',
+    'UTS.Nexus.Academico_1.0.4_universal.dmg',
     'latest.json',
   ];
   const assets = nombres.map(name => ({ name, browser_download_url: `https://ejemplo/${name}` }));
@@ -141,6 +146,11 @@ function autoprueba() {
     'linux-x86_64': 'amd64.AppImage',
     'linux-x86_64-deb': 'amd64.deb',
     'linux-x86_64-rpm': 'x86_64.rpm',
+    // Paquete universal: las cuatro claves de macOS, el mismo archivo.
+    'darwin-aarch64-app': '.app.tar.gz',
+    'darwin-aarch64': '.app.tar.gz',
+    'darwin-x86_64-app': '.app.tar.gz',
+    'darwin-x86_64': '.app.tar.gz',
   };
   for (const [clave, sufijo] of Object.entries(esperadas)) {
     const entrada = manifiesto.platforms[clave];
@@ -151,6 +161,13 @@ function autoprueba() {
     // el actualizador compara la cadena tal cual llega.
     afirmar(!/\s$/.test(entrada?.signature ?? 'x'), `${clave} lleva espacio en blanco al final de la firma.`);
   }
+
+  // El .dmg tampoco: es para la primera instalación, y el actualizador de macOS
+  // reemplaza el `.app`, no monta imágenes de disco.
+  afirmar(
+    !Object.values(manifiesto.platforms).some(entrada => entrada.url.endsWith('.dmg')),
+    'El .dmg no debe aparecer en el manifiesto.',
+  );
 
   // El APK no entra: el móvil no consulta el manifiesto, consulta la API de
   // Releases. Si algún día se colara aquí, sería una clave que nadie lee.
@@ -176,6 +193,15 @@ function autoprueba() {
   afirmar(
     soloWindows.faltantes.length === 3,
     `Sin los tres paquetes de Linux deberían faltar 3 claves y faltan ${soloWindows.faltantes.length}.`,
+  );
+
+  // Sin el paquete de Mac falta una clave, no cuatro: los alias comparten
+  // archivo y ya los denuncia la clave larga.
+  const sinMac = assets.filter(a => !a.name.endsWith('.app.tar.gz'));
+  const faltaMac = componer({ version: '1.0.4', assets: sinMac, firmas, fecha: 'x' });
+  afirmar(
+    faltaMac.faltantes.length === 1 && faltaMac.faltantes[0].startsWith('darwin-aarch64-app'),
+    `Sin el paquete de macOS debería faltar solo darwin-aarch64-app y falta: ${faltaMac.faltantes.join(', ')}.`,
   );
 
   if (fallos.length > 0) {

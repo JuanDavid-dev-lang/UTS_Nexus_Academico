@@ -1,7 +1,7 @@
 # Publicar una versión
 
-Los clientes se actualizan solos desde **GitHub Releases**. El escritorio —Windows y
-Linux— verifica la firma antes de instalar; el móvil descarga el APK y se lo entrega al
+Los clientes se actualizan solos desde **GitHub Releases**. El escritorio —Windows,
+Linux y macOS— verifica la firma antes de instalar; el móvil descarga el APK y se lo entrega al
 instalador de Android. Esta guía cubre lo que hay que configurar una vez y lo que hay
 que hacer en cada publicación.
 
@@ -16,7 +16,7 @@ la matriz con la versión de cada una; CI la ejecuta en cada push.
 | Windows | soportada | NSIS, MSI | actualizador de Tauri |
 | Linux | soportada | AppImage, `.deb`, `.rpm` | actualizador de Tauri |
 | Android | soportada | APK | API de Releases + instalador del sistema |
-| macOS | planificada | `.app`, `.dmg` | actualizador de Tauri |
+| macOS | soportada | `.app` universal, `.dmg` | actualizador de Tauri |
 | iOS | planificada | `.ipa` | App Store |
 
 El registro es lo que leen `subir-version.mjs` (qué archivos reescribir),
@@ -24,11 +24,11 @@ El registro es lo que leen `subir-version.mjs` (qué archivos reescribir),
 en `latest.json`). Ninguno lleva lista propia, que es como estuvo hasta ahora: la misma
 lista copiada en dos scripts que podían discrepar.
 
-**Añadir macOS o iOS** es cambiar su `estado` a `soportada`, declarar sus archivos de
-versión y sus claves de manifiesto, y añadir su trabajo a `release.yml`. Ningún script
-se toca. Lo que las bloquea hoy está escrito en el propio registro, en el campo
-`bloqueo`, y es de herramientas: un Mac con Xcode para compilar y firmar, y el Apple
-Developer Program para distribuir en iOS.
+**Añadir iOS** es cambiar su `estado` a `soportada`, declarar sus archivos de versión y
+sus claves de manifiesto, y añadir su trabajo a `release.yml` — así se añadió macOS.
+Ningún script se toca. Lo que la bloquea está escrito en el propio registro, en el campo
+`bloqueo`: Xcode completo para compilar y firmar, y el Apple Developer Program para
+distribuir.
 
 ## Dos repositorios, y por qué
 
@@ -470,8 +470,10 @@ anterior en silencio, que es peor que un workflow en rojo.
 ### 3.3 Comprobar
 
 - El Release tiene `latest.json`, el `.exe` y el `.msi` con sus `.sig`, la `.AppImage`,
-  el `.deb` y el `.rpm` con los suyos, y el `.apk`.
-- `latest.json` trae las **siete** claves de la tabla de arriba. El trabajo `manifiesto`
+  el `.deb` y el `.rpm` con los suyos, el `.dmg` y el `.app.tar.gz` de macOS con el suyo,
+  y el `.apk`.
+- `latest.json` trae las **once** claves que imprime `node .github/scripts/plataformas.mjs`
+  (siete de Windows y Linux, cuatro de macOS apuntando al mismo paquete universal). El trabajo `manifiesto`
   falla si falta alguna, así que en verde ya está comprobado — pero es lo primero que hay
   que mirar si alguien reporta que su plataforma no se actualiza.
 - El workflow terminó en verde, incluidos los tres pasos de Dropbox.
@@ -486,6 +488,40 @@ anterior en silencio, que es peor que un workflow en rojo.
 Nada de esto obliga a tocar los enlaces de la página. El campo *Enlaces de descarga* de
 **Configuración** en el escritorio existe solo para mandar un botón a otro archivo
 distinto; vacío es lo normal y significa «usá el que trae escrito la página».
+
+---
+
+### 3.4 Probar la versión de macOS
+
+En un Mac, **`./abrir_escritorio_mac.command`** (o doble clic en Finder) compila y abre
+la aplicación, y deja el `.dmg` y el `.app` en
+`desktop/src-tauri/target/release/bundle/`. Con `universal` compila el mismo paquete
+Intel + Apple Silicon que publica CI, en `target/universal-apple-darwin/release/bundle/`.
+
+**Para probar el actualizador** hace falta la clave privada (§1.1). El lanzador la busca
+en `TAURI_SIGNING_PRIVATE_KEY` o en `~/.tauri/uts-nexus-updater.key` —fuera del
+repositorio, con `chmod 600`— y con ella genera además el `.app.tar.gz` y su `.sig`, que
+es lo que descarga el actualizador. Sin clave compila igual, sin esos dos archivos: la
+app funciona y lo único que no se puede probar es instalar una actualización con ella.
+
+El recorrido completo, que es el único que prueba de verdad la actualización:
+
+1. Instala desde el `.dmg` de una versión publicada (por ejemplo, la actual).
+2. Publica una versión nueva con el flujo normal (§3.1 y §3.2).
+3. Abre la instalada → **Configuración → Actualizaciones**: tiene que ofrecer la nueva,
+   instalarla y reiniciar en ella.
+
+Dos cosas que en macOS son distintas:
+
+- **La primera instalación avisa** de «desarrollador no identificado»: la app va firmada
+  *ad hoc*, no con un certificado de Apple. Se abre desde **Ajustes del Sistema →
+  Privacidad y seguridad → Abrir igualmente** (en versiones anteriores a Sequoia basta
+  clic derecho → Abrir). Solo pasa con lo descargado por el navegador; lo que instala el
+  actualizador no lleva esa marca y abre directamente. Quitar el aviso del todo exige el
+  Apple Developer Program (99 USD/año) y notarizar.
+- **El `.dmg` puede fallar en local** con `error running bundle_dmg.sh`: es el
+  AppleScript que coloca los iconos, sin permiso para controlar Finder. El lanzador lo
+  evita exportando `CI=true`, igual que ocurre en GitHub.
 
 ---
 
@@ -517,11 +553,10 @@ falla en silencio dentro de la tarjeta si no hay red.
 Están declaradas como `planificada` en `.github/scripts/plataformas.mjs`, con lo que las
 bloquea escrito en el propio registro. No es código: es que hace falta una máquina.
 
-**macOS.** El escritorio ya está preparado —`bundle.targets` incluye `app` y `dmg`, y el
-actualizador de Tauri funciona igual—, pero compilar y firmar un `.app` exige macOS con
-Xcode. Sin un Mac no hay forma soportada de producirlo. El día que lo haya, el trabajo
-nuevo en `release.yml` es casi copia del de Linux y las claves del manifiesto ya están
-declaradas (`darwin-aarch64`).
+**macOS** ya se publica (trabajo `macos` de `release.yml`, §3.4). Lo que le falta es de
+pago, no de código: firmar con un certificado de desarrollador y notarizar, para que la
+primera instalación no pase por «Abrir igualmente». La página de descargas tampoco tiene
+todavía botón para el `.dmg`: está en la publicación de GitHub.
 
 **iOS.** Tres motivos, en orden de dureza:
 

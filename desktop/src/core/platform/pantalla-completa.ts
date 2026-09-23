@@ -1,6 +1,6 @@
 /**
- * Pantalla completa: F11, el botón de la barra superior y el del inicio de
- * sesión pasan todos por aquí.
+ * Pantalla completa: el atajo (F11, o ⌃⌘F en macOS), el botón de la barra
+ * superior y el del inicio de sesión pasan todos por aquí.
  *
  * En la aplicación empaquetada es la ventana de Tauri (`setFullscreen`); en el
  * navegador de desarrollo, la Fullscreen API del documento. La elección se
@@ -11,8 +11,21 @@
 import { useSyncExternalStore } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { isDesktop } from './tauri';
+import { esMac, formatearAtajo } from './teclado';
 
 const CLAVE = 'uts.pantallaCompleta';
+
+/**
+ * El atajo tal como se enseña. En macOS F11 no llega a la aplicación —el
+ * sistema lo usa para «Mostrar escritorio»— y la convención es ⌃⌘F, la misma
+ * de Safari, Finder o cualquier ventana nativa.
+ */
+export const ATAJO_PANTALLA_COMPLETA = esMac ? formatearAtajo('ctrl+mod+f') : 'F11';
+
+function esAtajo(evento: KeyboardEvent): boolean {
+  if (evento.key === 'F11') return true;
+  return esMac && evento.ctrlKey && evento.metaKey && evento.key.toLowerCase() === 'f';
+}
 
 let activa = false;
 const oyentes = new Set<() => void>();
@@ -71,12 +84,12 @@ export function alternarPantallaCompleta(): Promise<void> {
 }
 
 /**
- * Engancha F11, sincroniza el estado cuando la ventana cambia por otra vía y
+ * Engancha el atajo, sincroniza el estado cuando la ventana cambia por otra vía y
  * aplica la preferencia guardada. Se llama una vez en `main.tsx`.
  */
 export function iniciarPantallaCompleta(): () => void {
   function tecla(evento: KeyboardEvent): void {
-    if (evento.key !== 'F11' || evento.repeat) return;
+    if (!esAtajo(evento) || evento.repeat) return;
     evento.preventDefault();
     void alternarPantallaCompleta();
   }

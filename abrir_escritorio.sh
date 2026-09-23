@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==========================================================================
-#  UTS Nexus Académico — Lanzador de la app de escritorio (Linux / macOS)
+#  UTS Nexus Académico — Lanzador de la app de escritorio (Linux)
 #
 #  Equivalente de `abrir_escritorio.bat`. Misma estrategia, y existe por el
 #  mismo motivo:
@@ -24,6 +24,13 @@ set -uo pipefail
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$RAIZ"
+
+# macOS tiene su propio lanzador: aquí `desktop:build` terminaría en error al
+# firmar sin la clave del actualizador y al colocar el `.dmg`, y el binario se
+# abre como `.app`, no suelto. Se le pasa el mismo modo.
+if [ "$(uname -s)" = "Darwin" ]; then
+  exec "$RAIZ/abrir_escritorio_mac.command" "$@"
+fi
 
 MODO="${1:-normal}"
 

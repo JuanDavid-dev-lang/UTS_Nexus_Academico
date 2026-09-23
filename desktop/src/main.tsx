@@ -31,7 +31,7 @@ iniciarTelemetria();
 // en la bandeja: sin esto, semanas sin abrirla la dejaban caducar.
 iniciarMantenimientoDeSesion();
 
-// F11 y la pantalla completa recordada del último uso.
+// El atajo de pantalla completa (F11, ⌃⌘F en macOS) y la recordada del último uso.
 iniciarPantallaCompleta();
 
 const container = document.getElementById('root');

@@ -345,7 +345,8 @@ UTS_Nexus_Academico/
 ├── abrir_android.bat              # Lanzador de la app móvil
 ├── iniciar.ps1                    # Arranque automático — Windows
 ├── iniciar.sh                     # Arranque automático — Linux / macOS
-├── abrir_escritorio.sh            # Lanzador del escritorio — Linux / macOS
+├── abrir_escritorio.sh            # Lanzador del escritorio — Linux
+├── abrir_escritorio_mac.command   # Lanzador del escritorio — macOS (doble clic)
 ├── docker-compose.yml             # Despliegue con Docker
 └── README.txt                     # Guía de arranque en texto plano
 ```
@@ -593,9 +594,11 @@ compila y firma sin un solo error, y **abre con la ventana en blanco**.
 > Para uso local da igual; para publicar, no.
 
 La versión del nombre sale de `desktop/src-tauri/tauri.conf.json`. También están
-los lanzadores: `abrir_escritorio.bat` en Windows y `abrir_escritorio.sh` en
-Linux y macOS — abren el ejecutable si existe y lo compilan si no, y recompilan
-si el código cambió después de la última vez. Ese último detalle es el que
+los lanzadores: `abrir_escritorio.bat` en Windows, `abrir_escritorio.sh` en
+Linux y `abrir_escritorio_mac.command` en macOS (doble clic en Finder; con
+`universal` compila para Intel y Apple Silicon a la vez) — abren el ejecutable
+si existe y lo compilan si no, y recompilan si el código cambió después de la
+última vez. Ese último detalle es el que
 importa: abrir un binario viejo no da ningún error, solo muestra una versión
 anterior del programa.
 

@@ -35,6 +35,7 @@ npm run desktop:dev      # ventana nativa con HMR (requiere Rust + VS Build Tool
 npm run desktop:build    # empaqueta para el sistema donde se ejecuta:
                          #   Windows → .exe + instaladores NSIS/MSI
                          #   Linux   → .AppImage + .deb + .rpm
+                         #   macOS   → usa ./abrir_escritorio_mac.command (ver «Escritorio en macOS»)
 npm test                 # Vitest (tests en tests/unit/)
 npx vitest run tests/unit/errors.test.ts   # un solo archivo de test
 npm run typecheck        # tsc --noEmit
@@ -67,7 +68,7 @@ node .github/scripts/comprobar-version.mjs v1.0.1
 ```
 
 ### Arranque completo
-`iniciar.ps1` (Windows) / `iniciar.sh` — instala, compila, siembra, levanta el backend y corre el smoke test. Lanzadores por app: `abrir_escritorio.bat`, `abrir_android.bat`.
+`iniciar.ps1` (Windows) / `iniciar.sh` — instala, compila, siembra, levanta el backend y corre el smoke test. Lanzadores por app: `abrir_escritorio.bat` (Windows), `abrir_escritorio.sh` (Linux), `abrir_escritorio_mac.command` (macOS, doble clic en Finder), `abrir_android.bat`.
 
 ## Arquitectura
 
@@ -1032,13 +1033,22 @@ tercera vale en todos los sistemas.
   renovación en paralelo con la del 401 revocaría toda la familia de sesiones
   por la rotación. Qué toca renovar lo decide `domain/session/keep-alive.ts`.
 
-- **Pantalla completa** (`core/platform/pantalla-completa.ts`): F11 desde
-  cualquier pantalla, un botón en la barra superior y otro en el acceso. En
+- **Pantalla completa** (`core/platform/pantalla-completa.ts`): F11 (⌃⌘F
+  en macOS) desde cualquier pantalla, un botón en la barra superior y otro en el acceso. En
   Tauri es `setFullscreen` de la ventana (permisos `allow-set-fullscreen` e
   `allow-is-fullscreen` en `capabilities/default.json`); en el navegador de
   desarrollo, la Fullscreen API. La elección se recuerda en el equipo y se
   aplica al arrancar, y el estado se relee al cambiar de tamaño: salir por otra
   vía no deja el botón diciendo lo contrario.
+- **Los atajos se escriben como en cada sistema** (`core/platform/teclado.ts`).
+  Se declaran una vez con `mod` (`'mod+shift+l'`) y `formatearAtajo()` los
+  pinta `⇧⌘L` en macOS —símbolos juntos, en el orden de Apple ⌃⌥⇧⌘— y
+  `Ctrl+Shift+L` en Windows y Linux; `useHotkeys` ya escuchaba ⌘ en Mac, lo que
+  estaba mal era el texto. **No escribas «Ctrl» ni «F11» a mano en una
+  pantalla.** En macOS F11 no llega a la aplicación (el sistema lo usa para
+  «Mostrar escritorio»), así que la pantalla completa acepta además ⌃⌘F y
+  `ATAJO_PANTALLA_COMPLETA` enseña el que toca. `tests/unit/teclado.test.ts`
+  fija el formato.
 
 ### Versión web (`utsnexusweb.ciaiuts.com`)
 
@@ -1376,14 +1386,50 @@ imprime la matriz; CI la ejecuta en cada push.
 | Linux | soportada | AppImage, deb, rpm | actualizador de Tauri |
 | Android | soportada | APK | API de Releases + instalador del sistema |
 | Web | soportada | — (Vercel) | despliegue continuo en cada push |
-
-La web no se compila en la publicación: la despliega Vercel sola. Lo que hace el trabajo `web` de `release.yml` es **comprobar** que `utsnexusweb.ciaiuts.com/version.json` ya sirve la versión etiquetada —ese archivo lo escribe `build:web` desde `package.json`— y ponerse en rojo si a los veinte minutos no llegó. Sin eso, un despliegue fallido dejaba la web en la versión anterior sin que nada lo dijera.
-| macOS | planificada | app, dmg | actualizador de Tauri |
+| macOS | soportada | app (universal), dmg | actualizador de Tauri |
 | iOS | planificada | ipa | App Store (el actualizador propio no aplica) |
 
-macOS e iOS están **bloqueadas por herramientas, no por código**: compilar y
-firmar exige un Mac con Xcode, y distribuir en iOS además el Apple Developer
-Program. No empieces a añadir una carpeta `ios/`.
+La web no se compila en la publicación: la despliega Vercel sola. Lo que hace el trabajo `web` de `release.yml` es **comprobar** que `utsnexusweb.ciaiuts.com/version.json` ya sirve la versión etiquetada —ese archivo lo escribe `build:web` desde `package.json`— y ponerse en rojo si a los veinte minutos no llegó. Sin eso, un despliegue fallido dejaba la web en la versión anterior sin que nada lo dijera.
+
+iOS está **bloqueada por herramientas, no por código**: compilar y firmar exige
+Xcode completo, y distribuirla el Apple Developer Program. No empieces a añadir
+una carpeta `ios/`.
+
+### Escritorio en macOS
+
+El mismo `desktop/`, con lo propio en `tauri.macos.conf.json` (solo `app` y
+`dmg`). Lo publica el trabajo `macos` de `release.yml` en `macos-latest`.
+
+- **Un paquete universal** (`--target universal-apple-darwin`): los binarios
+  arm64 y x86_64 en el mismo `.app`. Un solo `.app.tar.gz` responde a las
+  cuatro claves del manifiesto (`darwin-{aarch64,x86_64}` con y sin `-app`),
+  declaradas como `alias` en `plataformas.mjs`: faltar la de una arquitectura
+  deja a esa mitad de los Mac en «ya tienes la última versión» sin un error.
+  El trabajo comprueba con `lipo` que salen las dos.
+- **Firma ad hoc** (`signingIdentity: "-"`), no de desarrollador. Sin ninguna
+  firma, macOS mata el binario arm64 en Apple Silicon. Ad hoc no satisface a
+  Gatekeeper: **la primera instalación** desde el `.dmg` descargado avisa de
+  «desarrollador no identificado» y se abre desde Ajustes → Privacidad y
+  seguridad → «Abrir igualmente». Las actualizaciones no pasan por ese aviso:
+  lo que descarga el actualizador no lleva la cuarentena del navegador.
+  Quitarlo del todo exige el Apple Developer Program y notarizar.
+- **El `.dmg` sale sin AppleScript.** El script de Tauri le pide a Finder que
+  coloque los iconos, y desde una terminal sin permiso de Automatización eso
+  falla con un `error running bundle_dmg.sh` que no dice por qué. Con la
+  variable `CI` definida el empaquetador pasa `--skip-jenkins` y se lo salta:
+  GitHub la define sola y el lanzador local la exporta.
+- **En local, `abrir_escritorio_mac.command`**, no `desktop:build`: compila con
+  la clave del actualizador si la encuentra (`TAURI_SIGNING_PRIVATE_KEY` o
+  `~/.tauri/uts-nexus-updater.key`) y sin sus archivos si no, en vez de fallar
+  al firmar después de compilar todo. `abrir_escritorio.sh` le cede el paso en
+  macOS. Con `universal` compila como la publicación.
+- **Mac Intel: Homebrew ya no sirve para la cadena de herramientas.** No
+  publica bottles de macOS x86_64, así que `brew install node` compila desde
+  fuente, y el cask de Flutter es solo arm64. Node, Rust y Flutter van con sus
+  instaladores oficiales. Flutter además avisa de que retirará el soporte de
+  Mac Intel.
+- **La bandeja y el inicio con el sistema siguen siendo solo de Windows**; en
+  macOS la ✕ cierra la app, y Rust avisa de que `accion_al_cerrar` no se usa.
 
 Añadir una plataforma es cambiar su `estado` en el registro, declarar sus
 archivos de versión y sus claves de manifiesto, y añadir su trabajo al workflow.

@@ -19,7 +19,8 @@ import { useSession } from '@/state/session.store';
 import { esWeb, platform } from '@/core/platform/tauri';
 import { explicarAlmacen, type AlmacenDeCredenciales } from '@/core/platform/paquete';
 import { env } from '@/core/config/env';
-import { modKeyLabel } from '@/shared/hooks/use-hotkeys';
+import { formatearAtajo } from '@/core/platform/teclado';
+import { ATAJO_PANTALLA_COMPLETA } from '@/core/platform/pantalla-completa';
 import { CUENTAS_PERSONAL_HASH, desplazarASeccion } from '@/shared/lib/scroll-to-hash';
 import { UpdateCard } from './components/update-card';
 import { RegistrationCard } from './components/registration-card';
@@ -33,10 +34,11 @@ import { StartupCard } from './components/startup-card';
 import { ServerCard } from './components/server-card';
 
 const SHORTCUTS = [
-  { keys: `${modKeyLabel} K`, action: 'Búsqueda global' },
-  { keys: `${modKeyLabel} B`, action: 'Contraer / expandir menú' },
-  { keys: `${modKeyLabel} ⇧ L`, action: 'Cambiar tema' },
-  { keys: `${modKeyLabel} 1…7`, action: 'Ir a una sección' },
+  { keys: formatearAtajo('mod+k'), action: 'Búsqueda global' },
+  { keys: formatearAtajo('mod+b'), action: 'Contraer / expandir menú' },
+  { keys: formatearAtajo('mod+shift+l'), action: 'Cambiar tema' },
+  { keys: formatearAtajo('mod+1…8'), action: 'Ir a una sección' },
+  { keys: ATAJO_PANTALLA_COMPLETA, action: 'Pantalla completa' },
 ];
 
 export default function SettingsPage() {

@@ -77,10 +77,17 @@ npm run desktop:build    # instalador en src-tauri/target/release/bundle/
 ```
 
 `desktop:build` empaqueta para el sistema donde se ejecuta —Tauri no compila
-cruzado—: NSIS y MSI en Windows, AppImage + `.deb` + `.rpm` en Linux, `.dmg` en
-macOS. Lo específico de Linux vive en `src-tauri/tauri.linux.conf.json`, que
-Tauri fusiona sobre `tauri.conf.json` cuando el objetivo es Linux; las
-dependencias de compilación por distribución están en el README de la raíz.
+entre sistemas—: NSIS y MSI en Windows, AppImage + `.deb` + `.rpm` en Linux.
+Lo específico de cada sistema vive en `src-tauri/tauri.linux.conf.json` y
+`src-tauri/tauri.macos.conf.json`, que Tauri fusiona sobre `tauri.conf.json`;
+las dependencias de compilación por distribución están en el README de la raíz.
+
+**En macOS se compila con `../abrir_escritorio_mac.command`**, no con
+`desktop:build`: sin la clave del actualizador `tauri build` termina en error
+al firmar, y el `.dmg` falla en el paso de AppleScript si la terminal no tiene
+permiso para controlar Finder. El lanzador resuelve las dos cosas y, con
+`universal`, compila el mismo paquete Intel + Apple Silicon que publica CI.
+Detalle en `CLAUDE.md`, «Escritorio en macOS».
 
 **`desktop:build` encadena `scripts/sanear-appimage.mjs`, y por eso no se usa
 `tauri build` a secas.** Ese script quita de la AppImage `libwayland-client.so.0`

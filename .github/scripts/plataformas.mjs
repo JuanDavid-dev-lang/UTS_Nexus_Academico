@@ -77,6 +77,12 @@ export const CLIENTES = {
  * la clave corta `{os}-{arch}` a la que ese mismo plugin cae cuando no sabe en
  * qué formato está instalado. Solo un formato por sistema lleva `alias`, y es
  * el que funciona en más sitios.
+ *
+ * `alias` puede ser una lista: el paquete de macOS es **universal** (un solo
+ * binario para Intel y Apple Silicon), así que el mismo archivo tiene que
+ * responder a las claves de las dos arquitecturas. El actualizador pide la de
+ * la máquina donde corre; si faltara la de una, esa mitad de los Mac se
+ * quedaría en «ya tienes la última versión» sin ningún error.
  */
 
 export const PLATAFORMAS = [
@@ -154,17 +160,27 @@ export const PLATAFORMAS = [
   {
     id: 'macos',
     nombre: 'macOS',
-    estado: 'planificada',
+    estado: 'soportada',
     cliente: 'escritorio',
+    // Un solo paquete universal (`--target universal-apple-darwin`): lleva los
+    // dos binarios dentro y macOS elige el suyo al abrirlo.
     arquitecturas: ['aarch64', 'x86_64'],
     actualizacion: 'Actualizador de Tauri (firma minisign)',
     formatos: [
-      { id: 'app', extension: '.app.tar.gz', clave: 'darwin-aarch64', etiqueta: 'Paquete de aplicación' },
-      { id: 'dmg', extension: '.dmg', etiqueta: 'Imagen de disco' },
+      {
+        // Lo que descarga el actualizador: el `.app` comprimido. No lleva ni
+        // versión ni arquitectura en el nombre, y por eso se reconoce por la
+        // extensión como todo lo demás.
+        id: 'app',
+        extension: '.app.tar.gz',
+        clave: 'darwin-aarch64-app',
+        alias: ['darwin-aarch64', 'darwin-x86_64-app', 'darwin-x86_64'],
+        etiqueta: 'Paquete de aplicación (actualizador)',
+      },
+      // El `.dmg` es para instalar la primera vez y no entra en el manifiesto:
+      // el actualizador de macOS reemplaza el `.app`, no monta imágenes.
+      { id: 'dmg', extension: '.dmg', etiqueta: 'Imagen de disco (Intel y Apple Silicon)' },
     ],
-    bloqueo:
-      'Compilar y firmar exige macOS con Xcode. El código del escritorio ya es portable; ' +
-      'el trabajo pendiente es de máquina y de firma, no de reescritura.',
   },
   {
     id: 'ios',
@@ -227,11 +243,11 @@ export function clavesDeManifiesto() {
     for (const formato of plataforma.formatos) {
       if (!formato.clave) continue;
       claves.push({ plataforma: plataforma.id, formato: formato.id, clave: formato.clave, extension: formato.extension });
-      if (formato.alias) {
+      for (const alias of [formato.alias ?? []].flat()) {
         claves.push({
           plataforma: plataforma.id,
           formato: formato.id,
-          clave: formato.alias,
+          clave: alias,
           extension: formato.extension,
           esAlias: true,
         });

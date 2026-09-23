@@ -7,6 +7,7 @@ import { cn } from '@/shared/lib/cn';
 import { esWeb } from '@/core/platform/tauri';
 import { RESORTE } from './resorte';
 import {
+  ATAJO_PANTALLA_COMPLETA,
   alternarPantallaCompleta,
   usePantallaCompleta,
 } from '@/core/platform/pantalla-completa';
@@ -190,7 +191,7 @@ export function LogoConAnillo({ size }: { size: number }) {
 
 // ── Pantalla completa ────────────────────────────────────────────────────────
 
-/** Botón flotante arriba a la derecha. F11 hace lo mismo desde cualquier pantalla. */
+/** Botón flotante arriba a la derecha. El atajo hace lo mismo desde cualquier pantalla. */
 export function BotonPantallaCompletaAcceso() {
   const completa = usePantallaCompleta();
   const etiqueta = completa ? 'Salir de pantalla completa' : 'Pantalla completa';
@@ -203,7 +204,7 @@ export function BotonPantallaCompletaAcceso() {
       whileHover={{ scale: 1.04 }}
       whileTap={{ scale: 0.96 }}
       onClick={() => void alternarPantallaCompleta()}
-      aria-label={`${etiqueta} (F11)`}
+      aria-label={`${etiqueta} (${ATAJO_PANTALLA_COMPLETA})`}
       aria-pressed={completa}
       className={cn(
         'absolute right-5 top-5 z-10 flex items-center gap-2 rounded-full px-3.5 py-2',
@@ -218,7 +219,7 @@ export function BotonPantallaCompletaAcceso() {
         <Maximize2 className="size-4" aria-hidden />
       )}
       <span className="hidden sm:inline">{etiqueta}</span>
-      <Kbd className="hidden bg-on-primary/15 text-current sm:inline-flex">F11</Kbd>
+      <Kbd className="hidden bg-on-primary/15 text-current sm:inline-flex">{ATAJO_PANTALLA_COMPLETA}</Kbd>
     </motion.button>
   );
 }

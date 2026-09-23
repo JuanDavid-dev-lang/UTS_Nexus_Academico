@@ -11,6 +11,7 @@
  * no hay nada concreto que iluminar.
  */
 import type { LucideIcon } from 'lucide-react';
+import { formatearAtajo } from '@/core/platform/teclado';
 import {
   BarChart3,
   Bell,
@@ -116,7 +117,7 @@ export const PASOS: PasoTour[] = [
   {
     titulo: 'Eso es todo',
     texto:
-      'Ya conoces las partes principales. Un atajo útil: Ctrl+K abre la búsqueda global y te lleva a cualquier sección sin soltar el teclado.',
+      `Ya conoces las partes principales. Un atajo útil: ${formatearAtajo('mod+k')} abre la búsqueda global y te lleva a cualquier sección sin soltar el teclado.`,
     ruta: '/',
   },
 ];

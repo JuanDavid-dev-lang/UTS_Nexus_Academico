@@ -45,7 +45,7 @@ import { RESORTE } from './components/resorte';
  *   la sesión: dura 15 días sin uso y solo en este equipo (el servidor la ata
  *   al identificador del equipo, ver `core/auth/device-id.ts`). Desmarcada, la
  *   sesión vive lo que la ventana.
- * - **Pantalla completa** con el botón de arriba o con F11.
+ * - **Pantalla completa** con el botón de arriba o con su atajo (F11, ⌃⌘F en macOS).
  */
 
 /** Tarjeta: sube con resorte y reparte la entrada de sus piezas. */

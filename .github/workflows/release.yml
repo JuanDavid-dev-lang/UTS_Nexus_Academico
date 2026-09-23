@@ -18,6 +18,7 @@
 # alguno.
 #
 #   desktop (Windows) ──┬── linux ────┐
+#                       ├── macos ────┤
 #                       └── android ──┴── manifiesto ── espejo ── dropbox
 #
 # The release does NOT live in this repository. This one is private; the one
@@ -47,7 +48,7 @@
 #   node .github/scripts/subir-version.mjs patch
 #
 # Qué archivos toca y qué plataformas existen sale de `.github/scripts/plataformas.mjs`,
-# que es el registro único. Añadir macOS o iOS se hace ahí y aquí, en ningún otro sitio.
+# que es el registro único. Añadir iOS se hace ahí y aquí, en ningún otro sitio.
 
 name: Release
 
@@ -414,6 +415,107 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  macos:
+    name: Escritorio (macOS)
+    # Apple Silicon. Compila un paquete **universal** (`universal-apple-darwin`):
+    # los dos binarios, arm64 y x86_64, dentro del mismo `.app`, y macOS elige
+    # el suyo al abrirlo. Dos paquetes separados obligarían a quien descarga a
+    # saber qué procesador tiene su Mac, y el botón de una página no puede
+    # preguntárselo.
+    runs-on: macos-latest
+    needs: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      # Los dos objetivos: el runner es arm64 y sin el de Intel la compilación
+      # universal falla al llegar a la mitad x86_64.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+          # Clave propia, por lo mismo que Linux: otro objetivo sobre los mismos
+          # `workspaces` invalidaría la caché de los demás en cada publicación.
+          key: macos-universal
+
+      - name: Instalar dependencias
+        working-directory: desktop
+        run: npm ci
+
+      # `tauri build` y no `desktop:build`: ese script encadena el saneado de la
+      # AppImage, que en macOS no hace nada, y `npm run X -- --target` le
+      # pasaría el objetivo al script de la AppImage y no a Tauri.
+      #
+      # Lo que cambia respecto a la base está en `tauri.macos.conf.json`:
+      # solo `app` y `dmg`, y firma **ad hoc** (`signingIdentity: "-"`). Sin
+      # ninguna firma, la mitad arm64 ni se ejecuta — macOS mata en Apple
+      # Silicon todo binario sin firmar. Ad hoc no es la firma de un
+      # desarrollador: Gatekeeper sigue avisando la primera vez (ver
+      # docs/PUBLICAR_VERSION.md). El actualizador no pasa por ese aviso,
+      # porque lo que descarga no lleva la marca de cuarentena del navegador.
+      #
+      # El `.dmg` sale sin AppleScript: el bundler de Tauri añade
+      # `--skip-jenkins` solo cuando existe `CI`, que GitHub define. Es el
+      # paso que en un Mac con sesión gráfica pide permiso para controlar
+      # Finder y aquí no tiene a quién pedírselo.
+      - name: Compilar y firmar el paquete universal
+        working-directory: desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npx tauri build --target universal-apple-darwin
+
+      # Lo mismo que en Linux: el actualizador rechaza un paquete sin `.sig`, y
+      # publicarlo así deja a todos los Mac sin actualizaciones sin un error.
+      - name: Comprobar los paquetes
+        working-directory: desktop/src-tauri/target/universal-apple-darwin/release/bundle
+        run: |
+          set -euo pipefail
+          ls -la macos dmg
+          app=$(find macos -name '*.app.tar.gz' -print -quit)
+          dmg=$(find dmg -name '*.dmg' -print -quit)
+          [ -n "$app" ] || { echo "::error::No se generó el .app.tar.gz del actualizador."; exit 1; }
+          [ -f "$app.sig" ] || { echo "::error::$app está sin firmar."; exit 1; }
+          [ -n "$dmg" ] || { echo "::error::No se generó el .dmg."; exit 1; }
+          # Las dos arquitecturas, o no es universal: un paquete solo arm64
+          # instalado en un Intel no abre, y el error no dice por qué.
+          binario=$(find macos -path '*.app/Contents/MacOS/*' -type f -print -quit)
+          archs=$(lipo -archs "$binario")
+          echo "Arquitecturas: $archs"
+          case "$archs" in *x86_64*arm64*|*arm64*x86_64*) ;; *)
+            echo "::error::El paquete no es universal ($archs)."; exit 1;;
+          esac
+
+      - name: Adjuntar los paquetes a la release
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: ${{ env.REPO_RELEASES_OWNER }}/${{ env.REPO_RELEASES_NAME }}
+          token: ${{ secrets.RELEASES_TOKEN }}
+          tag_name: ${{ github.ref_name }}
+          files: |
+            desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz
+            desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
+
+      - name: Guardar los paquetes de macOS
+        uses: actions/upload-artifact@v4
+        with:
+          name: instalador-macos
+          path: |
+            desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz
+            desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
+          if-no-files-found: error
+          retention-days: 1
+
   android:
     name: Móvil (Android)
     runs-on: ubuntu-latest
@@ -570,7 +672,7 @@ jobs:
   manifiesto:
     name: Manifiesto y espejo
     runs-on: ubuntu-latest
-    needs: [desktop, linux, android]
+    needs: [desktop, linux, macos, android]
     steps:
       - uses: actions/checkout@v4
 
