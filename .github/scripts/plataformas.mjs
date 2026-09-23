@@ -193,8 +193,8 @@ export const PLATAFORMAS = [
     actualizacion: 'App Store (el actualizador propio no aplica)',
     formatos: [{ id: 'ipa', extension: '.ipa', etiqueta: 'Paquete de App Store' }],
     bloqueo:
-      'Falta la carpeta ios/ del proyecto Flutter, un Mac con Xcode para compilar y firmar, ' +
-      'y el Apple Developer Program incluso para reparto interno.',
+      'El proyecto ya tiene ios/; falta compilarlo: Xcode completo (en un Mac Intel, macOS Sequoia ' +
+      'para Xcode 26) y CocoaPods, y el Apple Developer Program para repartirlo fuera del propio iPhone.',
   },
 ];
 

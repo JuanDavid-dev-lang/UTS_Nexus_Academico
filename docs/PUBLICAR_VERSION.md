@@ -558,13 +558,16 @@ pago, no de código: firmar con un certificado de desarrollador y notarizar, par
 primera instalación no pase por «Abrir igualmente». La página de descargas tampoco tiene
 todavía botón para el `.dmg`: está en la publicación de GitHub.
 
-**iOS.** Tres motivos, en orden de dureza:
+**iOS.** `flutter_app/ios/` ya existe, con los permisos, el icono y los recordatorios
+de clase resueltos (detalle en `CLAUDE.md`, «Móvil en iOS»). Falta, en orden de dureza:
 
-1. `flutter_app/` no tiene carpeta `ios/`; habría que generarla con
-   `flutter create --platforms=ios .`.
-2. Compilar y firmar un `.ipa` exige **macOS con Xcode**.
-3. Distribuirlo exige el **Apple Developer Program** (99 USD/año), incluso para reparto
-   interno.
+1. Compilar y firmar exige **Xcode completo**. El 26 pide macOS Sequoia 15.6; en un Mac
+   Intel es el último sistema posible. Además, **CocoaPods**: dos dependencias aún no
+   traen Swift Package Manager.
+2. Probar en un iPhone propio basta con un Apple ID gratuito, por cable y con caducidad
+   de 7 días.
+3. Repartirlo (TestFlight o App Store) y el push exigen el **Apple Developer Program**
+   (99 USD/año).
 
 El código Dart es portable: el trabajo es de configuración y firma, no de reescritura.
 Lo que sí habría que rehacer es el sistema de actualización, porque iOS no permite

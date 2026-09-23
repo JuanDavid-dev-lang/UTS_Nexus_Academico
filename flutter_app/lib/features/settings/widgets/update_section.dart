@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 
 import '../data/update_service.dart';
@@ -163,7 +165,11 @@ class _UpdateSectionState extends State<UpdateSection> {
       case _Phase.unsupported:
         return [
           Text(
-            'Las actualizaciones automáticas solo están disponibles en Android.',
+            // En iOS no se instala nada fuera de la App Store: allí las
+            // actualizaciones son cosa de la tienda, no de la aplicación.
+            Platform.isIOS
+                ? 'En iPhone y iPad las actualizaciones llegan por la App Store.'
+                : 'Las actualizaciones automáticas solo están disponibles en Android.',
             style: AppType.caption.copyWith(color: muted),
           ),
         ];

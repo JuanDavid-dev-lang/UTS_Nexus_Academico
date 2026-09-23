@@ -15,9 +15,10 @@ import '../../features/agenda/data/agenda_models.dart';
 /// Un recordatorio de clase tiene que llegar con la aplicación cerrada y sin
 /// red: el docente entra al edificio, pierde el wifi del campus y ahí es
 /// justamente cuando necesita que le avise. Las clases se conocen con días de
-/// antelación, así que el teléfono puede programarlas él mismo con el
-/// AlarmManager de Android; eso funciona apagado el proceso de Flutter y sin
-/// depender de que exista una cuenta de Firebase configurada en el servidor.
+/// antelación, así que el teléfono puede programarlas él mismo —con el
+/// AlarmManager en Android y el centro de notificaciones en iOS—; eso funciona
+/// apagado el proceso de Flutter y sin depender de que exista una cuenta de
+/// Firebase configurada en el servidor.
 ///
 /// El push del servidor (FCM) sigue existiendo y cubre lo que el teléfono NO
 /// puede saber por adelantado: que un estudiante entró en riesgo, que alguien
@@ -75,13 +76,15 @@ class LocalNotificationsService {
     importance: Importance.low,
   );
 
+  /// Los dos sistemas donde hay recordatorios. En cualquier otro —Windows con
+  /// `flutter run -d windows` para mirar la interfaz— inicializar el plugin
+  /// **no termina nunca** y la app se queda sin pintar el primer fotograma:
+  /// ventana oculta y ningún error. Por eso se sale antes.
+  static bool get _soportado => Platform.isAndroid || Platform.isIOS;
+
   Future<void> init() async {
     if (_iniciado) return;
-    // Solo Android: el plugin se inicializa con ajustes de Android y nada más.
-    // En Windows (`flutter run -d windows` para mirar la interfaz) esa llamada
-    // **no termina nunca** y la app se queda sin pintar el primer fotograma:
-    // ventana oculta y ningún error.
-    if (!Platform.isAndroid) {
+    if (!_soportado) {
       _iniciado = true;
       return;
     }
@@ -96,6 +99,16 @@ class LocalNotificationsService {
     await _plugin.initialize(
       const InitializationSettings(
         android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        // Sin pedir nada al iniciar: el permiso se pide en `pedirPermisos`,
+        // al entrar a la sesión (`app.dart`). Pedirlo al abrir la app por
+        // primera vez, antes de saber para qué, es la forma más segura de que
+        // digan que no, y en iOS esa respuesta el sistema no la vuelve a
+        // preguntar: solo se cambia desde Ajustes.
+        iOS: DarwinInitializationSettings(
+          requestAlertPermission: false,
+          requestBadgePermission: false,
+          requestSoundPermission: false,
+        ),
       ),
       onDidReceiveNotificationResponse: _alTocar,
     );
@@ -145,9 +158,13 @@ class LocalNotificationsService {
     }
   }
 
-  /// Pide los permisos que Android exige. Devuelve si se pueden mostrar avisos.
+  /// Pide los permisos del sistema. Devuelve si se pueden mostrar avisos.
   Future<bool> pedirPermisos() async {
     await init();
+    final ios = _plugin.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+    if (ios != null) {
+      return await ios.requestPermissions(alert: true, badge: true, sound: true) ?? false;
+    }
     final android =
         _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
     if (android == null) return false;
@@ -162,12 +179,21 @@ class LocalNotificationsService {
 
   Future<bool> get permisosConcedidos async {
     await init();
+    final ios = _plugin.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+    if (ios != null) return (await ios.checkPermissions())?.isEnabled ?? false;
     final android =
         _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
     return await android?.areNotificationsEnabled() ?? false;
   }
 
-  AndroidNotificationDetails _detalles(String canalId, String tag) {
+  NotificationDetails _detalles(String canalId, String tag) => NotificationDetails(
+        android: _detallesAndroid(canalId, tag),
+        // `threadIdentifier` es el `tag` de iOS: agrupa en el centro de
+        // notificaciones los avisos del mismo hecho.
+        iOS: DarwinNotificationDetails(threadIdentifier: tag),
+      );
+
+  AndroidNotificationDetails _detallesAndroid(String canalId, String tag) {
     final canal = switch (canalId) {
       'uts_urgente' => _canalUrgente,
       'uts_informativa' => _canalInformativa,
@@ -208,7 +234,7 @@ class LocalNotificationsService {
       idDeClave(clave),
       titulo,
       mensaje,
-      NotificationDetails(android: _detalles(canalId, clave)),
+      _detalles(canalId, clave),
       payload: ruta == null ? null : jsonEncode({'ruta': ruta}),
     );
   }
@@ -217,7 +243,9 @@ class LocalNotificationsService {
   ///
   /// Android tolera unos cuantos cientos de alarmas, pero programar la agenda
   /// entera del semestre no sirve de nada: se reprograma en cada sincronización
-  /// y lo que importa son los próximos días.
+  /// y lo que importa son los próximos días. **Y 64 es el tope de iOS**: por
+  /// encima, el sistema descarta en silencio los que sobran, así que subirlo
+  /// dejaría sin aviso a las clases más lejanas del iPhone sin ningún error.
   static const maxProgramados = 64;
 
   /// Días hacia delante que se programan.
@@ -281,9 +309,7 @@ class LocalNotificationsService {
                     : item.tipo.etiqueta,
             _mensaje(item, antelacion),
             tz.TZDateTime.from(cuando, tz.UTC),
-            NotificationDetails(
-              android: _detalles(antelacion == 0 ? 'uts_importante' : 'uts_informativa', clave),
-            ),
+            _detalles(antelacion == 0 ? 'uts_importante' : 'uts_informativa', clave),
             androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
             // Obligatorio en la 18.x. Se programa sobre instantes absolutos, asi
             // que 'absoluteTime' es lo correcto: la hora ya viene resuelta del
@@ -303,7 +329,7 @@ class LocalNotificationsService {
               item.esClase ? 'Próxima clase' : item.tipo.etiqueta,
               _mensaje(item, antelacion),
               tz.TZDateTime.from(cuando, tz.UTC),
-              NotificationDetails(android: _detalles('uts_informativa', clave)),
+              _detalles('uts_informativa', clave),
               androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
               uiLocalNotificationDateInterpretation:
                   UILocalNotificationDateInterpretation.absoluteTime,

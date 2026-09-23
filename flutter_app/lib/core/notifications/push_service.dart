@@ -14,8 +14,10 @@ import './local_notifications_service.dart';
 /// otra mitad.
 ///
 /// ── Degradación deliberada ──────────────────────────────────────────────────
-/// Si `google-services.json` no está en `android/app/`, el plugin de Gradle no
-/// se aplica y `Firebase.initializeApp()` falla. Eso NO puede tumbar la
+/// Si `google-services.json` no está en `android/app/` —o, en iOS,
+/// `GoogleService-Info.plist` en `ios/Runner/`, que además exige una clave de
+/// APNs y por tanto la cuenta de pago de Apple—, `Firebase.initializeApp()`
+/// falla. Eso NO puede tumbar la
 /// aplicación: se captura, `disponible` queda en `false` y todo lo demás sigue
 /// funcionando exactamente igual. Es la misma decisión que el correo saliente y
 /// el servicio de ML: una instalación local no debería necesitar una cuenta de

@@ -1095,6 +1095,21 @@ la aplicación» con el botón a la página de descargas. La web entra por Mater
 - El cliente enseña el mensaje de ese 403 tal cual (`errors.ts`, como el del
   registro pendiente).
 
+**Instalable como aplicación** (plugin `appInstalable` de `vite.config.ts`,
+solo en modo `web`). Es la vía **gratuita** para el iPhone: la app nativa solo
+se instala por la App Store o TestFlight, y las dos exigen la cuenta de pago de
+Apple. En Safari, Compartir → «Añadir a pantalla de inicio» la deja con su
+icono, a pantalla completa y sin la barra del navegador. Para eso la build web
+publica `manifest.webmanifest`, `apple-touch-icon.png` (180 px, **opaco**:
+Safari no lee los iconos del manifiesto) y los iconos de 192 y 512
+—`desktop/pwa/`, generados desde `src-tauri/icons/ios/`—, y añade al `<head>`
+las etiquetas `apple-mobile-web-app-*`. Sin ellas el icono era una captura de
+la página y se abría dentro de Safari. La barra de estado va en `default`: con
+`black-translucent` la página se dibuja debajo y la hora tapa la cabecera. El
+`index.html` de Tauri no lleva nada de esto. Instalada, **sigue siendo la web**:
+mismas funciones y misma sesión en `sessionStorage`, así que cerrarla desde el
+selector de apps termina la sesión.
+
 **Sesión en la web**: sin casilla de recordar. Los tokens van a
 `sessionStorage`, así que recargar no echa a nadie y cerrar la pestaña termina
 la sesión. Guardarlos quince días exige un almacén que el navegador no tiene:
@@ -1391,9 +1406,43 @@ imprime la matriz; CI la ejecuta en cada push.
 
 La web no se compila en la publicación: la despliega Vercel sola. Lo que hace el trabajo `web` de `release.yml` es **comprobar** que `utsnexusweb.ciaiuts.com/version.json` ya sirve la versión etiquetada —ese archivo lo escribe `build:web` desde `package.json`— y ponerse en rojo si a los veinte minutos no llegó. Sin eso, un despliegue fallido dejaba la web en la versión anterior sin que nada lo dijera.
 
-iOS está **bloqueada por herramientas, no por código**: compilar y firmar exige
-Xcode completo, y distribuirla el Apple Developer Program. No empieces a añadir
-una carpeta `ios/`.
+iOS está **bloqueada por herramientas, no por código**. El proyecto ya tiene
+`flutter_app/ios/` (ver «Móvil en iOS»); lo que falta es compilarlo y firmarlo,
+que exige Xcode completo, y repartirlo, que exige el Apple Developer Program.
+
+### Móvil en iOS
+
+`flutter_app/ios/` salió de `flutter create --platforms=ios` con el mismo
+identificador que Android, `co.edu.uts.nexus.academico`. Todavía no se ha
+compilado: en este Mac solo hay Command Line Tools. Lo que ya está resuelto, y
+por qué:
+
+- **Recordatorios de clase**: `LocalNotificationsService` se inicia en Android
+  **y en iOS** (en el resto de sistemas sigue saliendo antes, porque en Windows
+  el plugin no termina de iniciarse). El permiso se pide al entrar a la sesión y
+  no al abrir la app: en iOS una negativa no se vuelve a preguntar. **64 avisos
+  programados es el tope de iOS** y coincide con `maxProgramados`: subirlo
+  haría que el sistema descartara en silencio las clases más lejanas.
+  `AppDelegate.swift` asigna el delegado de `UNUserNotificationCenter`; sin él,
+  un aviso no se ve con la aplicación abierta.
+- **Actualizaciones**: en iOS no se instala nada fuera de la App Store.
+  `update_service` ya respondía «no hay» fuera de Android, y la tarjeta lo dice
+  así en vez de «solo en Android».
+- **Push**: necesita `GoogleService-Info.plist` y una clave de APNs, y la clave
+  exige la cuenta de pago. Sin ellos `PushService` degrada como en Android.
+- **`Info.plist`**: textos de permiso para cámara y fotos (`image_picker`) y red
+  local (la búsqueda del servidor barre la subred y iOS pregunta antes), y
+  `NSAllowsLocalNetworking` para servidores `http://` de la red del campus.
+- **Icono**: el mismo de las demás, generado desde
+  `desktop/src-tauri/icons/ios/` en RGB. La App Store rechaza el de 1024 con
+  canal alfa, aunque sea opaco.
+
+Pendiente, en este orden: Xcode (el 26 pide macOS Sequoia 15.6; el iMac Pro de
+2017 la admite y es su último sistema), **CocoaPods**, porque
+`flutter_local_notifications` 18 y `open_filex` aún no traen Swift Package
+Manager, compilar y probar en un iPhone, y después el trabajo de CI y
+TestFlight con la cuenta de pago. Flutter avisa de que retirará el soporte de
+Mac Intel, así que este equipo sirve para empezar y no para siempre.
 
 ### Escritorio en macOS
 
