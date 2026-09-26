@@ -1,0 +1,85 @@
+# Pila local en Docker: backend + MongoDB propio (+ servicio de ML opcional).
+#
+#   docker compose -f docker-compose.local.yml up -d --build
+#   docker compose -f docker-compose.local.yml exec api node dist/scripts/seed.js
+#   docker compose -f docker-compose.local.yml --profile ml up -d --build   # con ML
+#
+# No toca nada de producción: la base es el contenedor `mongo`, no Atlas, y las
+# integraciones que escriben fuera (push de Android, UniPlanner, correo) van
+# apagadas aquí mismo, por encima de lo que diga el archivo de entorno. Con el
+# `.env` de desarrollo, el programador de tareas escaneaba y avisaba sobre los
+# datos reales desde un contenedor que parecía de pruebas.
+#
+# Los secretos van en `backend/.env.docker` (plantilla: `backend/.env.docker.example`).
+name: uts-nexus-local
+
+services:
+  mongo:
+    image: mongo:8
+    restart: unless-stopped
+    # Solo en la loopback y en el 27018: el 27017 suele estar ocupado por un
+    # mongod instalado en el equipo. Sirve para abrirla con Compass.
+    ports:
+      - "127.0.0.1:${MONGO_PORT:-27018}:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  api:
+    build:
+      context: ./backend
+    env_file:
+      - ./backend/.env.docker
+    environment:
+      NODE_ENV: development
+      HOST: 0.0.0.0
+      PORT: "4000"
+      MONGODB_URI: mongodb://mongo:27017/uts_nexus_local
+      CLIENT_ORIGIN: "*"
+      TRUST_PROXY: "0"
+      ML_BASE_URL: http://ml:8100
+      # Apagadas a propósito, ver la cabecera. Vacías, el backend las declara
+      # desactivadas en el log y sigue funcionando.
+      FCM_PROJECT_ID: ""
+      FCM_CLIENT_EMAIL: ""
+      FCM_PRIVATE_KEY: ""
+      UNIPLANNER_PROJECT_ID: ""
+      UNIPLANNER_CLIENT_EMAIL: ""
+      UNIPLANNER_PRIVATE_KEY: ""
+      SMTP_HOST: ""
+    ports:
+      - "${API_PORT:-4000}:4000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    init: true
+    restart: unless-stopped
+    volumes:
+      - api_uploads:/app/uploads
+      - api_formatos:/app/formatos
+
+  ml:
+    profiles: ["ml"]
+    build:
+      context: ./ml_service
+    # Mismo archivo que el backend: `ML_SHARED_SECRET` tiene que valer lo mismo
+    # en los dos, y fuera de la loopback el servicio no arranca sin él.
+    env_file:
+      - ./backend/.env.docker
+    environment:
+      ML_HOST: 0.0.0.0
+    # Sin puertos publicados: solo el backend le habla, por la red interna.
+    restart: unless-stopped
+    volumes:
+      - ml_models:/app/models
+
+volumes:
+  mongo_data:
+  api_uploads:
+  api_formatos:
+  ml_models:

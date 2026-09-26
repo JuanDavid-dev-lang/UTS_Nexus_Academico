@@ -1,15 +1,29 @@
+# Backend en contenedor contra la base que diga `backend/.env` (Atlas).
+#
+# OJO: con el `.env` de desarrollo esto es la base real y las integraciones
+# reales (push de Android, UniPlanner, correo). Para probar en local sin tocar
+# nada de eso, usa `docker-compose.local.yml`, que trae su propio MongoDB.
 services:
   api:
     build:
       context: ./backend
     env_file:
       - ./backend/.env
+    environment:
+      # Dentro del contenedor 127.0.0.1 es el propio contenedor: un `HOST`
+      # heredado del `.env` del servidor dejaría el puerto publicado sin nadie
+      # escuchando detrás.
+      HOST: 0.0.0.0
     ports:
       - "4000:4000"
+    # Node como PID 1 no recibe SIGTERM por defecto: sin init, `docker stop`
+    # espera los 10 s y lo mata.
+    init: true
     restart: unless-stopped
     volumes:
       - api_uploads:/app/uploads
+      - api_formatos:/app/formatos
 
 volumes:
   api_uploads:
-
+  api_formatos:

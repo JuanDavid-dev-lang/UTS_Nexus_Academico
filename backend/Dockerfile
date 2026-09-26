@@ -23,7 +23,10 @@ COPY assets ./assets
 # escribir en él y la subida de una planilla falla en producción y no en local.
 # `formatos` es el almacén de los formatos de trabajo de grado: va aparte de
 # `uploads` porque uploads se sirve estático sin autenticación.
-RUN mkdir -p uploads formatos && chown -R node:node /app
+# Solo esas dos son del usuario del proceso: el código y `node_modules` se quedan
+# de root, así que nadie dentro del contenedor puede reescribirlos. Un
+# `chown -R /app` además duplicaba `node_modules` en una capa nueva.
+RUN mkdir -p uploads formatos && chown node:node uploads formatos
 
 # No se ejecuta como root: si alguien lograra ejecutar código dentro del
 # contenedor, se encontraría con un usuario sin permisos sobre el sistema.
@@ -31,10 +34,11 @@ USER node
 
 EXPOSE 4000
 
-# La sonda mira /health, que informa también del estado de Atlas. Un contenedor
-# vivo pero sin base de datos se marca enfermo en vez de parecer sano.
+# La sonda mira /health, que informa también del estado de la base. /health
+# responde 200 aunque MongoDB no conecte, así que la sonda lee `db`: un
+# contenedor vivo pero sin base de datos se marca enfermo en vez de parecer sano.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=25s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||4000)+'/health').then(r=>r.json()).then(j=>process.exit(j.db==='connected'?0:1)).catch(()=>process.exit(1))"
 
 CMD ["node", "dist/server.js"]
 
