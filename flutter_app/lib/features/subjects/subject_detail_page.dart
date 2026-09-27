@@ -9,7 +9,10 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
 import '../students/student_detail_sheet.dart';
+import '../../core/auth/auth_controller.dart';
+import '../../core/auth/permisos.dart';
 import '../../core/widgets/debounced_search_field.dart';
+import 'agregar_estudiantes_sheet.dart';
 
 /// Estudiantes de una materia.
 ///
@@ -41,6 +44,19 @@ class _SubjectDetailPageState extends ConsumerState<SubjectDetailPage> {
               items.where((s) => s.id == widget.subjectId).firstOrNull,
           orElse: () => null,
         );
+    // Matricular es escribir: secretaría solo consulta. El servidor lo vuelve
+    // a comprobar; esto es para no ofrecer un botón que responde 403.
+    final puedeMatricular = !esSoloLectura(
+      ref.watch(authControllerProvider).user?.role,
+    );
+
+    void agregarEstudiantes() => mostrarAgregarEstudiantes(
+      context,
+      subjectId: widget.subjectId,
+      period: ref.read(selectedPeriodProvider),
+      codigoMateria: subject?.code ?? '',
+      nombreMateria: subject?.name ?? 'Materia',
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -62,7 +78,16 @@ class _SubjectDetailPageState extends ConsumerState<SubjectDetailPage> {
               ),
           ],
         ),
-        actions: const [SessionMenuButton()],
+        actions: [
+          if (puedeMatricular)
+            IconButton(
+              key: const Key('agregar-estudiantes'),
+              icon: const Icon(Icons.person_add_alt_1_outlined),
+              tooltip: 'Agregar estudiantes',
+              onPressed: agregarEstudiantes,
+            ),
+          const SessionMenuButton(),
+        ],
       ),
       body: roster.when(
         loading: () => ListView(
@@ -85,9 +110,23 @@ class _SubjectDetailPageState extends ConsumerState<SubjectDetailPage> {
         ),
         data: (students) {
           if (students.isEmpty) {
-            return StateView.empty(
+            final vacio = StateView.empty(
               'Todavía no hay estudiantes matriculados en esta materia '
               'para el periodo seleccionado.',
+            );
+            if (!puedeMatricular) return vacio;
+            // Es justo el momento en que hace falta: una materia recién creada
+            // no sirve de nada hasta que tiene a quién calificar.
+            return StateView(
+              icon: vacio.icon,
+              title: vacio.title,
+              message: vacio.message,
+              rubri: vacio.rubri,
+              action: FilledButton.icon(
+                onPressed: agregarEstudiantes,
+                icon: const Icon(Icons.person_add_alt_1_outlined),
+                label: const Text('Agregar estudiantes'),
+              ),
             );
           }
 

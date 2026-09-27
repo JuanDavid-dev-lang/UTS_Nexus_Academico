@@ -43,4 +43,37 @@ void main() {
     expect(result.rows, isEmpty);
     expect(result.errors.single.reason, 'Falta el programa del estudiante.');
   });
+
+  test('al matricular en un grupo basta documento y nombre', () {
+    final result = parseRoster(
+      '1098765432;Ana Gómez\n1098765433;Juan Pérez;Sistemas',
+      exigirPrograma: false,
+    );
+
+    expect(result.errors, isEmpty);
+    expect(result.rows[0], {'code': '1098765432', 'fullName': 'Ana Gómez'});
+    expect(result.rows[1], containsPair('program', 'Sistemas'));
+  });
+
+  test('un nombre con números es un error de su línea, no de todo el lote', () {
+    // El servidor rechaza el lote entero con un 400 si un nombre lleva un
+    // número; aquí se queda en su línea y el resto de la lista sigue.
+    final result = parseRoster(
+      '1098765432;Ana Gómez 2\n1098765433;Juan Pérez',
+      exigirPrograma: false,
+    );
+
+    expect(result.rows.single['code'], '1098765433');
+    expect(result.errors.single.line, 1);
+    expect(result.errors.single.reason, contains('solo letras'));
+  });
+
+  test('los signos que el servidor quita no invalidan el nombre', () {
+    final result = parseRoster(
+      "1098765432;O'Neil Gómez-Pinzón",
+      exigirPrograma: false,
+    );
+
+    expect(result.errors, isEmpty);
+  });
 }

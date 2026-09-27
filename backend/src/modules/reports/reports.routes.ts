@@ -12,8 +12,17 @@ import {
   resolverColumnas,
   type Plantilla,
 } from './report-template.js';
-import { formatDate, startPdf, tablaDeCatalogo } from './pdf.renderer.js';
-import { agregarFila, enviarExcel, hojaDeCatalogo } from './excel.renderer.js';
+import { iniciarPdf, seccion, tablaDeCatalogo, terminarPdf } from './pdf.renderer.js';
+import { enviarExcel, hojaDeCatalogo } from './excel.renderer.js';
+import { fechaHoraDeCampus, orientacionPara } from './report-layout.js';
+import {
+  detallesDelReporte,
+  indicadorDeAsistencia,
+  indicadoresAsistencia,
+  indicadoresConsolidado,
+  indicadoresNotas,
+} from './report-summary.js';
+import { env } from '../../shared/env.js';
 import {
   buscarAsistencia,
   buscarNotas,
@@ -38,16 +47,25 @@ import {
 export const reportsRouter = Router();
 reportsRouter.use(identificar);
 
+/** Sin la sigla al final: el membrete ya dice de qué institución es. */
 const TITULOS_POR_DEFECTO = {
-  consolidado: 'Consolidado de Notas Finales UTS',
-  grades: 'Reporte de Notas UTS',
-  attendance: 'Reporte de Asistencia UTS',
-  combined: 'Reporte Academico Completo UTS',
+  consolidado: 'Consolidado de notas finales',
+  grades: 'Reporte de notas',
+  attendance: 'Reporte de asistencia',
+  combined: 'Reporte académico completo',
 } as const;
 
 function tituloDe(plantilla: Plantilla, kind: keyof typeof TITULOS_POR_DEFECTO): string {
   return plantilla.titulos[kind] ?? TITULOS_POR_DEFECTO[kind];
 }
+
+/** Las actas se imprimen, se firman y se entregan. */
+const FIRMAS = ['Docente', 'Coordinación académica'];
+
+const SIN_NOTAS = 'Sin notas registradas para los filtros elegidos.';
+const SIN_ASISTENCIA = 'Sin asistencia registrada para los filtros elegidos.';
+
+const generadoAhora = () => fechaHoraDeCampus(new Date(), env.CAMPUS_UTC_OFFSET_MIN);
 
 reportsRouter.get('/summary', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), async (req, res, next) => {
   try {
@@ -151,14 +169,20 @@ reportsRouter.get('/pdf/consolidado', requireRole('ADMIN', 'PROFESSOR', 'COORDIN
     // paralelo: solo así puede acotarse a los ids que salen en ellas.
     const maps = await resolveMaps(records);
     const columnas = resolverColumnas(plantilla, 'consolidado');
+    const generado = generadoAhora();
 
-    const doc = startPdf(tituloDe(plantilla, 'consolidado'), 'consolidado-notas.pdf', res, plantilla);
-    doc.fontSize(10).fillColor('#9fb0bb').text(`Periodo: ${req.query.period || 'Todos'}`);
-    doc.moveDown(0.6);
-
-    tablaDeCatalogo(doc, columnas, construirFilasTexto(columnas, records, maps), plantilla);
-    if (!records.length) doc.fillColor('#dbe6ec').fontSize(10).text('Sin notas registradas.');
-    doc.end();
+    const informe = iniciarPdf(res, {
+      titulo: tituloDe(plantilla, 'consolidado'),
+      archivo: 'consolidado-notas.pdf',
+      plantilla,
+      orientacion: orientacionPara([columnas.map(c => c.pdfWidth)]),
+      generado,
+      firmas: FIRMAS,
+      detalles: detallesDelReporte(filtrosDeConsulta(req.query, req.user, req.alcance), maps, generado),
+      indicadores: indicadoresConsolidado(records),
+    });
+    tablaDeCatalogo(informe, columnas, construirFilasTexto(columnas, records, maps), SIN_NOTAS, { antesDeFirmas: true });
+    terminarPdf(informe);
   } catch (err) {
     next(err);
   }
@@ -176,9 +200,12 @@ reportsRouter.get('/excel/consolidado', requireRole('ADMIN', 'PROFESSOR', 'COORD
     const columnas = resolverColumnas(plantilla, 'consolidado');
 
     const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet('Consolidado');
-    hojaDeCatalogo(ws, columnas, plantilla);
-    construirFilas(columnas, records, maps).forEach(fila => agregarFila(ws, fila));
+    hojaDeCatalogo(wb, 'Consolidado', columnas, construirFilas(columnas, records, maps), {
+      titulo: tituloDe(plantilla, 'consolidado'),
+      plantilla,
+      detalles: detallesDelReporte(filtrosDeConsulta(req.query, req.user, req.alcance), maps, generadoAhora()),
+      indicadores: indicadoresConsolidado(records),
+    }, SIN_NOTAS);
 
     await enviarExcel(res, wb, 'consolidado-notas.xlsx');
   } catch (err) {
@@ -197,17 +224,20 @@ reportsRouter.get('/pdf/grades', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'
     // paralelo: solo así puede acotarse a los ids que salen en ellas.
     const maps = await resolveMaps(grades);
     const columnas = resolverColumnas(plantilla, 'grades');
+    const generado = generadoAhora();
 
-    const doc = startPdf(tituloDe(plantilla, 'grades'), 'reporte-notas.pdf', res, plantilla);
-    doc.fontSize(10).fillColor('#9fb0bb').text(`Periodo: ${filters.period || 'Todos'}`);
-    if (filters.groupId) doc.text(`Grupo: ${filters.groupId}`);
-    if (filters.studentId) doc.text(`Estudiante: ${filters.studentId}`);
-    if (filters.subjectId) doc.text(`Materia: ${filters.subjectId}`);
-    doc.moveDown(0.6);
-
-    tablaDeCatalogo(doc, columnas, construirFilasTexto(columnas, ordenarNotasParaActa(grades, maps), maps), plantilla);
-    if (!grades.length) doc.fillColor('#dbe6ec').fontSize(10).text('Sin notas registradas.');
-    doc.end();
+    const informe = iniciarPdf(res, {
+      titulo: tituloDe(plantilla, 'grades'),
+      archivo: 'reporte-notas.pdf',
+      plantilla,
+      orientacion: orientacionPara([columnas.map(c => c.pdfWidth)]),
+      generado,
+      firmas: FIRMAS,
+      detalles: detallesDelReporte(filters, maps, generado),
+      indicadores: indicadoresNotas(grades),
+    });
+    tablaDeCatalogo(informe, columnas, construirFilasTexto(columnas, ordenarNotasParaActa(grades, maps), maps), SIN_NOTAS, { antesDeFirmas: true });
+    terminarPdf(informe);
   } catch (err) {
     next(err);
   }
@@ -224,18 +254,20 @@ reportsRouter.get('/pdf/attendance', requireRole('ADMIN', 'PROFESSOR', 'COORDINA
     // paralelo: solo así puede acotarse a los ids que salen en ellas.
     const maps = await resolveMaps(attendance);
     const columnas = resolverColumnas(plantilla, 'attendance');
+    const generado = generadoAhora();
 
-    const doc = startPdf(tituloDe(plantilla, 'attendance'), 'reporte-asistencia.pdf', res, plantilla);
-    doc.fontSize(10).fillColor('#9fb0bb').text(`Periodo: ${filters.period || 'Todos'}`);
-    if (filters.dateFrom || filters.dateTo) doc.text(`Rango: ${formatDate(filters.dateFrom)} - ${formatDate(filters.dateTo)}`);
-    if (filters.groupId) doc.text(`Grupo: ${filters.groupId}`);
-    if (filters.studentId) doc.text(`Estudiante: ${filters.studentId}`);
-    if (filters.subjectId) doc.text(`Materia: ${filters.subjectId}`);
-    doc.moveDown(0.6);
-
-    tablaDeCatalogo(doc, columnas, construirFilasTexto(columnas, attendance, maps), plantilla);
-    if (!attendance.length) doc.fillColor('#dbe6ec').fontSize(10).text('Sin asistencia registrada.');
-    doc.end();
+    const informe = iniciarPdf(res, {
+      titulo: tituloDe(plantilla, 'attendance'),
+      archivo: 'reporte-asistencia.pdf',
+      plantilla,
+      orientacion: orientacionPara([columnas.map(c => c.pdfWidth)]),
+      generado,
+      firmas: FIRMAS,
+      detalles: detallesDelReporte(filters, maps, generado),
+      indicadores: indicadoresAsistencia(attendance),
+    });
+    tablaDeCatalogo(informe, columnas, construirFilasTexto(columnas, attendance, maps), SIN_ASISTENCIA, { antesDeFirmas: true });
+    terminarPdf(informe);
   } catch (err) {
     next(err);
   }
@@ -254,21 +286,27 @@ reportsRouter.get('/pdf/combined', requireRole('ADMIN', 'PROFESSOR', 'COORDINATO
     const maps = await resolveMaps(grades, attendance);
     const columnasNotas = resolverColumnas(plantilla, 'grades');
     const columnasAsistencia = resolverColumnas(plantilla, 'attendance');
+    const generado = generadoAhora();
+    const asistencia = indicadorDeAsistencia(attendance);
 
-    const doc = startPdf(tituloDe(plantilla, 'combined'), 'reporte-completo.pdf', res, plantilla);
-    doc.fontSize(10).fillColor('#9fb0bb').text(`Periodo: ${filters.period || 'Todos'}`);
-    doc.moveDown(0.5);
+    const informe = iniciarPdf(res, {
+      titulo: tituloDe(plantilla, 'combined'),
+      archivo: 'reporte-completo.pdf',
+      plantilla,
+      orientacion: orientacionPara([columnasNotas.map(c => c.pdfWidth), columnasAsistencia.map(c => c.pdfWidth)]),
+      generado,
+      firmas: FIRMAS,
+      detalles: detallesDelReporte(filters, maps, generado),
+      indicadores: [...indicadoresNotas(grades), ...(asistencia ? [asistencia] : [])],
+    });
 
-    doc.fontSize(13).fillColor('#0b1115').text('Notas');
-    tablaDeCatalogo(doc, columnasNotas, construirFilasTexto(columnasNotas, ordenarNotasParaActa(grades, maps), maps), plantilla);
+    seccion(informe, 'Notas');
+    tablaDeCatalogo(informe, columnasNotas, construirFilasTexto(columnasNotas, ordenarNotasParaActa(grades, maps), maps), SIN_NOTAS);
 
-    doc.fontSize(13).fillColor('#0b1115').text('Asistencias');
-    tablaDeCatalogo(doc, columnasAsistencia, construirFilasTexto(columnasAsistencia, attendance, maps), plantilla);
+    seccion(informe, 'Asistencia');
+    tablaDeCatalogo(informe, columnasAsistencia, construirFilasTexto(columnasAsistencia, attendance, maps), SIN_ASISTENCIA, { antesDeFirmas: true });
 
-    if (!grades.length && !attendance.length) {
-      doc.fillColor('#dbe6ec').fontSize(10).text('Sin datos disponibles.');
-    }
-    doc.end();
+    terminarPdf(informe);
   } catch (err) {
     next(err);
   }
@@ -287,9 +325,12 @@ reportsRouter.get('/excel/grades', requireRole('ADMIN', 'PROFESSOR', 'COORDINATO
     const columnas = resolverColumnas(plantilla, 'grades');
 
     const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet('Notas');
-    hojaDeCatalogo(ws, columnas, plantilla);
-    construirFilas(columnas, ordenarNotasParaActa(grades, maps), maps).forEach(fila => agregarFila(ws, fila));
+    hojaDeCatalogo(wb, 'Notas', columnas, construirFilas(columnas, ordenarNotasParaActa(grades, maps), maps), {
+      titulo: tituloDe(plantilla, 'grades'),
+      plantilla,
+      detalles: detallesDelReporte(filters, maps, generadoAhora()),
+      indicadores: indicadoresNotas(grades),
+    }, SIN_NOTAS);
 
     await enviarExcel(res, wb, 'reporte-notas.xlsx');
   } catch (err) {
@@ -310,9 +351,12 @@ reportsRouter.get('/excel/attendance', requireRole('ADMIN', 'PROFESSOR', 'COORDI
     const columnas = resolverColumnas(plantilla, 'attendance');
 
     const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet('Asistencia');
-    hojaDeCatalogo(ws, columnas, plantilla);
-    construirFilas(columnas, attendance, maps).forEach(fila => agregarFila(ws, fila));
+    hojaDeCatalogo(wb, 'Asistencia', columnas, construirFilas(columnas, attendance, maps), {
+      titulo: tituloDe(plantilla, 'attendance'),
+      plantilla,
+      detalles: detallesDelReporte(filters, maps, generadoAhora()),
+      indicadores: indicadoresAsistencia(attendance),
+    }, SIN_ASISTENCIA);
 
     await enviarExcel(res, wb, 'reporte-asistencia.xlsx');
   } catch (err) {
@@ -333,15 +377,22 @@ reportsRouter.get('/excel/combined', requireRole('ADMIN', 'PROFESSOR', 'COORDINA
     const maps = await resolveMaps(grades, attendance);
     const columnasNotas = resolverColumnas(plantilla, 'grades');
     const columnasAsistencia = resolverColumnas(plantilla, 'attendance');
+    const detalles = detallesDelReporte(filters, maps, generadoAhora());
+    const titulo = tituloDe(plantilla, 'combined');
 
     const wb = new ExcelJS.Workbook();
-    const gradeWs = wb.addWorksheet('Notas');
-    hojaDeCatalogo(gradeWs, columnasNotas, plantilla);
-    construirFilas(columnasNotas, ordenarNotasParaActa(grades, maps), maps).forEach(fila => agregarFila(gradeWs, fila));
-
-    const attendanceWs = wb.addWorksheet('Asistencia');
-    hojaDeCatalogo(attendanceWs, columnasAsistencia, plantilla);
-    construirFilas(columnasAsistencia, attendance, maps).forEach(fila => agregarFila(attendanceWs, fila));
+    hojaDeCatalogo(wb, 'Notas', columnasNotas, construirFilas(columnasNotas, ordenarNotasParaActa(grades, maps), maps), {
+      titulo: `${titulo} · Notas`,
+      plantilla,
+      detalles,
+      indicadores: indicadoresNotas(grades),
+    }, SIN_NOTAS);
+    hojaDeCatalogo(wb, 'Asistencia', columnasAsistencia, construirFilas(columnasAsistencia, attendance, maps), {
+      titulo: `${titulo} · Asistencia`,
+      plantilla,
+      detalles,
+      indicadores: indicadoresAsistencia(attendance),
+    }, SIN_ASISTENCIA);
 
     await enviarExcel(res, wb, 'reporte-academico.xlsx');
   } catch (err) {

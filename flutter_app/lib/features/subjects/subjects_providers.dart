@@ -87,6 +87,18 @@ final subjectRosterProvider =
   return roster;
 });
 
+/// Matrículas de una materia en un periodo, con el grupo de cada una.
+///
+/// La hoja «Agregar estudiantes» las usa para marcar quién ya está en el grupo
+/// elegido y quién está en otro. La clave es (materia, periodo) y no el grupo:
+/// una sola petición sirve para todos los grupos de la materia.
+final matriculasDeMateriaProvider = FutureProvider.family<List<Enrollment>,
+    ({String subjectId, String period})>(
+  (ref, clave) => ref
+      .watch(academicRepositoryProvider)
+      .enrollments(subjectId: clave.subjectId, period: clave.period),
+);
+
 /// Cuántos estudiantes y cuántos en riesgo tiene cada materia.
 /// Alimenta las tarjetas del listado de materias.
 class SubjectStats {

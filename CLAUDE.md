@@ -283,6 +283,15 @@ El mismo patrón en reportes: `filtrosDeConsulta()` fuerza el `teacherId` del do
   /groups` lo normaliza a mayúsculas y **rechaza** un nombre igual al código de
   la materia, y la lista de estudiantes deja crear más grupos y renombrar los que
   quedaron mal (con un aviso sobre ellos).
+- **El móvil también matricula** (`features/subjects/agregar_estudiantes_sheet.dart`):
+  «Agregar estudiantes» en la pantalla de la materia —barra superior y estado
+  vacío; no para secretaría—. Se elige el grupo (o se crea uno) y se busca en
+  el directorio (`POST /enrollments`) o se pega una lista de documento y
+  nombre (`POST /enrollments/bulk`). Antes el móvil creaba materia y grupo pero
+  no tenía forma de meter a nadie: su «Importar lista» del directorio da de
+  alta **sin grupo**. `parseRoster(exigirPrograma: false)` es el modo de
+  matrícula, y los dos modos validan el nombre con la regla del servidor para
+  que un número en un nombre sea un error de su línea y no un 400 del lote.
 - **Asistencia y notas se ven por grupo.** Asistencia (escritorio y móvil) exige
   elegir el grupo cuando la materia tiene varios y solo carga a sus
   matriculados; Notas filtra el consolidado por grupo. El consolidado filtra por
@@ -510,6 +519,13 @@ Mismo contrato de dos pasos que el listado y el escáner de asistencia: `POST /g
 
 ### Reportes: catálogo de columnas, plantilla y vista previa
 `modules/reports/report-columns.ts` es la **única fuente de filas** de PDF, Excel y vista previa (`GET /reports/preview/attendance`): los tres consumen el mismo catálogo, así que no pueden divergir. La plantilla (`report-template.ts`, clave `report_template` en `ConfigModel`) parametriza membrete, logo, colores del documento y columnas visibles por tipo; la edita ADMIN desde la página de reportes del escritorio y una selección sin la cédula cae al catálogo completo. Los colores de la plantilla son contenido del documento, no UI — no pasan por los tokens del design system.
+
+**Diseño de las actas** (`pdf.renderer.ts`, `excel.renderer.ts`; la maquetación pura en `report-layout.ts` y la ficha e indicadores en `report-summary.ts`, las dos con pruebas). El PDF lleva membrete (franja verde UTS con filete lima, logo, institución, título), una ficha con periodo, materia, grupo y fecha de generación **en la hora del campus**, indicadores de cabecera, la tabla, firmas de docente y coordinación y «Página N de M» en cada hoja; las páginas siguientes repiten una cabecera corrida y el encabezado de la tabla. Tres reglas que no hay que deshacer:
+- **Nada se corta.** Las celdas ajustan el texto en varias líneas y la fila crece; antes medían 20 pt fijos con `ellipsis` y truncaban nombres y cédulas sin que el acta lo delatara. Los anchos se reparten según el contenido (`repartirAnchos`: mínimo = palabra más larga, preferido = texto completo) y `pdfWidth` es el ancho **natural**, que decide la orientación: lo que no cabe en vertical va en horizontal (`orientacionPara`).
+- **La ficha nombra con los diccionarios de las propias filas**, no con el id de la URL: un reporte vacío no nombra el filtro. Resolverlo aparte dejaría leer el nombre de una materia o un estudiante ajenos pasando su id.
+- **Los indicadores cuentan, no calculan**: el estado sale de `computeAcademicRecords()` y la asistencia de `calcularAsistencia()` (ponderada por minutos). Las notas atómicas no llevan promedio: con pesos 30/60/10 no sería la nota de nadie.
+
+La tipografía es Inter, empaquetada en `backend/assets/fonts` (si falta, Helvetica). Las cifras tabulares solo van en columnas numéricas: en Inter también ensanchan el guion. El Excel lleva el mismo membrete encima de la tabla (`prepararHoja` / `cerrarHoja`, también en el export de coordinación), anchos medidos con el contenido, cebra, formatos numéricos, filtro, fila congelada y ajustes de impresión (A4, a lo ancho, encabezado repetido, pie con la paginación). Los colores por defecto de la plantilla son el verde institucional `#144D37`; los de la primera versión (menta y petróleo), guardados tal cual por el editor, se leen como «sin elegir». El texto sobre el color de la plantilla se elige por contraste (`textoSobre`). El consolidado lleva cada corte en su columna (`c1`–`c3`); una plantilla guardada con la antigua `cortes` recibe las tres.
 
 **Toda celda de Excel sale por `agregarFila()`, nunca por `ws.addRow()` directamente.** Excel y LibreOffice ejecutan cualquier celda que empiece por `=`, `+`, `-`, `@`, tabulador o retorno de carro, y las columnas de estos informes son texto que escribe gente: el nombre de un estudiante llega por importación de listado o por OCR de una foto, y la observación de una asistencia son 500 caracteres libres. Quien abre el acta es coordinación o secretaría, así que **el que ejecuta no es el que escribió**. `celdaSegura()` antepone un apóstrofo —el escape que Excel entiende, invisible al abrir— y deja los números intactos, porque un `-2` numérico es una nota y convertirlo a texto rompería las sumas de la hoja. `shared/sanitize.ts` no cubría esto: sanea lo que se **guarda**, no lo que **sale** hacia un archivo.
 
