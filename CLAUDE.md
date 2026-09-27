@@ -283,6 +283,15 @@ El mismo patrón en reportes: `filtrosDeConsulta()` fuerza el `teacherId` del do
   /groups` lo normaliza a mayúsculas y **rechaza** un nombre igual al código de
   la materia, y la lista de estudiantes deja crear más grupos y renombrar los que
   quedaron mal (con un aviso sobre ellos).
+- **El móvil también matricula** (`features/subjects/agregar_estudiantes_sheet.dart`):
+  «Agregar estudiantes» en la pantalla de la materia —barra superior y estado
+  vacío; no para secretaría—. Se elige el grupo (o se crea uno) y se busca en
+  el directorio (`POST /enrollments`) o se pega una lista de documento y
+  nombre (`POST /enrollments/bulk`). Antes el móvil creaba materia y grupo pero
+  no tenía forma de meter a nadie: su «Importar lista» del directorio da de
+  alta **sin grupo**. `parseRoster(exigirPrograma: false)` es el modo de
+  matrícula, y los dos modos validan el nombre con la regla del servidor para
+  que un número en un nombre sea un error de su línea y no un 400 del lote.
 - **Asistencia y notas se ven por grupo.** Asistencia (escritorio y móvil) exige
   elegir el grupo cuando la materia tiene varios y solo carga a sus
   matriculados; Notas filtra el consolidado por grupo. El consolidado filtra por

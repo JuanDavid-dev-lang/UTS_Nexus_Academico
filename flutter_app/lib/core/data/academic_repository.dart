@@ -166,6 +166,39 @@ class AcademicRepository {
     );
   }
 
+  /// Matricula en un grupo a un estudiante que ya existe (del directorio).
+  ///
+  /// El periodo, la materia y el docente los pone el servidor desde el grupo:
+  /// el cliente dice a quién y dónde, no con qué datos.
+  Future<void> enrollStudent({
+    required String studentId,
+    required String groupId,
+  }) async {
+    await _api.post('/enrollments', data: {
+      'studentId': studentId,
+      'groupId': groupId,
+    });
+  }
+
+  /// Matricula una lista en un grupo: crea a quien no existe (por documento) y
+  /// matricula a todos.
+  ///
+  /// A quien ya existía **no** se le cambia el nombre: el servidor solo escribe
+  /// la identidad al crear, así que [ResultadoMatricula.reutilizados] dice
+  /// cuántos conservaron el suyo.
+  Future<ResultadoMatricula> enrollRoster({
+    required String groupId,
+    required List<Map<String, dynamic>> students,
+  }) async {
+    final response = await _api.post('/enrollments/bulk', data: {
+      'groupId': groupId,
+      'students': students,
+    });
+    return ResultadoMatricula.fromJson(
+      Map<String, dynamic>.from(response.data as Map),
+    );
+  }
+
   Future<List<ConsolidatedRow>> consolidated({
     required String period,
     String? subjectId,

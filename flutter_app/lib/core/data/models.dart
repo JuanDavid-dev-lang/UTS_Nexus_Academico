@@ -494,6 +494,33 @@ class SubjectStudent {
   }
 }
 
+/// Respuesta de `POST /enrollments/bulk`.
+class ResultadoMatricula {
+  /// Matriculados en total.
+  final int matriculados;
+
+  /// Estudiantes que no existían y se crearon con el nombre de la lista.
+  final int creados;
+
+  /// Estudiantes que ya existían: se matricularon con el nombre que tenían.
+  final int reutilizados;
+
+  const ResultadoMatricula({
+    required this.matriculados,
+    required this.creados,
+    required this.reutilizados,
+  });
+
+  factory ResultadoMatricula.fromJson(Map<String, dynamic> json) {
+    int entero(Object? valor) => valor is num ? valor.toInt() : 0;
+    return ResultadoMatricula(
+      matriculados: entero(json['count']),
+      creados: entero(json['creados']),
+      reutilizados: entero(json['reutilizados']),
+    );
+  }
+}
+
 /// Grupo de una materia. La asistencia y la matrícula cuelgan del grupo, no de
 /// la materia: una materia con dos grupos tiene dos listas distintas.
 class Group {

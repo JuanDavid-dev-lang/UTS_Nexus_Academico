@@ -82,7 +82,28 @@ String _delimiter(List<String> lines) {
   return best;
 }
 
-RosterParseResult parseRoster(String input) {
+/// El nombre como lo guarda el servidor (`limpiarNombrePersona` del backend):
+/// sin apóstrofos, con la coma, el punto y el guion vueltos espacio. Solo se usa
+/// para validar; lo que se envía es lo escrito, y el servidor lo normaliza.
+String _nombreComoLoGuardaElServidor(String nombre) => nombre
+    .replaceAll(RegExp("['’`´]"), '')
+    .replaceAll(RegExp(r'[,.;\-_]'), ' ')
+    .replaceAll(RegExp(r'\s+'), ' ')
+    .trim();
+
+final _soloLetras = RegExp(r'^\p{L}+( \p{L}+)*$', unicode: true);
+
+/// Convierte una lista pegada en filas para el servidor.
+///
+/// Con [exigirPrograma] (el alta en el directorio, `POST /students/bulk`) cada
+/// fila necesita su programa. Al matricular en un grupo
+/// (`POST /enrollments/bulk`) basta documento y nombre, como en el escritorio:
+/// el programa se aprovecha si viene.
+///
+/// El nombre se valida con la misma regla que el servidor: solo letras y
+/// espacios. Un número en un nombre allí es un 400 para **todo** el lote; aquí
+/// es un error en su línea y el resto de la lista sigue.
+RosterParseResult parseRoster(String input, {bool exigirPrograma = true}) {
   final rows = <Map<String, dynamic>>[];
   final errors = <RosterParseError>[];
   final seen = <String>{};
@@ -144,6 +165,17 @@ RosterParseResult parseRoster(String input) {
       );
       continue;
     }
+    final nombreGuardado = _nombreComoLoGuardaElServidor(name);
+    if (nombreGuardado.length < 3 || !_soloLetras.hasMatch(nombreGuardado)) {
+      errors.add(
+        RosterParseError(
+          index + 1,
+          raw,
+          'El nombre lleva solo letras y espacios: sin números ni símbolos.',
+        ),
+      );
+      continue;
+    }
     final emailCell = fields.where((field) => field.contains('@')).firstOrNull;
     final email = emailCell?.trim().toLowerCase();
     if (email != null && !_emailPattern.hasMatch(email)) {
@@ -162,7 +194,8 @@ RosterParseResult parseRoster(String input) {
         .map((entry) => entry.$2.trim())
         .where((value) => value.isNotEmpty)
         .firstOrNull;
-    if (program == null || program.length < 2) {
+    final tienePrograma = program != null && program.length >= 2;
+    if (exigirPrograma && !tienePrograma) {
       errors.add(
         RosterParseError(index + 1, raw, 'Falta el programa del estudiante.'),
       );
@@ -172,7 +205,7 @@ RosterParseResult parseRoster(String input) {
       'code': code,
       'fullName': name.replaceAll(RegExp(r'\s+'), ' ').trim(),
       if (email != null) 'email': email,
-      'program': program,
+      if (tienePrograma) 'program': program,
     });
   }
   return RosterParseResult(rows: rows, errors: errors, duplicates: duplicates);

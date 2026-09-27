@@ -320,6 +320,9 @@ class _UtsAppState extends ConsumerState<UtsApp> {
           case 'group':
             ref.invalidate(subjectsProvider);
             ref.invalidate(subjectRosterProvider);
+            // El selector de grupo de «Agregar estudiantes» lee de aquí: sin
+            // esta línea, un grupo creado en el escritorio no aparecía.
+            ref.invalidate(groupsProvider);
           case 'grade':
             ref.invalidate(consolidatedGradesProvider);
             // Guardar o borrar una nota cambia lo que falta por calificar.
@@ -417,6 +420,7 @@ class _UtsAppState extends ConsumerState<UtsApp> {
             ref.invalidate(filteredStudentsProvider);
             ref.invalidate(directorioEstudiantesProvider);
             ref.invalidate(subjectRosterProvider);
+            ref.invalidate(matriculasDeMateriaProvider);
             ref.invalidate(dashboardProvider);
           default:
             ref.invalidate(dashboardProvider);

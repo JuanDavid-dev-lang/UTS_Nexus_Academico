@@ -330,8 +330,8 @@ class _FormularioMateriaState extends ConsumerState<_FormularioMateria> {
     }
 
     // El grupo va aparte: si falla, la materia ya existe y reintentar aquí la
-    // duplicaría. El grupo se puede crear después desde la importación de
-    // listas del escritorio.
+    // duplicaría. El grupo se puede crear después desde «Agregar estudiantes»
+    // en la pantalla de la materia, o desde el escritorio.
     try {
       await repo.createGroup(
         name: grupo,
