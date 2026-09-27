@@ -170,7 +170,7 @@ export function TemplateEditorDialog({
                       </Button>
                     ) : (
                       <span className="text-caption text-muted">
-                        Sin logo se usa el recuadro con la sigla.
+                        Sin logo propio se usa el de la UTS.
                       </span>
                     )}
                   </div>
@@ -205,8 +205,8 @@ export function TemplateEditorDialog({
             <div className="flex flex-col gap-3">
               <p className="text-body font-semibold text-text">Columnas por reporte</p>
               <p className="text-caption text-muted">
-                La cédula no se puede quitar: un acta sin forma de identificar al estudiante no
-                sirve. Si una selección la pierde, el reporte sale completo.
+                El documento no se puede quitar: un acta sin forma de identificar al estudiante no
+                sirve. Si una selección lo pierde, el reporte sale completo.
               </p>
               {TIPOS.map(({ kind, label }) => (
                 <ColumnPicker

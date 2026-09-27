@@ -7,6 +7,8 @@ import {
   construirFilasTexto,
   type MapBundle,
 } from '../src/modules/reports/report-columns.js';
+import { anchoUtil, orientacionPara } from '../src/modules/reports/report-layout.js';
+import type { AcademicRecord } from '../src/shared/academic.service.js';
 
 /**
  * El catálogo de columnas es la única fuente de filas para PDF, Excel y vista
@@ -47,7 +49,7 @@ describe('columnas de asistencia', () => {
 
   it('resuelve estudiante, materia y grupo desde los mapas', () => {
     const [fila] = construirFilasTexto(COLUMNAS_ATTENDANCE, [asistencia], maps);
-    expect(fila).toEqual(['1005123', 'Ana Pérez', 'A1', 'INF101 Programación', '2026-03-10', '120', 'Si', 'Llegó tarde', '2026-1']);
+    expect(fila).toEqual(['1005123', 'Ana Pérez', 'A1', 'INF101 Programación', '2026-03-10', '120', 'Sí', 'Llegó tarde', '2026-1']);
   });
 
   it('referencias desconocidas producen celdas vacías, no un error', () => {
@@ -59,10 +61,30 @@ describe('columnas de asistencia', () => {
 });
 
 describe('columnas de notas', () => {
-  it('componente con corte se etiqueta C<corte> <tipo>', () => {
-    const nota = { studentId: 's1', subjectId: 'm1', groupId: 'g1', corte: 2, componentType: 'PARCIALES', score: 3.5, period: '2026-1' };
+  const componente = COLUMNAS_GRADES.findIndex(c => c.key === 'component');
+
+  it('componente con corte se etiqueta «C<corte> · <tipo> · <etiqueta>»', () => {
+    const nota = { studentId: 's1', subjectId: 'm1', groupId: 'g1', corte: 2, componentType: 'PARCIALES', label: 'Parcial teórico', score: 3.5, period: '2026-1' };
     const [fila] = construirFilasTexto(COLUMNAS_GRADES, [nota], maps);
-    expect(fila[COLUMNAS_GRADES.findIndex(c => c.key === 'component')]).toBe('C2 PARCIALES');
+    expect(fila[componente]).toBe('C2 · Parciales · Parcial teórico');
+  });
+
+  it('la etiqueta por defecto («Nota») no se repite en el acta', () => {
+    const nota = { studentId: 's1', subjectId: 'm1', corte: 3, componentType: 'AUTOEVALUACION', label: 'Nota', score: 4, period: '2026-1' };
+    const [fila] = construirFilasTexto(COLUMNAS_GRADES, [nota], maps);
+    expect(fila[componente]).toBe('C3 · Autoevaluación');
+  });
+
+  it('en texto la nota sale con dos decimales fijos, para que la columna se lea alineada', () => {
+    const nota = { studentId: 's1', subjectId: 'm1', corte: 1, componentType: 'TRABAJOS', score: 3.5, period: '2026-1' };
+    const [fila] = construirFilasTexto(COLUMNAS_GRADES, [nota], maps);
+    expect(fila[COLUMNAS_GRADES.findIndex(c => c.key === 'score')]).toBe('3.50');
+  });
+
+  it('una nota por debajo de la de aprobación se marca; una aprobatoria no', () => {
+    const score = COLUMNAS_GRADES.find(c => c.key === 'score')!;
+    expect(score.tono?.('2.99')).toBe('mal');
+    expect(score.tono?.('3.00')).toBeNull();
   });
 
   it('la nota viaja como número (Excel la quiere tipada)', () => {
@@ -85,17 +107,48 @@ describe('columnas del consolidado', () => {
       riesgo: { porcentajeAsistencia: 87.5 },
     };
     const [fila] = construirFilasTexto(COLUMNAS_CONSOLIDADO, [record], maps);
-    expect(fila).toEqual(['1005123', 'Ana Pérez', 'Programación', 'C1:3.2 C2:4.1 C3:0.0', '3.61', 'Aprobado', '88%', '2026-1']);
+    expect(fila).toEqual(['1005123', 'Ana Pérez', 'Programación', '3.2', '4.1', '0.0', '3.61', 'Aprobado', '88%', '2026-1']);
+  });
+
+  it('cada corte es una columna numérica: en Excel se puede sumar y ordenar', () => {
+    const record = { code: '1', fullName: 'A', subjectId: 'm1', period: '2026-1', cortes: [3.25, 4, 0], notaFinal: 2.4, aprobado: false, riesgo: { porcentajeAsistencia: 50 } } as unknown as AcademicRecord;
+    const [fila] = construirFilas(COLUMNAS_CONSOLIDADO, [record], maps);
+    const keys = COLUMNAS_CONSOLIDADO.map(c => c.key);
+    expect(fila[keys.indexOf('c1')]).toBe(3.25);
+    expect(fila[keys.indexOf('c3')]).toBe(0);
+  });
+
+  it('el estado y la asistencia llevan su tono con los umbrales del dominio', () => {
+    const estado = COLUMNAS_CONSOLIDADO.find(c => c.key === 'estado')!;
+    const asistencia = COLUMNAS_CONSOLIDADO.find(c => c.key === 'attendance')!;
+    expect(estado.tono?.('Aprobado')).toBe('ok');
+    expect(estado.tono?.('Reprobado')).toBe('mal');
+    expect(asistencia.tono?.('59%')).toBe('mal');
+    expect(asistencia.tono?.('65%')).toBe('alerta');
+    expect(asistencia.tono?.('70%')).toBeNull();
   });
 });
 
 describe('anchos del PDF', () => {
+  // Los anchos del catálogo son los naturales: los que necesita el contenido
+  // para no partirse. Forzarlos a la página vertical es lo que cortaba nombres
+  // y cédulas; lo que no cabe ahí va en horizontal.
   it.each([
     ['attendance', COLUMNAS_ATTENDANCE],
     ['grades', COLUMNAS_GRADES],
     ['consolidado', COLUMNAS_CONSOLIDADO],
-  ])('las columnas de %s caben en la página A4 (530pt útiles)', (_nombre, columnas) => {
+  ])('las columnas de %s caben en la página horizontal', (_nombre, columnas) => {
     const total = columnas.reduce((suma, c) => suma + c.pdfWidth, 0);
-    expect(total).toBeLessThanOrEqual(530);
+    expect(total).toBeLessThanOrEqual(anchoUtil('landscape'));
+  });
+
+  it('los catálogos completos van en horizontal', () => {
+    expect(orientacionPara([COLUMNAS_ATTENDANCE.map(c => c.pdfWidth)])).toBe('landscape');
+    expect(orientacionPara([COLUMNAS_CONSOLIDADO.map(c => c.pdfWidth)])).toBe('landscape');
+  });
+
+  it('una plantilla con pocas columnas vuelve a la vertical', () => {
+    const pocas = COLUMNAS_CONSOLIDADO.filter(c => ['code', 'student', 'final', 'estado'].includes(c.key));
+    expect(orientacionPara([pocas.map(c => c.pdfWidth)])).toBe('portrait');
   });
 });

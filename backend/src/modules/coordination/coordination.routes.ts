@@ -6,6 +6,9 @@ import { PROGRAMAS, buscarPrograma } from '../../domains/catalog/uts.js';
 import { ALCANCE_TOTAL } from '../../domains/scope/program-scope.js';
 import { cargarPanorama } from './coordination.service.js';
 import { enviarPanoramaExcel } from './coordination.renderer.js';
+import { getPlantilla } from '../reports/report-template.js';
+import { fechaHoraDeCampus } from '../reports/report-layout.js';
+import { env } from '../../shared/env.js';
 
 /**
  * Vista de coordinación: las carreras a cargo, de punta a punta.
@@ -111,7 +114,16 @@ coordinationRouter.get('/export.xlsx', async (req, res, next) => {
     const query = consulta.parse(req.query);
     const panorama = await cargarPanorama(query, req.alcance ?? ALCANCE_TOTAL);
     const sufijo = query.period ? `-${query.period}` : '';
-    await enviarPanoramaExcel(res, panorama, `coordinacion${sufijo}.xlsx`);
+    const programa = query.programa ? buscarPrograma(query.programa) : undefined;
+    const detalles = [
+      { etiqueta: 'Periodo', valor: query.period || 'Todos' },
+      ...(programa ? [{ etiqueta: 'Programa', valor: programa.nombre }] : []),
+      { etiqueta: 'Generado', valor: fechaHoraDeCampus(new Date(), env.CAMPUS_UTC_OFFSET_MIN) },
+    ];
+    await enviarPanoramaExcel(res, panorama, `coordinacion${sufijo}.xlsx`, {
+      plantilla: await getPlantilla(),
+      detalles,
+    });
   } catch (err) {
     next(err);
   }
