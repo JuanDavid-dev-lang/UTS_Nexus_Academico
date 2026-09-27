@@ -4,4 +4,8 @@ dist
 .env.*
 coverage
 *.log
-
+# Datos de ejecución: van en volúmenes, nunca dentro de la imagen.
+uploads
+formatos
+# Solo hacen falta para desarrollar, no para construir.
+tests

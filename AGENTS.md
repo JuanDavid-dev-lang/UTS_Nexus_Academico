@@ -28,6 +28,15 @@ npm run lint             # eslint
 ```
 `npm test` cubre `src/domains/` (grading, attendance, risk): funciones puras, sin base de datos ni servidor. Fija las reglas académicas —30/60/10, 33/33/34, aprobación en 3.0, asistencia ponderada por minutos— así que un cambio de pesos rompe una prueba en vez de cambiar notas en silencio. `npm run smoke` sigue siendo la verificación end-to-end y necesita el servidor arriba.
 
+### Backend en Docker (desde la raíz)
+```bash
+docker compose -f docker-compose.local.yml up -d --build              # backend + MongoDB propio
+docker compose -f docker-compose.local.yml exec api node dist/scripts/seed.js
+docker compose -f docker-compose.local.yml --profile ml up -d --build # + servicio de ML
+docker compose up -d --build                                          # backend contra la base de backend/.env
+```
+**`docker-compose.local.yml` es la pila de pruebas y no toca producción**: su base es el contenedor `mongo` (en `127.0.0.1:27018`, porque el 27017 suele tener un `mongod` del equipo) y el propio compose apaga FCM, UniPlanner y SMTP por encima del archivo de entorno. Los secretos van en `backend/.env.docker` (plantilla `backend/.env.docker.example`). `docker-compose.yml` lee `backend/.env` tal cual: con el de desarrollo es **Atlas y las integraciones reales**, y el programador de tareas del contenedor escanea y avisa sobre esos datos. La sonda de salud de la imagen mira el campo `db` de `/health`, no el código HTTP: `/health` responde 200 aunque la base no conecte.
+
 ### Escritorio v2 (`desktop/` — Tauri 2 + React 19)
 ```bash
 npm run dev              # UI en navegador (puerto 5183), NO requiere Rust

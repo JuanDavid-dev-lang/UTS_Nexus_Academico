@@ -463,7 +463,8 @@ pieza que falte degrada a algo utilizable, y aquí se dice a qué.
 
 La base **es Atlas, no un Mongo local**: no hay contenedor de Mongo en
 `docker-compose.yml` a propósito, porque Atlas ya hace copias y replicación
-mejor de lo que las haría una instancia suelta.
+mejor de lo que las haría una instancia suelta. El Mongo en contenedor de
+`docker-compose.local.yml` es solo para probar en local sin tocar Atlas.
 
 #### B.2 Backend
 
@@ -1288,8 +1289,14 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python -m uvicorn app.main:app --port 8100
 .venv/bin/python -m pytest tests/
 
-# Docker
-docker compose up --build   # Levantar backend en contenedor
+# Docker — pila local aislada (MongoDB propio, sin Atlas ni integraciones)
+cp backend/.env.docker.example backend/.env.docker   # y rellenar los secretos
+docker compose -f docker-compose.local.yml up -d --build
+docker compose -f docker-compose.local.yml exec api node dist/scripts/seed.js
+docker compose -f docker-compose.local.yml --profile ml up -d --build   # con ML
+
+# Docker — backend contra la base de backend/.env (Atlas)
+docker compose up --build
 ```
 
 ---
