@@ -444,7 +444,10 @@ export default function AttendancePage() {
               <li
                 key={student._id}
                 className={cn(
-                  'surface-card relative flex items-center gap-3 overflow-hidden p-3 pl-4 transition-colors duration-200',
+                  // `flex-wrap`: en un teléfono el interruptor Presente/Ausente
+                  // se comía el ancho y el nombre quedaba en cero píxeles —se
+                  // veían el avatar y los botones, pero no a quién se marcaba—.
+                  'surface-card relative flex flex-wrap items-center gap-3 overflow-hidden p-3 pl-4 transition-colors duration-200',
                   marked === true && 'border-success-border bg-success-soft/40',
                   marked === false && 'border-danger-border bg-danger-soft/40',
                 )}
@@ -467,7 +470,7 @@ export default function AttendancePage() {
 
                 <Avatar name={student.fullName} src={student.photoUrl} size="sm" />
 
-                <div className="flex min-w-0 flex-1 flex-col">
+                <div className="flex min-w-[9rem] flex-1 flex-col">
                   <span className="truncate text-body font-medium text-text">{student.fullName}</span>
                   <span className="truncate font-mono tabular text-caption text-muted">
                     {student.code}
@@ -555,10 +558,13 @@ export default function AttendancePage() {
                     apagaba el otro, y no era raro pulsarlos en secuencia
                     esperando que hicieran cosas distintas.
                   */
-                  <div className="flex shrink-0 items-center gap-1 rounded-lg bg-surface-sunken p-1">
+                  // En angosto baja a su propia línea y se estira: dos botones
+                  // de medio ancho se aciertan con el pulgar pasando lista.
+                  <div className="flex w-full shrink-0 items-center gap-1 rounded-lg bg-surface-sunken p-1 @xl:w-auto">
                     <Button
                       variant={marked === true ? 'primary' : 'ghost'}
                       size="sm"
+                      className="flex-1 @xl:flex-none"
                       onClick={() => mark(student._id, true)}
                       aria-pressed={marked === true}
                       aria-label={`Marcar presente a ${student.fullName}`}
@@ -569,6 +575,7 @@ export default function AttendancePage() {
                     <Button
                       variant={marked === false ? 'danger' : 'ghost'}
                       size="sm"
+                      className="flex-1 @xl:flex-none"
                       onClick={() => mark(student._id, false)}
                       aria-pressed={marked === false}
                       aria-label={`Marcar ausente a ${student.fullName}`}

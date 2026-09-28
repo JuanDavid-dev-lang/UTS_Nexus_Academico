@@ -34,10 +34,17 @@ export function PageHeader({
             {eyebrow}
           </div>
         ) : null}
-        <h1 className="text-h1 font-bold text-text">{title}</h1>
+        {/* En un teléfono el h1 de 36 px partía «Riesgo académico» en dos
+            líneas y empujaba el contenido media pantalla hacia abajo. */}
+        <h1 className="text-h2 font-bold text-text @2xl:text-h1">{title}</h1>
         {subtitle ? <p className="text-body text-muted">{subtitle}</p> : null}
       </div>
-      {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+      {/* Los botones bajan de línea cuando no caben. Con `shrink-0` y sin
+          `flex-wrap`, en un teléfono el tercero («Registrar nota») quedaba
+          cortado por el borde de la pantalla y no se podía pulsar. */}
+      {actions ? (
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{actions}</div>
+      ) : null}
     </header>
   );
 }
@@ -96,8 +103,12 @@ export function PageContainer({
 }) {
   return (
     <div className={cn('scrollbar-slim h-full overflow-y-auto', className)}>
-      {/* p-6 / gap-4 are DESIGN.md S7's 24px page padding and 16px gap. */}
-      <div className="mx-auto flex max-w-[1600px] flex-col gap-4 p-6">{children}</div>
+      {/* p-6 / gap-4 are DESIGN.md S7's 24px page padding and 16px gap. En un
+          hueco angosto (teléfono) el margen baja a 16 px y abajo se deja sitio
+          para el botón flotante de Rubri, que si no tapa la última fila. */}
+      <div className="mx-auto flex max-w-[1600px] flex-col gap-4 p-4 pb-24 @2xl:px-6 @2xl:pt-6">
+        {children}
+      </div>
     </div>
   );
 }

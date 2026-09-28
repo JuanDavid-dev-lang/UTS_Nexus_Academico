@@ -102,7 +102,9 @@ export default function RiskPage() {
       {
         key: 'level',
         header: 'Nivel',
-        width: '1.4fr',
+        // La insignia lleva el primer motivo («Riesgo alto — Bajo rendimiento»):
+        // con 1.4fr se cortaba justo en el motivo, que es lo que se lee.
+        width: '2fr',
         sortValue: (row) => row.riskScore,
         cell: (row) => (
           <RiskBadge level={row.level} {...(row.motivos[0] ? { reason: row.motivos[0] } : {})} />
@@ -215,33 +217,36 @@ export default function RiskPage() {
         }
       />
 
-      <div className="grid gap-4 @2xl:grid-cols-3">
+      {/* Tres columnas también en el teléfono: una debajo de otra, las tres
+          cifras ocupaban la pantalla entera antes de llegar a la lista. En
+          angosto se quita la explicación y queda lo que se escanea. */}
+      <div className="grid grid-cols-3 gap-2 @2xl:gap-4">
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="p-3 pb-3 @2xl:p-5 @2xl:pb-2">
             <CardDescription>Riesgo alto</CardDescription>
             <CardTitle className="font-mono text-h2 text-danger">{counts.HIGH}</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="hidden @2xl:block">
             <p className="text-caption text-muted">Requieren contacto inmediato</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="p-3 pb-3 @2xl:p-5 @2xl:pb-2">
             <CardDescription>Riesgo medio</CardDescription>
             <CardTitle className="font-mono text-h2 text-warning">{counts.MEDIUM}</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="hidden @2xl:block">
             <p className="text-caption text-muted">Seguimiento en las próximas semanas</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Total en seguimiento</CardDescription>
+          <CardHeader className="p-3 pb-3 @2xl:p-5 @2xl:pb-2">
+            <CardDescription>En seguimiento</CardDescription>
             <CardTitle className="font-mono text-h2">{counts.all}</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="hidden @2xl:block">
             <p className="text-caption text-muted">Estudiantes con alguna señal de alerta</p>
           </CardContent>
         </Card>

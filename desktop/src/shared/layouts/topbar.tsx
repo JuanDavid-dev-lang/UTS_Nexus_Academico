@@ -116,14 +116,14 @@ export function TopBar({
         </Button>
       ) : null}
 
-      <div className="flex min-w-0 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         {/* Not a heading: this repeats the page title as window chrome, and the
             page body already carries the document's only h1. */}
         <p className="truncate text-body font-bold leading-tight text-text">{title}</p>
-        <p className="truncate text-caption leading-tight text-muted">{subtitle}</p>
+        {/* En un teléfono el subtítulo se cortaba a «Gestiona…» y le quitaba
+            sitio al título, que quedaba en «Riesg…». La página ya lo dice. */}
+        <p className="hidden truncate text-caption leading-tight text-muted sm:block">{subtitle}</p>
       </div>
-
-      <div className="flex-1" />
 
       {/* Global search - the fastest path to any student, subject or action. */}
       <button
@@ -178,13 +178,16 @@ export function TopBar({
         </span>
       </Tooltip>
 
+      {/* Pantalla completa y tema no caben en un teléfono junto al título, y
+          allí sobran: el navegador del móvil ya va a pantalla completa (el
+          iPhone ni la admite) y el tema pasa al menú de la cuenta. */}
       <BotonPantallaCompleta />
 
-      <span className="h-6 w-px shrink-0 bg-border" aria-hidden />
+      <span className="hidden h-6 w-px shrink-0 bg-border sm:block" aria-hidden />
 
       <DropdownMenu.Root>
         <DropdownMenu.Trigger asChild>
-          <Button variant="ghost" size="icon" className="no-drag" aria-label="Cambiar tema">
+          <Button variant="ghost" size="icon" className="no-drag hidden sm:inline-flex" aria-label="Cambiar tema">
             {preference === 'dark' ? (
               <Moon aria-hidden />
             ) : preference === 'light' ? (
@@ -241,6 +244,24 @@ export function TopBar({
               <UserIcon className="size-4" aria-hidden />
               Mi cuenta
             </DropdownMenu.Item>
+            {/* El tema, aquí solo cuando la barra no tiene sitio para su botón. */}
+            <div className="sm:hidden">
+              <DropdownMenu.Separator className="my-1 h-px bg-border" />
+              {THEME_OPTIONS.map((option) => (
+                <DropdownMenu.Item
+                  key={option.value}
+                  className={menuItemClass}
+                  onSelect={() => setPreference(option.value)}
+                >
+                  <option.Icon className="size-4" aria-hidden />
+                  <span className="flex-1">Tema {option.label.toLowerCase()}</span>
+                  {preference === option.value ? (
+                    <Check className="size-3.5 text-primary" aria-hidden />
+                  ) : null}
+                </DropdownMenu.Item>
+              ))}
+              <DropdownMenu.Separator className="my-1 h-px bg-border" />
+            </div>
             <DropdownMenu.Item
               className={cn(menuItemClass, 'text-danger data-[highlighted]:bg-danger-soft')}
               onSelect={() => void handleLogout()}
@@ -264,7 +285,7 @@ function BotonPantallaCompleta() {
       <Button
         variant="ghost"
         size="icon"
-        className="no-drag shrink-0"
+        className="no-drag hidden shrink-0 sm:inline-flex"
         onClick={() => void alternarPantallaCompleta()}
         aria-label={etiqueta}
         aria-pressed={completa}

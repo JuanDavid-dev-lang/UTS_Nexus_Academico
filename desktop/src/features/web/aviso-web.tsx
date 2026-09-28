@@ -33,9 +33,14 @@ export function AvisoWeb() {
     }
   }
 
+  // Una línea en una pantalla de PC: con la frase anterior la franja ocupaba
+  // dos y se leía como un aviso de error más que como información.
   const mensaje = recorte
-    ? 'Estás en la versión web: materias, estudiantes, notas, asistencia y riesgo. Agenda, reportes, el asistente completo y la sesión recordada están en la aplicación.'
-    : 'Estás en la versión web con todas las funciones de administración. La aplicación añade la sesión recordada y las notificaciones del sistema.';
+    ? 'Versión web: materias, estudiantes, notas, asistencia y riesgo. Agenda, reportes y el asistente completo están en la aplicación.'
+    : 'Versión web con todas las funciones de administración. La aplicación añade la sesión recordada y las notificaciones.';
+  // En un teléfono el mensaje largo, junto al botón, se partía en ocho líneas
+  // y la franja se comía media pantalla antes del contenido.
+  const mensajeCorto = recorte ? 'Versión web: lo esencial. El resto, en la app.' : 'Versión web.';
 
   return (
     <AnimatePresence initial={false}>
@@ -48,7 +53,10 @@ export function AvisoWeb() {
         >
           <div className="flex items-center gap-3 border-b border-border bg-primary-soft px-4 py-2 text-caption text-text xl:px-6">
             <Globe className="size-4 shrink-0 text-primary" aria-hidden />
-            <p className="min-w-0 flex-1">{mensaje}</p>
+            <p className="min-w-0 flex-1">
+              <span className="sm:hidden">{mensajeCorto}</span>
+              <span className="hidden sm:inline">{mensaje}</span>
+            </p>
             <a
               href={URL_DESCARGAS}
               target="_blank"

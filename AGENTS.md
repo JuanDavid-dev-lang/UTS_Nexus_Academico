@@ -1135,6 +1135,23 @@ la página y se abría dentro de Safari. La barra de estado va en `default`: con
 mismas funciones y misma sesión en `sessionStorage`, así que cerrarla desde el
 selector de apps termina la sesión.
 
+**La web en el teléfono** (instalada en el iPhone es la vía principal). Se
+revisó con capturas a 390 px y cuatro piezas compartidas lo resuelven para
+todas las pantallas —y para la ventana estrecha del escritorio—:
+- **`DataTable` pasa a tarjetas por debajo de 640 px de hueco** (mide su
+  contenedor, no la ventana): la primera columna es el título, la de acciones
+  (`key` `actions`/`acciones` o encabezado vacío) va arriba a la derecha y el
+  resto son pares etiqueta-valor en flujo. En filas, cuatro columnas en 360 px
+  dejaban «J..», «20...» e «In...». El orden se elige con una lista.
+- **`PageHeader`**: los botones bajan de línea (antes el tercero quedaba fuera
+  de la pantalla) y el h1 es `text-h2` hasta `@2xl`.
+- **`TopBar`** en angosto: solo título, buscar, estado y cuenta; el tema pasa
+  al menú de la cuenta y la pantalla completa se oculta.
+- **`AvisoWeb`** dice una frase corta en el teléfono; la larga ocupaba media
+  pantalla. `PageContainer` deja `pb-24` para que Rubri no tape la última fila.
+Una lista propia con botones (la de Asistencia) tiene que hacer `flex-wrap`:
+sin eso el interruptor Presente/Ausente dejaba el nombre en cero píxeles.
+
 **Sesión en la web**: sin casilla de recordar. Los tokens van a
 `sessionStorage`, así que recargar no echa a nadie y cerrar la pestaña termina
 la sesión. Guardarlos quince días exige un almacén que el navegador no tiene:
