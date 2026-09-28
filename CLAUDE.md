@@ -798,6 +798,29 @@ teléfono, y un menú que hay que desplazar deja de ser un menú.
 Los destinos secundarios declaran `roles`, así que el menú no ofrece entradas
 que el backend va a rechazar con un 403.
 
+### Widgets de Android (`core/home_widget/`)
+
+Dos widgets de la pantalla de inicio, nativos (`AppWidgetProvider` +
+RemoteViews, paquete `home_widget`), solo en Android: **«Horario»**, con las
+próximas clases, y **«Acceso rápido»**, con botones a Notas, Asistencia,
+Agenda y Materias.
+
+- **Flutter serializa, Kotlin no calcula horas.** `features/agenda/widget_horario.dart`
+  (puro, con pruebas) guarda las clases de los próximos 7 días ya formateadas
+  en hora del campus cada vez que se recarga la agenda próxima
+  (`_reprogramarRecordatorios` en `app.dart`, la misma consulta de las alarmas
+  locales: no hay una segunda). `HorarioWidgetProvider` solo decide, en cada
+  repintado de 30 minutos, qué filas ya terminaron y si su fecha es «Hoy» o
+  «Mañana» comparando con la fecha **del campus**, nunca con la zona del
+  teléfono. Si la app no se abre en una semana, el widget se queda sin clases.
+- **Los toques abren `utsnexus://abrir/<ruta>`** y la ruta pasa por una lista
+  blanca (`home_widget_links.dart`) antes de `router.go`: una URI no puede
+  llevar a cualquier pantalla.
+- **Al cerrar sesión se borran los datos del widget** (`HomeWidgetService.limpiar()`):
+  la pantalla de inicio la ve cualquiera que tenga el teléfono en la mano.
+- Los colores siguen el claro/oscuro **del sistema** (`values-night`), no la
+  Apariencia elegida en la app: un widget nativo no puede leerla.
+
 ### Componentes compactos del móvil
 
 `core/widgets/compact.dart` es el kit denso: `CompactHeader` (56 dp frente a

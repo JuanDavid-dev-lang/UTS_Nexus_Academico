@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Colores de los widgets de la pantalla de inicio (Horario, Acceso rápido).
+
+  Un `AppWidgetProvider` no puede leer la apariencia que el usuario eligió
+  DENTRO de la app (tono, color propio): esa preferencia vive en el proceso de
+  Flutter y el widget se pinta sin él en ejecución. Lo único que un widget
+  nativo puede seguir sin más es el modo claro/oscuro del SISTEMA, con el
+  calificador `values-night` de siempre — por eso estos son los colores de
+  marca fijos (DESIGN.md), no el tema elegido en Apariencia.
+-->
+<resources>
+    <color name="widget_background">#FFFFFF</color>
+    <color name="widget_border">#E3E7DD</color>
+    <color name="widget_button_background">#EEF2E4</color>
+    <!-- Verde institucional en claro; en oscuro el verde oscuro pierde
+         contraste sobre `widget_background`, así que el icono pasa al acento
+         lima (ver `values-night/colors.xml`). -->
+    <color name="widget_icon_tint">#0B5D3B</color>
+    <color name="widget_accent">#CAD225</color>
+    <color name="widget_text">#16202B</color>
+    <color name="widget_muted">#5D6B7A</color>
+</resources>

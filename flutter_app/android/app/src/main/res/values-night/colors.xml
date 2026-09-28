@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="widget_background">#33332A</color>
+    <color name="widget_border">#4A4A3D</color>
+    <color name="widget_button_background">#3D3D33</color>
+    <!-- El lima es el acento en los dos modos y aquí además hace de tinte del
+         icono: sobre `widget_background` oscuro es lo único de la paleta que
+         mantiene contraste sin aclarar el verde institucional. -->
+    <color name="widget_icon_tint">#CAD225</color>
+    <color name="widget_accent">#CAD225</color>
+    <color name="widget_text">#EDEFDD</color>
+    <color name="widget_muted">#A6AA8A</color>
+</resources>

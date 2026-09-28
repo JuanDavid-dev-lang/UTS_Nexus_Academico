@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Agenda: un calendario de pared, con sus dos anillas. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M4,5L20,5L20,20L4,20Z"
+        android:fillColor="#00000000"
+        android:strokeColor="@color/widget_icon_tint"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M4,9L20,9"
+        android:strokeColor="@color/widget_icon_tint"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M8,3L8,7"
+        android:strokeColor="@color/widget_icon_tint"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M16,3L16,7"
+        android:strokeColor="@color/widget_icon_tint"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round" />
+</vector>

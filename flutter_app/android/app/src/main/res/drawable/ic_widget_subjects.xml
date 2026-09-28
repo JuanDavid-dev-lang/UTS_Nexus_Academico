@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Materias: un documento con dos líneas de texto. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M4,4L20,4L20,20L4,20Z"
+        android:fillColor="#00000000"
+        android:strokeColor="@color/widget_icon_tint"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M4,9L20,9"
+        android:strokeColor="@color/widget_icon_tint"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M4,14L14,14"
+        android:strokeColor="@color/widget_icon_tint"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round" />
+</vector>

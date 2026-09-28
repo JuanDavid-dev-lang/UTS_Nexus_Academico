@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- La aplicación es solo en español (ver CLAUDE.md, «Idioma y tema»): no hay
+     `values-en` ni ningún otro calificador de idioma para estas cadenas. -->
+<resources>
+    <string name="horario_widget_label">Horario</string>
+    <string name="horario_widget_titulo">Horario</string>
+    <string name="horario_widget_descripcion">Tus próximas clases: día, hora, materia y grupo. Toca el widget para abrir la agenda.</string>
+    <string name="horario_widget_sin_sesion">Abre UTS Nexus para ver tu horario</string>
+    <string name="horario_widget_sin_clases">Sin clases próximas</string>
+    <string name="horario_widget_hoy">Hoy</string>
+    <string name="horario_widget_manana">Mañana</string>
+
+    <string name="acceso_rapido_widget_label">Acceso rápido</string>
+    <string name="acceso_rapido_widget_descripcion">Abre Notas, Asistencia, Agenda o Materias directamente desde la pantalla de inicio.</string>
+    <string name="acceso_rapido_notas">Notas</string>
+    <string name="acceso_rapido_asistencia">Asistencia</string>
+    <string name="acceso_rapido_agenda">Agenda</string>
+    <string name="acceso_rapido_materias">Materias</string>
+</resources>

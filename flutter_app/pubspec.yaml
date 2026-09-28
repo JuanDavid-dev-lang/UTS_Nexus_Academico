@@ -36,6 +36,10 @@ dependencies:
   # Tokens en Android Keystore / almacén seguro de cada plataforma. Las
   # preferencias normales quedan solo para caché y opciones no sensibles.
   flutter_secure_storage: ^11.0.0
+  # Widgets de la pantalla de inicio en Android (Horario y Acceso rápido). No
+  # hace nada en iOS: los `AppWidgetProvider` son nativos de Android y este
+  # paquete solo sirve de puente para escribir los datos y abrir la app.
+  home_widget: ^0.10.0
 
 dev_dependencies:
   flutter_test:

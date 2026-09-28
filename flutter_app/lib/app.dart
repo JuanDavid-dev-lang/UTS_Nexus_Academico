@@ -15,6 +15,7 @@ import './core/widgets/app_scaffold.dart';
 import './core/widgets/update_prompt.dart';
 import './core/notifications/local_notifications_service.dart';
 import './core/notifications/push_service.dart';
+import './core/home_widget/home_widget_service.dart';
 import './features/activities/activities_page.dart';
 import './features/agenda/agenda_page.dart';
 import './features/ai/ai_page.dart';
@@ -218,6 +219,26 @@ class _UtsAppState extends ConsumerState<UtsApp> {
         if (mounted) router.go(pendiente);
       });
     }
+
+    // Toques a un widget de la pantalla de inicio con la app ya abierta.
+    HomeWidgetService.instance.escucharClics((ruta) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) router.go(ruta);
+      });
+    });
+
+    // La app pudo abrirse tocando un widget desde cero. A diferencia de las
+    // notificaciones locales, `home_widget` no necesita una ruta pendiente
+    // aparte: en el arranque en frío el activity ya existe cuando se llama, y
+    // esto solo devuelve algo cuando de verdad se lanzó así.
+    unawaited(
+      HomeWidgetService.instance.manejarDeepLinkInicial().then((ruta) {
+        if (ruta == null || !mounted) return;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) router.go(ruta);
+        });
+      }),
+    );
   }
 
   @override
@@ -236,6 +257,10 @@ class _UtsAppState extends ConsumerState<UtsApp> {
     _reprogramando = true;
     try {
       final agenda = await ref.read(agendaProximaProvider.future);
+      // El widget "Horario" usa la misma agenda que ya se acaba de traer para
+      // las alarmas locales: no hace falta una segunda consulta al servidor
+      // solo para el widget.
+      unawaited(HomeWidgetService.instance.actualizarHorario(agenda));
       final preferencias = await ref.read(notificationPrefsProvider.future);
       await LocalNotificationsService.instance.reprogramar(
         items: agenda.items,
@@ -453,6 +478,10 @@ class _UtsAppState extends ConsumerState<UtsApp> {
           // alertas a un teléfono que ya no es suyo.
           unawaited(PushService.instance.darDeBaja());
           unawaited(LocalNotificationsService.instance.cancelarTodo());
+          // Los widgets de la pantalla de inicio son visibles para cualquiera
+          // que tenga el teléfono en la mano: el horario del docente anterior
+          // no puede seguir ahí para el que entre después.
+          unawaited(HomeWidgetService.instance.limpiar());
           router.go('/login');
         }
       });

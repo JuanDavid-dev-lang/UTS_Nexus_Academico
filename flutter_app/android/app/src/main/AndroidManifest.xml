@@ -47,6 +47,12 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Widgets de la pantalla de inicio (Horario, Acceso rápido): al
+                 tocarlos, `home_widget` abre esta actividad con esta acción y
+                 la ruta pedida en el `data` del intent. -->
+            <intent-filter>
+                <action android:name="es.antonborri.home_widget.action.LAUNCH" />
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
@@ -74,6 +80,33 @@
         <receiver
             android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
             android:exported="false" />
+
+        <!-- Widgets de la pantalla de inicio. `exported="true"` es obligatorio
+             desde Android 12: el broadcast `APPWIDGET_UPDATE` lo manda el
+             sistema, no la propia app, así que un receptor no exportado nunca
+             lo recibiría. -->
+        <receiver
+            android:name=".HorarioWidgetProvider"
+            android:exported="true"
+            android:label="@string/horario_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/horario_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".AccesoRapidoWidgetProvider"
+            android:exported="true"
+            android:label="@string/acceso_rapido_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/acceso_rapido_widget_info" />
+        </receiver>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
