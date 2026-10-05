@@ -1401,6 +1401,8 @@ nativo de WebView2, que duplicaba el propio. «Reducir movimiento» (sistema o
 Apariencia, `useSinMovimiento`) para la sacudida y la entrada. El acceso del
 móvil (`login_page.dart`) sigue con su aurora; igualarlo es un cambio aparte.
 
+**Easter egg: Rubri se desmaya.** En el acceso de los dos clientes, quince toques seguidos sobre Rubri (sin pausas de más de 3 s) lo marean por fases y lo desmayan: cae de lado con la cara de ojos en espiral y un globo, y a los 5 s se levanta solo. No está señalado, no entra en el orden de tabulación y no toca el formulario; con «reducir movimiento» solo cambia la cara. Las reglas son puras y con pruebas en los dos (`desktop/src/domain/rubri/desmayo.ts`, `flutter_app/lib/features/auth/rubri_desmayo.dart`), y tienen que coincidir.
+
 ### WebKitGTK no es Chromium: dos cosas que en Linux se hacen a mano
 
 - **`hover:` va sin media query** (`@custom-variant hover (&:hover)` en

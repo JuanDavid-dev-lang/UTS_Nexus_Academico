@@ -11,6 +11,7 @@ import '../../core/auth/auth_controller.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/rubri.dart';
 import '../../core/widgets/ui_kit.dart';
+import 'widgets/rubri_del_acceso.dart';
 
 /// Pantalla de acceso.
 ///
@@ -748,7 +749,7 @@ class _CabeceraAurora extends StatelessWidget {
               reloj: reloj,
               tramo: mascota,
               child: RepaintBoundary(
-                child: Rubri(emotion: emocion, size: _ladoRubri),
+                child: RubriDelAcceso(emocion: emocion, size: _ladoRubri),
               ),
             ),
           ],

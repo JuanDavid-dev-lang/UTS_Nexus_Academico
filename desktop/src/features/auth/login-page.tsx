@@ -11,7 +11,8 @@ import { ArrowRight, Eye, EyeOff, Lock, Mail, Server, TriangleAlert } from 'luci
 import { Button } from '@/shared/ui/button';
 import { Field, Input } from '@/shared/ui/field';
 import { Switch } from '@/shared/ui/primitives';
-import { Rubri, type RubriEmotion } from '@/shared/ui/rubri';
+import { type RubriEmotion } from '@/shared/ui/rubri';
+import { RubriDelAcceso } from './components/rubri-del-acceso';
 import { useSinMovimiento } from '@/shared/hooks/use-sin-movimiento';
 import { useSession } from '@/state/session.store';
 import { toast } from '@/state/toast.store';
@@ -198,7 +199,7 @@ export default function LoginPage() {
                 transition={{ duration: 0.3, delay: 0.2 }}
                 className="absolute -top-16 right-6 z-10"
               >
-                <Rubri emotion={emocion} size="medium" animated={false} />
+                <RubriDelAcceso emocion={emocion} />
               </motion.div>
 
               <div
