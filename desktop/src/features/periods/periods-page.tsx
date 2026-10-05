@@ -403,12 +403,12 @@ export default function PeriodsPage() {
                   <tbody>
                     {fotografia.data.items.map((fila) => (
                       <tr key={fila._id} className="border-t border-border">
-                        <td className="p-2 font-mono tabular-nums">{fila.code}</td>
+                        <td className="p-2 tabular-nums">{fila.code}</td>
                         <td className="p-2">{fila.fullName}</td>
-                        <td className="p-2 text-right font-mono tabular-nums">
+                        <td className="p-2 text-right tabular-nums">
                           {fila.notaFinal.toFixed(2)}
                         </td>
-                        <td className="p-2 text-right font-mono tabular-nums">
+                        <td className="p-2 text-right tabular-nums">
                           {fila.asistenciaPorcentaje.toFixed(1)}%
                         </td>
                         <td className="p-2">

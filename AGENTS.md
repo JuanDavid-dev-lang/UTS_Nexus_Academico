@@ -750,6 +750,8 @@ Los eventos salen por `emitToUser` (sala `user:<id>` + las salas administrativas
 - **El token va en una función** (`setAuthFn` en el móvil, `auth` como función en el escritorio): se lee en cada intento, así que la reconexión automática tras un corte manda el vigente. El escritorio además **renueva antes del handshake** si el access token caduca en menos de un minuto (15 min de vida y sin peticiones durante una suspensión: el reintento salía casi siempre caducado).
 - **Un rechazo no lo reintenta socket.io.** Si la renovación no llegó al servidor (reiniciando, 502 del túnel) los dos clientes reintentan con retroceso (5–30 s). Antes la conexión quedaba muerta hasta reiniciar la app.
 
+**Tras reconectar se vuelve a pedir lo que hay en pantalla.** Los `sync:update` emitidos mientras el socket estaba caído no se reciben; sin esto, una nota puesta en el escritorio durante un corte no aparecía en el teléfono hasta el siguiente evento de esa misma entidad. La primera conexión de la sesión no cuenta (coincide con la carga inicial); cada una de las siguientes invalida: el escritorio, `invalidateQueries({ refetchType: 'active' })` en `socket.ts`; el móvil, `_refrescarTrasReconexion()` en `app.dart` (providers no `autoDispose`: lo que nadie mira solo queda marcado).
+
 Lo que se enseña: el móvil espera 3 s antes de pintar un problema del tiempo real (`OfflineBanner`): volver de segundo plano pasa siempre por «conectando» durante el handshake. El escritorio no escucha `reconnect` del manager —se emite al abrir el transporte, antes de que el servidor acepte, y pintaba verde un instante antes del rechazo—, cuenta un corte de transporte como «reconectando» y solo dice «sin conexión» tras tres fallos seguidos, sin alternar en cada intento.
 
 ### Agenda académica
@@ -945,44 +947,51 @@ sobre qué es un metadato. Ninguna era peor; el problema era que fueran tres.
 Todo dentro de los tokens de DESIGN.md; ningún color en crudo. Lo que cambió
 vive en las piezas compartidas para que las pantallas lo hereden:
 
-- **`AppCard` pinta `AppGradients.surface`** (superficie → 35 % hacia la
-  alterna). En el escritorio `.surface-card` **ya no lleva degradado ni
-  sombra** (octubre de 2026, ver «Escritorio sobrio»): la paridad pendiente es
-  dejar `AppCard` en color plano con su filo. Seleccionada, el tinte de marca
-  manda y no hay degradado.
-- **`CompactStat`** lleva el icono en su cuadro a la derecha y la cifra en
-  w800 con tracking negativo; **`CompactSectionHeader`** abre con una marca de
-  acento de 3×12 en el primario. **`InitialsAvatar(cuadrado: true)`** es para lo
-  que no es una persona (una materia); el círculo queda para la gente.
+- **Móvil sobrio (octubre de 2026): paridad con el escritorio.** Se quitaron
+  los mismos tics: `AppCard` es `palette.surface` plano con filo de 1 px, sin
+  degradado ni sombra (seleccionada, el tinte de marca manda; `elevated` solo
+  pasa el filo a `borderStrong`); `AppGradients` ya no existe y las sombras
+  (`AppShadows`) quedan para lo que flota —hojas, avisos, la barra de resumen,
+  la hoja del recorrido— y para la pestaña activa del control segmentado. Los
+  radios son `radiusCard` 12, `radiusInput` 8, `radiusChip` 6 (los chips de
+  filtro) y `radiusLarge` 16 (hojas); el factor de «esquinas» de Apariencia
+  los sigue escalando. **`BrandSurface`** es el primario liso (en oscuro,
+  `primarySoft` con filo) y solo la usa la clase en curso. **`CompactStat` y
+  `StatTile`** llevan la cifra tabular en w700 y el icono suelto y apagado,
+  sin cuadro de color, franja de tono ni tracking negativo;
+  **`CompactSectionHeader`** es un título `bodyStrong` a la izquierda, sin marca
+  de acento, versalitas ni filete. Ninguna etiqueta va en versalitas
+  (`toUpperCase` + `letterSpacing`): ni encima de un título, ni en una métrica,
+  ni en las secciones de Ajustes. **No los reintroduzcas.**
+  **`InitialsAvatar(cuadrado: true)`** es para lo que no es una persona (una
+  materia); el círculo queda para la gente.
 - **`StateView.empty` y `.error` llevan a Rubri** (tranquilo y triste);
   `rubri:` es opcional y sin él sigue el icono en su halo. **Ojo con
   `uiautomator dump`**: Rubri flota sin parar y la pantalla nunca está
   «idle», así que el volcado de accesibilidad falla en toda pantalla con Rubri.
-- **Panel**: `SaludoPanel` (fecha en versalitas, «Buenas tardes, Nombre» con
+- **Panel**: `SaludoPanel` (fecha en texto corriente, «Buenas tardes, Nombre» con
   el nombre en primario, Rubri a la derecha) y `AvisoDeAtencion` (solo si hay
   estudiantes en riesgo; un aviso con «0» sería ruido). La cabecera dice
   «Panel»: el saludo ya no cabe en 56 dp.
-- **Acceso** (`login_page.dart`): la pantalla entera es la superficie de
-  marca, pintada por un `CustomPainter` tras `RepaintBoundary` con tres nubes
-  de la paleta que respiran en un ciclo de 14 s (es la única animación continua
-  a pantalla completa; si hubiera tirones en gama baja, primero dos nubes).
-  Encima, una apertura de 800 ms con un solo reloj: el logo cae con resorte,
-  Rubri entra con un giro de saludo —y pone la cara «sin conexión» si no se
-  encuentra el servidor—, título y frase escalonados y la tarjeta del
-  formulario sube con `AppMotion.spring`. Cada pieza se mueve una vez, por eso
-  pasa de los 320 ms de `AppMotion.slow`. El `Stack` va con
-  `StackFit.expand`: sin ella el degradado terminaba donde la tarjeta y
-  dejaba una costura en pantallas altas. «Reducir movimiento» para las nubes y
-  salta la apertura al final aunque se active con la pantalla abierta, y los
-  `Opacity` llevan `alwaysIncludeSemantics` para que el lector encuentre el
-  formulario desde el primer fotograma. `test/login_page_test.dart` lo fija a
-  360×640 con teclado en claro y oscuro. Se eligió entre tres propuestas
-  (aurora, cabecera con onda, editorial sobre fondo de página); del botón de la
-  editorial viene la sombra que baja al enviar y la barra de 3 dp con su alto
-  reservado.
-- **Barra inferior**: indicador en píldora (`indicatorShape`), filo superior y
-  sombra hacia arriba. Sigue siendo un `NavigationBar`: el recorrido la mide
-  por partes iguales. **Avatar de sesión** con anillo de degradado de marca;
+- **Acceso** (`login_page.dart`): sobrio y plano, como el del escritorio. Una
+  banda de marca arriba —el primario liso a todo el ancho y bajo la barra de
+  estado; en oscuro, `primarySoft` con filo inferior— con la baldosa del logo,
+  Rubri a la derecha (feliz, y con la cara «sin conexión» si no se encuentra el
+  servidor), el nombre y la frase alineados a la izquierda; debajo, el
+  formulario en una tarjeta de superficie con filo sobre el fondo de página.
+  **Nada se anima**: se fueron las nubes que respiraban (`CustomPainter`), la
+  apertura de 800 ms con la caída del logo, el giro de Rubri y el resorte de la
+  tarjeta, y la sombra del botón. Lo único que se mueve es Rubri con su propio
+  vaivén, que `RubriDelAcceso` apaga con «reducir movimiento»; el easter egg del
+  desmayo no cambió. Todo va en un `SingleChildScrollView` con alto mínimo el del
+  viewport: el teclado lo resuelve el `Scaffold` y en 360×640 no hay `Column` a
+  la que le falte alto. Conserva la barra de progreso de 3 dp con su alto
+  reservado. `test/login_page_test.dart` lo fija a 360×640 con teclado en claro
+  y oscuro, y el formulario sigue en el árbol semántico desde el primer
+  fotograma.
+- **Barra inferior**: indicador en píldora (`indicatorShape`), filo superior
+  sin sombra. Sigue siendo un `NavigationBar`: el recorrido la mide
+  por partes iguales. **Avatar de sesión** con un anillo fino del color del borde;
   **Ajustes** abre con `PerfilResumen` (nombre, correo, rol → perfil). Las
   celdas de «Más» llevan el icono siempre en tinta de marca.
 - **Título de cabecera se queda en 16 px**: probado con h3 (24), «Mis materias»
@@ -1365,7 +1374,9 @@ todas las pantallas —y para la ventana estrecha del escritorio—:
   dejaban «J..», «20...» e «In...». El orden se elige con una lista.
 - **`PageHeader`**: los botones bajan de línea (antes el tercero quedaba fuera
   de la pantalla) y el h1 es `text-h2` hasta `@2xl`.
-- **`TopBar`** en angosto: solo título, buscar, estado y cuenta; el tema pasa
+- **`TopBar`** no repite el título de la pantalla: lo dice el h1 de
+  `PageHeader` justo debajo, y repetido con su subtítulo cada pantalla se
+  presentaba dos veces. En angosto: menú, buscar, estado y cuenta; el tema pasa
   al menú de la cuenta y la pantalla completa se oculta.
 - **`AvisoWeb`** dice una frase corta en el teléfono; la larga ocupaba media
   pantalla. `PageContainer` deja `pb-24` para que Rubri no tape la última fila.
@@ -1400,7 +1411,7 @@ Dos detalles: la sacudida va con `useAnimate` sobre un `div` normal, porque un
 quedaban invisibles; y el campo de contraseña oculta `::-ms-reveal`, el ojo
 nativo de WebView2, que duplicaba el propio. «Reducir movimiento» (sistema o
 Apariencia, `useSinMovimiento`) para la sacudida y la entrada. El acceso del
-móvil (`login_page.dart`) sigue con su aurora; igualarlo es un cambio aparte.
+móvil (`login_page.dart`) ya es igual de plano (banda de marca y tarjeta, sin animación).
 
 **Easter egg: Rubri se desmaya.** En el acceso de los dos clientes, quince toques seguidos sobre Rubri (sin pausas de más de 3 s) lo marean por fases y lo desmayan: cae de lado con la cara de ojos en espiral y un globo, y a los 5 s se levanta solo. No está señalado, no entra en el orden de tabulación y no toca el formulario; con «reducir movimiento» solo cambia la cara. Las reglas son puras y con pruebas en los dos (`desktop/src/domain/rubri/desmayo.ts`, `flutter_app/lib/features/auth/rubri_desmayo.dart`), y tienen que coincidir.
 
@@ -1596,8 +1607,8 @@ tamaño del texto, reducir movimiento).
 - **El lima `#CAD225` es el acento en los dos modos** y nunca es color de texto ni fondo de superficie grande — solo botones, badges, selección y foco (§4 reglas 2 y 4). En claro, cuando el acento tiene que *ser* texto se usa `--accent-strong` / `AppColors.accentStrong` (`#626D0F`), que es la misma rampa bajada hasta AA.
 - **En el móvil, los colores del tema se leen con `context.palette`** (`AppPalette` en `app_theme.dart`), no con `isDark ? XDark : X` repetido en cada pantalla: cada copia de ese ternario es un sitio donde se puede olvidar el caso oscuro, y olvidarlo no da error, da texto gris sobre fondo oliva.
 - **`cn()` conoce la rampa tipográfica** (`shared/lib/cn.ts`, `extendTailwindMerge`). Sin eso tailwind-merge tomaba `text-body` por un color y borraba el anterior: todo botón primario perdía `text-on-primary` (etiqueta oscura sobre verde) y las etiquetas de formulario perdían su `text-caption`. `tests/unit/cn.test.ts` lo fija. Si se añade un paso a la rampa, va también ahí.
-- **La superficie de marca (`surface-brand` / `BrandSurface`) es solo para lo que representa a la aplicación** — en el escritorio, hoy solo la columna de marca del acceso (el panel abre con una cabecera editorial, no con un bloque verde). Nunca detrás de una tabla o una lista. En el escritorio es verde plano; el móvil aún la pinta con degradado.
-- **Escritorio sobrio (octubre de 2026).** La interfaz se leía «hecha por IA» y se quitaron los tics que lo delataban: degradados en tarjetas y marca, cristal con desenfoque (`.surface-glass` es ya superficie con filo), sombras en tarjetas y botones (el primario no lleva halo; las sombras quedan para lo que flota), esquinas de 18–26 px (ahora 12 en card, 8 en botón y campo, 6 en etiqueta), etiquetas en versalitas sobre los títulos, franjas de color en las métricas y en los avisos, iconos en cuadrados de color como estructura de tarjeta, cifras de datos en monoespaciada y rebotes. `PageHeader` es editorial: título semibold con filo inferior. `StatCard` conserva sus props (`index` ya no escalona). **No los reintroduzcas sin una razón que no sea «queda más moderno».**
+- **La superficie de marca (`surface-brand` / `BrandSurface`) es solo para lo que representa a la aplicación** — en el escritorio, hoy solo la columna de marca del acceso (el panel abre con una cabecera editorial, no con un bloque verde). Nunca detrás de una tabla o una lista. Es verde plano en el escritorio y en el móvil.
+- **Escritorio sobrio (octubre de 2026).** La interfaz se leía «hecha por IA» y se quitaron los tics que lo delataban: degradados en tarjetas y marca, cristal con desenfoque (`.surface-glass` es ya superficie con filo), sombras en tarjetas y botones (el primario no lleva halo; las sombras quedan para lo que flota), esquinas de 18–26 px (ahora 12 en card, 8 en botón y campo, 6 en etiqueta), etiquetas en versalitas sobre los títulos, franjas de color en las métricas y en los avisos, iconos en cuadrados de color como estructura de tarjeta, cifras de datos en monoespaciada y rebotes. `PageHeader` es editorial: título semibold con filo inferior. `StatCard` conserva sus props (`index` ya no escalona). Una segunda pasada quitó los restos: versalitas en agenda, auditoría, ajustes, tutorial y menú lateral (los grupos del menú van en minúscula de frase), monoespaciada en datos (queda solo para lo que es código: URL, ids internos de la auditoría, hex, comandos), el destello de «IA» del asistente, tarjetas dentro de tarjetas en Riesgo, la franja de la próxima clase y de los avisos sin leer, los iconos en cuadro de notificaciones y del tutorial, y el título repetido en la barra superior. Un grupo se nombra con `etiquetaDeGrupo()` («Grupo A» no se vuelve «Grupo Grupo A») y la cuenta de un promedio con `formulaPromedio()` («(4.10 + 3.50) ÷ 2»), los dos en `shared/lib/format.ts`. **No los reintroduzcas sin una razón que no sea «queda más moderno».**
 - Inter va empaquetada en los dos clientes (`@fontsource/inter` en escritorio, `.ttf` en `flutter_app/assets/fonts/`). No la sustituyas por una carga remota: el CSP de Tauri no tiene `font-src` y la app móvil se usa sin red fiable.
 - **Las Inter del móvil van recortadas a latín y hay que mantenerlas así.** Flutter
   **no** subconjunta fuentes de texto —`--tree-shake-icons` solo actúa sobre las

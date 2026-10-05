@@ -196,12 +196,12 @@ export function SeguimientoDialog({
                           Corte {corte.corte}
                           {corte.completo ? '' : ' (incompleto)'}
                         </span>
-                        <span className="font-mono tabular-nums">{formatGrade(corte.nota)}</span>
+                        <span className="tabular-nums">{formatGrade(corte.nota)}</span>
                       </li>
                     ))}
                     <li className="mt-0.5 flex justify-between border-t border-border pt-1 text-caption font-semibold text-text">
                       <span>Final parcial</span>
-                      <span className="font-mono tabular-nums">
+                      <span className="tabular-nums">
                         {formatGrade(consolidado.data.notaFinal)}
                       </span>
                     </li>
@@ -260,7 +260,7 @@ function Veredicto({ row }: { row: RiskItem }) {
     <section className="rounded-xl border border-border bg-surface-alt/40 p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <RiskBadge level={row.level} />
-        <span className="font-mono text-caption tabular-nums text-muted">
+        <span className="text-caption tabular-nums text-muted">
           {row.riskScore}/100 de riesgo
         </span>
       </div>
@@ -314,10 +314,10 @@ function Cifra({
 
   return (
     <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-surface p-3">
-      <span className="text-caption font-semibold uppercase tracking-wide text-muted">
+      <span className="text-caption font-medium text-muted">
         {etiqueta}
       </span>
-      <span className={`font-mono text-h2 font-bold tabular-nums leading-none ${color}`}>
+      <span className={`text-h2 font-bold tabular-nums leading-none ${color}`}>
         {valor}
       </span>
       <Progress value={porcentaje} tone={tono} />
@@ -335,7 +335,7 @@ function Cifra({
 function SeparadorRotulado({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="shrink-0 text-caption font-semibold uppercase tracking-wide text-muted">
+      <span className="shrink-0 text-caption font-semibold text-muted">
         {children}
       </span>
       <span className="h-px flex-1 bg-border" aria-hidden />

@@ -4,6 +4,7 @@ import { cn } from '@/shared/lib/cn';
 import { horaCampus, tiempoRestante } from '@/domain/agenda/calendar';
 import { minutosHasta, useAgendaResumen, useAhora } from '@/features/agenda/hooks/use-agenda';
 import type { AgendaItem } from '@/domain/schemas/agenda';
+import { etiquetaDeGrupo } from '@/shared/lib/format';
 
 /**
  * Clase en curso y próxima clase.
@@ -98,16 +99,13 @@ function BloqueDestacado({
   return (
     <Card
       className={cn(
-        'relative overflow-hidden p-5',
-        enCurso ? 'border-danger/40 bg-danger-soft/40' : 'border-primary/30 bg-primary/[0.04]',
+        // Sin franja de color en el filo: el rótulo y su color ya dicen si la
+        // clase está en curso o por empezar.
+        'p-5',
+        enCurso ? 'border-danger-border bg-danger-soft/40' : 'border-primary-tint',
       )}
     >
-      <span
-        className={cn('absolute inset-y-0 left-0 w-1', enCurso ? 'bg-danger' : 'bg-primary')}
-        aria-hidden
-      />
-
-      <div className="flex items-center gap-2 pl-2">
+      <div className="flex items-center gap-2">
         {enCurso ? (
           <Radio className="size-3.5 shrink-0 text-danger" aria-hidden />
         ) : (
@@ -115,7 +113,7 @@ function BloqueDestacado({
         )}
         <span
           className={cn(
-            'text-caption font-bold uppercase tracking-wide',
+            'text-caption font-semibold',
             enCurso ? 'text-danger' : 'text-primary',
           )}
         >
@@ -123,14 +121,14 @@ function BloqueDestacado({
         </span>
       </div>
 
-      <h3 className="mt-2 pl-2 text-h3 font-bold text-text">{item.title || item.subjectName || 'Clase'}</h3>
+      <h3 className="mt-2 text-h3 font-semibold text-text">{item.title || item.subjectName || 'Clase'}</h3>
 
-      <p className="mt-1 pl-2 text-body text-muted">
+      <p className="mt-1 text-body text-muted">
         {horaCampus(item.startAt, offset)} – {horaCampus(item.endAt, offset)}
         {item.date ? ` · ${item.date}` : null}
       </p>
 
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 pl-2 text-caption text-muted">
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-caption text-muted">
         {item.classroom ? (
           <span className="flex items-center gap-1">
             <MapPin className="size-3.5" aria-hidden />
@@ -140,7 +138,7 @@ function BloqueDestacado({
         {item.groupName ? (
           <span className="flex items-center gap-1">
             <Users className="size-3.5" aria-hidden />
-            Grupo {item.groupName}
+            {etiquetaDeGrupo(item.groupName)}
           </span>
         ) : null}
         {item.teacherName ? (
@@ -153,7 +151,7 @@ function BloqueDestacado({
 
       <p
         className={cn(
-          'mt-3 pl-2 text-body font-semibold',
+          'mt-3 text-body font-semibold',
           enCurso ? 'text-danger' : 'text-primary',
         )}
       >

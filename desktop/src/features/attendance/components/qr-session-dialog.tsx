@@ -333,14 +333,14 @@ function PanelLista({ sesion }: { sesion: SesionQr }) {
     <div className="flex min-h-0 flex-col gap-4">
       <div className="grid grid-cols-2 gap-3">
         <div className="surface-well flex flex-col gap-1 p-3">
-          <span className="text-caption font-semibold uppercase tracking-wide text-muted">Presentes</span>
+          <span className="text-caption font-medium text-muted">Presentes</span>
           <span className="text-h1 font-semibold tabular text-text">
             {sesion.resumen.presentes}
             <span className="text-h3 text-muted"> / {sesion.resumen.matriculados}</span>
           </span>
         </div>
         <div className="surface-well flex flex-col gap-1 p-3">
-          <span className="text-caption font-semibold uppercase tracking-wide text-muted">Sin UniPlanner</span>
+          <span className="text-caption font-medium text-muted">Sin UniPlanner</span>
           <span className="text-h1 font-semibold tabular text-text">{sinApp}</span>
         </div>
       </div>
@@ -431,15 +431,15 @@ function Resumen({ sesion, onListo }: { sesion: SesionQr; onListo: () => void })
     <div className="flex flex-col gap-5">
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="surface-well flex flex-col gap-1 p-3">
-          <span className="text-caption font-semibold uppercase tracking-wide text-muted">Por QR</span>
+          <span className="text-caption font-medium text-muted">Por QR</span>
           <span className="text-h2 font-semibold tabular text-success">{sesion.resumen.presentes}</span>
         </div>
         <div className="surface-well flex flex-col gap-1 p-3">
-          <span className="text-caption font-semibold uppercase tracking-wide text-muted">Ausentes marcados</span>
+          <span className="text-caption font-medium text-muted">Ausentes marcados</span>
           <span className="text-h2 font-semibold tabular text-text">{sesion.ausentesMarcados}</span>
         </div>
         <div className="surface-well flex flex-col gap-1 p-3">
-          <span className="text-caption font-semibold uppercase tracking-wide text-muted">Rechazadas</span>
+          <span className="text-caption font-medium text-muted">Rechazadas</span>
           <span className="text-h2 font-semibold tabular text-text">{sesion.resumen.rechazadas}</span>
         </div>
       </div>

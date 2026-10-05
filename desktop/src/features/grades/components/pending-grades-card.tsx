@@ -60,7 +60,7 @@ export function PendingGradesCard({
           <div key={subject.subjectId} className="flex flex-col gap-1.5">
             <div className="flex flex-wrap items-baseline gap-2">
               <span className="text-body font-medium text-text">{subject.name}</span>
-              <span className="font-mono text-caption text-muted">{subject.code}</span>
+              <span className="tabular text-caption text-muted">{subject.code}</span>
               <Badge tone="warning" className="ml-auto">
                 {subject.faltan} {subject.faltan === 1 ? 'nota' : 'notas'}
               </Badge>

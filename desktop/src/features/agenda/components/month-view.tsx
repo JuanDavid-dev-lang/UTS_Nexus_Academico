@@ -46,7 +46,7 @@ export function MonthView({
     <div className="surface-card overflow-hidden">
       <div className="grid grid-cols-7 border-b border-border bg-surface-alt">
         {CABECERAS.map((nombre) => (
-          <div key={nombre} className="px-2 py-2 text-center text-caption font-semibold uppercase tracking-wide text-muted">
+          <div key={nombre} className="px-2 py-2 text-center text-caption font-medium text-muted">
             {nombre}
           </div>
         ))}

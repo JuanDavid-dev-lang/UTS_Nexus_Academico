@@ -9,7 +9,7 @@ import {
   Input,
   NativeSelect,
 } from '@/shared/ui';
-import { formatGrade } from '@/shared/lib/format';
+import { formatGrade, formulaPromedio } from '@/shared/lib/format';
 import { cn } from '@/shared/lib/cn';
 import { useDeleteGrade, useSaveGrade } from '@/features/grades/hooks/use-grades';
 import { notasPendientes, notasPorEliminar, type NotaPendiente } from '@/domain/offline/outbox';
@@ -28,7 +28,7 @@ import type {
  *
  * El consolidado responde «cuánto sacó»; esto responde «por qué» y permite
  * actuar: cada componente muestra sus subnotas con nombre, la cuenta explícita
- * (3.5 + 2.5 ÷ 2 = 3.0) y un renglón para añadir la siguiente ahí mismo.
+ * ((3.5 + 2.5) ÷ 2 = 3.0) y un renglón para añadir la siguiente ahí mismo.
  * Antes registrar era un formulario aparte —estudiante, corte, componente,
  * todo a ciegas— y ver el efecto obligaba a cerrar y buscar la fila: el
  * contexto y la acción vivían en pantallas distintas siendo la misma tarea.
@@ -79,11 +79,11 @@ function pesosIguales(notas: GradeDetail[]): boolean {
 
 /**
  * La cuenta explícita del promedio. Con todos los pesos iguales es la de
- * siempre —suma ÷ cantidad—; con pesos distintos, cada nota por su fracción.
+ * siempre —(suma) ÷ cantidad—; con pesos distintos, cada nota por su fracción.
  */
 function formulaDe(notas: GradeDetail[]): string {
   if (pesosIguales(notas)) {
-    return `${notas.map((n) => formatGrade(n.score)).join(' + ')} ÷ ${notas.length}`;
+    return formulaPromedio(notas.map((n) => n.score));
   }
   const fracciones = fraccionesDe(notas);
   return notas
@@ -200,7 +200,7 @@ export function StudentBreakdownDialog({
                       {Math.round(corte.peso * 100)}% de la final
                     </span>
                   </h3>
-                  <span className="font-mono tabular-nums text-body text-text">
+                  <span className="tabular-nums text-body text-text">
                     {formatGrade(corte.nota)}
                   </span>
                 </header>
@@ -218,8 +218,8 @@ export function StudentBreakdownDialog({
                         </span>
                       </span>
                       {componente.registros > 0 ? (
-                        <span className="font-mono text-caption tabular-nums text-muted">
-                          {/* La cuenta explícita: suma ÷ cantidad, o cada nota por su peso. */}
+                        <span className="text-caption tabular-nums text-muted">
+                          {/* La cuenta explícita: (suma) ÷ cantidad, o cada nota por su peso. */}
                           {formulaDe(componente.notas)}
                           {' = '}
                           <span className="font-semibold text-text">
@@ -252,11 +252,11 @@ export function StudentBreakdownDialog({
                             {/* El peso solo se muestra cuando no son todos iguales: con
                                 promedio simple «33 %» en cada fila es ruido. */}
                             {pesosIguales(componente.notas) ? null : (
-                              <span className="font-mono text-caption tabular-nums text-subtle">
+                              <span className="text-caption tabular-nums text-subtle">
                                 {Math.round((fraccionesDe(componente.notas)[indice] ?? 0) * 100)}%
                               </span>
                             )}
-                            <span className="font-mono text-caption tabular-nums text-text">
+                            <span className="text-caption tabular-nums text-text">
                               {formatGrade(nota.score)}
                             </span>
                             {canWrite && !porEliminar.has(nota.id) ? (
@@ -384,7 +384,7 @@ function NotasEnCola({
             <Badge tone={nota.fallida ? 'danger' : subida ? 'success' : 'warning'} size="sm">
               {nota.fallida ? 'Con error' : subida ? 'Enviada' : 'Pendiente'}
             </Badge>
-            <span className="font-mono text-caption tabular-nums text-text">
+            <span className="text-caption tabular-nums text-text">
               {formatGrade(nota.score)}
             </span>
             {!subida ? (

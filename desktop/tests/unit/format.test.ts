@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   currentPeriod,
+  etiquetaDeGrupo,
   formatGrade,
+  formulaPromedio,
   formatPercent,
   initials,
   recentPeriods,
@@ -72,5 +74,30 @@ describe('recentPeriods', () => {
 
   it('starts from the second half when the date is after June', () => {
     expect(recentPeriods(3, localDate(2026, 8, 1))).toEqual(['2026-2', '2026-1', '2025-2']);
+  });
+});
+
+describe('formulaPromedio', () => {
+  it('groups the sum so the written formula matches its result', () => {
+    expect(formulaPromedio([4.1, 3.5])).toBe('(4.10 + 3.50) ÷ 2');
+  });
+
+  it('needs no parentheses for a single grade', () => {
+    expect(formulaPromedio([4.1])).toBe('4.10 ÷ 1');
+  });
+});
+
+describe('etiquetaDeGrupo', () => {
+  it('prefixes a bare group code', () => {
+    expect(etiquetaDeGrupo('A194')).toBe('Grupo A194');
+  });
+
+  it('does not repeat the word when the name already carries it', () => {
+    expect(etiquetaDeGrupo('Grupo A')).toBe('Grupo A');
+    expect(etiquetaDeGrupo('  GRUPO b212 ')).toBe('GRUPO b212');
+  });
+
+  it('only skips the prefix for the whole word', () => {
+    expect(etiquetaDeGrupo('Grupos mixtos')).toBe('Grupo Grupos mixtos');
   });
 });

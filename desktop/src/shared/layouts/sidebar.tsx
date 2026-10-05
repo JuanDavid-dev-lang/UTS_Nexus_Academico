@@ -308,9 +308,9 @@ export function Sidebar({
             {role === 'ADMIN' && (
               <span
                 className={cn(
-                  'rounded px-1 text-[9px] font-bold uppercase tracking-wider',
+                  'rounded-sm px-1.5 text-caption font-medium leading-tight',
                   isAdminMode
-                    ? 'bg-primary/20 text-primary'
+                    ? 'bg-primary-soft text-primary'
                     : 'bg-surface-alt text-muted',
                 )}
                 title={isAdminMode ? 'Modo Administrador activo' : 'Modo Normal activo'}
@@ -322,7 +322,7 @@ export function Sidebar({
           {/* El acento de marca aparece exactamente una vez en el menú, aquí.
               Repetido en cada sección dejaría de señalar nada. */}
           {!horizontal ? (
-            <span className="truncate text-caption font-semibold uppercase tracking-wide leading-tight text-accent-strong">
+            <span className="truncate text-caption font-medium leading-tight text-accent-strong">
               Académico
             </span>
           ) : null}
@@ -350,8 +350,8 @@ export function Sidebar({
           {!collapsed || !horizontal ? <span>{isAdminMode ? 'Modo Admin' : 'Modo Normal'}</span> : null}
         </span>
         {!horizontal ? (
-          <span className="rounded bg-primary/20 px-1 py-0.5 text-[9px] font-bold text-primary">
-            {isAdminMode ? 'ACTIVO' : 'ACTIVAR'}
+          <span className="rounded-sm border border-primary-tint px-1.5 text-caption font-medium leading-tight text-primary">
+            {isAdminMode ? 'Activo' : 'Activar'}
           </span>
         ) : null}
       </button>
@@ -427,7 +427,7 @@ export function Sidebar({
               ) : (
                 <p
                   className={cn(
-                    'px-3 pb-1 text-caption font-semibold uppercase tracking-wider text-subtle',
+                    'px-3 pb-1 text-caption font-medium text-muted',
                     index > 0 && 'pt-3',
                   )}
                 >

@@ -4,6 +4,7 @@ import { cn } from '@/shared/lib/cn';
 import { horaCampus } from '@/domain/agenda/calendar';
 import { PRESENTACION_TIPO } from '@/features/agenda/presentacion';
 import type { AgendaItem } from '@/domain/schemas/agenda';
+import { etiquetaDeGrupo } from '@/shared/lib/format';
 
 /**
  * Vista diaria: la lista de lo que toca, en orden.
@@ -102,7 +103,7 @@ export function AgendaRow({
           {item.groupName ? (
             <span className="flex items-center gap-1">
               <Users className="size-3.5" aria-hidden />
-              Grupo {item.groupName}
+              {etiquetaDeGrupo(item.groupName)}
             </span>
           ) : null}
           {item.classroom ? (
