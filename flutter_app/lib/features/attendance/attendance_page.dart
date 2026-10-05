@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/data/providers.dart';
 import '../../core/network/api_error.dart';
-import '../../core/network/api_client.dart';
+import '../../core/sync/outbox_logic.dart';
+import '../../core/sync/outbox_service.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/storage/offline_status.dart';
@@ -66,6 +69,17 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
   DateTime _date = DateTime.now();
   bool _loading = false;
   bool _guardando = false;
+
+  /// La lista no se pudo leer ni de la red ni de la caché.
+  String? _errorDeCarga;
+
+  /// Hay marcas tocadas desde la última carga. Una sincronización en segundo
+  /// plano no recarga encima de lo que el docente está marcando.
+  bool _sucio = false;
+
+  /// Lo que el docente marcó de este día y aún no salió del teléfono.
+  bool _clasePendiente = false;
+  StreamSubscription<void>? _alSincronizar;
   List<Map<String, dynamic>> _students = [];
   List<Map<String, dynamic>> _subjects = [];
   List<Map<String, dynamic>> _attendance = [];
@@ -90,10 +104,16 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
   void initState() {
     super.initState();
     _load();
+    // Cuando la bandeja logra enviar algo, lo que se ve se vuelve a leer del
+    // servidor para dejar de marcarlo como pendiente.
+    _alSincronizar = OutboxService.instance.alSincronizar.listen((_) {
+      if (mounted && !_loading && !_guardando && !_sucio) unawaited(_load());
+    });
   }
 
   @override
   void dispose() {
+    _alSincronizar?.cancel();
     _studentSearch.dispose();
     _recuento.dispose();
     super.dispose();
@@ -102,21 +122,31 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
   String get _period => ref.read(selectedPeriodProvider);
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _errorDeCarga = null;
+    });
 
-    // Materias y grupos a la vez: ninguna depende de la otra. Encadenadas la
-    // pantalla se quedaba en blanco el doble de tiempo sobre el wifi del aula.
-    final resultados = await Future.wait([
-      ApiClient.instance.get('/subjects'),
-      ApiClient.instance.get('/groups'),
-    ]);
-
-    final subjects = (resultados[0].data as Map)['items'] as List;
-    final allGroups = ((resultados[1].data as Map)['items'] as List)
-        .map((e) => Map<String, dynamic>.from(e as Map))
-        .toList();
-    final allSubjects =
-        subjects.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    // Todo pasa por el repositorio: con su caché, la pantalla abre sin red con
+    // lo último que llegó. Antes llamaba a la API directamente y sin red se
+    // quedaba en el esqueleto para siempre.
+    final repo = ref.read(academicRepositoryProvider);
+    final List<Map<String, dynamic>> allSubjects;
+    final List<Map<String, dynamic>> allGroups;
+    try {
+      // Materias y grupos a la vez: ninguna depende de la otra. Encadenadas la
+      // pantalla se quedaba en blanco el doble de tiempo sobre el wifi del aula.
+      final resultados = await Future.wait([repo.subjectsRaw(), repo.groupsRaw()]);
+      allSubjects = resultados[0];
+      allGroups = resultados[1];
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _errorDeCarga = ApiError.from(error).message;
+      });
+      return;
+    }
     final filteredSubjects =
         allSubjects.where((s) => s['period']?.toString() == _period).toList();
     final subjectId = _subjectId ??
@@ -139,28 +169,47 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
     // los estudiantes del docente y la lista guardaba asistencia en esta
     // materia a quien cursa otra.
     final List<Map<String, dynamic>> students;
-    if (subjectId == null || faltaGrupo) {
-      students = [];
-    } else {
-      final query = StringBuffer('/students?subjectId=$subjectId&period=$_period');
-      if (groupId != null) query.write('&groupId=$groupId');
-      final resp = await ApiClient.instance.get(query.toString());
-      students = ((resp.data as Map)['items'] as List)
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList()
-        ..sort((a, b) =>
-            (a['code'] ?? '').toString().compareTo((b['code'] ?? '').toString()));
+    List<Map<String, dynamic>> attendanceItems = const [];
+    try {
+      if (subjectId == null || faltaGrupo) {
+        students = [];
+      } else {
+        students = (await repo.studentsRaw(
+          subjectId: subjectId,
+          groupId: groupId,
+          period: _period,
+        ))
+            .toList()
+          ..sort((a, b) =>
+              (a['code'] ?? '').toString().compareTo((b['code'] ?? '').toString()));
+      }
+      attendanceItems =
+          await repo.attendance(subjectId: subjectId, period: _period);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _errorDeCarga = ApiError.from(error).message;
+      });
+      return;
     }
 
-    final attendanceResp = await ApiClient.instance.get(
-      '/attendance?period=$_period${subjectId != null ? '&subjectId=$subjectId' : ''}',
-    );
-    final attendanceItems = (attendanceResp.data as Map)['items'] as List;
     final delGrupo = {for (final s in students) s['_id'].toString()};
-    final attendance = attendanceItems
-        .map((e) => Map<String, dynamic>.from(e as Map))
+    var attendance = attendanceItems
         .where((fila) => delGrupo.contains(fila['studentId']?.toString()))
         .toList();
+
+    // Lo que el docente marcó y todavía no salió del teléfono manda sobre lo
+    // que dice el servidor: es lo último que hizo.
+    final pendiente = subjectId == null
+        ? null
+        : claseAsistenciaPendiente(
+            OutboxService.instance.snapshot.entradas,
+            subjectId: subjectId,
+            groupId: groupId,
+            date: _date,
+          );
+    attendance = superponerAsistencia(attendance, pendiente);
 
     _students = students;
     _subjects = filteredSubjects;
@@ -168,6 +217,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
     _groups = groups;
     _groupId = groupId;
     _attendance = attendance;
+    _clasePendiente = pendiente != null;
     _studentById.clear();
     for (final estudiante in students) {
       final id = estudiante['_id'].toString();
@@ -189,6 +239,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
     if (!mounted) return;
     setState(() {
       _loading = false;
+      _sucio = false;
       _generacion++;
     });
     _recalcularResumen();
@@ -242,6 +293,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
     for (final estudiante in _students) {
       _marcas[estudiante['_id'].toString()] = Marca.presente;
     }
+    _sucio = true;
     setState(() => _generacion++);
     _recalcularResumen();
   }
@@ -285,17 +337,24 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
 
     setState(() => _guardando = true);
 
-    final isoDate = DateTime(_date.year, _date.month, _date.day).toIso8601String();
-
+    final ResultadoEscritura resultado;
     try {
-      await ApiClient.instance.post('/attendance/bulk', data: {
-        'subjectId': _subjectId,
-        if (_groupId != null) 'groupId': _groupId,
-        'teacherId': ref.read(authControllerProvider).user?.id ?? '',
-        'period': _period,
-        'date': isoDate,
-        'durationMinutes': _durationMinutes,
-        'registros': [
+      resultado = await ref.read(academicRepositoryProvider).saveAttendanceClass(
+        subjectId: _subjectId!,
+        groupId: _groupId,
+        teacherId: ref.read(authControllerProvider).user?.id ?? '',
+        period: _period,
+        date: _date,
+        durationMinutes: _durationMinutes,
+        subjectLabel: _subjects
+            .where((s) => s['_id'].toString() == _subjectId)
+            .map((s) => s['code']?.toString() ?? '')
+            .firstOrNull,
+        groupLabel: _groups
+            .where((g) => g['_id'].toString() == _groupId)
+            .map((g) => g['name']?.toString() ?? '')
+            .firstOrNull,
+        registros: [
           for (final estudiante in _students)
             () {
               final id = estudiante['_id'].toString();
@@ -313,7 +372,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
               };
             }(),
         ],
-      });
+      );
     } catch (error) {
       if (!mounted) return;
       setState(() => _guardando = false);
@@ -323,14 +382,24 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
       return;
     }
 
+    _sucio = false;
     await _load();
     if (mounted) {
       setState(() => _guardando = false);
-      AppToast.success(
-        context,
-        'Asistencia guardada',
-        '${_students.length} estudiantes registrados.',
-      );
+      if (resultado == ResultadoEscritura.encolada) {
+        AppToast.info(
+          context,
+          'Asistencia guardada en el teléfono',
+          '${_students.length} estudiantes. Se enviará sola cuando haya '
+              'conexión.',
+        );
+      } else {
+        AppToast.success(
+          context,
+          'Asistencia guardada',
+          '${_students.length} estudiantes registrados.',
+        );
+      }
     }
   }
 
@@ -346,6 +415,9 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
     final periodo = ref.watch(selectedPeriodProvider);
     final offlineStatus = ref.watch(offlineStatusProvider).valueOrNull;
     final sinConexion = offlineStatus != null && offlineStatus.desdeCache != null;
+    // Reconstruye al cambiar la bandeja: cuando salga la clase pendiente, el
+    // aviso de «sin enviar» tiene que desaparecer.
+    ref.watch(outboxProvider);
 
     return Scaffold(
       appBar: CompactHeader(
@@ -361,7 +433,10 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                     final importado = await context.push<bool>('/attendance/scan');
                     // Solo se recarga si de verdad se guardó algo: volver sin
                     // importar no debería costar una consulta.
-                    if (importado == true && mounted) await _load();
+                    if (importado == true && mounted) {
+                      _sucio = false;
+                      await _load();
+                    }
                   },
           ),
           const SessionMenuButton(),
@@ -371,6 +446,16 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
           ? const Padding(
               padding: AppSpacing.listPadding,
               child: SkeletonRows(filas: 8),
+            )
+          : _errorDeCarga != null
+          ? StateView.error(
+              'No se pudo cargar la lista: $_errorDeCarga\n'
+              'Sin conexión solo se puede abrir lo que ya se había cargado '
+              'antes en este teléfono.',
+              action: FilledButton.tonal(
+                onPressed: _load,
+                child: const Text('Reintentar'),
+              ),
             )
           : RefreshIndicator(
               onRefresh: _load,
@@ -411,9 +496,10 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                           programa: estudiante['program']?.toString() ?? '',
                           marca: _marcas[id] ?? Marca.presente,
                           minutosTarde: _minutosTarde[id] ?? _minutosTardeDefecto,
-                          habilitada: periodoAbierto && !sinConexion,
+                          habilitada: periodoAbierto,
                           onCambio: (marca, minutos) {
                             _marcas[id] = marca;
+                            _sucio = true;
                             if (minutos != null) _minutosTarde[id] = minutos;
                             // Solo el resumen: la lista no se reconstruye.
                             _recalcularResumen();
@@ -485,7 +571,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                 etiquetaAccion: 'Guardar ${_students.length}',
                 cargando: _guardando,
                 onAccion:
-                    periodoAbierto && _subjectId != null && !sinConexion && !soloLectura
+                    periodoAbierto && _subjectId != null && !soloLectura
                         ? _guardar
                         : null,
               ),
@@ -514,8 +600,18 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
             child: CompactEmpty(
               icono: Icons.cloud_off_outlined,
               mensaje:
-                  'No hay conexión con el servidor. La toma de asistencia no '
-                  'está disponible en este momento y el guardado está bloqueado.',
+                  'Sin conexión con el servidor. Puedes pasar lista: se guarda '
+                  'en el teléfono y se envía sola cuando vuelva la conexión.',
+            ),
+          ),
+        if (_clasePendiente)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.gapSm),
+            child: CompactEmpty(
+              icono: Icons.schedule_send_outlined,
+              mensaje:
+                  'Esta clase tiene una lista guardada en el teléfono que aún '
+                  'no se envía. Lo que ves es lo que marcaste.',
             ),
           ),
 
@@ -912,7 +1008,9 @@ class _FilaHistorial extends StatelessWidget {
       acento: presente
           ? (tarde > 0 ? SemanticKind.warning : null)
           : SemanticKind.danger,
-      estado: presente
+      estado: fila['pendiente'] == true
+          ? StatusPill.warning('Sin enviar')
+          : presente
           ? (tarde > 0
               ? StatusPill.warning('Tarde')
               : StatusPill.success('Presente'))

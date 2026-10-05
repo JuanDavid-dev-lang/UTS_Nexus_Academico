@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../storage/offline_status.dart';
 import '../network/realtime_service.dart';
+import '../sync/outbox_service.dart';
 import '../theme/app_theme.dart';
+import './outbox_sheet.dart';
 
 /// Barra de estado de la sincronización.
 ///
@@ -41,6 +43,13 @@ class _OfflineBannerState extends ConsumerState<OfflineBanner> {
   Timer? _cierreVerde;
   bool _verdeVisible = true;
   SemanticKind? _ultimoKind;
+
+  /// Gracia antes de avisar de un problema del tiempo real. Volver de segundo
+  /// plano, arrancar o renovar el token pasa siempre por «desconectado» y
+  /// «conectando» durante el handshake (medio segundo a tres por el túnel):
+  /// avisarlo cada vez enseñaba a ignorar la franja.
+  Timer? _gracia;
+  bool _graciaVencida = false;
   DateTime? _ultimaSyncProcesada;
 
   @override
@@ -57,21 +66,58 @@ class _OfflineBannerState extends ConsumerState<OfflineBanner> {
   void dispose() {
     _reloj?.cancel();
     _cierreVerde?.cancel();
+    _gracia?.cancel();
     super.dispose();
+  }
+
+  /// Arranca la gracia al aparecer el problema y la anula al resolverse. Se
+  /// decide en el build, como el cierre del verde: el estado ya llegó.
+  void _vigilarGracia(bool hayProblema) {
+    if (!hayProblema) {
+      _gracia?.cancel();
+      _gracia = null;
+      _graciaVencida = false;
+      return;
+    }
+    if (_gracia != null || _graciaVencida) return;
+    _gracia = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _graciaVencida = true);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final bandeja = ref.watch(outboxProvider).valueOrNull;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _franjaDeConexion(context),
+        // La bandeja de salida va aparte de la conexión: se puede tener red y
+        // cambios sin enviar (un envío rechazado), o no tener red y no tener
+        // nada pendiente. Son dos hechos y cada uno tiene su franja.
+        if (bandeja != null && !bandeja.vacia) _FranjaBandeja(datos: bandeja),
+      ],
+    );
+  }
+
+  Widget _franjaDeConexion(BuildContext context) {
     final datos = ref.watch(offlineStatusProvider).valueOrNull;
     final realtime = ref.watch(realtimeStatusProvider).valueOrNull;
 
     final sinDatos = datos?.desdeCache != null;
+    final problemaTiempoReal =
+        realtime != null && realtime != RealtimeStatus.connected;
+    _vigilarGracia(problemaTiempoReal);
+    final avisar = problemaTiempoReal && _graciaVencida;
     final reconectando =
-        realtime == RealtimeStatus.connecting ||
-        realtime == RealtimeStatus.disconnected;
+        avisar &&
+        (realtime == RealtimeStatus.connecting ||
+            realtime == RealtimeStatus.disconnected);
     final error =
-        realtime == RealtimeStatus.error ||
-        realtime == RealtimeStatus.unauthorized ||
+        (avisar &&
+            (realtime == RealtimeStatus.error ||
+                realtime == RealtimeStatus.unauthorized)) ||
         sinDatos;
 
     // Antes de la primera lectura no se afirma nada: decir "sin conexión"
@@ -172,6 +218,61 @@ class _OfflineBannerState extends ConsumerState<OfflineBanner> {
                 ),
               ),
             ),
+    );
+  }
+}
+
+/// Franja de lo que espera salir del teléfono. Tocarla abre la lista.
+class _FranjaBandeja extends StatelessWidget {
+  final OutboxSnapshot datos;
+  const _FranjaBandeja({required this.datos});
+
+  @override
+  Widget build(BuildContext context) {
+    final fallidas = datos.fallidas;
+    final pendientes = datos.pendientes;
+    final (kind, icono, texto) = fallidas > 0
+        ? (
+            SemanticKind.danger,
+            Icons.error_outline,
+            fallidas == 1
+                ? '1 cambio no se pudo enviar'
+                : '$fallidas cambios no se pudieron enviar',
+          )
+        : datos.drenando
+        ? (SemanticKind.info, Icons.sync_outlined, 'Enviando $pendientes…')
+        : (
+            SemanticKind.warning,
+            Icons.cloud_upload_outlined,
+            pendientes == 1
+                ? '1 cambio sin enviar'
+                : '$pendientes cambios sin enviar',
+          );
+    final tono = SemanticTone.of(context, kind);
+
+    return Material(
+      color: tono.bg,
+      child: InkWell(
+        onTap: () => mostrarBandejaDeSalida(context),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              Icon(icono, size: 16, color: tono.fg),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  texto,
+                  style: AppType.caption.copyWith(color: tono.fg),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Icon(Icons.chevron_right, size: 16, color: tono.fg),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

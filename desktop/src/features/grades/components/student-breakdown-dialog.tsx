@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import {
   Badge,
@@ -12,6 +12,8 @@ import {
 import { formatGrade } from '@/shared/lib/format';
 import { cn } from '@/shared/lib/cn';
 import { useDeleteGrade, useSaveGrade } from '@/features/grades/hooks/use-grades';
+import { notasPendientes, notasPorEliminar, type NotaPendiente } from '@/domain/offline/outbox';
+import { useOutbox } from '@/state/outbox.store';
 import type {
   ComponentType,
   ConsolidatedRow,
@@ -95,12 +97,17 @@ function pendientesDe(
   corte: number,
   tipo: ComponentType,
   existentes: GradeDetail[],
+  // Las notas en cola sin conexión también cuentan como puestas: si no, la
+  // plantilla seguía ofreciendo la que el docente acababa de escribir.
+  enCola: NotaPendiente[] = [],
 ): NotaPlantilla[] {
   const componente = estructura?.cortes
     .find((c) => c.corte === corte)
     ?.componentes.find((c) => c.tipo === tipo);
   if (!componente) return [];
-  const usadas = new Set(existentes.map((n) => n.label.trim().toLocaleLowerCase('es')));
+  const usadas = new Set(
+    [...existentes, ...enCola].map((n) => n.label.trim().toLocaleLowerCase('es')),
+  );
   return componente.notas.filter((n) => !usadas.has(n.label.trim().toLocaleLowerCase('es')));
 }
 
@@ -135,6 +142,13 @@ export function StudentBreakdownDialog({
 }) {
   const deleteGrade = useDeleteGrade();
   const [borrando, setBorrando] = useState<GradeDetail | null>(null);
+
+  // Lo que se guardó sin conexión (o aún no ha subido) se enseña junto a lo
+  // del servidor, marcado. No se mezcla con los promedios: esos los calcula el
+  // servidor, y hasta que la nota llegue no los ha visto.
+  const enCola = useOutbox((estado) => estado.entradas);
+  const recientes = useOutbox((estado) => estado.recientes);
+  const porEliminar = useMemo(() => notasPorEliminar(enCola), [enCola]);
 
   const cortes = row?.cortes.length ? row.cortes : ESTRUCTURA_VACIA.cortes;
   const puedeRegistrar = canWrite && !!capture && !!student;
@@ -224,9 +238,17 @@ export function StudentBreakdownDialog({
                             key={nota.id}
                             className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-surface-hover"
                           >
-                            <span className="min-w-0 flex-1 truncate text-caption text-text">
+                            <span
+                              className={cn(
+                                'min-w-0 flex-1 truncate text-caption text-text',
+                                porEliminar.has(nota.id) && 'text-muted line-through',
+                              )}
+                            >
                               {nota.label}
                             </span>
+                            {porEliminar.has(nota.id) ? (
+                              <Badge tone="warning" size="sm">Se eliminará</Badge>
+                            ) : null}
                             {/* El peso solo se muestra cuando no son todos iguales: con
                                 promedio simple «33 %» en cada fila es ruido. */}
                             {pesosIguales(componente.notas) ? null : (
@@ -237,7 +259,7 @@ export function StudentBreakdownDialog({
                             <span className="font-mono text-caption tabular-nums text-text">
                               {formatGrade(nota.score)}
                             </span>
-                            {canWrite ? (
+                            {canWrite && !porEliminar.has(nota.id) ? (
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -252,13 +274,45 @@ export function StudentBreakdownDialog({
                       </ul>
                     ) : null}
 
+                    {puedeRegistrar ? (
+                      <NotasEnCola
+                        enCola={notasPendientes(enCola, {
+                          studentId: student.studentId,
+                          subjectId: capture.subjectId,
+                          period: capture.period,
+                          corte: corte.corte,
+                          componentType: componente.tipo,
+                        })}
+                        enviadas={notasPendientes(recientes, {
+                          studentId: student.studentId,
+                          subjectId: capture.subjectId,
+                          period: capture.period,
+                          corte: corte.corte,
+                          componentType: componente.tipo,
+                        })}
+                        onQuitar={(nota) => deleteGrade.mutate({ id: nota.id, etiqueta: nota.label })}
+                      />
+                    ) : null}
+
                     {puedeRegistrar && corteAbierto ? (
                       <InlineAddNote
                         studentId={student.studentId}
                         corte={corte.corte as CutNumber}
                         componentType={componente.tipo}
                         capture={capture}
-                        pendientes={pendientesDe(estructura, corte.corte, componente.tipo, componente.notas)}
+                        pendientes={pendientesDe(
+                          estructura,
+                          corte.corte,
+                          componente.tipo,
+                          componente.notas,
+                          notasPendientes(enCola, {
+                            studentId: student.studentId,
+                            subjectId: capture.subjectId,
+                            period: capture.period,
+                            corte: corte.corte,
+                            componentType: componente.tipo,
+                          }),
+                        )}
                       />
                     ) : null}
                   </div>
@@ -289,10 +343,64 @@ export function StudentBreakdownDialog({
         loading={deleteGrade.isPending}
         onConfirm={() => {
           if (!borrando) return;
-          deleteGrade.mutate(borrando.id, { onSuccess: () => setBorrando(null) });
+          deleteGrade.mutate(
+            { id: borrando.id, etiqueta: borrando.label },
+            { onSuccess: () => setBorrando(null) },
+          );
         }}
       />
     </>
+  );
+}
+
+/**
+ * Notas de un componente que aún no están en el servidor.
+ *
+ * Se pintan aparte de las confirmadas y sin sumarlas a ningún promedio: si el
+ * cliente las promediara estaría haciendo el cálculo que le toca al servidor, y
+ * el número que viera el docente no sería el que va a quedar en el acta.
+ * `enviadas` son las que acaban de subir y esperan la lectura fresca.
+ */
+function NotasEnCola({
+  enCola,
+  enviadas,
+  onQuitar,
+}: {
+  enCola: NotaPendiente[];
+  enviadas: NotaPendiente[];
+  onQuitar: (nota: NotaPendiente) => void;
+}) {
+  if (enCola.length === 0 && enviadas.length === 0) return null;
+  return (
+    <ul className="mt-2 flex flex-col gap-1" aria-label="Notas pendientes de enviar">
+      {[...enCola, ...enviadas].map((nota) => {
+        const subida = enviadas.includes(nota);
+        return (
+          <li
+            key={nota.id}
+            className="flex items-center gap-2 rounded-md border border-dashed border-border px-2 py-1"
+          >
+            <span className="min-w-0 flex-1 truncate text-caption text-text">{nota.label}</span>
+            <Badge tone={nota.fallida ? 'danger' : subida ? 'success' : 'warning'} size="sm">
+              {nota.fallida ? 'Con error' : subida ? 'Enviada' : 'Pendiente'}
+            </Badge>
+            <span className="font-mono text-caption tabular-nums text-text">
+              {formatGrade(nota.score)}
+            </span>
+            {!subida ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={`Quitar ${nota.label} de los envíos pendientes`}
+                onClick={() => onQuitar(nota)}
+              >
+                <Trash2 className="size-3.5 text-danger" aria-hidden />
+              </Button>
+            ) : null}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

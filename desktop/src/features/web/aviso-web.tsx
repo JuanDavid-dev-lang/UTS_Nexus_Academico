@@ -51,7 +51,7 @@ export function AvisoWeb() {
           exit={{ height: 0, opacity: 0 }}
           className="shrink-0 overflow-hidden"
         >
-          <div className="flex items-center gap-3 border-b border-border bg-primary-soft px-4 py-2 text-caption text-text xl:px-6">
+          <div className="flex items-center gap-3 border-b border-border bg-surface px-4 py-2 text-caption text-muted xl:px-6">
             <Globe className="size-4 shrink-0 text-primary" aria-hidden />
             <p className="min-w-0 flex-1">
               <span className="sm:hidden">{mensajeCorto}</span>
@@ -61,7 +61,9 @@ export function AvisoWeb() {
               href={URL_DESCARGAS}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-2.5 py-1 font-semibold text-on-primary transition-colors hover:bg-primary-hover"
+              // Un enlace, no un botón relleno: la franja informa, y un segundo
+              // botón verde en cada pantalla competía con la acción principal.
+              className="flex shrink-0 items-center gap-1.5 rounded-sm font-semibold text-primary underline-offset-4 hover:underline"
             >
               <Download className="size-3.5" aria-hidden />
               Descargar la app

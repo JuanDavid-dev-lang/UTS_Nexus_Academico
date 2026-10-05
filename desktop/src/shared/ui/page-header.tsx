@@ -27,17 +27,30 @@ export function PageHeader({
   className?: string;
 }) {
   return (
-    <header className={cn('flex flex-wrap items-start justify-between gap-3', className)}>
-      <div className="flex min-w-0 flex-col gap-1">
+    // Cabecera editorial: título a la izquierda, un filo debajo que la separa
+    // del contenido. El filo es lo que hace que la página tenga un principio;
+    // sin él, el título flotaba sobre el fondo y la primera tarjeta competía
+    // con él por ser lo primero que se lee.
+    <header
+      className={cn(
+        'flex flex-wrap items-end justify-between gap-x-6 gap-y-3 border-b border-border pb-5',
+        className,
+      )}
+    >
+      <div className="flex min-w-0 flex-col gap-1.5">
         {eyebrow ? (
-          <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-wide text-accent-strong">
+          // Contexto (periodo, materia, grupo) en voz baja: no es un titular
+          // sobre el titular, es dónde estás.
+          <div className="flex items-center gap-2 text-caption font-medium text-muted">
             {eyebrow}
           </div>
         ) : null}
         {/* En un teléfono el h1 de 36 px partía «Riesgo académico» en dos
             líneas y empujaba el contenido media pantalla hacia abajo. */}
-        <h1 className="text-h2 font-bold text-text @2xl:text-h1">{title}</h1>
-        {subtitle ? <p className="text-body text-muted">{subtitle}</p> : null}
+        <h1 className="text-h2 font-semibold leading-tight tracking-[-0.025em] [text-wrap:balance] text-text @2xl:text-h1">
+          {title}
+        </h1>
+        {subtitle ? <p className="max-w-prose text-body text-muted">{subtitle}</p> : null}
       </div>
       {/* Los botones bajan de línea cuando no caben. Con `shrink-0` y sin
           `flex-wrap`, en un teléfono el tercero («Registrar nota») quedaba
@@ -73,15 +86,17 @@ export function PageHero({
   className?: string;
 }) {
   return (
-    <section className={cn('surface-brand p-6', className)}>
+    <section className={cn('surface-brand p-6 @2xl:p-7', className)}>
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex min-w-0 flex-col gap-1.5">
           {eyebrow ? (
-            <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-wide text-white/70 dark:text-muted">
+            <div className="flex items-center gap-2 text-caption font-medium text-white/75 dark:text-muted">
               {eyebrow}
             </div>
           ) : null}
-          <h1 className="text-h2 font-bold">{title}</h1>
+          <h1 className="text-h2 font-semibold leading-tight tracking-[-0.025em] [text-wrap:balance]">
+            {title}
+          </h1>
           {subtitle ? (
             <p className="max-w-prose text-body text-white/75 dark:text-muted">{subtitle}</p>
           ) : null}
@@ -134,7 +149,7 @@ export function SectionHeader({
   return (
     <div className={cn('flex flex-wrap items-end justify-between gap-2', className)}>
       <div className="flex min-w-0 flex-col">
-        <h2 className="text-h3 font-semibold text-text">{title}</h2>
+        <h2 className="text-h3 font-semibold tracking-[-0.02em] text-text">{title}</h2>
         {description ? <p className="text-caption text-muted">{description}</p> : null}
       </div>
       {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}

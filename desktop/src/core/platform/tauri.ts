@@ -75,6 +75,12 @@ export const platform = {
     async segundoPlano(activo: boolean): Promise<void> {
       await call<void>('sistema_segundo_plano', { activo });
     },
+
+    /** Retira el icono de la bandeja antes de que el instalador cierre la app. */
+    async quitarBandeja(): Promise<void> {
+      if (!isDesktop) return;
+      await call<void>('sistema_quitar_bandeja');
+    },
   },
 
   secureStore: {

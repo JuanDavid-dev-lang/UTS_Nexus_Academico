@@ -243,7 +243,7 @@ export function Sidebar({
         end={item.to === '/'}
         className={({ isActive }) =>
           cn(
-            'group relative flex items-center gap-3 rounded-lg py-2 pl-3 pr-2 text-body font-medium',
+            'group relative flex items-center gap-3 rounded-md py-2 pl-3 pr-2 text-body font-medium',
             'transition-colors duration-200 ease-out',
             collapsed && 'justify-center px-0',
             horizontal && 'shrink-0 py-1.5',

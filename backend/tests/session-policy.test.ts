@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  GRACIA_ROTACION_MS,
   PATRON_ID_DISPOSITIVO,
+  dentroDeGraciaDeRotacion,
   dispositivoAutorizado,
+  inicioDeGraciaDeRotacion,
 } from '../src/domains/session/session-policy.js';
 
 describe('dispositivoAutorizado', () => {
@@ -33,3 +36,33 @@ describe('PATRON_ID_DISPOSITIVO', () => {
   });
 });
 
+
+describe('gracia de rotación del refresh token', () => {
+  const ahora = Date.parse('2026-10-05T12:00:00Z');
+
+  it('dura 30 s', () => {
+    expect(GRACIA_ROTACION_MS).toBe(30_000);
+  });
+
+  it('acepta el token anterior justo después de rotar y en el borde', () => {
+    expect(dentroDeGraciaDeRotacion(new Date(ahora - 1_000), ahora)).toBe(true);
+    expect(dentroDeGraciaDeRotacion(new Date(ahora - GRACIA_ROTACION_MS), ahora)).toBe(true);
+  });
+
+  it('fuera de la ventana es reuso', () => {
+    expect(dentroDeGraciaDeRotacion(new Date(ahora - GRACIA_ROTACION_MS - 1), ahora)).toBe(false);
+  });
+
+  it('una sesión sin marca de rotación (anterior a esto) nunca está en gracia', () => {
+    expect(dentroDeGraciaDeRotacion(null, ahora)).toBe(false);
+    expect(dentroDeGraciaDeRotacion(undefined, ahora)).toBe(false);
+  });
+
+  it('una rotación fechada en el futuro no cuenta', () => {
+    expect(dentroDeGraciaDeRotacion(new Date(ahora + 5_000), ahora)).toBe(false);
+  });
+
+  it('el filtro de la ruta coincide con la decisión', () => {
+    expect(inicioDeGraciaDeRotacion(ahora).getTime()).toBe(ahora - GRACIA_ROTACION_MS);
+  });
+});

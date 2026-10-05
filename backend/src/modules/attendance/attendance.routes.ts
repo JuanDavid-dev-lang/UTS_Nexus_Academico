@@ -57,7 +57,10 @@ attendanceRouter.post('/', requireRole('ADMIN', 'PROFESSOR'), async (req, res, n
        */
       lateMinutes: z.number().int().min(0).max(300).default(0),
       notes: campo.nota.default(''),
+      // Cuándo se tomó en el equipo si llegó diferida: solo se audita.
+      capturadoEn: campo.campoCapturadoEn,
     }).parse(req.body);
+    const { capturadoEn, ...datos } = body;
 
     // El porcentaje de asistencia entra en la fotografía del periodo: con el
     // semestre cerrado, una marca más la desmiente.
@@ -113,7 +116,7 @@ attendanceRouter.post('/', requireRole('ADMIN', 'PROFESSOR'), async (req, res, n
         subjectId: body.subjectId,
         date: body.date,
       },
-      { $set: { ...body, durationMinutes, origen: 'MANUAL' } },
+      { $set: { ...datos, durationMinutes, origen: 'MANUAL' } },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
     await auditChange({
@@ -123,6 +126,7 @@ attendanceRouter.post('/', requireRole('ADMIN', 'PROFESSOR'), async (req, res, n
       entityId: item.id,
       before,
       after: item.toObject(),
+      capturadoEn,
     });
     emitSync('sync:update', { entity: 'attendance', action: 'create', id: item.id });
     res.status(201).json({ ok: true, item });
@@ -164,6 +168,7 @@ attendanceRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR'), async (req, re
       period: z.string().default('2026-1'),
       date: campoFechaDeClase,
       durationMinutes: z.number().int().min(30).max(300).optional(),
+      capturadoEn: campo.campoCapturadoEn,
       // El tope es la defensa contra una petición que intente escribir el
       // colegio entero; ningún salón real se acerca.
       registros: z
@@ -300,6 +305,7 @@ attendanceRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR'), async (req, re
         total: body.registros.length,
         presentes: body.registros.filter(r => r.present).length,
       },
+      capturadoEn: body.capturadoEn,
     });
 
     emitSync('sync:update', { entity: 'attendance', action: 'bulk', id: body.subjectId });

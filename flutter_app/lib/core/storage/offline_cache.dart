@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -66,6 +67,22 @@ class OfflineCache {
   }
 }
 
+const _claveZonaPrecarga = #utsPrecarga;
+
+/// ¿Esta lectura la hace la precarga en segundo plano?
+///
+/// Una precarga es de mejor esfuerzo: solo calienta la caché. Por eso no marca
+/// la app «en línea» (no es una lectura que el docente esté mirando), y si falla
+/// **no** cae a la caché ni marca «datos guardados»: eso encendería la franja de
+/// sin conexión por algo que nadie pidió. Va por zona y no por parámetro para no
+/// tener que pasar una bandera por cada lector de cada repositorio.
+bool get enPrecarga => Zone.current[_claveZonaPrecarga] == true;
+
+/// Ejecuta [accion] como precarga: todo lector de caché que llame dentro se
+/// comporta como se describe en [enPrecarga].
+Future<T> comoPrecarga<T>(Future<T> Function() accion) =>
+    Zone.current.fork(zoneValues: {_claveZonaPrecarga: true}).run(accion);
+
 /// Resultado de una lectura que pudo venir del servidor o de la caché.
 ///
 /// El origen viaja con el dato a propósito: una pantalla que no sabe si está
@@ -97,9 +114,10 @@ Future<List<Map<String, dynamic>>> listaConCache(
   try {
     final items = await pedir();
     await OfflineCache.save(clave, items);
-    OfflineStatus.instance.marcarEnLinea();
+    if (!enPrecarga) OfflineStatus.instance.marcarEnLinea();
     return items;
   } catch (_) {
+    if (enPrecarga) rethrow;
     final guardado = await OfflineCache.read(clave);
     if (guardado == null) rethrow;
     OfflineStatus.instance.marcarDesdeCache(guardado.guardadoEn);
@@ -119,9 +137,10 @@ Future<Map<String, dynamic>> mapaConCache(
   try {
     final cuerpo = await pedir();
     await OfflineCache.save(clave, cuerpo);
-    OfflineStatus.instance.marcarEnLinea();
+    if (!enPrecarga) OfflineStatus.instance.marcarEnLinea();
     return cuerpo;
   } catch (_) {
+    if (enPrecarga) rethrow;
     final guardado = await OfflineCache.read(clave);
     if (guardado == null || guardado.dato is! Map) rethrow;
     OfflineStatus.instance.marcarDesdeCache(guardado.guardadoEn);

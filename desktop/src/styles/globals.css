@@ -158,6 +158,19 @@
     user-select: text;
   }
 
+  /* Lo que el navegador pinta solo también lleva la paleta: la selección
+     de texto, el cursor de escritura. Con los valores por defecto (azul del
+     sistema) eran lo único de la pantalla que no pertenecía a la marca. */
+  ::selection {
+    background-color: var(--primary-tint);
+    color: var(--text);
+  }
+
+  input,
+  textarea {
+    caret-color: var(--primary);
+  }
+
   :focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;
@@ -205,75 +218,64 @@
   /*
    * La superficie base de la aplicación.
    *
-   * El fondo es un degradado casi imperceptible (blanco a #fafbfd) en vez de un
-   * color plano. No es decoración: una card de color plano sobre un fondo de
-   * color plano se distingue solo por el borde, y con doscientas cards en la
-   * aplicación el borde acaba siendo el único elemento gráfico que hay. El
-   * degradado le da a la card una dirección de luz, que es lo que hace que se
-   * lea como una capa por encima del fondo y no como un recorte.
+   * Un solo color y un filo de 1 px. Llevaba un degradado «imperceptible» y
+   * una sombra de contacto: el degradado no lo veía nadie y la sombra sumada
+   * al borde declaraba la elevación dos veces. Una card es una zona de la
+   * página, no un objeto flotando; el filo basta para separarla del fondo
+   * (`--bg` está un escalón por debajo de `--surface`).
+   *
+   * `--gradient-surface` sigue existiendo en tokens.css (lo genera
+   * `domain/appearance` por tono), pero aquí ya no se pinta.
    */
   .surface-card {
-    background-image: var(--gradient-surface);
     background-color: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-card);
-    box-shadow: var(--shadow-sm);
   }
 
   /*
    * Card que responde al puntero.
    *
-   * Solo para las que llevan a algún sitio. Una card que se eleva al pasar por
+   * Solo para las que llevan a algún sitio. Una card que cambia al pasar por
    * encima y no hace nada al pulsarla es una promesa incumplida, y enseña a
-   * desconfiar de la que sí lo hace.
+   * desconfiar de la que sí lo hace. No se eleva ni salta: el filo se oscurece
+   * y el fondo baja un tono, que es lo que hace una fila de tabla.
    */
   .surface-card-interactive {
     transition:
-      box-shadow var(--duration-base) var(--ease-out),
-      transform var(--duration-base) var(--ease-out),
-      border-color var(--duration-base) var(--ease-out);
+      background-color var(--duration-fast) var(--ease-out),
+      border-color var(--duration-fast) var(--ease-out);
   }
 
   .surface-card-interactive:hover {
-    box-shadow: var(--shadow-md);
     border-color: var(--border-strong);
-    transform: translateY(-2px);
-  }
-
-  .surface-card-interactive:active {
-    transform: translateY(0);
-    box-shadow: var(--shadow-sm);
+    background-color: var(--surface-alt);
   }
 
   /*
-   * Superficie de marca: degradado institucional con velo lima.
+   * Superficie de marca: verde institucional plano.
    *
-   * Reservada a lo que representa a la aplicación —la cabecera del panel, la
-   * clase en curso, la pantalla de acceso—. Nunca detrás de contenido tabular:
-   * el degradado cambia de tono a lo largo de la fila y cada celda acabaría
-   * sobre un fondo distinto.
+   * Era un degradado de tres paradas con un velo lima en la esquina: la firma
+   * de una plantilla, no la de una institución. El verde de las UTS es un
+   * color, y se usa como color. Reservada a lo que representa a la aplicación
+   * —la cabecera del panel, la columna de marca del acceso, la invitación de la
+   * web—. Nunca detrás de contenido tabular.
    */
   .surface-brand {
     position: relative;
     isolation: isolate;
     overflow: hidden;
-    background-image: var(--gradient-brand);
-    border-radius: var(--radius-2xl);
-    color: #ffffff;
+    background-color: var(--primary);
+    border-radius: var(--radius-card);
+    color: var(--on-primary);
   }
 
-  .surface-brand::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    background-image: var(--gradient-veil);
-    pointer-events: none;
-  }
-
-  /* En oscuro el degradado de marca es oliva, no verde: el texto blanco puro
-     sobre oliva vibra, así que hereda el color de texto del tema. */
+  /* En oscuro el primario es lima, y la lima no puede ser fondo de superficie
+     grande (DESIGN.md §4 regla 2): la marca es la tinta del primario, con su
+     filo, y el texto es el del tema. */
   [data-theme='dark'] .surface-brand {
+    background-color: var(--primary-soft);
+    box-shadow: inset 0 0 0 1px var(--primary-tint);
     color: var(--text);
   }
 
@@ -286,11 +288,15 @@
     border-radius: var(--radius-lg);
   }
 
+  /*
+   * Barra fija sobre el contenido. Se llamaba «cristal» y desenfocaba lo que
+   * pasaba por debajo; ahora es la superficie con su filo. El desenfoque costaba
+   * una pasada de composición por fotograma al desplazarse (WebView2 y
+   * WebKitGTK lo notaban) y no comunicaba nada que un borde no diga.
+   */
   .surface-glass {
-    background-color: var(--glass-bg);
-    border: 1px solid var(--glass-border);
-    backdrop-filter: blur(16px) saturate(150%);
-    -webkit-backdrop-filter: blur(16px) saturate(150%);
+    background-color: var(--surface);
+    border: 1px solid var(--border);
   }
 
   .scrollbar-slim {
@@ -348,57 +354,6 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /*
-   * Pantalla de acceso: nubes de color que respiran detrás del formulario.
-   *
-   * Solo `transform` en un elemento ya desenfocado: el navegador rasteriza el
-   * desenfoque una vez y después solo mueve la capa, así que no cuesta una
-   * pasada de desenfoque por fotograma (que es lo que hacía tirones en
-   * WebView2 y WebKitGTK con el velo del tutorial). Es la versión de escritorio
-   * del `_FondoAurora` del móvil: mismo ciclo de 14 s, ida y vuelta.
-   */
-  .acceso-nube {
-    position: absolute;
-    border-radius: 9999px;
-    filter: blur(72px);
-    will-change: transform;
-    animation: acceso-respira 14s ease-in-out infinite alternate;
-  }
-
-  @keyframes acceso-respira {
-    from {
-      transform: translate3d(0, 0, 0) scale(1);
-    }
-    to {
-      transform: translate3d(var(--nube-x, 5%), var(--nube-y, 4%), 0) scale(1.08);
-    }
-  }
-
-  /* Anillo que gira detrás del logo. */
-  .acceso-anillo {
-    animation: acceso-gira 18s linear infinite;
-  }
-
-  @keyframes acceso-gira {
-    to {
-      transform: rotate(1turn);
-    }
-  }
-
-  /* «Reducir movimiento» de Apariencia pone las duraciones a cero, pero estas
-     dos animaciones llevan la suya: sin esta regla seguirían moviéndose. */
-  html[data-movimiento='reducido'] .acceso-nube,
-  html[data-movimiento='reducido'] .acceso-anillo {
-    animation: none;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .acceso-nube,
-    .acceso-anillo {
-      animation: none;
-    }
-  }
-
   /* Entrada de un bloque. Corta y solo hacia arriba: una animación de entrada
      que además desplaza en horizontal se lee como un error de maquetación. */
   .animate-rise {
@@ -427,11 +382,11 @@
    * Así que la fila solo aparece, y el desplazamiento lo hacen sus celdas, que
    * no llevan transform propio. El efecto que se ve es el mismo. */
   .fila-entra {
-    animation: fila-entra 420ms var(--ease-out) both;
+    animation: fila-entra 240ms var(--ease-out) both;
   }
 
   .fila-entra > * {
-    animation: fila-entra-celda 420ms var(--ease-out) both;
+    animation: fila-entra-celda 240ms var(--ease-out) both;
     animation-delay: inherit;
   }
 
@@ -446,7 +401,7 @@
 
   @keyframes fila-entra-celda {
     from {
-      transform: translateY(7px);
+      transform: translateY(4px);
     }
     to {
       transform: translateY(0);

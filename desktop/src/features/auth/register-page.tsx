@@ -169,7 +169,7 @@ export default function RegisterPage() {
       <MarcoLayout>
         <Card className="w-full max-w-lg border-border/80 shadow-md">
           <CardContent className="flex flex-col items-center p-8 text-center sm:p-10">
-            <span className="grid size-16 place-items-center rounded-2xl bg-success-soft text-success shadow-inner">
+            <span className="grid size-16 place-items-center rounded-card bg-success-soft text-success">
               <CheckCircle2 className="size-8" aria-hidden />
             </span>
             <span className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-success/10 px-3 py-1 text-caption font-semibold text-success">
@@ -217,7 +217,7 @@ export default function RegisterPage() {
       <MarcoLayout>
         <Card className="w-full max-w-md border-border/70 shadow-sm">
           <CardContent className="flex flex-col items-center gap-4 p-8 text-center sm:p-10">
-            <div className="grid size-14 place-items-center rounded-2xl bg-warning-soft text-warning">
+            <div className="grid size-14 place-items-center rounded-card bg-warning-soft text-warning">
               <AlertTriangle className="size-7" aria-hidden />
             </div>
             <h1 className="text-h3 font-bold text-text">El registro está cerrado</h1>
@@ -647,7 +647,7 @@ export default function RegisterPage() {
           </SeccionFormulario>
 
           {/* ACCIONES FINALES */}
-          <div className="mt-2 rounded-2xl border border-border/80 bg-surface p-5 shadow-xs">
+          <div className="mt-2 rounded-card border border-border bg-surface p-5">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2.5 text-caption text-muted">
                 <ShieldCheck className="size-5 shrink-0 text-primary" aria-hidden />
@@ -685,15 +685,6 @@ function MarcoLayout({
     <div className="flex h-screen w-screen overflow-hidden bg-bg">
       {panelLateral && (
         <aside className="relative hidden w-80 shrink-0 flex-col justify-between overflow-y-auto bg-primary p-8 text-on-primary lg:flex xl:w-96">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -right-24 -top-24 size-96 rounded-full bg-accent/20 blur-3xl"
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -bottom-32 -left-16 size-96 rounded-full bg-accent/10 blur-3xl"
-          />
-
           <div className="relative flex items-center gap-3">
             <Logo size={44} alt="" />
             <div className="flex flex-col">
@@ -703,10 +694,7 @@ function MarcoLayout({
           </div>
 
           <div className="relative flex flex-col gap-4 py-6">
-            <span className="inline-block w-fit rounded-full bg-black/15 px-3 py-1 text-caption font-semibold tracking-wide uppercase text-on-primary">
-              Convocatoria & Docencia
-            </span>
-            <h2 className="text-h2 font-bold leading-tight text-on-primary">
+            <h2 className="text-h2 font-semibold leading-tight tracking-[-0.025em] text-on-primary">
               Forma parte de la comunidad académica UTS.
             </h2>
             <p className="text-body leading-relaxed text-on-primary/90">
@@ -761,9 +749,9 @@ function SeccionFormulario({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-border bg-surface p-5 shadow-xs transition-shadow sm:p-6">
+    <section className="rounded-card border border-border bg-surface p-5 sm:p-6">
       <div className="mb-4 flex items-start gap-3 border-b border-border/60 pb-3">
-        <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-primary/10 text-caption font-bold text-primary">
+        <span className="grid size-8 shrink-0 place-items-center rounded-md bg-primary-soft text-caption font-semibold tabular text-primary">
           {numero}
         </span>
         <div className="flex-1">

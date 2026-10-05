@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../auth/auth_controller.dart';
+import '../sync/outbox_service.dart';
 import '../theme/app_theme.dart';
 
 /// Acceso a la sesión desde la barra superior de cualquier pantalla.
@@ -132,13 +133,24 @@ String initialsOf(String name) {
 /// copias del mismo aviso acaban divergiendo justo en lo que importa: qué se
 /// borra exactamente.
 Future<void> confirmLogout(BuildContext context, WidgetRef ref) async {
+  // Lo que el docente hizo sin conexión y aún no salió es la única copia que
+  // existe. No se borra al cerrar sesión (queda a nombre de su cuenta y sale
+  // cuando vuelva a entrar con ella), pero cerrar justo ahora impide que salga
+  // hasta entonces, y eso hay que decirlo antes.
+  final sinEnviar = OutboxService.instance.snapshot.entradas.length;
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (dialogContext) => AlertDialog(
       title: const Text('¿Cerrar sesión?'),
-      content: const Text(
-        'Se borrarán tus credenciales guardadas en este dispositivo y '
-        'tendrás que ingresar de nuevo.',
+      content: Text(
+        sinEnviar == 0
+            ? 'Se borrarán tus credenciales guardadas en este dispositivo y '
+                  'tendrás que ingresar de nuevo.'
+            : 'Tienes $sinEnviar ${sinEnviar == 1 ? 'cambio' : 'cambios'} sin '
+                  'enviar al servidor. Se quedan guardados en este teléfono, '
+                  'pero no saldrán hasta que vuelvas a iniciar sesión con '
+                  'esta misma cuenta.\n\nSi alguien más entra en este '
+                  'teléfono antes, no los verá ni los enviará.',
       ),
       actions: [
         TextButton(

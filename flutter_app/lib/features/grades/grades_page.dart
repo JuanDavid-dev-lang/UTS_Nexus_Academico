@@ -5,6 +5,8 @@ import '../../core/auth/auth_controller.dart';
 import '../../core/data/models.dart';
 import '../../core/data/providers.dart';
 import '../../core/network/api_error.dart';
+import '../../core/sync/outbox_logic.dart';
+import '../../core/sync/outbox_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/compact.dart';
 import '../../core/widgets/period_selector.dart';
@@ -132,6 +134,12 @@ class _GradesPageState extends ConsumerState<GradesPage> {
     final subjects = ref.watch(periodSubjectsProvider);
     final rows = ref.watch(consolidatedProvider(_subjectId));
     final muted = context.palette.muted;
+    // Quién tiene notas sin enviar: su fila lo dice, porque el promedio que se
+    // ve todavía no las incluye.
+    final conPendientes = estudiantesConNotasPendientes(
+      ref.watch(outboxProvider).valueOrNull?.entradas ?? const [],
+      subjectId: _subjectId,
+    );
 
     final rol = ref.watch(authControllerProvider).user?.role;
     final puedeRegistrar =
@@ -300,6 +308,7 @@ class _GradesPageState extends ConsumerState<GradesPage> {
                         padding: const EdgeInsets.only(bottom: 10),
                         child: _GradeRow(
                           row: row,
+                          pendiente: conPendientes.contains(row.studentId),
                           // Tocar la fila abre de qué notas sale cada promedio,
                           // que es donde se corrige la que está mal digitada.
                           onTap: () => _abrirDesglose(
@@ -496,7 +505,12 @@ class _Summary extends StatelessWidget {
 class _GradeRow extends StatelessWidget {
   final ConsolidatedRow row;
   final VoidCallback onTap;
-  const _GradeRow({required this.row, required this.onTap});
+  final bool pendiente;
+  const _GradeRow({
+    required this.row,
+    required this.onTap,
+    this.pendiente = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -519,7 +533,9 @@ class _GradeRow extends StatelessWidget {
             ? null
             : (row.passed ? SemanticKind.success : SemanticKind.danger),
       ),
-      estado: hasGrades
+      estado: pendiente
+          ? const StatusPill('Sin enviar', kind: SemanticKind.warning)
+          : hasGrades
           ? StatusPill(
               row.passed ? 'Aprobando' : 'Reprobando',
               kind: row.passed ? SemanticKind.success : SemanticKind.danger,

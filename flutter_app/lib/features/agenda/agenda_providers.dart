@@ -34,6 +34,9 @@ final agendaProximaProvider = FutureProvider<AgendaRango>((ref) {
   final ahora = DateTime.now().toUtc();
   return ref.watch(agendaRepositoryProvider).rango(
         desde: inicioDiaCampus(ahora, offsetCampusPorDefecto),
-        hasta: ahora.add(const Duration(days: 8)),
+        // Redondeado al día del campus: con `ahora + 8 días` la clave de
+        // caché cambiaba en cada llamada y la agenda nunca se servía sin red.
+        hasta: inicioDiaCampus(ahora, offsetCampusPorDefecto)
+            .add(const Duration(days: 9)),
       );
 });

@@ -18,6 +18,11 @@ const schema = new Schema(
      * el dueño legítimo todavía tenía".
      */
     previousRefreshTokenHash: { type: String, default: null, index: true },
+    /**
+     * Cuándo se hizo la última rotación. Delimita la gracia en la que el token
+     * anterior aún se acepta (`GRACIA_ROTACION_MS`); fuera de ella es reuso.
+     */
+    rotatedAt: { type: Date, default: null },
     revokedAt: { type: Date, default: null, index: true },
     expiresAt: { type: Date, required: true },
     device: { type: String, default: 'unknown' },

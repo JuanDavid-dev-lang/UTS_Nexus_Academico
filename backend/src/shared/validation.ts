@@ -230,3 +230,38 @@ export function respuestaPaginada<T>(items: T[], total: number, pagina: Paginaci
     hasMore: pagina.page * pagina.limit < total,
   };
 }
+
+// ── Escrituras diferidas (modo sin conexión) ────────────────────────────────
+
+/** Cuánto futuro se tolera en `capturadoEn`: el desfase de un reloj, no una fecha inventada. */
+export const CAPTURA_FUTURO_MAX_MS = 60_000;
+
+/** Antigüedad máxima de `capturadoEn`: lo que un docente puede pasar sin conexión. */
+export const CAPTURA_ANTIGUEDAD_MAX_MS = 60 * 24 * 60 * 60 * 1000;
+
+/**
+ * Acota el instante de captura que declara el cliente.
+ *
+ * **Se acota, no se rechaza.** La fecha viaja solo para que la auditoría pueda
+ * decir «esto se escribió sin conexión»; rechazarla por un reloj mal puesto
+ * dejaría una nota capturada en el aula como fallo terminal en la cola del
+ * cliente. Un valor fuera de rango se pega al límite más cercano, de modo que
+ * sigue constando como diferido sin poder falsear el momento a voluntad.
+ * Nunca decide un conflicto: el servidor no compara esta fecha con nada.
+ */
+export function acotarCapturadoEn(valor: Date, ahora: number = Date.now()): Date {
+  const minimo = ahora - CAPTURA_ANTIGUEDAD_MAX_MS;
+  const maximo = ahora + CAPTURA_FUTURO_MAX_MS;
+  const ms = valor.getTime();
+  return new Date(Math.min(Math.max(ms, minimo), maximo));
+}
+
+/**
+ * `capturadoEn` opcional de las escrituras que un cliente puede repetir tras
+ * un corte. Ausente en los clientes anteriores: nunca es obligatorio.
+ */
+export const campoCapturadoEn = z
+  .string()
+  .datetime({ offset: true })
+  .transform(texto => acotarCapturadoEn(new Date(texto)))
+  .optional();

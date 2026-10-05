@@ -17,6 +17,8 @@ import { apiBaseUrl, env } from '@/core/config/env';
 import { AppError, appErrorFromResponse, messageFor, toAppError } from '@/core/api/errors';
 import { tokenService } from '@/core/auth/token.service';
 import { idDelEquipo } from '@/core/auth/device-id';
+import { parsearRetryAfter } from '@/domain/offline/clasificacion';
+import { respuestaProbarServidor } from '@/domain/offline/conectividad';
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
@@ -49,6 +51,27 @@ export function onSessionExpired(listener: SessionExpiredListener): () => void {
 
 function notifySessionExpired(): void {
   for (const listener of sessionExpiredListeners) listener();
+}
+
+/**
+ * Lo que el transporte sabe de la conectividad: cada respuesta del servidor y
+ * cada fallo de red. El modo sin conexión (`core/offline/`) se alimenta de aquí
+ * en vez de preguntar por su cuenta, que sería otro tráfico y otra fuente de
+ * verdad que discrepar.
+ */
+type ObservadorDeTransporte = {
+  respuesta: (status: number) => void;
+  falloDeRed: () => void;
+};
+let observadorDeTransporte: ObservadorDeTransporte | null = null;
+
+export function observarTransporte(observador: ObservadorDeTransporte | null): void {
+  observadorDeTransporte = observador;
+}
+
+function avisarRespuesta(status: number): void {
+  if (respuestaProbarServidor(status)) observadorDeTransporte?.respuesta(status);
+  else observadorDeTransporte?.falloDeRed();
 }
 
 let serverUrl = env.serverUrl;
@@ -173,12 +196,21 @@ async function performRequest(
   const timeoutSignal = AbortSignal.timeout(timeoutMs ?? env.requestTimeoutMs);
   const composedSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
 
-  const response = await fetch(buildUrl(path, query), {
-    method,
-    headers,
-    ...(body !== undefined ? { body: esFormulario ? (body as FormData) : JSON.stringify(body) } : {}),
-    signal: composedSignal,
-  });
+  let response: Response;
+  try {
+    response = await fetch(buildUrl(path, query), {
+      method,
+      headers,
+      ...(body !== undefined ? { body: esFormulario ? (body as FormData) : JSON.stringify(body) } : {}),
+      signal: composedSignal,
+    });
+  } catch (error) {
+    // `fetch` rechaza con TypeError cuando no hay ruta al servidor. Un tiempo
+    // agotado no dice lo mismo (puede ser una subida larga), y no se cuenta.
+    if (error instanceof TypeError) observadorDeTransporte?.falloDeRed();
+    throw error;
+  }
+  avisarRespuesta(response.status);
 
   // One refresh + one retry. A second 401 means the refresh token is dead too.
   if (response.status === 401 && !anonymous && attempt === 0) {
@@ -195,6 +227,14 @@ async function performRequest(
   return response;
 }
 
+function errorDeRespuesta(response: Response, body: unknown): AppError {
+  return appErrorFromResponse(
+    response.status,
+    body,
+    parsearRetryAfter(response.headers.get('retry-after')),
+  );
+}
+
 export async function request<T>(path: string, options: RequestOptions<T> = {}): Promise<T> {
   let response: Response;
   try {
@@ -204,7 +244,7 @@ export async function request<T>(path: string, options: RequestOptions<T> = {}):
   }
 
   if (!response.ok) {
-    throw appErrorFromResponse(response.status, await readBody(response));
+    throw errorDeRespuesta(response, await readBody(response));
   }
 
   const payload = await readBody(response);
@@ -240,7 +280,7 @@ export async function requestBlob(
   }
 
   if (!response.ok) {
-    throw appErrorFromResponse(response.status, await readBody(response));
+    throw errorDeRespuesta(response, await readBody(response));
   }
   return response.blob();
 }

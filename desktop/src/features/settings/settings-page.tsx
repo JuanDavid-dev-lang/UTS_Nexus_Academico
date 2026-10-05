@@ -41,11 +41,16 @@ const SHORTCUTS = [
   { keys: ATAJO_PANTALLA_COMPLETA, action: 'Pantalla completa' },
 ];
 
+import { textoAlCerrarSesion } from '@/domain/offline/outbox';
+import { useOutbox, useResumenDeCola } from '@/state/outbox.store';
+
 export default function SettingsPage() {
   const user = useSession((state) => state.user);
   const logout = useSession((state) => state.logout);
 
   const [logoutOpen, setLogoutOpen] = useState(false);
+  const pendientes = useResumenDeCola();
+  const colaPersiste = useOutbox((state) => state.persiste);
 
   /**
    * Dónde guarda este equipo los tokens.
@@ -204,7 +209,9 @@ export default function SettingsPage() {
         open={logoutOpen}
         onOpenChange={setLogoutOpen}
         title="¿Cerrar sesión?"
-        description="Se borrarán tus credenciales guardadas en este equipo y tendrás que ingresar de nuevo."
+        description={`Se borrarán tus credenciales guardadas en este equipo y tendrás que ingresar de nuevo.${
+          pendientes.total > 0 ? ` ${textoAlCerrarSesion(pendientes, colaPersiste)}` : ''
+        }`}
         confirmLabel="Cerrar sesión"
         onConfirm={() => void handleLogout()}
       />

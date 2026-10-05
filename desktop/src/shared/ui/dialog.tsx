@@ -27,7 +27,7 @@ export function DialogContent({
   return (
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay
-        className="anim-overlay fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
+        className="anim-overlay fixed inset-0 z-50 bg-black/45"
       />
       <DialogPrimitive.Content
         className={cn(
@@ -51,7 +51,7 @@ export function DialogContent({
       >
         {/* La cabecera no se desplaza: es lo que dice qué es este diálogo. */}
         <div className="flex shrink-0 flex-col gap-1 px-6 pb-4 pr-14 pt-6">
-          <DialogPrimitive.Title className="text-h3 font-semibold text-text">
+          <DialogPrimitive.Title className="text-h3 font-semibold tracking-[-0.02em] text-text">
             {title}
           </DialogPrimitive.Title>
           {description ? (

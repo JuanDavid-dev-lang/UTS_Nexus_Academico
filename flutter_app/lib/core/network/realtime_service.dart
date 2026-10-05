@@ -60,20 +60,35 @@ class RealtimeService {
     _wsBaseUrl = AppConfig.normalizeWsBaseUrl(baseUrl);
   }
 
+  /// Reintento programado cuando el servidor rechazó el handshake y la
+  /// renovación no llegó a ninguna parte (servidor reiniciando, 502 del
+  /// túnel). Socket.io no reintenta solo tras un rechazo: sin esto la
+  /// conexión quedaba muerta hasta reiniciar la aplicación.
+  Timer? _reintento;
+  int _reintentosSeguidos = 0;
+
   void connect({required String token}) {
     _token = token;
     _enPausa = false;
-    _socket?.dispose();
+    _refreshAttempted = false;
+    _reintento?.cancel();
+    _cerrarSocket();
     _publicar(RealtimeStatus.connecting);
 
-    _socket = io.io(
+    final socket = io.io(
       _wsBaseUrl,
       io.OptionBuilder()
           .setTransports(['websocket'])
+          // Sin `forceNew`, `io.io()` reutiliza el Manager en caché y este
+          // devuelve el Socket de la conexión anterior —ya destruido, con el
+          // token viejo y sin abrir—: tras volver de segundo plano o renovar
+          // el token, la app se quedaba en «Reconectando…» para siempre.
+          .enableForceNew()
           .enableAutoConnect()
-          // El backend valida el JWT en el handshake (auth.token) y agrupa por salas.
-          .setAuth({'token': token})
-          .setExtraHeaders({'Authorization': 'Bearer $token'})
+          // El backend valida el JWT en el handshake (auth.token). Como
+          // función, se lee en cada intento: la reconexión automática tras
+          // un corte de red manda el token vigente, no el del arranque.
+          .setAuthFn((enviar) => enviar({'token': _token ?? ''}))
           // Sin declararlas, `socket_io_client` reintenta cada 5 s para
           // siempre. Con el wifi del campus caído —que no es un caso raro— eso
           // es despertar la radio doce veces por minuto sin que nada vaya a
@@ -83,38 +98,88 @@ class RealtimeService {
           .setReconnectionDelayMax(30000)
           .build(),
     );
+    _socket = socket;
 
-    _socket?.onConnect((_) {
+    // Un socket cerrado puede seguir emitiendo un momento después de
+    // sustituirlo; lo que diga ya no describe la conexión actual.
+    bool vigente() => identical(_socket, socket);
+
+    socket.onConnect((_) {
+      if (!vigente()) return;
       _refreshAttempted = false;
+      _reintentosSeguidos = 0;
       _publicar(RealtimeStatus.connected);
     });
 
-    _socket?.onDisconnect((_) => _publicar(RealtimeStatus.disconnected));
-
-    // Socket.io solo autentica en el handshake. Con el token fijado al
-    // construir la conexión, cualquier reintento posterior a la expiración del
-    // access token se rechazaba una y otra vez con las mismas credenciales
-    // muertas: la sincronización se detenía para siempre sin decir nada.
-    _socket?.onConnectError((error) {
-      final rechazo = error.toString().contains('unauthorized');
-      _publicar(rechazo ? RealtimeStatus.unauthorized : RealtimeStatus.error);
-      if (!rechazo || _refreshAttempted) return;
-
-      _refreshAttempted = true;
-      onUnauthorized?.call();
+    socket.onDisconnect((_) {
+      if (vigente()) _publicar(RealtimeStatus.disconnected);
     });
 
-    _socket?.on('sync:update', (data) {
+    // El rechazo del servidor llega como `error` en este cliente de Dart
+    // (`CONNECT_ERROR` → `emit('error')`), no como `connect_error` igual que
+    // en el de JavaScript. Escuchando solo `onConnectError` nunca se veía.
+    void alFallar(dynamic error) {
+      if (vigente()) unawaited(_alFallarConexion(error));
+    }
+
+    socket.onConnectError(alFallar);
+    socket.onError(alFallar);
+
+    socket.on('sync:update', (data) {
       if (data is Map) {
         _events.add(Map<String, dynamic>.from(data));
       }
     });
 
-    _socket?.on('notification:new', (data) {
+    socket.on('notification:new', (data) {
       if (data is Map) {
         _notifications.add(Map<String, dynamic>.from(data));
       }
     });
+  }
+
+  /// Un fallo de red lo reintenta el Manager solo. Un rechazo de credenciales
+  /// no: se renueva el token una vez y, si la renovación no cambió nada, se
+  /// vuelve a intentar con retroceso.
+  Future<void> _alFallarConexion(dynamic error) async {
+    final rechazo = error.toString().contains('unauthorized');
+    if (!rechazo) {
+      _publicar(RealtimeStatus.error);
+      return;
+    }
+    if (_refreshAttempted) {
+      _publicar(RealtimeStatus.unauthorized);
+      _programarReintento();
+      return;
+    }
+    _refreshAttempted = true;
+    // Mientras se renueva no hay nada que avisar: es lo normal tras quince
+    // minutos sin pedir nada al servidor.
+    _publicar(RealtimeStatus.connecting);
+    final tokenAntes = _token;
+    await onUnauthorized?.call();
+    // Si la renovación fue bien, `updateToken` ya reconectó con el nuevo.
+    if (_token == tokenAntes && !_enPausa && _token != null) {
+      _publicar(RealtimeStatus.unauthorized);
+      _programarReintento();
+    }
+  }
+
+  void _programarReintento() {
+    if (_enPausa || _token == null) return;
+    _reintento?.cancel();
+    final segundos = [5, 10, 20, 30][_reintentosSeguidos.clamp(0, 3)];
+    _reintentosSeguidos++;
+    _reintento = Timer(Duration(seconds: segundos), () {
+      final token = _token;
+      if (token != null && !_enPausa) connect(token: token);
+    });
+  }
+
+  void _cerrarSocket() {
+    final anterior = _socket;
+    _socket = null;
+    anterior?.dispose();
   }
 
   /// Suelta la conexión mientras la aplicación no está en pantalla.
@@ -131,8 +196,8 @@ class RealtimeService {
   void pausar() {
     if (_socket == null || _enPausa) return;
     _enPausa = true;
-    _socket?.dispose();
-    _socket = null;
+    _reintento?.cancel();
+    _cerrarSocket();
     _publicar(RealtimeStatus.disconnected);
   }
 
@@ -150,20 +215,19 @@ class RealtimeService {
 
   /// Reconecta con el token vigente tras una renovación.
   ///
-  /// Rehace la conexión en vez de mutar la opción: el token viaja en el
-  /// handshake, así que cambiarlo sin reconectar no tendría ningún efecto.
+  /// Rehace la conexión: el token viaja en el handshake, así que cambiarlo
+  /// sin reconectar no tendría efecto hasta la siguiente caída.
   void updateToken(String token) {
     if (token == _token) return;
-    if (_socket == null) {
-      _token = token;
-      return;
-    }
+    _token = token;
+    if (_socket == null || _enPausa) return;
     connect(token: token);
   }
 
   void dispose() {
-    _socket?.dispose();
-    _socket = null;
+    _reintento?.cancel();
+    _reintentosSeguidos = 0;
+    _cerrarSocket();
     _token = null;
     _refreshAttempted = false;
     _enPausa = false;

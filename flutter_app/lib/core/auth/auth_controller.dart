@@ -1,7 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../network/api_error.dart';
 import '../storage/offline_cache.dart';
+import '../sync/outbox_service.dart';
+import '../sync/precarga_service.dart';
 import '../storage/offline_status.dart';
 import './auth_user.dart';
 import '../network/connection_settings.dart';
@@ -45,11 +48,46 @@ class AuthController extends StateNotifier<AuthState> {
       _realtime.connect(token: access);
       try {
         final me = await _repo.me();
-        state = AuthState(loading: false, user: AuthUser.fromJson(Map<String, dynamic>.from(me['user'] as Map)));
+        final usuario = Map<String, dynamic>.from(me['user'] as Map);
+        await _storage.saveUser(usuario);
+        await _entrar(usuario);
         return;
-      } catch (_) {}
+      } catch (error) {
+        // Sin servidor la sesión sigue siendo válida: solo un rechazo del
+        // refresh token la termina (y eso ya lo hizo `onSessionExpired`, que
+        // borró los tokens). Mandar al login por un wifi caído dejaba al
+        // docente sin poder abrir la app justo cuando más la necesita.
+        if (_esFalloDeServidor(error) && ApiClient.instance.refreshToken != null) {
+          final guardado = await _storage.loadUser();
+          if (guardado != null) {
+            await _entrar(guardado);
+            return;
+          }
+        }
+      }
     }
     state = const AuthState(loading: false);
+  }
+
+  /// Sin respuesta del servidor (red, tiempo de espera, 5xx, 429): no dice nada
+  /// sobre si la sesión vale.
+  bool _esFalloDeServidor(Object error) {
+    final kind = ApiError.from(error).kind;
+    return kind == ApiErrorKind.network ||
+        kind == ApiErrorKind.timeout ||
+        kind == ApiErrorKind.server ||
+        kind == ApiErrorKind.rateLimited;
+  }
+
+  /// Deja la sesión puesta y le dice a la bandeja de salida de quién es, lo que
+  /// además reanuda el envío de lo que ese usuario dejó pendiente.
+  Future<void> _entrar(Map<String, dynamic> usuario) async {
+    final user = AuthUser.fromJson(usuario);
+    await OutboxService.instance.usarUsuario(user.id);
+    // Caliente la caché de lectura en segundo plano para poder trabajar sin red.
+    PrecargaService.instance.usarUsuario(user.role);
+    unawaited(PrecargaService.instance.solicitar());
+    state = AuthState(loading: false, user: user);
   }
 
   /// Conecta los tres enganches que [ApiClient] y [RealtimeService] exponen y
@@ -92,7 +130,9 @@ class AuthController extends StateNotifier<AuthState> {
     await _storage.save(accessToken: access, refreshToken: refresh);
     ApiClient.instance.setTokens(accessToken: access, refreshToken: refresh);
     _realtime.connect(token: access);
-    state = AuthState(loading: false, user: AuthUser.fromJson(Map<String, dynamic>.from(data['user'] as Map)));
+    final usuario = Map<String, dynamic>.from(data['user'] as Map);
+    await _storage.saveUser(usuario);
+    await _entrar(usuario);
   }
 
   /// Cambia la contraseña y se queda dentro.
@@ -125,10 +165,9 @@ class AuthController extends StateNotifier<AuthState> {
   Future<void> refreshUser() async {
     try {
       final me = await _repo.me();
-      state = AuthState(
-        loading: false,
-        user: AuthUser.fromJson(Map<String, dynamic>.from(me['user'] as Map)),
-      );
+      final usuario = Map<String, dynamic>.from(me['user'] as Map);
+      await _storage.saveUser(usuario);
+      state = AuthState(loading: false, user: AuthUser.fromJson(usuario));
     } catch (_) {
       // Un fallo aquí no debe tumbar la sesión: los datos viejos siguen siendo
       // utilizables y la próxima carga los corrige.
@@ -141,6 +180,12 @@ class AuthController extends StateNotifier<AuthState> {
     // siguiente que entre en el mismo teléfono. En un equipo compartido —que es
     // lo normal en una sala de profesores— eso sería filtrar notas y cédulas.
     await OfflineCache.clear();
+    // La bandeja de salida NO se borra: lo que el docente dejó sin enviar es la
+    // única copia de algo que hizo. Queda guardada a su nombre, oculta para
+    // cualquier otro usuario, y sale cuando vuelva a entrar con la misma cuenta.
+    // `confirmLogout` avisa de ello antes de llegar aquí.
+    await OutboxService.instance.usarUsuario(null);
+    PrecargaService.instance.usarUsuario(null);
     // La hora a la que sincronizó el docente anterior no le dice nada al
     // siguiente, y verla le haría creer que sus datos ya están al día.
     await OfflineStatus.instance.limpiar();

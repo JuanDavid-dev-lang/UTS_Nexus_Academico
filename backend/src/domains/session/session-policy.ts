@@ -44,3 +44,39 @@ export function dispositivoAutorizado(
   if (!hashGuardado) return true;
   return hashGuardado === hashRecibido;
 }
+
+/**
+ * Margen de gracia tras una rotación, en milisegundos.
+ *
+ * Con wifi inestable, la respuesta de un `/auth/refresh` puede perderse: el
+ * servidor ya rotó el token y el cliente sigue con el anterior. Sin margen, su
+ * reintento se leía como robo y revocaba **todas** las sesiones de la persona.
+ * En modo sin conexión eso deja de ser raro. Durante estos 30 s, presentar el
+ * token inmediatamente anterior de la misma sesión (y desde el mismo equipo)
+ * entrega una rotación nueva de esa sesión en lugar de revocar.
+ *
+ * Coste asumido: quien copió el token anterior y lo canjea dentro de la
+ * ventana también obtiene una rotación. Se acepta por ser corta, por exigir el
+ * mismo equipo cuando la sesión está atada, y porque el dueño legítimo seguirá
+ * rotando: su siguiente canje con el token que ya no es el vigente cae fuera de
+ * la ventana o repite el patrón. Fuera de la ventana, el reuso revoca todo.
+ */
+export const GRACIA_ROTACION_MS = 30_000;
+
+/**
+ * Instante a partir del cual una rotación sigue en gracia: la sesión cuyo
+ * `rotatedAt` sea igual o posterior admite todavía su token anterior. La
+ * ruta lo usa como filtro de la consulta atómica.
+ */
+export function inicioDeGraciaDeRotacion(ahora: number = Date.now()): Date {
+  return new Date(ahora - GRACIA_ROTACION_MS);
+}
+
+/** ¿Sigue vigente la gracia de una rotación hecha en `rotadoEn`? */
+export function dentroDeGraciaDeRotacion(
+  rotadoEn: Date | null | undefined,
+  ahora: number = Date.now(),
+): boolean {
+  if (!rotadoEn) return false;
+  return rotadoEn.getTime() >= inicioDeGraciaDeRotacion(ahora).getTime() && rotadoEn.getTime() <= ahora;
+}

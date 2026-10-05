@@ -255,23 +255,31 @@ cuando el acento *tiene* que ser texto:
 
 ### Elevación, degradados y superficies
 
-**Cada sombra son dos capas, no una.** Una sombra sola tiene que elegir entre
-marcar el contacto (corta y densa) o la altura (larga y difusa), y acaba
-haciendo mal las dos: o la card parece pegada al fondo con un halo gris, o flota
-sin apoyarse en nada. Cada nivel lleva una sombra de contacto y una ambiental.
+**Sobrio institucional.** La elevación se declara una sola vez: una card se
+separa del fondo con su filo de 1 px, no con sombra; las sombras son solo para
+lo que flota (menús, diálogos, avisos, el botón de Rubri) y llevan dos capas
+cortas —contacto y ambiente—. Ninguna superficie lleva degradado ni
+desenfoque, y ningún botón lleva halo: el peso lo da el relleno.
 
 | Superficie | Qué es | Dónde |
 |------------|--------|-------|
-| `surface-card` | Blanco con degradado imperceptible y sombra de contacto | Todo el contenido |
-| `surface-card-interactive` | La anterior, que se eleva 2px al pasar el puntero | **Solo** si pulsarla navega |
-| `surface-well` / `--surface-sunken` | Se hunde respecto a la card | Filtros, cabecera de tabla, carril de un control segmentado |
-| `surface-brand` | Degradado institucional con velo lima | **Solo** lo que representa a la aplicación: cabecera del panel, clase en curso, acceso |
-| `surface-glass` | Desenfoque sobre el contenido que pasa por debajo | Barra superior, resúmenes fijos |
+| `surface-card` | `--surface` plano con filo `--border`, sin sombra | Todo el contenido |
+| `surface-card-interactive` | La anterior; al pasar el puntero el filo se oscurece y el fondo baja a `--surface-alt` (no se eleva) | **Solo** si pulsarla navega |
+| `surface-well` / `--surface-sunken` | Se hunde respecto a la card | Filtros, carril de un control segmentado |
+| `surface-brand` | Verde institucional plano (`--primary`); en oscuro `--primary-soft` con filo `--primary-tint` | **Solo** lo que representa a la aplicación: hoy, la columna de marca del acceso |
+| `surface-glass` | Superficie con filo (ya no desenfoca) | Barra superior, resúmenes fijos |
 
-**El degradado de marca nunca va detrás de contenido tabular**: cambia de tono a
-lo largo del bloque y cada fila acabaría sobre un fondo distinto. En oscuro **no
-es lima** —la regla 2 de arriba lo prohíbe como fondo de superficie grande—: es
-la rampa oliva subiendo un paso, con el velo lima al 12%.
+Los tokens `--gradient-*` siguen existiendo (los genera `domain/appearance` por
+tono y una prueba fija los institucionales), pero ningún componente los pinta.
+La cabecera de una tabla va sobre `--surface` con un filo `--border-strong`
+debajo, en minúscula de frase.
+
+**Esquinas:** 12 px en una card, 8 en botón y campo, 6 en etiqueta o botón
+pequeño; `--radius-pill` solo para lo redondo de verdad (avatar, punto,
+interruptor). **Tics que no se reintroducen:** etiqueta en versalitas sobre un
+título, franja de color en el filo de una métrica o un aviso, icono en un
+cuadrado de color como estructura de tarjeta, cifras de datos en monoespaciada
+(se usa Inter con `tabular`), rebotes en la animación.
 
 > **Regla de semántica:** un color = un significado. El verde siempre es
 > éxito/bajo riesgo, el rojo siempre es peligro/alto riesgo. Nunca reutilizar un
@@ -314,12 +322,12 @@ distinto, y los dos clientes leen sus valores de un archivo de tokens.
 
 - **Padding general:** 24px
 - **Gap:** 16px
-- **Border radius de cards:** 18px
+- **Border radius de cards:** 12px
 
 ```
 --space-page:    24px
 --space-gap:     16px
---radius-card:   18px
+--radius-card:   12px
 ```
 
 ### 7.2 Móvil — escala compacta
@@ -336,8 +344,8 @@ densidad sin quitar información.
 | `gap` | **12** | 16 | Separación entre bloques |
 | `gapSm` | **8** | — | Etiqueta y su valor, entre chips |
 | `gapXs` | **4** | — | Dentro de una fila densa |
-| `radiusCard` | **14** | 18 | Esquinas de tarjeta |
-| `radiusInput` | **10** | 12 | Esquinas de campo |
+| `radiusCard` | **14** | 12 | Esquinas de tarjeta |
+| `radiusInput` | **10** | 8 | Esquinas de campo |
 | `rowHeight` | **56** | 48 | Alto mínimo de fila pulsable |
 
 **Lo que NO se comprime es el objetivo táctil.** `tapTarget` se queda en 48 dp y

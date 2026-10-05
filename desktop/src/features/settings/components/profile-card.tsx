@@ -18,6 +18,15 @@ import { profileRepository } from '@/infrastructure/repositories/profile.reposit
 import { useSession } from '@/state/session.store';
 import { toast } from '@/state/toast.store';
 
+/** El rol como se dice en la institución; el código interno no es un texto para nadie. */
+const NOMBRE_DEL_ROL: Record<string, string> = {
+  ADMIN: 'Administración',
+  COORDINATOR: 'Coordinación',
+  SECRETARY: 'Secretaría',
+  PROFESSOR: 'Docente',
+  STUDENT: 'Estudiante',
+};
+
 /**
  * Perfil del docente.
  *
@@ -140,8 +149,8 @@ export function ProfileCard() {
             <span className="truncate text-caption text-muted">{user?.email}</span>
           </div>
 
-          <Badge tone="accent" className="ml-auto">
-            {user?.role}
+          <Badge tone="neutral" className="ml-auto">
+            {user?.role ? (NOMBRE_DEL_ROL[user.role] ?? user.role) : null}
           </Badge>
         </div>
 

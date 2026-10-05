@@ -5,9 +5,9 @@ import {
   CalendarDays,
   FileSpreadsheet,
   KeyRound,
+  ListChecks,
   MessageSquareText,
   ScanLine,
-  Sparkles,
 } from 'lucide-react';
 import { INICIO_WEB, RUTA_ASISTENTE, rutaEnWeb } from '@/domain/platform/web-access';
 import { esWeb } from '@/core/platform/tauri';
@@ -48,7 +48,7 @@ function AsistenteEnLaApp() {
           detalle: 'Aprende de las notas y la asistencia reales, y mejora con cada semestre.',
         },
         {
-          Icono: Sparkles,
+          Icono: ListChecks,
           titulo: 'Explica cada alerta',
           detalle: 'Dice qué pesó en que un estudiante salga en riesgo, no solo que salió.',
         },

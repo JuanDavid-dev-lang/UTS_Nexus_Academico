@@ -26,7 +26,7 @@ export function AdminModeCard() {
   if (role !== 'ADMIN') return null;
 
   return (
-    <Card className="border-primary/40 bg-gradient-to-br from-primary-soft/30 via-surface to-surface">
+    <Card className="border-primary-tint">
       <CardHeader>
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">

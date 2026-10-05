@@ -307,7 +307,11 @@ gradeRouter.post('/', requireRole('ADMIN', 'PROFESSOR'), async (req, res, next) 
       // Opcional: sin él se toma el de la plantilla aplicada al grupo, y sin
       // plantilla vale 1 (promedio simple de siempre).
       weight: pesoSchema.optional(),
+      // Cuándo se capturó en el equipo si la escritura llegó diferida. Solo se
+      // audita; no decide conflictos.
+      capturadoEn: campo.campoCapturadoEn,
     }).parse(req.body);
+    const { capturadoEn, ...datos } = body;
 
     // Un periodo cerrado ya tiene fotografía oficial: admitir una nota más la
     // desmentiría sin que nadie se enterara. 409, no 500.
@@ -364,7 +368,7 @@ gradeRouter.post('/', requireRole('ADMIN', 'PROFESSOR'), async (req, res, next) 
       }).lean();
       const gate = corteDisponible(aNotasComponente(previas), body.corte as CorteNumero);
       if (!gate.disponible) {
-        return res.status(409).json({ ok: false, message: gate.motivo });
+        return res.status(409).json({ ok: false, codigo: 'CORTE_BLOQUEADO', message: gate.motivo });
       }
     }
 
@@ -387,7 +391,11 @@ gradeRouter.post('/', requireRole('ADMIN', 'PROFESSOR'), async (req, res, next) 
 
     const item = await GradeModel.findOneAndUpdate(
       key,
-      { $set: { ...body, weight } },
+      // Idempotente ante una repetición y ante una nota borrada con la misma
+      // clave: `before` solo mira las vivas, así que el upsert tiene que
+      // revivirla. Sin esto devolvía 201 y la nota seguía borrada, que es lo
+      // que ve una escritura diferida que llega después de un DELETE.
+      { $set: { ...datos, weight, deletedAt: null, status: 'ACTIVE' } },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
     await auditChange({
@@ -397,6 +405,7 @@ gradeRouter.post('/', requireRole('ADMIN', 'PROFESSOR'), async (req, res, next) 
       entityId: item.id,
       before,
       after: item.toObject(),
+      capturadoEn,
     });
     emitToUser(String(item.teacherId), 'sync:update', { entity: 'grade', action: 'create', id: item.id });
     res.status(201).json({ ok: true, item });

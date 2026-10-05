@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { BookOpen, Pencil, Plus, Search, Trash2, Users } from 'lucide-react';
+import { Pencil, Plus, Search, Trash2, Users } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -217,7 +217,7 @@ export default function SubjectsPage() {
         byPeriod.map(([period, items]) => (
           <section key={period} className="flex flex-col gap-3">
             <div className="flex items-center gap-2">
-              <h3 className="text-body font-bold text-text">Periodo {period}</h3>
+              <h3 className="text-body font-semibold text-text">Periodo {period}</h3>
               <Badge>{items.length}</Badge>
             </div>
 
@@ -225,20 +225,19 @@ export default function SubjectsPage() {
               {items.map((subject, index) => (
                 <motion.article
                   key={subject._id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.2, delay: Math.min(index * 0.03, 0.2) }}
-                  className="surface-card group flex items-start gap-3 p-4 transition-shadow hover:shadow-md"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.16, delay: Math.min(index * 0.02, 0.12) }}
+                  className="surface-card group flex items-start gap-3 p-4 transition-colors hover:border-border-strong"
                 >
-                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
-                    <BookOpen className="size-5" aria-hidden />
-                  </span>
-
+                  {/* Sin icono en un cuadrado de color: el código de la
+                      materia es lo que la identifica, y va primero. */}
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <h4 className="truncate text-body font-semibold text-text">{subject.name}</h4>
-                    <p className="truncate text-caption text-muted">
-                      {subject.code} · {subject.credits} créditos
+                    <p className="truncate text-caption font-semibold text-primary">
+                      {subject.code}
+                      <span className="font-normal text-muted"> · {subject.credits} créditos</span>
                     </p>
+                    <h4 className="truncate text-body font-semibold text-text">{subject.name}</h4>
                   </div>
 
                   {/* Siempre a la vista, más tenues sin el ratón encima: ocultos

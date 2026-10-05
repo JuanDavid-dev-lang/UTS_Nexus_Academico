@@ -8,7 +8,7 @@
  */
 import { io, type Socket } from 'socket.io-client';
 import type { QueryClient } from '@tanstack/react-query';
-import { tokenService } from '@/core/auth/token.service';
+import { isExpiring, tokenService } from '@/core/auth/token.service';
 import { refreshAccessToken } from '@/core/api/http-client';
 import { queryKeys } from '@/core/api/query-keys';
 import { toast } from '@/state/toast.store';
@@ -205,7 +205,19 @@ export function connectRealtime(
     // al expirar el servidor rechazaba todos los reintentos — la sincronización
     // moría en silencio hasta reiniciar la app.
     auth: (cb: (data: Record<string, unknown>) => void) => {
-      cb({ token: tokenService.getAccessToken() ?? token });
+      // El access token dura 15 minutos y el escritorio solo renueva ante un
+      // 401 o una vez al día: tras una suspensión o un corte de red, el
+      // reintento salía casi siempre con un token caducado, el servidor lo
+      // rechazaba y el indicador pasaba por verde, rojo y verde otra vez. Se
+      // renueva antes (mismo single-flight que el cliente HTTP).
+      const vigente = tokenService.getAccessToken() ?? token;
+      if (!isExpiring(vigente)) {
+        cb({ token: vigente });
+        return;
+      }
+      void refreshAccessToken()
+        .catch(() => false)
+        .then(() => cb({ token: tokenService.getAccessToken() ?? vigente }));
     },
     reconnection: true,
     reconnectionDelay: 1000,
@@ -222,31 +234,89 @@ export function connectRealtime(
   // bucle de refresco cuando el refresh token también está muerto.
   let refreshAttempted = false;
 
+  // Fallos seguidos sin conectar. Los primeros son un corte breve (servidor
+  // reiniciando, wifi que vuelve): se cuentan como «reconectando». Pasado el
+  // umbral se dice «sin conexión», y se mantiene hasta conectar en vez de
+  // alternar con «reconectando» en cada intento.
+  let fallosSeguidos = 0;
+  const FALLOS_ANTES_DE_AVISAR = 3;
+
+  // Tras un rechazo, socket.io no reintenta solo. Si la renovación no llegó al
+  // servidor (reiniciando, 502 del túnel) la conexión quedaba muerta hasta
+  // reiniciar la app; ahora se vuelve a probar con retroceso.
+  let reintento: ReturnType<typeof setTimeout> | null = null;
+  const programarReintento = () => {
+    if (reintento) clearTimeout(reintento);
+    const espera = Math.min(30_000, 5_000 * 2 ** Math.min(fallosSeguidos, 3));
+    reintento = setTimeout(() => {
+      reintento = null;
+      if (socket !== active || active.connected) return;
+      refreshAttempted = false;
+      active.connect();
+    }, espera);
+  };
+
+  const alFallar = (detalle: string) => {
+    fallosSeguidos += 1;
+    onStatus(fallosSeguidos >= FALLOS_ANTES_DE_AVISAR ? 'error' : 'reconnecting', detalle);
+  };
+
   active.on('connect', () => {
     refreshAttempted = false;
+    fallosSeguidos = 0;
+    if (reintento) clearTimeout(reintento);
+    reintento = null;
     onStatus('connected');
   });
-  active.on('disconnect', (reason) => onStatus('disconnected', reason));
+  active.on('disconnect', (reason) => {
+    // Solo el cierre pedido por la propia app es «desconectado». Un corte de
+    // transporte o un ping perdido (suspensión del equipo) lo reintenta el
+    // manager: es una reconexión, no una caída.
+    if (reason === 'io client disconnect') {
+      onStatus('disconnected', reason);
+      return;
+    }
+    onStatus('reconnecting', reason);
+    // El servidor cerró la conexión a propósito: el manager no reintenta solo.
+    if (reason === 'io server disconnect') programarReintento();
+  });
   active.on('connect_error', (error) => {
-    onStatus('error', error.message);
-    if (refreshAttempted || !error.message.includes('unauthorized')) return;
+    if (!error.message.includes('unauthorized')) {
+      alFallar(error.message);
+      return;
+    }
+    if (refreshAttempted) {
+      alFallar(error.message);
+      programarReintento();
+      return;
+    }
 
     refreshAttempted = true;
+    // Renovar tras quince minutos sin peticiones es lo normal, no una avería.
+    onStatus('reconnecting', 'Renovando la sesión');
     void refreshAccessToken().then((renewed) => {
       // `socket !== active` significa que mientras se renovaba alguien cerró
       // sesión o reconectó: revivir esa conexión dejaría dos sockets vivos.
-      if (!renewed || socket !== active) return;
-      active.connect();
+      if (socket !== active) return;
+      if (renewed) {
+        active.connect();
+        return;
+      }
+      alFallar('No se pudo renovar la sesión');
+      programarReintento();
     });
   });
 
   // El manager de socket.io es quien sabe de reintentos; el socket solo ve el
   // resultado. Sin esto, una reconexión en curso se mostraba como 'sin
-  // conexión' hasta que terminaba.
+  // conexión' hasta que terminaba. No se escucha `reconnect` del manager: se
+  // emite al abrir el transporte, antes de que el servidor acepte el
+  // handshake, y pintaba verde un instante antes del rechazo.
   active.io.on('reconnect_attempt', (intento: number) => {
-    onStatus('reconnecting', `Intento ${intento}`);
+    if (fallosSeguidos < FALLOS_ANTES_DE_AVISAR) {
+      onStatus('reconnecting', `Intento ${intento}`);
+    }
   });
-  active.io.on('reconnect', () => onStatus('connected'));
   active.io.on('reconnect_failed', () => {
     onStatus('error', 'No se pudo restablecer la conexión.');
   });

@@ -231,7 +231,7 @@ export function CommandPalette({
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="anim-overlay fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
+        <DialogPrimitive.Overlay className="anim-overlay fixed inset-0 z-50 bg-black/45" />
         <DialogPrimitive.Content
           className="anim-popup fixed left-1/2 top-[18%] z-50 w-full max-w-xl -translate-x-1/2 [translate:-50%_0] overflow-hidden rounded-xl border border-border bg-surface shadow-pop"
           onKeyDown={handleKeyDown}

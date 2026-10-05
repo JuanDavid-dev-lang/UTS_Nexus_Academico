@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import jwt from 'jsonwebtoken';
 import type { Request, Response } from 'express';
 import { errorHandler } from '../src/shared/error.js';
+import { PeriodoBloqueadoError } from '../src/shared/period-guard.js';
 
 /**
  * Respuesta falsa: guarda el estado y el cuerpo con los que se contestó.
@@ -68,5 +69,30 @@ describe('errorHandler', () => {
     const res = traducir(Object.assign(new Error('No encontrado'), { statusCode: 404 }));
     expect(res.status).toBe(404);
     expect(res.body).toEqual({ ok: false, message: 'No encontrado' });
+  });
+
+  it('un error con codigo lo publica junto al mensaje, que no cambia', () => {
+    const res = traducir(Object.assign(new Error('Periodo cerrado'), { statusCode: 409, codigo: 'PERIODO_BLOQUEADO' }));
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({ ok: false, codigo: 'PERIODO_BLOQUEADO', message: 'Periodo cerrado' });
+  });
+
+  it('PeriodoBloqueadoError lleva su codigo', () => {
+    const res = traducir(new PeriodoBloqueadoError('2026-1', 'CLOSED'));
+    expect(res.status).toBe(409);
+    expect((res.body as { codigo?: string }).codigo).toBe('PERIODO_BLOQUEADO');
+  });
+
+  it('clave duplicada de Mongo es 409 con codigo DUPLICADO', () => {
+    const res = traducir({ code: 11000, keyPattern: { code: 1 } });
+    expect(res.status).toBe(409);
+    expect((res.body as { codigo?: string }).codigo).toBe('DUPLICADO');
+  });
+
+  it('un 5xx nunca publica codigo', () => {
+    const silenciar = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = traducir(Object.assign(new Error('x'), { codigo: 'INTERNO' }));
+    silenciar.mockRestore();
+    expect(res.body).toEqual({ ok: false, message: 'Internal server error' });
   });
 });

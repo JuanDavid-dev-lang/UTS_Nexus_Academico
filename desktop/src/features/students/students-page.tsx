@@ -113,7 +113,7 @@ export default function StudentsPage() {
         sortValue: (row) => row.code,
         // `tabular`: sin cifras de ancho fijo, una columna de cédulas se
         // desalinea en cada fila que lleve un 1 y deja de leerse como columna.
-        cell: (row) => <span className="font-mono tabular text-caption">{row.code}</span>,
+        cell: (row) => <span className="tabular text-body">{row.code}</span>,
       },
       {
         key: 'program',

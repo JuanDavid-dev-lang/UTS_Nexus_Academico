@@ -30,7 +30,17 @@ const SERVICE: &str = "co.edu.uts.nexus.academico";
 
 /// Only these keys may be written. An allowlist keeps the renderer from turning
 /// the OS vault into arbitrary storage.
-const ALLOWED_KEYS: [&str; 3] = ["access_token", "refresh_token", "api_base_url"];
+///
+/// `device_id` faltaba: `core/auth/device-id.ts` lo guarda aquí, el rechazo se
+/// tragaba en silencio y cada arranque estrenaba identificador. El servidor ve
+/// otro equipo, revoca la sesión al renovar y la app abría siempre en el
+/// inicio de sesión — también justo después de instalar una actualización.
+const ALLOWED_KEYS: [&str; 4] = [
+    "access_token",
+    "refresh_token",
+    "api_base_url",
+    "device_id",
+];
 
 /// La lista blanca, comprobada sin abrir nada.
 ///

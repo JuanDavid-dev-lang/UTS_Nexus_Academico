@@ -230,7 +230,7 @@ export function DataTable<T>({
           /* Header lives outside the scroll container so it stays put. */
           <div
             role="row"
-            className="grid items-center gap-3 border-b border-border bg-surface-sunken px-4 py-3"
+            className="grid items-center gap-3 border-b border-border-strong bg-surface px-4 py-2.5"
             style={{ gridTemplateColumns: gridTemplate }}
           >
             {columns.map((column) => (
@@ -271,7 +271,7 @@ export function DataTable<T>({
                     // `border-b` la última fila visible del viewport virtual
                     // dibujaba una línea suelta bajo el final de la lista.
                     'shadow-[inset_0_-1px_0_0_var(--border)]',
-                    'transition-colors duration-200 ease-out hover:bg-primary-soft/60',
+                    'transition-colors duration-150 ease-out hover:bg-surface-alt',
                     'focus-visible:outline-none focus-visible:bg-primary-soft',
                     onRowClick && 'cursor-pointer',
                     // Entrada solo de la tanda recién llegada.
@@ -320,7 +320,7 @@ export function DataTable<T>({
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-2 border-t border-border bg-surface-alt/60 px-4 py-2 text-caption text-muted">
+        <div className="flex items-center justify-between gap-2 border-t border-border bg-surface px-4 py-2 text-caption text-muted">
           <span className="tabular flex items-center gap-2">
             {cargandoMas ? (
               <>
@@ -370,7 +370,9 @@ function EncabezadoDeColumna<T>({
       role="columnheader"
       aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
       className={cn(
-        'text-caption font-semibold uppercase tracking-wide text-muted',
+        // En minúscula de frase, como las cabeceras que ordenan: antes las que
+        // no ordenaban («ACCIONES») salían en versalitas y las demás no.
+        'text-caption font-semibold text-muted',
         column.align === 'right' && 'text-right',
         column.align === 'center' && 'text-center',
       )}

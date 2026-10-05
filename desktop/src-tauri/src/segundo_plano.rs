@@ -44,6 +44,21 @@ pub fn accion_al_cerrar(segundo_plano: bool, ya_avisado: bool) -> AccionAlCerrar
     }
 }
 
+/// Si el arranque se queda en la bandeja sin abrir la ventana.
+///
+/// El actualizador de Windows relanza la app con los argumentos con que se
+/// abrió. Si la había abierto Windows al iniciar sesión, eso incluye
+/// `--segundo-plano`, y la versión recién instalada arrancaba oculta: se
+/// pulsaba «Actualizar» y la app desaparecía. Recién actualizada se abre
+/// siempre.
+pub fn arrancar_oculta(
+    lanzado_por_windows: bool,
+    segundo_plano: bool,
+    recien_actualizada: bool,
+) -> bool {
+    lanzado_por_windows && segundo_plano && !recien_actualizada
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AjustesSistema {
@@ -159,7 +174,45 @@ mod en_windows {
         bandeja.build(app)?;
 
         let lanzado_por_windows = std::env::args().any(|arg| arg == ARG_SEGUNDO_PLANO);
-        Ok(lanzado_por_windows && segundo_plano)
+        Ok(arrancar_oculta(
+            lanzado_por_windows,
+            segundo_plano,
+            recien_actualizada(app),
+        ))
+    }
+
+    /// Compara la versión que corre con la de la ejecución anterior y la
+    /// anota. Sin archivo cuenta como recién actualizada: la primera versión
+    /// que lo escribe llega precisamente por una actualización.
+    fn recien_actualizada<R: Runtime>(app: &AppHandle<R>) -> bool {
+        let actual = app.package_info().version.to_string();
+        let Some(ruta) = app
+            .path()
+            .app_config_dir()
+            .ok()
+            .map(|dir| dir.join("ultima-version.txt"))
+        else {
+            return false;
+        };
+        let anterior = fs::read_to_string(&ruta).ok();
+        if anterior.as_deref().map(str::trim) == Some(actual.as_str()) {
+            return false;
+        }
+        if let Some(dir) = ruta.parent() {
+            let _ = fs::create_dir_all(dir);
+        }
+        let _ = fs::write(&ruta, &actual);
+        true
+    }
+
+    /// Quita el icono de la bandeja antes de instalar una actualización.
+    ///
+    /// El instalador de Windows termina el proceso de golpe; sin retirar el
+    /// icono antes, Windows lo dejaba fantasma junto al de la versión nueva
+    /// —dos «UTS Nexus» en la bandeja— hasta pasar el ratón por encima.
+    #[tauri::command]
+    pub fn sistema_quitar_bandeja<R: Runtime>(app: AppHandle<R>) {
+        let _ = app.remove_tray_by_id("principal");
     }
 
     pub fn al_evento_de_ventana<R: Runtime>(ventana: &Window<R>, evento: &WindowEvent) {
@@ -256,6 +309,10 @@ mod otros {
     pub fn sistema_segundo_plano(_activo: bool) -> Result<(), String> {
         Err("Solo disponible en Windows.".into())
     }
+
+    /// Sin bandeja fuera de Windows: no hay nada que quitar.
+    #[tauri::command]
+    pub fn sistema_quitar_bandeja() {}
 }
 
 #[cfg(not(windows))]
@@ -281,5 +338,17 @@ mod pruebas {
             accion_al_cerrar(true, true),
             AccionAlCerrar::Ocultar { avisar: false }
         );
+    }
+
+    #[test]
+    fn solo_arranca_oculta_lanzada_por_windows_con_segundo_plano() {
+        assert!(arrancar_oculta(true, true, false));
+        assert!(!arrancar_oculta(false, true, false));
+        assert!(!arrancar_oculta(true, false, false));
+    }
+
+    #[test]
+    fn recien_actualizada_abre_la_ventana_aunque_la_lanzara_windows() {
+        assert!(!arrancar_oculta(true, true, true));
     }
 }

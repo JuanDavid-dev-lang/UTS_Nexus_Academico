@@ -12,6 +12,14 @@ import { setServerUrl } from '@/core/api/http-client';
 import { DEFAULT_SERVER_URL, normalizeServerUrl, resolverServidorInicial } from '@/core/config/env';
 import { toAppError } from '@/core/api/errors';
 import { toast } from '@/state/toast.store';
+import {
+  borrarCache,
+  borrarUltimoUsuario,
+  guardarUltimoUsuario,
+  leerUltimoUsuario,
+  restaurarCache,
+} from '@/core/offline/cache';
+import { marcarSinConexion } from '@/core/offline/conectividad';
 import type { User } from '@/domain/schemas/auth';
 
 /**
@@ -26,12 +34,21 @@ type SessionStatus = 'booting' | 'anonymous' | 'authenticated' | 'unreachable';
 type SessionState = {
   status: SessionStatus;
   user: User | null;
+  /**
+   * El usuario salió de lo guardado en este equipo porque el servidor no
+   * contestó al arrancar (modo sin conexión). Sigue siendo válido para
+   * trabajar, pero no se ha confirmado con el servidor: `revalidar` lo hace
+   * cuando vuelve.
+   */
+  desdeCache: boolean;
   serverUrl: string;
 
   /** Restores a previous session at startup, if the stored tokens still work. */
   bootstrap: () => Promise<void>;
   /** Tries the saved session again after `unreachable`. */
   reconnect: () => Promise<void>;
+  /** Confirma con el servidor un usuario que se abrió desde lo guardado. */
+  revalidar: () => Promise<void>;
   /** Drops the saved session without asking the server: it did not answer. */
   forget: () => Promise<void>;
   /**
@@ -57,6 +74,7 @@ type SessionState = {
 export const useSession = create<SessionState>((set, get) => ({
   status: 'booting',
   user: null,
+  desdeCache: false,
   serverUrl: DEFAULT_SERVER_URL,
 
   async bootstrap() {
@@ -93,22 +111,55 @@ export const useSession = create<SessionState>((set, get) => ({
       // /auth/me both validates the stored token and refreshes the user data;
       // a 401 here is transparently handled by the HTTP client's refresh flow.
       const user = await authRepository.me();
-      set({ status: 'authenticated', user });
+      // La caché del disco se restaura ANTES de pintar la aplicación: así las
+      // pantallas abren con los datos de la última vez en vez de en esqueleto.
+      await restaurarCache(user.id);
+      set({ status: 'authenticated', user, desdeCache: false });
+      void guardarUltimoUsuario(user);
     } catch (error) {
       // Only the server saying the session is invalid ends it. No answer at
       // all —stopped, waking up, no network— says nothing about the tokens.
       if (toAppError(error).isRetryable) {
+        // Con lo de la última vez guardado en este equipo, el docente trabaja
+        // sin servidor: la pantalla de espera queda para cuando no hay nada.
+        const guardado = await leerUltimoUsuario();
+        if (guardado) {
+          await restaurarCache(guardado.id);
+          marcarSinConexion();
+          set({ status: 'authenticated', user: guardado, desdeCache: true });
+          return;
+        }
         set({ status: 'unreachable', user: null });
         return;
       }
+      const dejado = get().user?.id ?? (await leerUltimoUsuario())?.id;
       await tokenService.clear();
-      set({ status: 'anonymous', user: null });
+      await borrarCache(dejado);
+      await borrarUltimoUsuario();
+      set({ status: 'anonymous', user: null, desdeCache: false });
+    }
+  },
+
+  async revalidar() {
+    if (!get().desdeCache) return;
+    try {
+      const user = await authRepository.me();
+      set({ user, desdeCache: false });
+      void guardarUltimoUsuario(user);
+    } catch {
+      // Sin respuesta se sigue como estaba; un 401 definitivo ya lo trató el
+      // cliente HTTP (`onSessionExpired`).
     }
   },
 
   async forget() {
+    const id = get().user?.id ?? (await leerUltimoUsuario())?.id;
     await tokenService.clear();
-    set({ status: 'anonymous', user: null });
+    // «Usar otra cuenta» no deja los datos de esta en el equipo. La cola de
+    // envíos sí se conserva: son notas que aún no llegaron al servidor.
+    await borrarCache(id);
+    await borrarUltimoUsuario();
+    set({ status: 'anonymous', user: null, desdeCache: false });
   },
 
   async login(email: string, password: string, recordar = true) {
@@ -116,15 +167,19 @@ export const useSession = create<SessionState>((set, get) => ({
       const { user, accessToken, refreshToken } = await authRepository.login({ email, password });
       await tokenService.set({ accessToken, refreshToken }, { persistir: recordar });
       await tokenService.setServerUrl(get().serverUrl);
-      set({ status: 'authenticated', user });
+      set({ status: 'authenticated', user, desdeCache: false });
+      void guardarUltimoUsuario(user);
     } catch (error) {
       throw toAppError(error);
     }
   },
 
   async logout() {
+    const id = get().user?.id;
     await authRepository.logout();
-    set({ status: 'anonymous', user: null });
+    await borrarCache(id);
+    await borrarUltimoUsuario();
+    set({ status: 'anonymous', user: null, desdeCache: false });
   },
 
   async changeServerUrl(url: string) {
@@ -136,10 +191,16 @@ export const useSession = create<SessionState>((set, get) => ({
 
   setUser(user) {
     set({ user });
+    void guardarUltimoUsuario(user);
   },
 
   expire() {
-    set({ status: 'anonymous', user: null });
+    const id = get().user?.id;
+    set({ status: 'anonymous', user: null, desdeCache: false });
+    // La sesión se perdió: los datos en caché dejan de ser de nadie. La cola de
+    // envíos NO se toca — al volver a entrar esta misma cuenta, sube.
+    void borrarCache(id);
+    void borrarUltimoUsuario();
   },
 }));
 

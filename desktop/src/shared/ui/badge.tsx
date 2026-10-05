@@ -12,10 +12,14 @@ import type { RiskLevel } from '@/domain/schemas/common';
  * vistazo, los chips se fundían con la fila y había que leer la etiqueta para
  * saber de qué color eran. El borde le da un contorno al bloque de color y ese
  * es todo el trabajo que el chip tiene que hacer.
+ *
+ * Es una etiqueta, no una píldora: esquinas de 6 px y peso medio. Con
+ * `rounded-full` y negrita cada estado de una tabla era un caramelo, y una
+ * columna de veinte caramelos se lee antes que los nombres que acompaña.
  */
 const badgeVariants = cva(
   cn(
-    'inline-flex items-center gap-1.5 rounded-full border font-semibold',
+    'inline-flex items-center gap-1.5 rounded-sm border font-medium',
     'transition-colors duration-200 ease-out',
   ),
   {
@@ -32,8 +36,8 @@ const badgeVariants = cva(
         primary: 'border-primary-tint bg-primary-soft text-primary',
       },
       size: {
-        sm: 'px-2 py-px text-caption',
-        md: 'px-2.5 py-0.5 text-caption',
+        sm: 'px-1.5 py-px text-caption',
+        md: 'px-2 py-0.5 text-caption',
       },
     },
     defaultVariants: { tone: 'neutral', size: 'md' },
@@ -126,7 +130,7 @@ export function GradeBadge({ value, className }: { value: number | null; classNa
   }
   const passing = value >= 3;
   return (
-    <Badge tone={passing ? 'success' : 'danger'} className={cn('font-mono tabular', className)}>
+    <Badge tone={passing ? 'success' : 'danger'} className={cn('tabular', className)}>
       {value.toFixed(2)}
     </Badge>
   );

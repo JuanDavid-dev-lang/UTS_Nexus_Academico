@@ -56,6 +56,8 @@ export async function estadoDePeriodo(periodo: string): Promise<EstadoPeriodo | 
 /** Error con `statusCode`, para que `error.ts` lo traduzca a 409 y no a 500. */
 export class PeriodoBloqueadoError extends Error {
   statusCode = 409;
+  /** Lectura mecánica en el cliente: una escritura diferida no se reintenta. */
+  codigo = 'PERIODO_BLOQUEADO';
   constructor(
     public readonly periodo: string,
     public readonly estado: EstadoPeriodo,
