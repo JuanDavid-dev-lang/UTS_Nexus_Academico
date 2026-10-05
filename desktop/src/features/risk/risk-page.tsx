@@ -95,7 +95,7 @@ export default function RiskPage() {
         cell: (row) => (
           <div className="flex min-w-0 flex-col">
             <span className="truncate font-medium">{row.fullName}</span>
-            <span className="truncate font-mono text-caption text-muted">{row.code}</span>
+            <span className="truncate text-caption tabular-nums text-muted">{row.code}</span>
           </div>
         ),
       },
@@ -118,7 +118,7 @@ export default function RiskPage() {
         sortValue: (row) => row.notaFinal,
         cell: (row) => (
           <span
-            className={`font-mono tabular-nums ${row.notaFinal < 3 ? 'text-danger' : 'text-text'}`}
+            className={`tabular-nums ${row.notaFinal < 3 ? 'text-danger' : 'text-text'}`}
           >
             {formatGrade(row.notaFinal)}
           </span>
@@ -132,7 +132,7 @@ export default function RiskPage() {
         sortValue: (row) => row.attendanceRate,
         cell: (row) => (
           <div className="flex flex-col items-center gap-1">
-            <span className="font-mono text-caption tabular-nums">
+            <span className="text-caption tabular-nums">
               {formatPercent(row.attendanceRate)}
             </span>
             <Progress
@@ -151,7 +151,7 @@ export default function RiskPage() {
         width: '0.7fr',
         align: 'center',
         sortValue: (row) => row.missed,
-        cell: (row) => <span className="font-mono tabular-nums">{row.missed}</span>,
+        cell: (row) => <span className="tabular-nums">{row.missed}</span>,
       },
       {
         key: 'score',
@@ -160,7 +160,7 @@ export default function RiskPage() {
         align: 'right',
         sortValue: (row) => row.riskScore,
         cell: (row) => (
-          <span className="font-mono text-caption tabular-nums text-muted">{row.riskScore}/100</span>
+          <span className="text-caption tabular-nums text-muted">{row.riskScore}/100</span>
         ),
       },
       {
@@ -224,7 +224,7 @@ export default function RiskPage() {
         <Card>
           <CardHeader className="p-3 pb-3 @2xl:p-5 @2xl:pb-2">
             <CardDescription>Riesgo alto</CardDescription>
-            <CardTitle className="font-mono text-h2 text-danger">{counts.HIGH}</CardTitle>
+            <CardTitle className="text-h2 font-semibold tabular tracking-[-0.02em] text-danger">{counts.HIGH}</CardTitle>
           </CardHeader>
           <CardContent className="hidden @2xl:block">
             <p className="text-caption text-muted">Requieren contacto inmediato</p>
@@ -234,7 +234,7 @@ export default function RiskPage() {
         <Card>
           <CardHeader className="p-3 pb-3 @2xl:p-5 @2xl:pb-2">
             <CardDescription>Riesgo medio</CardDescription>
-            <CardTitle className="font-mono text-h2 text-warning">{counts.MEDIUM}</CardTitle>
+            <CardTitle className="text-h2 font-semibold tabular tracking-[-0.02em] text-warning">{counts.MEDIUM}</CardTitle>
           </CardHeader>
           <CardContent className="hidden @2xl:block">
             <p className="text-caption text-muted">Seguimiento en las próximas semanas</p>
@@ -244,7 +244,7 @@ export default function RiskPage() {
         <Card>
           <CardHeader className="p-3 pb-3 @2xl:p-5 @2xl:pb-2">
             <CardDescription>En seguimiento</CardDescription>
-            <CardTitle className="font-mono text-h2">{counts.all}</CardTitle>
+            <CardTitle className="text-h2 font-semibold tabular tracking-[-0.02em]">{counts.all}</CardTitle>
           </CardHeader>
           <CardContent className="hidden @2xl:block">
             <p className="text-caption text-muted">Estudiantes con alguna señal de alerta</p>

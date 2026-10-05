@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../features/settings/data/update_service.dart';
 import '../notifications/local_notifications_service.dart';
 import '../theme/app_theme.dart';
+import 'notas_version.dart';
 
 /// Versión que el usuario ya pospuso. Se recuerda entre arranques.
 const _clavePospuesta = 'uts.actualizacion.pospuesta';
@@ -60,6 +61,8 @@ class _UpdateGateState extends State<UpdateGate> {
   Future<void> _buscar() async {
     if (!mounted || _preguntado) return;
 
+    await _retirarAvisoInstalado();
+
     final AppRelease? disponible;
     try {
       disponible = await _service.check();
@@ -101,6 +104,25 @@ class _UpdateGateState extends State<UpdateGate> {
 
     if (actualizar == false) {
       await preferencias.setString(_clavePospuesta, disponible.version);
+    }
+  }
+
+  /// Retira «Actualización disponible» si esa versión ya está instalada.
+  ///
+  /// Android conserva las notificaciones de una app a través de una
+  /// actualización: sin esto, el aviso de la 1.8.1 seguía en el cajón con la
+  /// 1.8.1 ya abierta, y tocarlo llevaba a un Ajustes que decía lo contrario.
+  Future<void> _retirarAvisoInstalado() async {
+    try {
+      final preferencias = await SharedPreferences.getInstance();
+      final notificada = preferencias.getString(_claveNotificada);
+      if (notificada == null) return;
+      final instalada = await _service.currentVersion();
+      if (compareVersions(instalada, notificada) < 0) return;
+      await LocalNotificationsService.instance.cancelar('update:$notificada');
+    } on Exception {
+      // Un aviso que no se pudo retirar se quita a mano; no es motivo para
+      // dejar de comprobar actualizaciones.
     }
   }
 
@@ -204,10 +226,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
             ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 160),
               child: SingleChildScrollView(
-                child: Text(
-                  widget.release.notes.trim(),
-                  style: AppType.caption,
-                ),
+                child: NotasVersion(notas: widget.release.notes),
               ),
             ),
           ],

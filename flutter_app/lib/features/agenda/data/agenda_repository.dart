@@ -47,13 +47,14 @@ class AgendaRepository {
       final items = _items(cuerpo);
 
       await OfflineCache.save(clave, {'campusOffsetMinutes': offset, 'items': items});
-      OfflineStatus.instance.marcarEnLinea();
+      if (!enPrecarga) OfflineStatus.instance.marcarEnLinea();
 
       return AgendaRango(
         items: items.map(AgendaItem.fromJson).toList(),
         offsetCampusMinutos: offset,
       );
     } catch (error) {
+      if (enPrecarga) rethrow;
       final guardado = await OfflineCache.read(clave);
       if (guardado == null) rethrow;
 
@@ -74,9 +75,10 @@ class AgendaRepository {
       final respuesta = await _api.get('/agenda/resumen');
       final cuerpo = Map<String, dynamic>.from(respuesta.data as Map);
       await OfflineCache.save('agenda.resumen', cuerpo);
-      OfflineStatus.instance.marcarEnLinea();
+      if (!enPrecarga) OfflineStatus.instance.marcarEnLinea();
       return AgendaResumen.fromJson(cuerpo);
     } catch (error) {
+      if (enPrecarga) rethrow;
       final guardado = await OfflineCache.read('agenda.resumen');
       if (guardado == null) rethrow;
       OfflineStatus.instance.marcarDesdeCache(guardado.guardadoEn);

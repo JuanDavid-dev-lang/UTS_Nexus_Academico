@@ -24,13 +24,25 @@ export class AppError extends Error {
   readonly kind: AppErrorKind;
   readonly status?: number;
   readonly details?: unknown;
+  /** `codigo` del JSON de error del servidor (`PERIODO_BLOQUEADO`…), si lo trae. */
+  readonly codigo?: string;
+  /** Espera pedida por el servidor (`Retry-After`), en milisegundos. */
+  readonly retryAfterMs?: number;
 
-  constructor(kind: AppErrorKind, message: string, status?: number, details?: unknown) {
+  constructor(
+    kind: AppErrorKind,
+    message: string,
+    status?: number,
+    details?: unknown,
+    extra?: { codigo?: string; retryAfterMs?: number },
+  ) {
     super(message);
     this.name = 'AppError';
     this.kind = kind;
     this.status = status;
     this.details = details;
+    this.codigo = extra?.codigo;
+    this.retryAfterMs = extra?.retryAfterMs;
   }
 
   /** True when retrying the exact same request could plausibly succeed. */
@@ -121,7 +133,11 @@ function estadoDeRegistro(status: number, body: unknown): boolean {
 }
 
 /** Builds an AppError, using the server's message only when it is meant for the user. */
-export function appErrorFromResponse(status: number, body: unknown): AppError {
+export function appErrorFromResponse(
+  status: number,
+  body: unknown,
+  retryAfterMs?: number,
+): AppError {
   const kind = kindFromStatus(status);
   const serverMessage =
     body && typeof body === 'object' && 'message' in body && typeof body.message === 'string'
@@ -145,7 +161,12 @@ export function appErrorFromResponse(status: number, body: unknown): AppError {
         ? serverMessage
         : MESSAGES[kind];
 
-  return new AppError(kind, message, status, body);
+  const codigo =
+    body && typeof body === 'object' && 'codigo' in body && typeof body.codigo === 'string'
+      ? body.codigo
+      : undefined;
+
+  return new AppError(kind, message, status, body, { codigo, retryAfterMs });
 }
 
 /** Normalises any thrown value into an AppError. Never throws itself. */

@@ -12,15 +12,17 @@ import { elegirOpcion, opcionesDe, siguienteHabilitada, usarMenuPropio } from '.
  */
 
 const controlStyles = cn(
-  'w-full rounded-lg border border-border bg-surface px-3 text-body text-text',
+  // Filo `--border-strong`, no `--border`: el de las tarjetas es un separador
+  // y casi desaparece sobre blanco; un campo tiene que verse como un sitio
+  // donde se escribe aunque esté vacío.
+  'w-full rounded-md border border-border-strong bg-surface px-3 text-body text-text',
   // El marcador de posición va en `--text-subtle`, no en `--text-muted`: con el
   // mismo tono que un subtítulo, un campo vacío parecía un campo relleno y en
   // un formulario de seis campos había que tocarlos para saber cuáles faltaban.
   'placeholder:text-subtle',
-  'shadow-[inset_0_1px_1px_rgb(16_24_40_/_0.03)]',
   'transition-[border-color,box-shadow] duration-200 ease-out',
-  'hover:border-border-strong',
-  'focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/25',
+  'hover:border-muted',
+  'focus:border-primary focus:outline-none focus:ring-[3px] focus:ring-ring/15',
   'disabled:cursor-not-allowed disabled:bg-surface-alt disabled:opacity-70',
   'aria-[invalid=true]:border-danger aria-[invalid=true]:ring-2 aria-[invalid=true]:ring-danger/20',
 );
@@ -154,7 +156,7 @@ export const NativeSelect = forwardRef<
 });
 
 export function Label({ className, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) {
-  return <label className={cn('text-caption font-semibold text-muted', className)} {...props} />;
+  return <label className={cn('text-caption font-medium text-text', className)} {...props} />;
 }
 
 type FieldProps = {

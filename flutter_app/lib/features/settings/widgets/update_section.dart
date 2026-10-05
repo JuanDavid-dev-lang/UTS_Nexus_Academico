@@ -6,6 +6,7 @@ import '../data/update_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/version.dart';
 import '../../../core/widgets/ui_kit.dart';
+import '../../../core/widgets/notas_version.dart';
 
 enum _Phase { checking, upToDate, available, downloading, unsupported, failed }
 
@@ -215,9 +216,13 @@ class _UpdateSectionState extends State<UpdateSection> {
           ),
           if (_release!.notes.isNotEmpty) ...[
             const SizedBox(height: 10),
-            Text(
-              _release!.notes,
-              style: AppType.caption.copyWith(color: muted),
+            // Sin tope, las notas de una versión grande ocupaban la pantalla
+            // entera y empujaban el botón de descargar fuera de la vista.
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 220),
+              child: SingleChildScrollView(
+                child: NotasVersion(notas: _release!.notes),
+              ),
             ),
           ],
           if (_release!.sizeBytes > 0) ...[

@@ -14,6 +14,8 @@ export const attendanceSchema = mongoDoc.extend({
   date: z.string(),
   durationMinutes: numberish.optional().default(90),
   present: z.boolean(),
+  /** Minutos de retraso (lo registra el móvil); el escritorio solo lo conserva al marcar. */
+  lateMinutes: numberish.optional().default(0),
   notes: z.string().optional().default(''),
 });
 export type Attendance = z.infer<typeof attendanceSchema>;

@@ -20,7 +20,7 @@ import {
   EmptyState,
   ErrorState,
   PageContainer,
-  PageHero,
+  PageHeader,
   RiskBadge,
   SkeletonStatGrid,
   StatCard,
@@ -145,14 +145,18 @@ export default function DashboardPage() {
 
   return (
     <PageContainer>
-      <PageHero
-        eyebrow={hoy.fecha}
+      {/*
+        Cabecera editorial, no un bloque verde con degradado: el saludo y la
+        fecha son contexto, no un titular de campaña. El verde se queda para
+        la acción.
+      */}
+      <PageHeader
+        eyebrow={<span className="inline-block first-letter:uppercase">{hoy.fecha}</span>}
         title={`${hoy.saludo}, ${firstName}`}
         subtitle="Este es el estado actual de tus grupos."
         actions={
           <Button
             variant="secondary"
-            className="border-white/25 bg-white/10 text-white hover:bg-white/20 dark:border-border dark:bg-surface-alt dark:text-text"
             onClick={() => {
               void dashboard.refetch();
               void risks.refetch();
@@ -163,65 +167,58 @@ export default function DashboardPage() {
             Actualizar
           </Button>
         }
-      >
-        {/*
-          Lo primero que ve el docente no es un número: es si hay algo que
-          hacer. Un panel que solo informa obliga a interpretar seis cifras
-          para llegar a la única conclusión que importa, y esa conclusión —hay
-          gente que necesita intervención— cabe en una línea con un botón.
-        */}
-        {dashboard.isPending ? null : enRiesgo > 0 ? (
-          <button
-            type="button"
-            onClick={() => navigate('/riesgo')}
-            className="group flex w-full items-center gap-3 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-left transition-colors hover:bg-white/20 dark:border-warning/30 dark:bg-warning-soft/60 dark:hover:bg-warning-soft"
-          >
-            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-warning/20 text-warning dark:bg-warning/20">
-              <AlertTriangle className="size-4" aria-hidden />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-body font-semibold">
-                {formatCount(enRiesgo)}{' '}
-                {enRiesgo === 1 ? 'estudiante necesita' : 'estudiantes necesitan'} seguimiento
-              </span>
-              <span className="block text-caption text-white/70 dark:text-muted">
-                Revisa el detalle y decide la intervención
-              </span>
-            </span>
-            <ArrowRight
-              className="size-4 shrink-0 transition-transform group-hover:translate-x-0.5"
-              aria-hidden
-            />
-          </button>
-        ) : (
-          <div className="flex items-center gap-3 rounded-xl border border-white/20 bg-white/10 px-4 py-3 dark:border-success/30 dark:bg-success-soft/60">
-            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-success/25 text-success">
-              <CheckCircle2 className="size-4" aria-hidden />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-body font-semibold">Sin estudiantes en riesgo</span>
-              <span className="block text-caption text-white/70 dark:text-muted">
-                Todo tu alumnado está dentro de los parámetros esperados
-              </span>
-            </span>
-          </div>
-        )}
-      </PageHero>
+      />
 
       {/*
-        mt-2 sobre el gap-4 del contenedor: el bloque de marca pesa visualmente
-        más que una tarjeta, y con los 16px estándar los indicadores —que además
-        entran subiendo— aterrizaban pegados a él. 24px es el mismo aire que el
-        margen de página, así que no inventa un escalón nuevo.
+        Lo primero que ve el docente no es un número: es si hay algo que
+        hacer. Un panel que solo informa obliga a interpretar seis cifras
+        para llegar a la única conclusión que importa, y esa conclusión —hay
+        gente que necesita intervención— cabe en una línea con un botón.
       */}
+      {dashboard.isPending ? null : enRiesgo > 0 ? (
+        <button
+          type="button"
+          onClick={() => navigate('/riesgo')}
+          className="group flex w-full items-center gap-3 rounded-card border border-warning-border bg-warning-soft px-4 py-3 text-left transition-colors hover:border-warning"
+        >
+          <AlertTriangle className="size-5 shrink-0 text-warning" aria-hidden />
+          <span className="min-w-0 flex-1">
+            <span className="block text-body font-semibold text-text">
+              {formatCount(enRiesgo)}{' '}
+              {enRiesgo === 1 ? 'estudiante necesita' : 'estudiantes necesitan'} seguimiento
+            </span>
+            <span className="block text-caption text-muted">
+              Revisa el detalle y decide la intervención
+            </span>
+          </span>
+          <span className="flex shrink-0 items-center gap-1 text-caption font-semibold text-text">
+            <span className="hidden @lg:inline">Ver riesgo</span>
+            <ArrowRight
+              className="size-4 transition-transform group-hover:translate-x-0.5"
+              aria-hidden
+            />
+          </span>
+        </button>
+      ) : (
+        <div className="flex items-center gap-3 rounded-card border border-border bg-surface px-4 py-3">
+          <CheckCircle2 className="size-5 shrink-0 text-success" aria-hidden />
+          <span className="min-w-0">
+            <span className="block text-body font-semibold text-text">Sin estudiantes en riesgo</span>
+            <span className="block text-caption text-muted">
+              Todo tu alumnado está dentro de los parámetros esperados
+            </span>
+          </span>
+        </div>
+      )}
+
       {dashboard.isPending ? (
-        <SkeletonStatGrid className="mt-2" />
+        <SkeletonStatGrid />
       ) : dashboard.isError ? (
-        <Card className="mt-2">
+        <Card>
           <ErrorState error={dashboard.error} onRetry={() => void dashboard.refetch()} />
         </Card>
       ) : (
-        <div className="mt-2 grid grid-cols-2 gap-4 @3xl:grid-cols-3 @6xl:grid-cols-6">
+        <div className="grid grid-cols-2 gap-4 @3xl:grid-cols-3 @6xl:grid-cols-6">
           <StatCard
             index={0}
             label="Promedio actual"

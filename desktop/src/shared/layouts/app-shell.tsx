@@ -200,9 +200,9 @@ export function AppShell() {
                 : undefined,
           }}
           className={cn(
-            'fixed bottom-5 right-5 z-30 grid size-16 place-items-center overflow-hidden rounded-full',
-            'border border-border bg-surface shadow-pop',
-            'transition-transform duration-200 ease-out hover:-translate-y-1 active:translate-y-0',
+            'fixed bottom-5 right-5 z-30 grid size-14 place-items-center overflow-hidden rounded-full',
+            'border border-border bg-surface shadow-md',
+            'transition-colors duration-150 ease-out hover:border-border-strong hover:bg-surface-alt',
             // `ring-focus` no existía: el token se llama `ring`, así que esta
             // clase no generaba ninguna regla y el botón se quedaba sin anillo
             // de foco. Con el teclado no había forma de saber que estaba

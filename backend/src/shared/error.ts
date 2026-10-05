@@ -31,6 +31,7 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     const field = Object.keys(err.keyPattern ?? {})[0];
     return res.status(409).json({
       ok: false,
+      codigo: 'DUPLICADO',
       message: field ? `Ya existe un registro con ese ${field}.` : 'Ese registro ya existe.',
     });
   }
@@ -75,8 +76,14 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   // registrarlo el fallo desaparece sin dejar rastro.
   if (status >= 500) console.error('[error]', err);
 
+  // `codigo` es opcional y de lectura mecánica: el cliente sin conexión decide
+  // con él qué hacer con un 409 (no reintentar, avisar) sin comparar textos.
+  // Solo se publica en errores de cliente: un 5xx no lleva detalle.
+  const codigo = status < 500 && typeof err.codigo === 'string' ? err.codigo : undefined;
+
   res.status(status).json({
     ok: false,
+    ...(codigo ? { codigo } : {}),
     message: status >= 500 ? 'Internal server error' : err.message ?? 'Error',
   });
 };

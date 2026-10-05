@@ -15,7 +15,14 @@ import {
   SkeletonList,
 } from '@/shared/ui';
 import { Avatar } from '@/shared/ui/primitives';
-import { useAttendance, useMarkAttendance } from '@/features/attendance/hooks/use-attendance';
+import {
+  useAsistenciaPendiente,
+  useAttendance,
+  useMarkAttendance,
+} from '@/features/attendance/hooks/use-attendance';
+import type { ClaseAsistencia, RegistroAsistencia } from '@/domain/offline/outbox';
+import { TEXTO_SIN_CONEXION } from '@/features/offline/requiere-conexion';
+import { useEnLinea } from '@/state/connectivity.store';
 import { useEnrolledStudents } from '@/features/grades/hooks/use-grades';
 import { useGroups, useSubjects } from '@/features/subjects/hooks/use-subjects';
 import { useCurrentUser, useUserRole } from '@/state/session.store';
@@ -97,6 +104,10 @@ export default function AttendancePage() {
   const enrolled = useEnrolledStudents({ subjectId, period, groupId: grupoElegido || undefined });
   const attendance = useAttendance({ subjectId: subjectId || undefined, period }, Boolean(subjectId));
   const markAttendance = useMarkAttendance();
+  const enLinea = useEnLinea();
+  // Lo marcado que aún no salió de este equipo se ve igual que lo guardado,
+  // con su marca de «pendiente».
+  const pendientes = useAsistenciaPendiente(subjectId, date);
 
   /*
     Puente con UniPlanner. Se pregunta primero si está encendido: sin
@@ -145,6 +156,23 @@ export default function AttendancePage() {
     for (const record of attendance.data ?? []) {
       if (record.date.slice(0, 10) === date) map.set(record.studentId, record.present);
     }
+    // Lo pendiente manda sobre lo guardado: es lo último que el docente marcó.
+    for (const [studentId, marca] of pendientes) map.set(studentId, marca.present);
+    return map;
+  }, [attendance.data, date, pendientes]);
+
+  /**
+   * El registro ya guardado de cada estudiante en esa fecha. El envío por
+   * lotes escribe también el retraso y la observación, y sin esto marcar
+   * desde aquí los pondría a cero sobre lo que el móvil hubiera anotado.
+   */
+  const registroGuardado = useMemo(() => {
+    const map = new Map<string, { lateMinutes: number; notes: string }>();
+    for (const record of attendance.data ?? []) {
+      if (record.date.slice(0, 10) === date) {
+        map.set(record.studentId, { lateMinutes: record.lateMinutes, notes: record.notes });
+      }
+    }
     return map;
   }, [attendance.data, date]);
 
@@ -170,28 +198,46 @@ export default function AttendancePage() {
   const absentCount = registeredCount - presentCount;
   const materiaActiva = periodSubjects.find((subject) => subject._id === subjectId);
 
-  function mark(studentId: string, present: boolean) {
-    if (!user || !subjectId) return;
-    markAttendance.mutate({
-      studentId,
+  function claseActual(): ClaseAsistencia | null {
+    if (!user || !subjectId) return null;
+    return {
       subjectId,
-      groupId: grupoElegido || undefined,
+      ...(grupoElegido ? { groupId: grupoElegido } : {}),
       teacherId: user.id,
       period,
+      dia: date,
       date: new Date(`${date}T12:00:00`).toISOString(),
-      present,
-    });
+    };
+  }
+
+  function registroDe(studentId: string, present: boolean): RegistroAsistencia {
+    const previo = registroGuardado.get(studentId);
+    return { studentId, present, lateMinutes: previo?.lateMinutes ?? 0, notes: previo?.notes ?? '' };
+  }
+
+  function mark(studentId: string, present: boolean) {
+    const clase = claseActual();
+    if (!clase) return;
+    markAttendance.mutate({ clase, registros: [registroDe(studentId, present)] });
   }
 
   function markAllPresent() {
-    if (!user || !subjectId) return;
+    const clase = claseActual();
+    if (!clase) return;
     const pending = enrolled.data.filter((student) => !marksForDate.has(student._id));
     if (pending.length === 0) {
       toast.info('Nada que registrar', 'Ya marcaste a todos los estudiantes de esta clase.');
       return;
     }
-    for (const student of pending) mark(student._id, true);
-    toast.success(`${pending.length} estudiantes marcados como presentes`);
+    // Un solo envío con toda la lista, no uno por estudiante.
+    markAttendance.mutate(
+      { clase, registros: pending.map((student) => registroDe(student._id, true)) },
+      {
+        onSuccess: (resultado) => {
+          if (!resultado.enCola) toast.success(`${pending.length} estudiantes marcados como presentes`);
+        },
+      },
+    );
   }
 
   return (
@@ -207,7 +253,7 @@ export default function AttendancePage() {
           </>
         }
         title="Asistencia"
-        subtitle="Registra la asistencia de una clase; cada marca se guarda al instante"
+        subtitle="Registra la asistencia de una clase; cada marca se guarda al instante, también sin conexión"
         actions={
           canWrite || puedeExportar ? (
             <div className="flex flex-wrap gap-2">
@@ -224,13 +270,20 @@ export default function AttendancePage() {
                 <Button
                   variant={sesionQr.data ? 'primary' : 'secondary'}
                   onClick={() => setQrOpen(true)}
+                  disabled={!enLinea}
+                  title={enLinea ? undefined : TEXTO_SIN_CONEXION}
                 >
                   <QrCode aria-hidden />
                   {sesionQr.data ? 'Lista por QR en curso' : 'Pasar lista con QR'}
                 </Button>
               ) : null}
               {canWrite && !recorteWeb ? (
-                <Button variant="secondary" onClick={() => setScanOpen(true)}>
+                <Button
+                  variant="secondary"
+                  onClick={() => setScanOpen(true)}
+                  disabled={!enLinea}
+                  title={enLinea ? undefined : TEXTO_SIN_CONEXION}
+                >
                   <Camera aria-hidden />
                   Importar desde una foto
                 </Button>
@@ -476,6 +529,21 @@ export default function AttendancePage() {
                     {student.code}
                   </span>
                 </div>
+
+                {pendientes.has(student._id) ? (
+                  <Badge
+                    tone={pendientes.get(student._id)?.fallida ? 'danger' : 'warning'}
+                    title={
+                      pendientes.get(student._id)?.fallida
+                        ? 'El servidor rechazó esta marca: revisa la lista de envíos'
+                        : enLinea
+                          ? 'Enviando al servidor'
+                          : 'Guardada en este equipo; se envía al volver la conexión'
+                    }
+                  >
+                    {pendientes.get(student._id)?.fallida ? 'Con error' : 'Pendiente'}
+                  </Badge>
+                ) : null}
 
                 {rate !== undefined ? (
                   <Badge

@@ -15,6 +15,10 @@ import { cn } from '@/shared/lib/cn';
  * etiqueta se ve borrosa justo en el fotograma en el que el usuario está
  * mirándola; un desplazamiento de un píxel comunica lo mismo y no toca el
  * texto.
+ *
+ * Ningún botón lleva sombra. El primario tenía un halo verde debajo, y un
+ * botón que brilla es un botón que pide atención incluso cuando no es lo
+ * siguiente que hay que hacer. El peso lo da el relleno, no el resplandor.
  */
 const buttonVariants = cva(
   cn(
@@ -26,36 +30,29 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary: cn(
-          'bg-primary text-on-primary shadow-primary',
-          'hover:bg-primary-hover hover:shadow-md',
-          'active:bg-primary-active active:shadow-sm',
-        ),
+        primary: 'bg-primary text-on-primary hover:bg-primary-hover active:bg-primary-active',
         /*
          * Acento de marca: relleno lima con texto oscuro encima (8.9:1). Es el
          * botón de «esto es lo siguiente que vas a querer hacer», no el de
          * confirmar: si conviven los dos en una vista, el primario es el que
          * ejecuta y este el que sugiere. Nunca dos en el mismo bloque.
          */
-        accent: cn(
-          'bg-accent text-on-accent shadow-sm',
-          'hover:brightness-105 hover:shadow-md',
-        ),
+        accent: 'bg-accent text-on-accent hover:brightness-105',
         /* Verde de marca sin el peso del relleno: acciones secundarias que
            siguen siendo de la aplicación (añadir fila, importar). */
         soft: 'bg-primary-soft text-primary hover:bg-primary-tint',
-        secondary: 'bg-surface-alt text-text border border-border hover:bg-surface-hover hover:border-border-strong',
+        secondary: 'bg-surface text-text border border-border-strong hover:bg-surface-alt',
         outline: 'border border-border-strong text-text hover:bg-surface-alt hover:border-primary',
         ghost: 'text-muted hover:bg-surface-alt hover:text-text',
-        danger: 'bg-danger text-white shadow-sm hover:brightness-110 hover:shadow-md',
+        danger: 'bg-danger text-white hover:brightness-110',
         link: 'text-primary underline-offset-4 hover:underline',
       },
       size: {
-        sm: 'h-8 rounded-md px-3 text-caption [&_svg]:size-3.5',
-        md: 'h-10 rounded-lg px-4 text-body [&_svg]:size-4',
-        lg: 'h-11 rounded-lg px-6 text-body [&_svg]:size-4',
-        icon: 'size-9 rounded-lg [&_svg]:size-4',
-        'icon-sm': 'size-8 rounded-md [&_svg]:size-3.5',
+        sm: 'h-8 rounded-sm px-3 text-caption [&_svg]:size-3.5',
+        md: 'h-10 rounded-md px-4 text-body [&_svg]:size-4',
+        lg: 'h-11 rounded-md px-6 text-body [&_svg]:size-4',
+        icon: 'size-9 rounded-md [&_svg]:size-4',
+        'icon-sm': 'size-8 rounded-sm [&_svg]:size-3.5',
       },
       block: {
         true: 'w-full',

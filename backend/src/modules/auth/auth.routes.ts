@@ -18,6 +18,7 @@ import {
   DIAS_DE_SESION,
   PATRON_ID_DISPOSITIVO,
   dispositivoAutorizado,
+  inicioDeGraciaDeRotacion,
 } from '../../domains/session/session-policy.js';
 import {
   RECOVERY_INVALID_MESSAGE,
@@ -288,6 +289,7 @@ authRouter.post('/refresh', async (req, res, next) => {
         $set: {
           refreshTokenHash: hashToken(pair.refreshToken),
           previousRefreshTokenHash: tokenHash,
+          rotatedAt: new Date(),
           expiresAt: daysFromNow(DIAS_DE_SESION),
           // Una sesión anterior a la atadura queda atada al primer equipo que
           // la renueva mandando su identificador: es el que ya la tenía.
@@ -316,6 +318,35 @@ authRouter.post('/refresh', async (req, res, next) => {
         console.warn(`[auth] refresh desde otro equipo para ${payload.sub}: sesión revocada.`);
         return res.status(401).json({ ok: false, message: 'Invalid session' });
       }
+
+      /**
+       * Gracia de rotación: el token inmediatamente anterior, de la misma
+       * sesión y del mismo equipo, rotado hace menos de `GRACIA_ROTACION_MS`.
+       * Es el reintento de un cliente cuya respuesta de refresh se perdió; no
+       * es robo, así que se le entrega una rotación nueva de ESA sesión. Se
+       * conserva `previousRefreshTokenHash` y `rotatedAt` para que la gracia
+       * no se prolongue encadenando reintentos. El filtro es atómico: dos
+       * reintentos simultáneos no pueden ganar los dos.
+       */
+      const ahora = Date.now();
+      const enGracia = await SessionModel.findOneAndUpdate(
+        {
+          userId: payload.sub,
+          previousRefreshTokenHash: tokenHash,
+          revokedAt: null,
+          expiresAt: { $gt: new Date(ahora) },
+          rotatedAt: { $gte: inicioDeGraciaDeRotacion(ahora) },
+          deviceIdHash: deviceIdHash ? { $in: [null, deviceIdHash] } : null,
+        },
+        {
+          $set: {
+            refreshTokenHash: hashToken(pair.refreshToken),
+            expiresAt: daysFromNow(DIAS_DE_SESION),
+            ...(deviceIdHash ? { deviceIdHash } : {}),
+          },
+        },
+      );
+      if (enGracia) return res.json({ ok: true, ...pair });
 
       /**
        * ¿El hash que llegó es el que la ÚLTIMA rotación dejó atrás? Entonces

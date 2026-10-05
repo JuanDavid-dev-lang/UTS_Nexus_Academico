@@ -10,7 +10,7 @@
  * before it is applied, so a tampered release asset is rejected by the shell
  * rather than by anything we could check here.
  */
-import { isDesktop } from './tauri';
+import { isDesktop, platform } from './tauri';
 
 export type UpdateInfo = {
   version: string;
@@ -143,7 +143,10 @@ export async function installUpdate(onProgress?: (progress: DownloadProgress) =>
   let downloaded = 0;
   let total: number | null = null;
 
-  await update.downloadAndInstall((event) => {
+  // Descarga e instalación separadas: entre las dos se retira el icono de la
+  // bandeja. En Windows el instalador termina el proceso sin pasar por ningún
+  // cierre ordenado y el icono quedaba fantasma junto al de la versión nueva.
+  await update.download((event) => {
     switch (event.event) {
       case 'Started':
         total = event.data.contentLength ?? null;
@@ -158,6 +161,9 @@ export async function installUpdate(onProgress?: (progress: DownloadProgress) =>
     }
     onProgress?.({ downloaded, total });
   });
+
+  await platform.sistema.quitarBandeja().catch(() => undefined);
+  await update.install();
 
   const { relaunch } = await import('@tauri-apps/plugin-process');
   await relaunch();

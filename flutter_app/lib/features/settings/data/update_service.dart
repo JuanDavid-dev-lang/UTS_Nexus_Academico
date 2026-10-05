@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/services.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
@@ -86,6 +87,9 @@ String _porQueFallo(DioException error) {
 /// de ofrecer una descarga que el sistema rechazaría.
 class UpdateService {
   final Dio _dio;
+
+  /// Canal de `MainActivity.kt` para quitar la tarea propia de recientes.
+  static const _canalTarea = MethodChannel('uts.nexus/tarea');
 
   UpdateService({Dio? dio})
       : _dio = dio ??
@@ -209,6 +213,29 @@ class UpdateService {
       throw ApiUpdateException(
         'No se pudo abrir el instalador: ${result.message}',
       );
+    }
+    await _cerrarTareaTrasEntregar();
+  }
+
+  /// Quita la tarea de esta app de recientes una vez el instalador está en
+  /// pantalla.
+  ///
+  /// El instalador abre en su propia tarea y, al terminar, el sistema detiene
+  /// la versión vieja: su tarjeta se quedaba en recientes y «Abrir» creaba
+  /// una segunda. Si se cancela la instalación, la app se vuelve a abrir
+  /// desde el icono con la sesión intacta. El APK sigue en el directorio
+  /// temporal, así que el instalador puede seguir leyéndolo.
+  Future<void> _cerrarTareaTrasEntregar() async {
+    // Medio segundo para que el instalador tome el primer plano: cerrar antes
+    // haría parpadear el escritorio del teléfono.
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    try {
+      await _canalTarea.invokeMethod<void>('cerrarTarea');
+    } on PlatformException {
+      // Sin el canal (otra plataforma, versión anterior del nativo) se queda
+      // como antes: dos tarjetas, ningún dato perdido.
+    } on MissingPluginException {
+      // Ídem.
     }
   }
 }

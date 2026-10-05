@@ -213,6 +213,14 @@ además del color. Esa insignia decide si un docente interviene con un estudiant
 
 ---
 
+**Modo sin conexión.** Con el servidor inalcanzable la aplicación abre con lo
+último que cargó (caché de 7 días en IndexedDB, por usuario), deja calificar y
+pasar lista, y sube lo escrito sola al volver la conexión; la barra superior
+cuenta lo pendiente («3 sin enviar») y abre la lista para reintentar o
+descartar. La versión web y las sesiones sin «Mantener la sesión iniciada» no
+guardan nada en disco. Diseño completo en la sección «Modo sin conexión
+(escritorio)» de `CLAUDE.md`; las reglas puras están en `src/domain/offline/`.
+
 ## 7. Atajos de teclado
 
 | Atajo | Acción |

@@ -10,6 +10,8 @@ const schema = new Schema(
     after: { type: Object, default: null },
     ip: { type: String, default: null },
     userAgent: { type: String, default: null },
+    /** Cuándo se capturó en el equipo, si la escritura llegó diferida; `null` si fue en línea. */
+    capturadoEn: { type: Date, default: null },
   },
   { timestamps: true }
 );

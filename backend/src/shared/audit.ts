@@ -24,6 +24,8 @@ export async function auditChange(input: {
   after?: unknown;
   ip?: string | null;
   userAgent?: string | null;
+  /** Momento de captura en el cliente si la escritura llegó diferida (modo sin conexión). */
+  capturadoEn?: Date | null;
 }) {
   try {
     await AuditModel.create({
@@ -37,6 +39,7 @@ export async function auditChange(input: {
       after: sanearParaAuditoria(input.after),
       ip: input.ip ?? null,
       userAgent: input.userAgent ? sanearTexto(input.userAgent, 200) : null,
+      capturadoEn: input.capturadoEn ?? null,
     });
   } catch (causa) {
     console.error(
@@ -69,6 +72,7 @@ export async function auditBatch(
     entityId?: string | null;
     before?: unknown;
     after?: unknown;
+    capturadoEn?: Date | null;
   }>,
 ): Promise<void> {
   if (entradas.length === 0) return;
@@ -83,6 +87,7 @@ export async function auditBatch(
         after: sanearParaAuditoria(entrada.after),
         ip: null,
         userAgent: null,
+        capturadoEn: entrada.capturadoEn ?? null,
       })),
       // Un documento que falle no debe llevarse por delante a los demás: la
       // auditoría parcial vale más que ninguna.

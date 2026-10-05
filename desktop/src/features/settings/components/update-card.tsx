@@ -11,6 +11,7 @@ import {
 } from '@/shared/ui';
 import { nombreVersion } from '@/core/version';
 import { useAppUpdate } from '../hooks/use-app-update';
+import { NotasVersion } from '@/features/updates/notas-version';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -65,7 +66,10 @@ export function UpdateCard() {
               <Badge tone="info">Versión {update.version} disponible</Badge>
             </div>
             {update.notes && (
-              <p className="whitespace-pre-line text-body text-muted">{update.notes}</p>
+              <NotasVersion
+                notas={update.notes}
+                className="max-h-72 overflow-y-auto rounded-lg border border-border p-3"
+              />
             )}
             <p className="text-caption text-muted">
               La app se reiniciará sola al terminar de instalar.

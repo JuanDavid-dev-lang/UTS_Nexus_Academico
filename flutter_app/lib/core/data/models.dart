@@ -106,6 +106,11 @@ class Enrollment {
 }
 
 /// Resumen de un corte, tal como lo calcula el motor del backend.
+/// Si una nota ya está en el servidor o solo en este teléfono. Lo pone la
+/// superposición de la bandeja de salida; lo que llega del servidor es siempre
+/// [sincronizada].
+enum EstadoLocalNota { sincronizada, pendienteEnvio, pendienteBorrado }
+
 /// Una nota concreta dentro de un componente, con el motivo que le puso el
 /// docente («Taller 2», «Parcial 1»).
 class GradeDetail {
@@ -119,13 +124,25 @@ class GradeDetail {
   /// Fracción del componente (peso ÷ suma de pesos), si el servidor la mandó.
   final double? pesoRelativo;
 
+  final EstadoLocalNota local;
+
   const GradeDetail({
     required this.id,
     required this.label,
     required this.score,
     this.weight = 1,
     this.pesoRelativo,
+    this.local = EstadoLocalNota.sincronizada,
   });
+
+  GradeDetail conEstadoLocal(EstadoLocalNota nuevo) => GradeDetail(
+        id: id,
+        label: label,
+        score: score,
+        weight: weight,
+        pesoRelativo: pesoRelativo,
+        local: nuevo,
+      );
 
   factory GradeDetail.fromJson(Map<String, dynamic> json) => GradeDetail(
         id: _toStr(json['id']),

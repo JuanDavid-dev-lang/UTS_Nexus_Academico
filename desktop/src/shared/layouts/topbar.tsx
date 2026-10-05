@@ -19,6 +19,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/shared/lib/cn';
 import { Avatar, Kbd, Tooltip } from '@/shared/ui/primitives';
 import { Button } from '@/shared/ui/button';
+import { ConfirmDialog } from '@/shared/ui/dialog';
+import { EstadoEnvios } from '@/features/offline/estado-envios';
+import { textoAlCerrarSesion } from '@/domain/offline/outbox';
+import { useEnLinea } from '@/state/connectivity.store';
+import { useOutbox, useResumenDeCola } from '@/state/outbox.store';
+import { useState } from 'react';
 import { useSession } from '@/state/session.store';
 import { useSync } from '@/state/sync.store';
 import { useTheme, type ThemePreference } from '@/state/theme.store';
@@ -86,7 +92,29 @@ export function TopBar({
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
-  const sync = SYNC_PRESENTATION[syncStatus];
+  const enLinea = useEnLinea();
+  const colaResumen = useResumenDeCola();
+  const colaPersiste = useOutbox((state) => state.persiste);
+  const [confirmarSalida, setConfirmarSalida] = useState(false);
+
+  // Sin conexión manda sobre el estado del socket: «Sincronizado» con el
+  // servidor apagado sería mentir, y el aviso dice qué sigue funcionando.
+  // Al revés también: si la API ya contesta y el socket aún no ha vuelto
+  // (tarda unos segundos tras reiniciarse el servidor), «sin conexión con el
+  // servidor» contradice el envío que acaba de salir bien. Se dice
+  // «reconectando» hasta que el socket confirme.
+  const estadoSocket: keyof typeof SYNC_PRESENTATION =
+    enLinea && syncStatus === 'error' ? 'reconnecting' : syncStatus;
+  const sync = enLinea ? SYNC_PRESENTATION[estadoSocket] : SYNC_PRESENTATION.disconnected;
+  const syncEtiqueta = enLinea ? sync.label : 'Sin conexión · trabajando con datos guardados';
+  const syncVisible: keyof typeof SYNC_PRESENTATION = enLinea ? estadoSocket : 'disconnected';
+
+  function pedirSalida() {
+    // Cerrar sesión con cambios sin enviar se confirma: la cola se conserva,
+    // pero quien cierra tiene que saber que aún no llegaron al servidor.
+    if (colaResumen.total > 0) setConfirmarSalida(true);
+    else void handleLogout();
+  }
 
   async function handleLogout() {
     await logout();
@@ -146,7 +174,9 @@ export function TopBar({
         </span>
       </button>
 
-      <Tooltip content={syncDetail ? `${sync.label} · ${syncDetail}` : sync.label}>
+      <EstadoEnvios />
+
+      <Tooltip content={enLinea && syncDetail ? `${sync.label} · ${syncDetail}` : syncEtiqueta}>
         <span
           className={cn(
             'no-drag flex items-center gap-1.5 rounded-full border border-border bg-surface px-2 py-1',
@@ -154,9 +184,9 @@ export function TopBar({
             sync.tone,
           )}
           role="status"
-          aria-label={sync.label}
+          aria-label={syncEtiqueta}
         >
-          {syncStatus === 'connected' ? (
+          {syncVisible === 'connected' ? (
             // Conectado no necesita icono: un punto verde es la señal más
             // pequeña que aún se entiende, y deja la barra tranquila en el
             // estado que es el 99% del tiempo.
@@ -165,14 +195,14 @@ export function TopBar({
             <sync.Icon
               className={cn(
                 'size-3.5',
-                (syncStatus === 'connecting' || syncStatus === 'reconnecting') && 'animate-spin',
+                (syncVisible === 'connecting' || syncVisible === 'reconnecting') && 'animate-spin',
               )}
               aria-hidden
             />
           )}
           {/* La etiqueta solo aparece cuando algo va mal: en el caso normal el
               punto verde basta y el texto sería ruido permanente. */}
-          {syncStatus !== 'connected' ? (
+          {syncVisible !== 'connected' ? (
             <span className="hidden xl:inline">{sync.label}</span>
           ) : null}
         </span>
@@ -264,7 +294,7 @@ export function TopBar({
             </div>
             <DropdownMenu.Item
               className={cn(menuItemClass, 'text-danger data-[highlighted]:bg-danger-soft')}
-              onSelect={() => void handleLogout()}
+              onSelect={pedirSalida}
             >
               <LogOut className="size-4" aria-hidden />
               Cerrar sesión
@@ -272,6 +302,17 @@ export function TopBar({
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
       </DropdownMenu.Root>
+      <ConfirmDialog
+        open={confirmarSalida}
+        onOpenChange={setConfirmarSalida}
+        title="¿Cerrar sesión con cambios sin enviar?"
+        description={textoAlCerrarSesion(colaResumen, colaPersiste)}
+        confirmLabel="Cerrar sesión"
+        onConfirm={() => {
+          setConfirmarSalida(false);
+          void handleLogout();
+        }}
+      />
     </header>
   );
 }

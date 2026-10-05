@@ -8,7 +8,11 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  CAPTURA_ANTIGUEDAD_MAX_MS,
+  CAPTURA_FUTURO_MAX_MS,
   TOPE_LOTE,
+  acotarCapturadoEn,
+  campoCapturadoEn,
   codigo,
   correo,
   documento,
@@ -166,5 +170,37 @@ describe('respuesta paginada', () => {
 describe('tope de lote', () => {
   it('es holgado para un grupo real y acotado para una petición', () => {
     expect(TOPE_LOTE).toBe(500);
+  });
+});
+
+describe('capturadoEn', () => {
+  const ahora = Date.parse('2026-10-05T12:00:00Z');
+
+  it('deja intacto un instante dentro de los límites', () => {
+    const ayer = new Date(ahora - 86_400_000);
+    expect(acotarCapturadoEn(ayer, ahora).getTime()).toBe(ayer.getTime());
+  });
+
+  it('pega al límite lo que está más de un minuto en el futuro', () => {
+    const lejos = new Date(ahora + 3_600_000);
+    expect(acotarCapturadoEn(lejos, ahora).getTime()).toBe(ahora + CAPTURA_FUTURO_MAX_MS);
+  });
+
+  it('pega al límite lo que tiene más de 60 días', () => {
+    const viejo = new Date(ahora - 90 * 86_400_000);
+    expect(acotarCapturadoEn(viejo, ahora).getTime()).toBe(ahora - CAPTURA_ANTIGUEDAD_MAX_MS);
+  });
+
+  it('es opcional: un cliente anterior que no lo manda no falla', () => {
+    expect(campoCapturadoEn.parse(undefined)).toBeUndefined();
+  });
+
+  it('rechaza un texto que no es una fecha ISO', () => {
+    expect(campoCapturadoEn.safeParse('ayer').success).toBe(false);
+  });
+
+  it('convierte una fecha ISO válida en Date', () => {
+    const r = campoCapturadoEn.parse(new Date().toISOString());
+    expect(r).toBeInstanceOf(Date);
   });
 });

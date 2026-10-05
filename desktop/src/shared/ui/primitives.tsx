@@ -66,7 +66,7 @@ export function Switch({
       <SwitchPrimitive.Thumb
         className={cn(
           'pointer-events-none block size-5 rounded-full bg-surface shadow-sm',
-          'transition-transform duration-200 ease-[cubic-bezier(0.34,1.4,0.64,1)]',
+          'transition-transform duration-200 ease-out',
           'data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0',
         )}
       />
@@ -87,7 +87,7 @@ export function TabsList({
         // El carril va hundido y la pestaña activa elevada: es la relación que
         // hace que se lea como «esta está encima» en vez de «esta está pintada
         // de otro color».
-        'inline-flex h-10 items-center gap-1 rounded-xl bg-surface-sunken p-1',
+        'inline-flex h-10 items-center gap-1 rounded-lg bg-surface-sunken p-1',
         className,
       )}
       {...props}
@@ -102,7 +102,7 @@ export function TabsTrigger({
   return (
     <TabsPrimitive.Trigger
       className={cn(
-        'inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-caption font-semibold',
+        'inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-caption font-semibold',
         'text-muted transition-all duration-200 ease-out',
         'hover:text-text',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40',
@@ -148,8 +148,8 @@ export function Tooltip({
           side={side}
           sideOffset={8}
           className={cn(
-            'z-50 flex max-w-72 items-center gap-2 rounded-lg bg-text px-2.5 py-1.5',
-            'text-caption font-medium text-bg shadow-lg',
+            'z-50 flex max-w-72 items-center gap-2 rounded-md bg-text px-2.5 py-1.5',
+            'text-caption font-medium text-bg shadow-md',
           )}
         >
           {content}

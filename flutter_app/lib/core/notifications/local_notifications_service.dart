@@ -394,6 +394,12 @@ class LocalNotificationsService {
     return '$nombre comienza en ${tiempoRestante(antelacion)}$sufijo.';
   }
 
+  /// Retira un aviso ya mostrado por su clave.
+  Future<void> cancelar(String clave) async {
+    await init();
+    await _plugin.cancel(idDeClave(clave));
+  }
+
   Future<void> cancelarTodo() async {
     await init();
     await _plugin.cancelAll();

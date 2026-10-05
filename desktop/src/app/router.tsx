@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
 import { AppShell } from '@/shared/layouts/app-shell';
 import { useSession } from '@/state/session.store';
 import { Con } from '@/app/require-capability';
+import { ConConexion } from '@/features/offline/con-conexion';
 import { GuardaWeb } from '@/features/web/guarda-web';
 import { BootScreen, UnreachableScreen } from '@/app/boot-screen';
 
@@ -89,8 +90,8 @@ export const router = createBrowserRouter([
           { path: '/asistencia', element: <Con capacidad="attendance.read"><AttendancePage /></Con> },
           { path: '/agenda', element: <AgendaPage /> },
           { path: '/riesgo', element: <Con capacidad="analytics.risks"><RiskPage /></Con> },
-          { path: '/asistente', element: <Con capacidad="assistant.use"><AssistantPage /></Con> },
-          { path: '/reportes', element: <Con capacidad="reports.export"><ReportsPage /></Con> },
+          { path: '/asistente', element: <Con capacidad="assistant.use"><ConConexion funcion="El asistente"><AssistantPage /></ConConexion></Con> },
+          { path: '/reportes', element: <Con capacidad="reports.export"><ConConexion funcion="Los reportes"><ReportsPage /></ConConexion></Con> },
           { path: '/avisos', element: <AnnouncementsPage /> },
           { path: '/sugerencias', element: <FeedbackPage /> },
           { path: '/coordinacion', element: <Con capacidad="coordination.read"><CoordinationPage /></Con> },

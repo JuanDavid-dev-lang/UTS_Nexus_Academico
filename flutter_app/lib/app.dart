@@ -7,6 +7,8 @@ import './core/data/providers.dart';
 import './core/auth/auth_controller.dart';
 import './core/network/realtime_service.dart';
 import './core/storage/offline_status.dart';
+import './core/sync/outbox_service.dart';
+import './core/sync/precarga_service.dart';
 import './core/theme/app_theme.dart';
 import './core/theme/appearance/appearance_preferences.dart';
 import './core/theme/appearance/palettes.dart' show pideEscalaDeGrises;
@@ -194,14 +196,34 @@ class _UtsAppState extends ConsumerState<UtsApp> {
   /// radio.
   AppLifecycleListener? _ciclo;
 
+  /// Cuando la bandeja de salida logra enviar algo, las pantallas que muestran
+  /// esas notas o esa asistencia tienen que leerlas de nuevo: lo mismo que haría
+  /// un `sync:update` del servidor, que aquí no llega porque el cambio es
+  /// nuestro.
+  StreamSubscription<void>? _bandeja;
+
   @override
   void initState() {
     super.initState();
 
     _ciclo = AppLifecycleListener(
       onPause: RealtimeService.instance.pausar,
-      onResume: RealtimeService.instance.reanudar,
+      onResume: () {
+        RealtimeService.instance.reanudar();
+        // Volver a primer plano es el momento en que más probable es que haya
+        // red de nuevo tras un rato en el bolsillo.
+        OutboxService.instance.solicitarDrenaje();
+      },
     );
+
+    _bandeja = OutboxService.instance.alSincronizar.listen((_) {
+      if (!mounted) return;
+      ref.invalidate(consolidatedGradesProvider);
+      ref.invalidate(pendingGradesProvider);
+      ref.invalidate(subjectRosterProvider);
+      ref.invalidate(dashboardProvider);
+      unawaited(PrecargaService.instance.solicitar());
+    });
 
     // Al tocar una notificación —incluida la que abrió la app desde cero— se
     // navega a lo que apuntaba. `rutaPendiente` cubre el arranque en frío: en
@@ -243,6 +265,7 @@ class _UtsAppState extends ConsumerState<UtsApp> {
 
   @override
   void dispose() {
+    _bandeja?.cancel();
     _ciclo?.dispose();
     super.dispose();
   }
@@ -315,6 +338,15 @@ class _UtsAppState extends ConsumerState<UtsApp> {
     // su payload, que es {entity, action, id}. La versión anterior comprobaba
     // `event['type'] == 'sync:update'`, una clave que ese payload nunca tiene,
     // así que la condición jamás se cumplía y nada se refrescaba.
+    // Al conectar el socket hay servidor: es la señal más barata de que lo
+    // pendiente ya puede salir.
+    ref.listen(realtimeStatusProvider, (previous, next) {
+      if (next.valueOrNull == RealtimeStatus.connected) {
+        OutboxService.instance.solicitarDrenaje();
+        unawaited(PrecargaService.instance.solicitar());
+      }
+    });
+
     ref.listen(realtimeEventsProvider, (previous, next) {
       next.whenData((event) {
         final entity = event['entity'] as String?;

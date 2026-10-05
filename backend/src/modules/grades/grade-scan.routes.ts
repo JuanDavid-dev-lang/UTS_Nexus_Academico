@@ -340,6 +340,7 @@ gradeScanRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR'), limiteLotes, as
                 maxScore: 5,
                 weight: celda.weight,
                 deletedAt: null,
+                status: 'ACTIVE',
               },
             },
             upsert: true,

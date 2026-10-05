@@ -4,6 +4,9 @@ import '../network/api_client.dart';
 import './models.dart';
 import '../storage/offline_cache.dart';
 import '../storage/offline_status.dart';
+import '../sync/outbox_logic.dart';
+import '../sync/outbox_entry.dart';
+import '../sync/outbox_service.dart';
 
 /// Acceso a la API académica.
 ///
@@ -25,10 +28,10 @@ class AcademicRepository {
 
   /// Lee del servidor y, si no hay red, de lo último que sí llegó.
   ///
-  /// Solo cubre LECTURAS. Una escritura no puede resolverse con lo cacheado: si
-  /// una nota no llegó al servidor, no está puesta, y fingir que sí es peor que
-  /// fallar. Que las escrituras esperen a tener red es una limitación conocida
-  /// y declarada, no un descuido.
+  /// Solo cubre LECTURAS. Las escrituras sin red no se resuelven con lo
+  /// cacheado: pasan por la bandeja de salida (`core/sync/`), que las guarda en
+  /// disco y las envía sola cuando hay servidor. Lo que el docente ve entretanto
+  /// es lo cacheado con sus cambios pendientes superpuestos y marcados.
   Future<List<T>> _leerConCache<T>(
     String clave,
     Future<Response<dynamic>> Function() peticion,
@@ -38,9 +41,10 @@ class AcademicRepository {
       final response = await peticion();
       final items = _items(response.data);
       await OfflineCache.save(clave, items);
-      OfflineStatus.instance.marcarEnLinea();
+      if (!enPrecarga) OfflineStatus.instance.marcarEnLinea();
       return items.map(parsear).toList();
     } catch (error) {
+      if (enPrecarga) rethrow;
       final guardado = await OfflineCache.read(clave);
       // Sin nada guardado no se puede disimular: el error sube y la pantalla
       // muestra su estado de error, que es la verdad.
@@ -103,14 +107,48 @@ class AcademicRepository {
     return _leerConCache('groups', () => _api.get('/groups'), Group.fromJson);
   }
 
-  Future<List<Student>> students({String? subjectId, String? groupId}) {
+  Future<List<Student>> students({
+    String? subjectId,
+    String? groupId,
+    String? period,
+  }) {
     return _leerConCache(
-      'students.${subjectId ?? "todas"}.${groupId ?? "todos"}',
+      'students.${subjectId ?? "todas"}.${groupId ?? "todos"}'
+      '${period == null ? "" : ".$period"}',
       () => _api.get('/students', query: {
         if (subjectId != null) 'subjectId': subjectId,
         if (groupId != null) 'groupId': groupId,
+        if (period != null) 'period': period,
       }),
       Student.fromJson,
+    );
+  }
+
+  // ── Lecturas crudas para pantallas que trabajan con mapas ──────────────
+  //
+  // Comparten clave de caché con las tipadas de arriba: lo que una guardó lo
+  // lee la otra, y la toma de asistencia abre sin red igual que las demás.
+
+  Future<List<Map<String, dynamic>>> subjectsRaw() =>
+      _leerConCache('subjects', () => _api.get('/subjects'), (m) => m);
+
+  Future<List<Map<String, dynamic>>> groupsRaw() =>
+      _leerConCache('groups', () => _api.get('/groups'), (m) => m);
+
+  Future<List<Map<String, dynamic>>> studentsRaw({
+    String? subjectId,
+    String? groupId,
+    String? period,
+  }) {
+    return _leerConCache(
+      'students.${subjectId ?? "todas"}.${groupId ?? "todos"}'
+      '${period == null ? "" : ".$period"}',
+      () => _api.get('/students', query: {
+        if (subjectId != null) 'subjectId': subjectId,
+        if (groupId != null) 'groupId': groupId,
+        if (period != null) 'period': period,
+      }),
+      (m) => m,
     );
   }
 
@@ -126,10 +164,9 @@ class AcademicRepository {
   /// páginas, el estudiante de la quinta deja de existir para la búsqueda sin
   /// que nada lo indique.
   ///
-  /// Sin caché sin conexión a propósito: `_leerConCache` guarda una lista
-  /// completa bajo una clave, y aquí cada página es un trozo. Mezclarlas daría
-  /// una caché que a veces tiene la página tres y a veces no. La primera página
-  /// sí se sirve de la caché general por el método de arriba.
+  /// Las páginas no se cachean una a una: mezclarlas daría una caché que a
+  /// veces tiene la página tres y a veces no. Sin servidor se responde con la
+  /// lista completa de `students()`, si el docente ya la había abierto.
   Future<PaginaDe<Student>> studentsPagina({
     String? subjectId,
     String? groupId,
@@ -137,14 +174,40 @@ class AcademicRepository {
     int page = 1,
     int limit = 30,
   }) async {
-    final response = await _api.get('/students', query: {
-      if (subjectId != null) 'subjectId': subjectId,
-      if (groupId != null) 'groupId': groupId,
-      if (q != null && q.trim().isNotEmpty) 'q': q.trim(),
-      'page': page,
-      'limit': limit,
-    });
-    return PaginaDe.desdeRespuesta(response.data, _items, Student.fromJson);
+    try {
+      final response = await _api.get('/students', query: {
+        if (subjectId != null) 'subjectId': subjectId,
+        if (groupId != null) 'groupId': groupId,
+        if (q != null && q.trim().isNotEmpty) 'q': q.trim(),
+        'page': page,
+        'limit': limit,
+      });
+      OfflineStatus.instance.marcarEnLinea();
+      return PaginaDe.desdeRespuesta(response.data, _items, Student.fromJson);
+    } catch (error) {
+      // Sin servidor, el directorio se sirve de la lista completa que ya se
+      // había descargado para ese alcance (la de `students()`), filtrada aquí.
+      // Es una sola página sin «cargar más»: lo que hay en el teléfono es todo
+      // lo que hay, y la franja de arriba ya dice que son datos guardados.
+      if (page > 1) rethrow;
+      final guardado = await OfflineCache.read(
+        'students.${subjectId ?? "todas"}.${groupId ?? "todos"}',
+      );
+      if (guardado == null || guardado.dato is! List) rethrow;
+      OfflineStatus.instance.marcarDesdeCache(guardado.guardadoEn);
+      final termino = (q ?? '').trim().toLowerCase();
+      final todos = (guardado.dato as List)
+          .whereType<Map>()
+          .map((e) => Student.fromJson(Map<String, dynamic>.from(e)))
+          .where(
+            (e) =>
+                termino.isEmpty ||
+                e.fullName.toLowerCase().contains(termino) ||
+                e.code.toLowerCase().contains(termino),
+          )
+          .toList();
+      return PaginaDe(items: todos, total: todos.length, hasMore: false);
+    }
   }
 
   /// Directorio global por nombre o cédula. Devuelve solo identidad, sin notas.
@@ -350,7 +413,13 @@ class AcademicRepository {
     });
   }
 
-  Future<void> saveGrade({
+  /// Guarda una nota por la bandeja de salida.
+  ///
+  /// Con servidor se envía en el acto y un rechazo (periodo cerrado, corte
+  /// bloqueado) sube como error. Sin servidor, o si la petición se pierde por el
+  /// camino, queda en el teléfono y sale sola: devuelve
+  /// [ResultadoEscritura.encolada] y la pantalla lo dice.
+  Future<ResultadoEscritura> saveGrade({
     required String studentId,
     required String subjectId,
     required String teacherId,
@@ -359,25 +428,143 @@ class AcademicRepository {
     required String label,
     required double score,
     required String period,
-  }) async {
-    await _api.post('/grades', data: {
-      'studentId': studentId,
-      'subjectId': subjectId,
-      'teacherId': teacherId,
-      'corte': cut,
-      'componentType': componentType,
-      'label': label,
-      'score': score,
-      'period': period,
-    });
+    String? groupId,
+    double? weight,
+    String? studentName,
+  }) {
+    final etiqueta = label.trim();
+    return OutboxService.instance.escribir(
+      kind: OutboxKind.gradeUpsert,
+      clave: claveNota(
+        studentId: studentId,
+        subjectId: subjectId,
+        period: period,
+        corte: cut,
+        componentType: componentType,
+        label: etiqueta,
+      ),
+      method: 'POST',
+      path: '/grades',
+      body: {
+        'studentId': studentId,
+        'subjectId': subjectId,
+        if (groupId != null) 'groupId': groupId,
+        'teacherId': teacherId,
+        'corte': cut,
+        'componentType': componentType,
+        'label': etiqueta,
+        'score': score,
+        'period': period,
+        if (weight != null) 'weight': weight,
+        'capturadoEn': DateTime.now().toUtc().toIso8601String(),
+      },
+      meta: {
+        'studentId': studentId,
+        'subjectId': subjectId,
+        'period': period,
+        'corte': cut,
+        'componentType': componentType,
+        'label': etiqueta,
+        'score': score,
+      },
+      resumen: 'Nota ${score.toStringAsFixed(1)} · $etiqueta',
+      detalle: '${studentName ?? 'Estudiante'} · corte $cut · $period',
+    );
   }
 
   /// Elimina una nota concreta.
   ///
   /// Quitar una nota recalcula el promedio de su componente y, con él, la nota
   /// del corte y la final: es una corrección, no un borrado cosmético.
-  Future<void> deleteGrade(String id) async {
-    await _api.delete('/grades/$id');
+  ///
+  /// [id] es el de la nota en el servidor; `null` si solo existe pendiente en el
+  /// teléfono, en cuyo caso borrarla es quitar su subida de la bandeja. Los
+  /// demás datos son la clave natural de la nota, para poder fusionarla con lo
+  /// pendiente.
+  Future<ResultadoEscritura> deleteGrade({
+    String? id,
+    required String studentId,
+    required String subjectId,
+    required String period,
+    required int cut,
+    required String componentType,
+    required String label,
+    String? studentName,
+    double? score,
+  }) {
+    final etiqueta = label.trim();
+    return OutboxService.instance.escribir(
+      kind: OutboxKind.gradeDelete,
+      clave: claveNota(
+        studentId: studentId,
+        subjectId: subjectId,
+        period: period,
+        corte: cut,
+        componentType: componentType,
+        label: etiqueta,
+      ),
+      method: 'DELETE',
+      path: '/grades/${id ?? ''}',
+      meta: {
+        'id': id ?? '',
+        'studentId': studentId,
+        'subjectId': subjectId,
+        'period': period,
+        'corte': cut,
+        'componentType': componentType,
+        'label': etiqueta,
+      },
+      resumen: 'Eliminar nota $etiqueta',
+      detalle: '${studentName ?? 'Estudiante'} · corte $cut · $period',
+    );
+  }
+
+  /// Guarda la lista de una clase entera por la bandeja de salida.
+  ///
+  /// Una clase es (materia, grupo, día): guardar otra vez la misma sustituye a
+  /// la pendiente en vez de apilarse. [registros] lleva `studentId`, `present`,
+  /// `lateMinutes` y `notes` por estudiante.
+  Future<ResultadoEscritura> saveAttendanceClass({
+    required String subjectId,
+    String? groupId,
+    required String teacherId,
+    required String period,
+    required DateTime date,
+    required int durationMinutes,
+    required List<Map<String, dynamic>> registros,
+    String? subjectLabel,
+    String? groupLabel,
+  }) {
+    final ausentes = registros.where((r) => r['present'] == false).length;
+    return OutboxService.instance.escribir(
+      kind: OutboxKind.attendanceClass,
+      clave:
+          claveAsistencia(subjectId: subjectId, groupId: groupId, date: date),
+      method: 'POST',
+      path: '/attendance/bulk',
+      body: {
+        'subjectId': subjectId,
+        if (groupId != null) 'groupId': groupId,
+        'teacherId': teacherId,
+        'period': period,
+        'date': DateTime(date.year, date.month, date.day).toIso8601String(),
+        'durationMinutes': durationMinutes,
+        'registros': registros,
+        'capturadoEn': DateTime.now().toUtc().toIso8601String(),
+      },
+      meta: {
+        'subjectId': subjectId,
+        'groupId': groupId ?? '',
+        'period': period,
+        'date': claveDia(date),
+      },
+      resumen: 'Asistencia del ${claveDia(date)}',
+      detalle: [
+        if (subjectLabel != null) subjectLabel,
+        if (groupLabel != null) groupLabel,
+        '${registros.length} estudiantes, $ausentes ausentes',
+      ].join(' · '),
+    );
   }
 
   /// Descarga un reporte como bytes.

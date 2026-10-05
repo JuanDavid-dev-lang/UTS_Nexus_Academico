@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/core/api/query-keys';
+import { avisarGuardadoEnEquipo } from '@/core/offline/avisos';
+import { outbox } from '@/core/offline/outbox';
 import {
   enrollmentRepository,
   gradeRepository,
@@ -87,16 +89,29 @@ export function useEnrolledStudents(scope: { subjectId?: string; period: string;
   };
 }
 
+/**
+ * Guarda una nota.
+ *
+ * Pasa por la cola de envíos (`core/offline/`): con servidor sube al momento y
+ * el aviso es el de siempre; sin él —o si el servidor no contesta— queda
+ * guardada en este equipo, se ve en pantalla marcada como pendiente y sube sola
+ * al volver la conexión. Un rechazo del servidor (corte bloqueado, periodo
+ * cerrado) sale como error, igual que antes.
+ */
 export function useSaveGrade() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: GradeInput) => gradeRepository.save(input),
-    onSuccess() {
+    mutationFn: (input: GradeInput) => outbox.guardarNota(input),
+    onSuccess(resultado) {
       // Both the raw list and the consolidated view derive from this record.
       void queryClient.invalidateQueries({ queryKey: queryKeys.grades.all });
       void queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all });
-      toast.success('Nota guardada');
+      if (resultado.enCola) {
+        avisarGuardadoEnEquipo('Nota guardada en este equipo');
+      } else {
+        toast.success('Nota guardada');
+      }
     },
     onError(error) {
       toast.fromError(error, 'No se pudo guardar la nota');
@@ -110,16 +125,24 @@ export function useSaveGrade() {
  * Quitar una nota cambia el promedio del componente y con él la del corte y la
  * final, así que invalida lo mismo que guardarla. El riesgo también: un taller
  * mal puesto puede ser justo lo que tenía a alguien marcado.
+ *
+ * Una nota que aún no salió de este equipo (id `pendiente:…`) simplemente se
+ * quita de la cola: no hay nada que borrar en el servidor.
  */
 export function useDeleteGrade() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => gradeRepository.remove(id),
-    onSuccess() {
+    mutationFn: ({ id, etiqueta }: { id: string; etiqueta: string }) =>
+      outbox.borrarNota(id, etiqueta),
+    onSuccess(resultado) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.grades.all });
       void queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all });
-      toast.success('Nota eliminada');
+      if (resultado.enCola) {
+        avisarGuardadoEnEquipo('Eliminación guardada en este equipo');
+      } else {
+        toast.success('Nota eliminada');
+      }
     },
     onError(error) {
       toast.fromError(error, 'No se pudo eliminar la nota');

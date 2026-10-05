@@ -1,4 +1,6 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { useEnLinea } from '@/state/connectivity.store';
+import { TEXTO_SIN_CONEXION } from '@/features/offline/requiere-conexion';
 import { useMutation } from '@tanstack/react-query';
 import { ChevronDown, Download, FileSpreadsheet, FileText } from 'lucide-react';
 import { Button } from '@/shared/ui/button';
@@ -63,10 +65,17 @@ export function ExportButton({ kind, period, subjectId, groupId, subjectCode }: 
     },
   });
 
+  const enLinea = useEnLinea();
+
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
-        <Button variant="secondary" loading={descarga.isPending}>
+        <Button
+          variant="secondary"
+          loading={descarga.isPending}
+          disabled={!enLinea}
+          title={enLinea ? undefined : TEXTO_SIN_CONEXION}
+        >
           <Download aria-hidden />
           Exportar
           <ChevronDown aria-hidden />

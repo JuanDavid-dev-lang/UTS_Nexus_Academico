@@ -496,6 +496,16 @@ nueve fallos por 429 a partir del décimo escenario.
 - **No sustituyen a los topes por petición.** Son dos defensas distintas: cuánto
   cabe en una petición y cuántas peticiones caben en una ventana.
 
+### Escrituras sin conexión (lado servidor)
+
+Los clientes guardan notas y asistencia sin red y reenvían **las mismas peticiones** después (`POST /grades`, `DELETE /grades/:id`, `POST /attendance`, `POST /attendance/bulk`). El servidor tiene que tolerar la repetición:
+
+- **`POST /grades` es idempotente por clave** (estudiante, materia, periodo, corte, componente, etiqueta). El upsert **revive** una nota borrada (`deletedAt: null`, `status: 'ACTIVE'`); antes devolvía 201 y la nota seguía borrada. `/grades/bulk` hace lo mismo. La puerta de cortes solo cuenta notas vivas, igual que `before`.
+- **`codigo` en el error, mensaje intacto.** `shared/error.ts` añade `codigo` al cuerpo cuando el error lo trae (solo en 4xx): `{ ok: false, codigo: 'PERIODO_BLOQUEADO' | 'CORTE_BLOQUEADO' | 'DUPLICADO', message }`. Se suman a `SOLO_EN_APP`. El cliente decide por `codigo`, nunca por el texto. Los clientes tratan los 409 como terminales, salvo `CORTE_BLOQUEADO`, que su cola aplaza detrás de las demás entradas (una nota del corte 1 puede estar todavía en cola), y `DUPLICADO`, que el escritorio reintenta dos veces.
+- **`capturadoEn`** (ISO 8601 con zona, opcional) en las tres escrituras. **Solo se audita** (`Auditoria.capturadoEn`); no resuelve conflictos ni se compara con nada. Se **acota** a [ahora − 60 días, ahora + 1 min] en vez de rechazarse: un reloj mal puesto no debe convertir una nota capturada en un fallo terminal. Un formato que no es fecha sí es 400.
+- **Gracia de rotación del refresh token** (`GRACIA_ROTACION_MS` = 30 s, `domains/session/session-policy.ts`). Si llega el token **inmediatamente anterior** de la misma sesión, rotado hace ≤ 30 s y desde el mismo equipo (la atadura `deviceIdHash` se sigue exigiendo), se entrega un par nuevo para esa sesión en vez de revocarlas todas: es el reintento de una respuesta de refresh perdida por el wifi. Coste asumido: quien copió el token anterior también obtiene una rotación dentro de esos 30 s. Fuera de la ventana el reuso sigue revocando **todas** las sesiones. `Sesion.rotatedAt` marca la rotación y la gracia no se prolonga encadenando reintentos.
+- **Límites de tasa: sin excepciones por cabecera.** Un 429 lleva `Retry-After` (segundos) y `RateLimit-*` estándar (`standardHeaders: true` en express-rate-limit 7); la cola del cliente espera ese valor. Cupo de escritura: 120 por usuario y 15 min.
+
 ### Escrituras masivas
 `POST` de `/grades/bulk`, `/attendance/scan/confirm`, `/students/bulk` y `/enrollments/bulk` usan `bulkWrite()` y `auditBatch()`. **No volver al bucle de `findOneAndUpdate`**: una planilla llena de notas (500 filas × 10 columnas) eran unas quince mil idas y vueltas encadenadas a Atlas, es decir minutos de petición colgada sobre una ventana que el docente ya había cerrado.
 
@@ -734,6 +744,14 @@ Hay un segundo evento, `notification:new`, con el documento de la notificación.
 
 Los eventos salen por `emitToUser` (sala `user:<id>` + las salas administrativas: ADMIN, COORDINATOR y SECRETARY), no por el broadcast global. Lo personal —el contenido de una notificación— sale por `emitSoloAUsuario`, sin esa copia.
 
+**La conexión del socket se cae y vuelve; el indicador no tiene que delatarlo.** Tres fallos que dejaban «Reconectando…» fijo o parpadeando:
+
+- **Móvil, `socket_io_client` reutiliza el socket muerto.** `io.io()` guarda el Manager en caché y le pide el namespace `/`, que sigue ahí aunque el socket anterior se destruyera: tras volver de segundo plano o renovar el token se recibía un socket cerrado, con el token viejo, que nunca se abría. `realtime_service.dart` construye con `enableForceNew()`. Y en este cliente el rechazo del servidor llega como `error`, no como `connect_error`: se escuchan los dos.
+- **El token va en una función** (`setAuthFn` en el móvil, `auth` como función en el escritorio): se lee en cada intento, así que la reconexión automática tras un corte manda el vigente. El escritorio además **renueva antes del handshake** si el access token caduca en menos de un minuto (15 min de vida y sin peticiones durante una suspensión: el reintento salía casi siempre caducado).
+- **Un rechazo no lo reintenta socket.io.** Si la renovación no llegó al servidor (reiniciando, 502 del túnel) los dos clientes reintentan con retroceso (5–30 s). Antes la conexión quedaba muerta hasta reiniciar la app.
+
+Lo que se enseña: el móvil espera 3 s antes de pintar un problema del tiempo real (`OfflineBanner`): volver de segundo plano pasa siempre por «conectando» durante el handshake. El escritorio no escucha `reconnect` del manager —se emite al abrir el transporte, antes de que el servidor acepte, y pintaba verde un instante antes del rechazo—, cuenta un corte de transporte como «reconectando» y solo dice «sin conexión» tras tres fallos seguidos, sin alternar en cada intento.
+
 ### Agenda académica
 `GET /agenda` expande el horario semanal (`ScheduleModel`) a ocurrencias con fecha y las une con `EventoCalendario` y `Actividad`. **Ningún cliente calcula a qué hora es una clase**: si PC y Android lo hicieran por su cuenta, un equipo con la zona horaria mal puesta mostraría otra hora y el docente no sabría cuál de los dos miente.
 
@@ -798,6 +816,88 @@ teléfono, y un menú que hay que desplazar deja de ser un menú.
 Los destinos secundarios declaran `roles`, así que el menú no ofrece entradas
 que el backend va a rechazar con un 403.
 
+### Modo sin conexión (móvil)
+
+El docente abre la app sin servidor, consulta lo que ya había abierto y **anota
+notas y asistencia**; todo sale solo al volver la red, con su estado a la vista.
+Dos mitades que no se mezclan:
+
+- **Leer: caché.** `OfflineCache` (`SharedPreferences`, prefijo `cache.`, 7 días,
+  se borra al cerrar sesión) por `AcademicRepository._leerConCache` /
+  `listaConCache`. **Toda lectura que el docente necesite sin red pasa por ahí**:
+  la toma de asistencia llamaba a `ApiClient` a pelo y sin red se quedaba en el
+  esqueleto para siempre. Sin servidor, el directorio paginado se sirve de la
+  lista completa cacheada de `students()`. Asistente, reportes y escáneres siguen
+  siendo `RequiereConexion`: no hay nada guardado que enseñar.
+- **Escribir: bandeja de salida** (`core/sync/`). `AcademicRepository.saveGrade`,
+  `deleteGrade` y `saveAttendanceClass` entran por `OutboxService.escribir`, que
+  devuelve `enviada` o `encolada`. Con red y bandeja vacía se envía en el acto y
+  un rechazo del servidor sube como error (el docente está mirando); si no hay
+  red, el servidor falla (5xx, 429, tiempo) o hay turnos por delante, queda en
+  disco y sale sola.
+- **Cuando se toca.** Un cambio nuevo, volver a primer plano, el socket pasando a
+  `connected`, iniciar sesión, cualquier lectura buena (`OfflineStatus`) y un
+  reloj con espera 5 s → 5 min (o el `Retry-After` si es mayor). Antes de vaciar
+  se hace un `GET /auth/me`: renueva el token por el vuelo único de `ApiClient`
+  y evita gastar un intento de cada cambio contra un servidor caído.
+- **Precarga** (`core/sync/precarga_service.dart`, plan puro en
+  `precarga_plan.dart`): para que el docente no tenga que haber abierto cada
+  pantalla con red antes de quedarse sin ella, tras iniciar sesión, al conectar
+  el socket y tras vaciar la bandeja se calienta la caché por las mismas lecturas
+  de los repositorios: materias y grupos, y por cada materia del periodo
+  (tope 30) sus estudiantes (de la materia y de cada grupo, con las claves que
+  usa la toma de asistencia), matrículas, consolidado, pendientes y asistencia;
+  después estudiantes en general, periodos, panel, riesgos y agenda. **Solo
+  rol PROFESSOR**, una pasada a la vez, **una petición en vuelo**, y como mucho
+  una completa cada 30 min (una pasada que no llegó al servidor no cuenta).
+  Es de mejor esfuerzo: corre dentro de `comoPrecarga`, y ahí los lectores de
+  caché (`_leerConCache`, `listaConCache`, `mapaConCache`, agenda) **no marcan la
+  app en línea y, si fallan, ni sirven lo guardado ni marcan «datos guardados»**:
+  un fallo de la precarga no puede encender la franja de sin conexión. Un lector
+  de caché nuevo tiene que respetar `enPrecarga`.
+
+Garantías, las que fijan `outbox_logic_test.dart` y `outbox_service_test.dart`:
+
+- **Está en disco antes de enviarse** (`outbox.json` en documentos, escrito a
+  temporal y renombrado) y **no caduca**. No vive bajo `cache.`: es la única
+  copia de algo que el docente hizo, no una copia de lo que dice el servidor.
+- **Una entrada por clave natural** (`encolar`): la misma nota (estudiante,
+  materia, periodo, corte, componente, etiqueta) o la misma clase (materia,
+  grupo, día) **sustituye** a la pendiente; borrar una nota que solo existía en
+  el teléfono quita su subida y no envía nada. Lo `enviando` no se toca.
+  Repetir una petición es seguro porque el servidor resuelve por esas mismas
+  claves; por eso una entrada que quedó `enviando` al cerrar la app vuelve a
+  `pendiente`. Los cuerpos llevan `capturadoEn` (solo auditoría en el servidor).
+- **Uno a uno, en orden, y solo con la sesión de su dueño** (`userId`). Cerrar
+  sesión **no** borra la bandeja (`confirmLogout` avisa de cuántos hay): queda a
+  nombre de su cuenta, invisible para otro usuario del teléfono, y sale cuando
+  vuelva a entrar con ella.
+- **Clasificación** (`decidir`, puro): red, tiempo, 5xx y 429 → siguen
+  pendientes; 401 → se pausa y se conserva todo; 404 al borrar → hecho;
+  `CORTE_BLOQUEADO` → pasa al final de la cola **una vez** (una nota anterior
+  puede completar el corte) y luego `fallida`; cualquier otro 4xx (`PERIODO_BLOQUEADO`,
+  `DUPLICADO`, validación) → `fallida` con el mensaje del servidor. **Nunca se
+  descarta nada en silencio:** una fallida se queda a la vista hasta que el
+  docente la reintenta o la descarta (con confirmación).
+- **Lo pendiente se ve, y no se calcula.** Las notas pendientes se superponen al
+  desglose cacheado con su marca (`EstadoLocalNota`, `fusionarNotas`) y la
+  asistencia pendiente manda sobre la fila cacheada del mismo día
+  (`superponerAsistencia`), pero **los promedios siguen siendo del backend**: la
+  hoja dice «el promedio se actualiza cuando salgan». Al vaciarse, la app
+  invalida las mismas cachés que un `sync:update` de `grade`/`attendance`
+  (`OutboxService.alSincronizar` → `app.dart`).
+- **Visible:** `OfflineBanner` suma una franja («N cambios sin enviar» /
+  «Enviando N…» / «N no se pudieron enviar») que abre la lista
+  (`outbox_sheet.dart`, `showCompactSheet`) con Reintentar y Descartar.
+- **Arranque en frío sin red:** `SessionStorage` guarda el último `me`
+  (almacén seguro, se borra con los tokens). Si `/auth/me` falla por red, tiempo,
+  5xx o 429 y hay refresh token, se entra con ese usuario; solo un refresh
+  **rechazado** manda al login.
+
+Límites conocidos: borrar una nota que está *en vuelo* y aún no tiene id del
+servidor no se puede deshacer desde la bandeja (llega y hay que borrarla); la
+caché de lectura sigue caducando a los 7 días, aunque lo pendiente no.
+
 ### Widgets de Android (`core/home_widget/`)
 
 Dos widgets de la pantalla de inicio, nativos (`AppWidgetProvider` +
@@ -845,8 +945,10 @@ Todo dentro de los tokens de DESIGN.md; ningún color en crudo. Lo que cambió
 vive en las piezas compartidas para que las pantallas lo hereden:
 
 - **`AppCard` pinta `AppGradients.surface`** (superficie → 35 % hacia la
-  alterna), el mismo degradado casi invisible que `.surface-card` en el
-  escritorio. Seleccionada, el tinte de marca manda y no hay degradado.
+  alterna). En el escritorio `.surface-card` **ya no lleva degradado ni
+  sombra** (octubre de 2026, ver «Escritorio sobrio»): la paridad pendiente es
+  dejar `AppCard` en color plano con su filo. Seleccionada, el tinte de marca
+  manda y no hay degradado.
 - **`CompactStat`** lleva el icono en su cuadro a la derecha y la cifra en
   w800 con tracking negativo; **`CompactSectionHeader`** abre con una marca de
   acento de 3×12 en el primario. **`InitialsAvatar(cuadrado: true)`** es para lo
@@ -898,6 +1000,100 @@ ventana oculta y sin error.
 
 ### Escritorio v2 — capas
 `domain/` (esquemas Zod + puertos, sin React) → `infrastructure/` (adaptadores HTTP de los puertos) → `features/` (una pantalla por capacidad) → `shared/` (design system según `DESIGN.md`). Estado de servidor con TanStack Query, estado de cliente con Zustand. Tokens en `keyring` (Rust) vía `src-tauri/src/commands/`. `desktop_python/` (PySide6) está **muerto**: su lanzador se eliminó y no recibe cambios. No añadir nada ahí ni tomarlo como referencia.
+
+### Modo sin conexión (escritorio)
+
+Un docente sin internet abre la app, ve lo último que cargó, califica y pasa
+lista; lo escrito se guarda en el equipo y sube solo al volver el servidor, con
+estado visible. Solo escritorio de verdad: la web comparte el código pero no
+deja datos en disco (ver abajo). El backend no cambia de contrato: escribe por
+clave natural, así que reenviar es seguro.
+
+- **Capas.** Reglas puras en `domain/offline/` (`outbox.ts` fusión y
+  superposición, `clasificacion.ts` qué hacer con cada fallo,
+  `conectividad.ts`, `persistencia.ts` qué se guarda, `precarga.ts` qué se trae
+  por adelantado; todas con pruebas en `tests/unit/outbox*.test.ts`,
+  `offline-reglas.test.ts`). Disco en `infrastructure/offline/` (IndexedDB vía
+  `idb-keyval`, con memoria de respaldo). Efectos en `core/offline/`. Estado en
+  `state/connectivity.store.ts` y `state/outbox.store.ts`. UI en
+  `features/offline/` (insignia + lista de envíos, `ConConexion`).
+- **Conectividad** (`core/offline/conectividad.ts`): «hay servidor» sale de
+  hablar con él —cualquier respuesta HTTP, o el socket conectado—; «no» sale de
+  un fallo de red o de `navigator.onLine === false`. Un `online` del navegador no
+  prueba nada y solo dispara un sondeo de `/health` (espera 3→30 s). 502/503/504
+  y 52x **no** cuentan como respuesta (los pone el proxy con el origen caído).
+  El estado alimenta el `onlineManager` de TanStack: con consultas
+  `networkMode: 'online'` las lecturas se **pausan** (la pantalla conserva sus
+  datos, sin error ni aviso) y se reanudan solas. Las mutaciones van en
+  `networkMode: 'always'`. `http-client.ts` avisa por `observarTransporte`.
+- **Caché de lectura** (`core/offline/cache.ts`): `persistQueryClient*` con un
+  persistidor propio por usuario (`cache:<userId>`), `maxAge` 7 días, sello =
+  versión de la app, solo consultas `success` de las raíces de
+  `domain/offline/persistencia.ts` (materias, grupos, estudiantes, matrículas,
+  notas, plantillas, asistencia, periodos, perfil, panel, horarios; **no**
+  búsquedas, administración, QR ni avisos). Esas raíces tienen `gcTime` de 7 días
+  en memoria (`app/query-client.ts`) o se recogerían a los 5 min. Se restaura
+  **antes** de pintar (`session.store.reconnect`). Se borra al cerrar sesión, al
+  «Usar otra cuenta» y al perder la sesión.
+- **Abrir sin servidor.** Si `/auth/me` no contesta (red/5xx) y hay un último
+  usuario guardado, la sesión pasa a `authenticated` con `desdeCache: true` y la
+  app trabaja con la caché; `UnreachableScreen` queda solo para «nada guardado».
+  Al volver el servidor se revalida (`session.revalidar`); solo un refresh
+  **rechazado** cierra la sesión. Los datos van en claro en el almacén de la app
+  (los tokens, en el llavero): por eso solo lo anterior, 7 días y borrado al salir.
+- **Web y sesiones sin «Mantener la sesión iniciada»: no se guarda nada en
+  disco** (`puedePersistir()`): la web promete que cerrar la pestaña termina la
+  sesión, y sin la casilla la persona dijo que el equipo es compartido. La cola
+  de la web vive en memoria (aguanta cortes, no cerrar el navegador) y el diálogo
+  de cerrar sesión lo dice. En escritorio la cola va **siempre** a disco: son
+  notas aún no subidas.
+- **Cola de envíos** (`core/offline/outbox.service.ts`, instancia en
+  `outbox.ts`): TODA nota (`useSaveGrade`/`useDeleteGrade`) y marca de asistencia
+  (`useMarkAttendance`) pasa por ella, con o sin conexión; con servidor el guardado
+  espera la confirmación (hasta 10 s) y todo se ve como antes, sin él queda
+  «en cola». Entradas `{id, userId, createdAt, kind, clave, method, path, body
+  (con capturadoEn), estado pendiente|enviando|fallida, intentos, ultimoError}`
+  por usuario (`cola:<userId>`), **nunca** se borran por cerrar o perder la
+  sesión. Fusión (`encolar`): misma nota (alumno, materia, periodo, corte,
+  componente, etiqueta) reemplaza; las marcas de una clase (materia|grupo|
+  periodo|día) se funden en UN `POST /attendance/bulk` (el límite es 120
+  escrituras/15 min por usuario; «marcar todos» es una llamada); borrar una nota
+  que solo está en la cola la quita; una entrada `enviando` no se reescribe. El
+  `bulk` también escribe `lateMinutes`/`notes`, por eso la pantalla pasa los del
+  registro ya guardado.
+- **Envío**: de una en una y en orden FIFO, para el usuario actual. Disparan
+  volver la conexión, socket conectado, foco de la ventana, entrar, un latido de
+  60 s y el vencimiento de cada espera. Antes de la tanda una sola renovación del
+  token por el single-flight (`refreshAccessToken`). Clasificación
+  (`clasificacion.ts`): red/timeout/429 → pendiente y se detiene la tanda
+  (backoff 2 s→5 min, `Retry-After` manda); 5xx → pendiente y sigue (fallida tras
+  8); 401 → pausa y conserva; 404 al borrar → éxito; 409 `CORTE_BLOQUEADO` →
+  se aplaza y se reintenta si otra entrada subió, si no queda fallida;
+  `DUPLICADO` → 2 reintentos; cualquier otro 4xx (`PERIODO_BLOQUEADO`…) →
+  `fallida` **a la vista, nunca descartada**. Tras subir se invalidan
+  `grades`, `attendance` y `analytics`. `AppError` lleva ahora `codigo` y
+  `retryAfterMs`.
+- **Superposición** (nunca recalcula): la asistencia pendiente manda sobre lo
+  guardado con insignia «Pendiente»/«Con error»; en el desglose de notas las
+  pendientes van en una lista aparte (sin entrar en promedios: eso es del
+  servidor) y las del servidor con borrado en cola salen tachadas. `recientes`
+  mantiene lo recién subido hasta que llega la lectura fresca (sin parpadeo).
+- **UI**: la insignia de la barra superior ("3 sin enviar", "Enviando…", "2 con
+  error") abre la lista con Reintentar/Descartar (confirma); el pill de estado
+  dice «Sin conexión» aunque el socket diga otra cosa; cerrar sesión con
+  pendientes confirma. Asistente y reportes se muestran como «Requiere
+  conexión» (`ConConexion`, sin desmontar la pantalla) y los botones de
+  exportar, importar y escanear se desactivan.
+- **Precarga** (`core/offline/precarga.ts`, plan puro en
+  `domain/offline/precarga.ts`): solo `PROFESSOR`, con servidor, tras entrar,
+  conectarse el socket, volver la conexión o una subida, como máximo cada 30 min y
+  nunca dos a la vez. `prefetchQuery` con las **mismas claves y funciones** de las
+  pantallas (periodos, materias, grupos, estudiantes, panel; por materia del
+  periodo actual: matriculados, consolidado y asistencia, y por grupo los dos
+  primeros), 2 consultas a la vez, `meta.silencioso` (sin avisos). Las materias son
+  las que el servidor ya acota al docente. **Si una pantalla cambia la clave de su
+  consulta, hay que cambiarla también en `precarga.ts`**: no falla, deja de
+  precargarse.
 
 ### Escritorio en Linux
 
@@ -1187,19 +1383,23 @@ la versión recortada, y el backend la aplica igual (el `Origin` es
 
 ### Acceso del escritorio (`features/auth/login-page.tsx`)
 
-Sigue al acceso del móvil: la pantalla entera es la superficie de marca con
-tres nubes que respiran en 14 s (`.acceso-nube`, solo `transform` sobre un
-elemento ya desenfocado, con un paralaje corto que sigue al puntero), el logo
-cae con resorte sobre un anillo que gira, el héroe entra escalonado, Rubri se
-asoma sobre la tarjeta —feliz, triste tras un fallo, «sin conexión» sin
-servidor— y la tarjeta sube con resorte y **se sacude** ante un error. La capa
+Dos columnas: a la izquierda (solo en ancho, `lg`) una columna de marca en
+**verde institucional plano** (`.surface-brand`) con el nombre, la frase y lo
+que hace la aplicación en una lista con filo; a la derecha el formulario en una
+tarjeta sobre el fondo de la aplicación. En estrecho la marca sube encima de la
+tarjeta. Rubri se asoma sobre ella —feliz, triste tras un fallo, «sin
+conexión» sin servidor— y la tarjeta **se sacude** ante un error: las dos cosas
+son información y se quedan. Lo que se fue (octubre de 2026): las tres nubes
+que respiraban, la trama de puntos, el anillo cónico girando, el paralaje, la
+caída con resorte del logo y la etiqueta en versalitas sobre el título. La capa
 visual vive en `components/escenario-acceso.tsx`; la lógica (sondeo del
 servidor, salida de emergencia para cambiar la dirección) es la de siempre.
 Dos detalles: la sacudida va con `useAnimate` sobre un `div` normal, porque un
 `animate` propio en la tarjeta abre otro contexto de variantes y sus piezas se
 quedaban invisibles; y el campo de contraseña oculta `::-ms-reveal`, el ojo
 nativo de WebView2, que duplicaba el propio. «Reducir movimiento» (sistema o
-Apariencia, `useSinMovimiento`) lo para todo, las nubes incluidas.
+Apariencia, `useSinMovimiento`) para la sacudida y la entrada. El acceso del
+móvil (`login_page.dart`) sigue con su aurora; igualarlo es un cambio aparte.
 
 ### WebKitGTK no es Chromium: dos cosas que en Linux se hacen a mano
 
@@ -1309,9 +1509,11 @@ tamaño del texto, reducir movimiento).
   guardado se sanea campo a campo con `normalizarApariencia()` (es
   `localStorage`, entrada no confiable). Los gráficos repintan con
   `useTheme(s => s.firma)`, que cambia con modo, tono, color propio y visión.
-  `--gradient-surface` también se escribe: `.surface-card` pinta ese degradado
-  **encima** de `--surface`, y fijo dejaba todas las tarjetas blancas u oliva
-  con cualquier tono.
+  `--gradient-surface` y `--gradient-brand` se siguen escribiendo (la muestra
+  de cada tono los usa y una prueba fija los institucionales), pero
+  `.surface-card` y `.surface-brand` **ya no los pintan**: las dos son color
+  plano (`--surface` y `--primary`; en oscuro la marca es `--primary-soft`
+  con su filo), así que siguen al tono sin degradado.
 - **Móvil**: `AppPalette` es una `ThemeExtension` y `AppTheme.construir(prefs,
   brillo)` arma el tema entero desde el tono y la visión, así que
   `context.palette` y `SemanticTone.of` ya devuelven los colores elegidos. **No
@@ -1391,7 +1593,8 @@ tamaño del texto, reducir movimiento).
 - **El lima `#CAD225` es el acento en los dos modos** y nunca es color de texto ni fondo de superficie grande — solo botones, badges, selección y foco (§4 reglas 2 y 4). En claro, cuando el acento tiene que *ser* texto se usa `--accent-strong` / `AppColors.accentStrong` (`#626D0F`), que es la misma rampa bajada hasta AA.
 - **En el móvil, los colores del tema se leen con `context.palette`** (`AppPalette` en `app_theme.dart`), no con `isDark ? XDark : X` repetido en cada pantalla: cada copia de ese ternario es un sitio donde se puede olvidar el caso oscuro, y olvidarlo no da error, da texto gris sobre fondo oliva.
 - **`cn()` conoce la rampa tipográfica** (`shared/lib/cn.ts`, `extendTailwindMerge`). Sin eso tailwind-merge tomaba `text-body` por un color y borraba el anterior: todo botón primario perdía `text-on-primary` (etiqueta oscura sobre verde) y las etiquetas de formulario perdían su `text-caption`. `tests/unit/cn.test.ts` lo fija. Si se añade un paso a la rampa, va también ahí.
-- **La superficie de marca (`surface-brand` / `BrandSurface`) es solo para lo que representa a la aplicación** — cabecera del panel, clase en curso, acceso. Nunca detrás de una tabla o una lista: el degradado cambia de tono a lo largo del bloque y cada fila acabaría sobre un fondo distinto.
+- **La superficie de marca (`surface-brand` / `BrandSurface`) es solo para lo que representa a la aplicación** — en el escritorio, hoy solo la columna de marca del acceso (el panel abre con una cabecera editorial, no con un bloque verde). Nunca detrás de una tabla o una lista. En el escritorio es verde plano; el móvil aún la pinta con degradado.
+- **Escritorio sobrio (octubre de 2026).** La interfaz se leía «hecha por IA» y se quitaron los tics que lo delataban: degradados en tarjetas y marca, cristal con desenfoque (`.surface-glass` es ya superficie con filo), sombras en tarjetas y botones (el primario no lleva halo; las sombras quedan para lo que flota), esquinas de 18–26 px (ahora 12 en card, 8 en botón y campo, 6 en etiqueta), etiquetas en versalitas sobre los títulos, franjas de color en las métricas y en los avisos, iconos en cuadrados de color como estructura de tarjeta, cifras de datos en monoespaciada y rebotes. `PageHeader` es editorial: título semibold con filo inferior. `StatCard` conserva sus props (`index` ya no escalona). **No los reintroduzcas sin una razón que no sea «queda más moderno».**
 - Inter va empaquetada en los dos clientes (`@fontsource/inter` en escritorio, `.ttf` en `flutter_app/assets/fonts/`). No la sustituyas por una carga remota: el CSP de Tauri no tiene `font-src` y la app móvil se usa sin red fiable.
 - **Las Inter del móvil van recortadas a latín y hay que mantenerlas así.** Flutter
   **no** subconjunta fuentes de texto —`--tree-shake-icons` solo actúa sobre las
@@ -1559,6 +1762,11 @@ Los tres clientes se actualizan desde **GitHub Releases**; el proceso completo e
 - **`latest.json` tiene un dueño y no es `tauri-action`.** Lo compone el trabajo `manifiesto` de `release.yml` con `.github/scripts/componer-manifiesto.mjs`, a partir de los assets ya publicados. La razón es concreta: `tauri-action` **no fusiona** un manifiesto existente —borra el asset y sube el suyo, armado solo con lo que compiló ese trabajo—, así que con Windows y Linux en trabajos distintos el segundo dejaba al primero sin actualizaciones. Ese fallo no se ve: la release está completa y lo único que cambia es que el botón contesta «ya tienes la última versión» para siempre. El script falla si falta alguna clave, y su `--autoprueba` corre en CI.
 - El actualizador busca `{os}-{arch}-{formato}` y cae a `{os}-{arch}`. Por eso el manifiesto lleva `linux-x86_64-appimage`, `-deb` y `-rpm`, y el alias corto `linux-x86_64` apunta a la **AppImage**: si el actualizador no logra averiguar cómo está instalada la app, lo que se le ofrezca tiene que funcionar en el sitio donde esté.
 - **Publicar exige subir la versión y empujar una etiqueta `v*`.** Sin subirla el updater no ofrece nada. **No edites los archivos a mano**: `node .github/scripts/subir-version.mjs patch|minor|major|X.Y.Z` los actualiza todos, sube el `versionCode` y regenera los ficheros de bloqueo; `comprobar-version.mjs` lo verifica después y en CI. Ver la «Regla de subida de versión» más abajo.
+- **Tras instalar, una sola app y la misma sesión.** Cuatro defectos que salían justo después de actualizar:
+  - *Android, dos tarjetas en recientes.* El instalador abre en su propia tarea y el sistema detiene la versión vieja, cuya tarjeta quedaba como tarea muerta; «Abrir» creaba otra. `update_service.dart` llama, ya con el instalador en pantalla, al canal `uts.nexus/tarea` de `MainActivity.kt` (`finishAndRemoveTask`). Si se cancela la instalación, la app se abre de nuevo desde el icono con la sesión intacta. El aviso «Actualización disponible» de esa versión se retira al arrancar con ella instalada (`_retirarAvisoInstalado`).
+  - *Escritorio, sesión perdida en cada arranque.* `device_id` no estaba en la lista blanca de `secure_store.rs`; el rechazo se tragaba y cada ejecución estrenaba identificador, así que el servidor veía otro equipo y revocaba la sesión al renovar.
+  - *Windows, la app desaparecía.* El actualizador relanza con los argumentos de la ejecución anterior, `--segundo-plano` incluido si la había abierto Windows al iniciar sesión. `arrancar_oculta()` (`segundo_plano.rs`, con pruebas) abre la ventana cuando la versión cambió desde la última ejecución (`ultima-version.txt` en la carpeta de configuración). Y `installUpdate` separa descarga e instalación para retirar el icono de la bandeja entre las dos: el instalador mata el proceso y dejaba un icono fantasma.
+- **Las notas de una versión se leen, no se pintan en crudo.** Son el Markdown de la etiqueta (títulos, `**`, viñetas, líneas cortadas a 78 columnas). `leerNotasVersion()` —`desktop/src/domain/updates/notas-version.ts` y `flutter_app/lib/core/widgets/notas_version.dart`, con pruebas que fijan las mismas salidas— las convierte en títulos, párrafos y viñetas; el título de nivel 1 se omite porque repite la versión. Cambiar uno exige cambiar el otro.
 - La clave privada de firma **no está en el repositorio** y no debe estarlo: quien la tenga puede publicar actualizaciones falsas que las apps instaladas aceptarían como oficiales.
 
 ## Documentación de referencia

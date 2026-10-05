@@ -8,6 +8,9 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/ui_kit.dart';
 import '../../core/widgets/compact.dart';
 import '../../core/storage/offline_status.dart';
+import '../../core/sync/outbox_entry.dart';
+import '../../core/sync/outbox_logic.dart';
+import '../../core/sync/outbox_service.dart';
 
 /// Desglose de un estudiante — y el sitio donde se registran sus notas.
 ///
@@ -133,7 +136,7 @@ class _GradeBreakdownSheet extends ConsumerStatefulWidget {
 class _GradeBreakdownSheetState extends ConsumerState<_GradeBreakdownSheet> {
   String? _borrando;
 
-  Future<void> _eliminar(GradeDetail nota) async {
+  Future<void> _eliminar(GradeDetail nota, int corte, String tipo) async {
     final confirmado = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -162,11 +165,33 @@ class _GradeBreakdownSheetState extends ConsumerState<_GradeBreakdownSheet> {
 
     setState(() => _borrando = nota.id);
     try {
-      await ref.read(academicRepositoryProvider).deleteGrade(nota.id);
+      final captura = widget.captura;
+      final soloPendiente = nota.id.startsWith('pendiente:');
+      final resultado = await ref
+          .read(academicRepositoryProvider)
+          .deleteGrade(
+            id: soloPendiente ? null : nota.id,
+            studentId: widget.row.studentId,
+            subjectId: captura?.subjectId ?? '',
+            period: captura?.period ?? '',
+            cut: corte,
+            componentType: tipo,
+            label: nota.label,
+            studentName: widget.row.fullName,
+          );
       widget.onChanged();
       // La hoja se queda abierta: observa el consolidado y la fila se
       // refresca sola, que es donde se ve el promedio recalculado.
-      if (mounted) setState(() => _borrando = null);
+      if (mounted) {
+        setState(() => _borrando = null);
+        if (resultado == ResultadoEscritura.encolada && !soloPendiente) {
+          AppToast.info(
+            context,
+            'Eliminación guardada en el teléfono',
+            'Se enviará cuando haya conexión.',
+          );
+        }
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() => _borrando = null);
@@ -183,7 +208,7 @@ class _GradeBreakdownSheetState extends ConsumerState<_GradeBreakdownSheet> {
     double score,
   ) async {
     final captura = widget.captura!;
-    await ref
+    final resultado = await ref
         .read(academicRepositoryProvider)
         .saveGrade(
           studentId: widget.row.studentId,
@@ -194,8 +219,45 @@ class _GradeBreakdownSheetState extends ConsumerState<_GradeBreakdownSheet> {
           label: label,
           score: score,
           period: captura.period,
+          studentName: widget.row.fullName,
         );
     widget.onChanged();
+    if (resultado == ResultadoEscritura.encolada && mounted) {
+      AppToast.info(
+        context,
+        'Nota guardada en el teléfono',
+        'Se enviará sola cuando haya conexión.',
+      );
+    }
+  }
+
+  /// El componente con lo pendiente de enviar superpuesto a sus notas. Solo
+  /// cambia la lista: el promedio y los conteos son del servidor y se
+  /// actualizan cuando los cambios salgan.
+  ComponentSummary _conPendientes(
+    ComponentSummary componente,
+    int corte,
+    List<OutboxEntry> pendientes,
+  ) {
+    final captura = widget.captura;
+    if (captura == null || pendientes.isEmpty) return componente;
+    final notas = fusionarNotas(
+      servidor: componente.notes,
+      pendientes: pendientes,
+      studentId: widget.row.studentId,
+      subjectId: captura.subjectId,
+      period: captura.period,
+      corte: corte,
+      componentType: componente.type,
+    );
+    if (identical(notas, componente.notes)) return componente;
+    return ComponentSummary(
+      type: componente.type,
+      weight: componente.weight,
+      average: componente.average,
+      count: componente.count,
+      notes: notas,
+    );
   }
 
   @override
@@ -205,6 +267,8 @@ class _GradeBreakdownSheetState extends ConsumerState<_GradeBreakdownSheet> {
     final offlineStatus = ref.watch(offlineStatusProvider).valueOrNull;
     final sinConexion =
         offlineStatus != null && offlineStatus.desdeCache != null;
+    final pendientes =
+        ref.watch(outboxProvider).valueOrNull?.entradas ?? const <OutboxEntry>[];
 
     // La fila VIVA: la que llegó al abrir es una foto, y aquí también se
     // registran notas — con la foto, lo añadido no se vería hasta cerrar y
@@ -252,8 +316,9 @@ class _GradeBreakdownSheetState extends ConsumerState<_GradeBreakdownSheet> {
                 child: CompactEmpty(
                   icono: Icons.cloud_off_outlined,
                   mensaje:
-                      'Sin conexión con el servidor. Las escrituras y eliminaciones '
-                      'de calificaciones están temporalmente bloqueadas.',
+                      'Sin conexión con el servidor. Las notas que registres o '
+                      'elimines se guardan en el teléfono y se envían solas '
+                      'cuando vuelva la conexión.',
                 ),
               ),
 
@@ -282,16 +347,13 @@ class _GradeBreakdownSheetState extends ConsumerState<_GradeBreakdownSheet> {
                 const SizedBox(height: 8),
                 for (final component in cut.components)
                   _ComponentBlock(
-                    component: component,
+                    component: _conPendientes(component, cut.cut, pendientes),
                     muted: muted,
                     danger: danger,
                     borrando: _borrando,
-                    onDelete: _eliminar,
-                    sinConexion: sinConexion,
+                    onDelete: (nota) => _eliminar(nota, cut.cut, component.type),
                     onAgregar:
-                        widget.captura == null ||
-                            !corteAbierto(cut.cut) ||
-                            sinConexion
+                        widget.captura == null || !corteAbierto(cut.cut)
                         ? null
                         : (label, score) =>
                               _agregar(cut.cut, component.type, label, score),
@@ -320,7 +382,6 @@ class _ComponentBlock extends StatelessWidget {
   final Color danger;
   final String? borrando;
   final Future<void> Function(GradeDetail) onDelete;
-  final bool sinConexion;
 
   /// Presente = aquí se puede registrar: pinta el renglón de añadir.
   final Future<void> Function(String label, double score)? onAgregar;
@@ -331,7 +392,6 @@ class _ComponentBlock extends StatelessWidget {
     required this.danger,
     required this.borrando,
     required this.onDelete,
-    required this.sinConexion,
     this.onAgregar,
   });
 
@@ -339,6 +399,9 @@ class _ComponentBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final nombre = _componentLabels[component.type] ?? component.type;
     final peso = '${(component.weight * 100).round()}%';
+    final hayPendientes = component.notes.any(
+      (n) => n.local != EstadoLocalNota.sincronizada,
+    );
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -358,8 +421,10 @@ class _ComponentBlock extends StatelessWidget {
                   style: AppType.captionStrong.copyWith(color: muted),
                 ),
               ),
-              if (component.count == 0)
+              if (component.count == 0 && component.notes.isEmpty)
                 const StatusPill('Sin calificar', kind: SemanticKind.warning)
+              else if (component.count == 0)
+                const StatusPill('Sin enviar', kind: SemanticKind.warning)
               else
                 Text(
                   component.average.toStringAsFixed(2),
@@ -367,6 +432,13 @@ class _ComponentBlock extends StatelessWidget {
                 ),
             ],
           ),
+          if (hayPendientes) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Hay cambios sin enviar. El promedio se actualiza cuando salgan.',
+              style: AppType.caption.copyWith(color: muted),
+            ),
+          ],
           if (component.count > 1) ...[
             const SizedBox(height: 4),
             // La cuenta explícita: suma ÷ cuántas hay, o cada nota por su
@@ -389,7 +461,27 @@ class _ComponentBlock extends StatelessWidget {
                       style: AppType.caption,
                     ),
                   ),
-                  Text(nota.score.toStringAsFixed(1), style: AppType.caption),
+                  if (nota.local == EstadoLocalNota.pendienteEnvio)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 6),
+                      child: StatusPill('Pendiente', kind: SemanticKind.warning),
+                    ),
+                  if (nota.local == EstadoLocalNota.pendienteBorrado)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 6),
+                      child: StatusPill(
+                        'Se eliminará',
+                        kind: SemanticKind.warning,
+                      ),
+                    ),
+                  Text(
+                    nota.score.toStringAsFixed(1),
+                    style: AppType.caption.copyWith(
+                      decoration: nota.local == EstadoLocalNota.pendienteBorrado
+                          ? TextDecoration.lineThrough
+                          : null,
+                    ),
+                  ),
                   const SizedBox(width: 4),
                   if (borrando == nota.id)
                     const SizedBox(
@@ -402,7 +494,9 @@ class _ComponentBlock extends StatelessWidget {
                       visualDensity: VisualDensity.compact,
                       tooltip: 'Eliminar ${nota.label}',
                       icon: Icon(Icons.delete_outline, size: 18, color: danger),
-                      onPressed: borrando == null && !sinConexion
+                      onPressed:
+                          borrando == null &&
+                              nota.local != EstadoLocalNota.pendienteBorrado
                           ? () => onDelete(nota)
                           : null,
                     ),

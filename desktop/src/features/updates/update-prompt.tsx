@@ -3,6 +3,7 @@ import { Download, Sparkles } from 'lucide-react';
 import { Button, Dialog, DialogContent, DialogFooter } from '@/shared/ui';
 import { checkForUpdate, installUpdate, type DownloadProgress, type UpdateInfo } from '@/core/platform/updater';
 import { isDesktop } from '@/core/platform/tauri';
+import { NotasVersion } from './notas-version';
 
 /**
  * Aviso de versión nueva al abrir la app.
@@ -116,9 +117,7 @@ export function UpdatePrompt() {
                 <Sparkles className="size-4 text-primary" aria-hidden />
                 Qué trae
               </p>
-              <p className="max-h-40 overflow-y-auto whitespace-pre-line text-caption text-muted">
-                {update.notes.trim()}
-              </p>
+              <NotasVersion notas={update.notes} className="max-h-48 overflow-y-auto pr-1" />
             </div>
           )}
 

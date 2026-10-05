@@ -12,7 +12,6 @@ import { Button } from '@/shared/ui/button';
 import { Field, Input } from '@/shared/ui/field';
 import { Switch } from '@/shared/ui/primitives';
 import { Rubri, type RubriEmotion } from '@/shared/ui/rubri';
-import { cn } from '@/shared/lib/cn';
 import { useSinMovimiento } from '@/shared/hooks/use-sin-movimiento';
 import { useSession } from '@/state/session.store';
 import { toast } from '@/state/toast.store';
@@ -23,21 +22,20 @@ import { loginInputSchema } from '@/domain/schemas/auth';
 import { normalizeServerUrl } from '@/core/config/env';
 import {
   BotonPantallaCompletaAcceso,
-  FondoAcceso,
   HeroAcceso,
-  LogoConAnillo,
+  MarcaAcceso,
 } from './components/escenario-acceso';
-import { RESORTE } from './components/resorte';
 
 /**
  * Pantalla de acceso.
  *
  * Toda la lógica es la de siempre —sin credenciales precargadas, sondeo del
  * servidor que solo habla cuando hay malas noticias, salida de emergencia para
- * cambiar la dirección—. Lo que cambió es la capa visual, que ahora sigue al
- * acceso del móvil: la pantalla entera es la superficie de marca con nubes que
- * respiran (`escenario-acceso.tsx`), Rubri saluda y pone la cara de lo que
- * pasa, y la tarjeta del formulario sube con un resorte.
+ * cambiar la dirección—. La capa visual es sobria a propósito: una columna de
+ * marca en verde plano (`escenario-acceso.tsx`) y el formulario sobre el fondo
+ * de la aplicación, sin degradados, nubes ni resortes. Rubri se asoma sobre la
+ * tarjeta y pone la cara de lo que pasa, y la tarjeta se sacude ante un error:
+ * eso sí es información.
  *
  * Dos cosas nuevas que no son solo aspecto:
  *
@@ -48,20 +46,22 @@ import { RESORTE } from './components/resorte';
  * - **Pantalla completa** con el botón de arriba o con su atajo (F11, ⌃⌘F en macOS).
  */
 
-/** Tarjeta: sube con resorte y reparte la entrada de sus piezas. */
+/** Curva de salida: rápida al principio, se posa sin rebote. */
+const SALIDA = [0.22, 1, 0.36, 1] as const;
+
+/** Tarjeta: aparece una vez, corta y sin rebote. Las piezas la siguen sin desplazarse. */
 const tarjeta: Variants = {
-  oculto: { opacity: 0, y: 36, scale: 0.97 },
+  oculto: { opacity: 0, y: 8 },
   visible: {
     opacity: 1,
     y: 0,
-    scale: 1,
-    transition: { ...RESORTE, delay: 0.1, staggerChildren: 0.06, delayChildren: 0.28 },
+    transition: { duration: 0.28, ease: SALIDA, staggerChildren: 0.03, delayChildren: 0.08 },
   },
 };
 
 const pieza: Variants = {
-  oculto: { opacity: 0, y: 10 },
-  visible: { opacity: 1, y: 0, transition: RESORTE },
+  oculto: { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.2, ease: SALIDA } },
 };
 
 /** Sacudida de «no»: corta, amortiguada, solo en horizontal. */
@@ -173,18 +173,16 @@ export default function LoginPage() {
 
   return (
     <MotionConfig reducedMotion={sinMovimiento ? 'always' : 'never'}>
-      <div className="surface-brand relative isolate flex h-screen w-screen overflow-y-auto rounded-none">
-        <FondoAcceso sinMovimiento={sinMovimiento} />
-        <BotonPantallaCompletaAcceso />
+      <div className="flex h-screen w-screen overflow-y-auto bg-bg text-text">
+        <HeroAcceso />
 
-        <div className="mx-auto flex min-h-full w-full max-w-6xl items-center justify-center gap-16 px-6 py-16 lg:justify-between lg:px-12">
-          <HeroAcceso />
+        <main className="relative flex min-h-full flex-1 items-center justify-center px-6 py-16 lg:px-12">
+          <BotonPantallaCompletaAcceso />
 
-          <div className="flex w-full max-w-md flex-col items-center">
-            {/* En ventanas estrechas el héroe no está: el logo y el nombre suben aquí. */}
-            <div className="mb-16 flex flex-col items-center gap-3 lg:hidden">
-              <LogoConAnillo size={56} />
-              <span className="text-h3 font-bold">UTS Nexus Académico</span>
+          <div className="flex w-full max-w-md flex-col">
+            {/* En ventanas estrechas la columna de marca no está: la marca sube aquí. */}
+            <div className="mb-20 lg:hidden">
+              <MarcaAcceso size={36} />
             </div>
 
             <motion.div
@@ -193,32 +191,27 @@ export default function LoginPage() {
               animate="visible"
               className="relative w-full"
             >
-              {/* Rubri se asoma por encima de la tarjeta y saluda al entrar. */}
+              {/* Rubri se asoma por encima de la tarjeta; su cara dice qué pasa. */}
               <motion.div
-                initial={{ opacity: 0, y: 24, rotate: -12 }}
-                animate={{ opacity: 1, y: 0, rotate: [-12, 10, -6, 4, 0] }}
-                transition={{ ...RESORTE, delay: 0.45, rotate: { duration: 1.1, delay: 0.55 } }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3, delay: 0.2 }}
                 className="absolute -top-16 right-6 z-10"
               >
-                <Rubri emotion={emocion} size="medium" className="drop-shadow-lg" />
+                <Rubri emotion={emocion} size="medium" animated={false} />
               </motion.div>
 
               <div
                 ref={tarjetaRef}
-                className={cn(
-                  'relative rounded-2xl border border-border bg-surface p-8 text-text shadow-pop',
-                  // El brillo del filo superior: la tarjeta se lee como una
-                  // pieza que flota sobre el degradado, no pegada a él.
-                  'before:pointer-events-none before:absolute before:inset-x-8 before:top-0 before:h-px',
-                  'before:bg-gradient-to-r before:from-transparent before:via-accent before:to-transparent',
-                )}
+                className="relative rounded-card border border-border bg-surface p-8 text-text"
               >
                 <motion.div variants={pieza} className="mb-7 flex flex-col gap-1.5 pr-20">
-                  <span className="text-caption font-semibold uppercase tracking-[0.12em] text-accent-strong dark:text-accent">
-                    {saludo(new Date().getHours())}
-                  </span>
-                  <h1 className="text-h3 font-bold text-text">Bienvenido de vuelta</h1>
-                  <p className="text-body text-muted">Ingresa con tu cuenta institucional.</p>
+                  <h1 className="text-h3 font-semibold tracking-[-0.02em] text-text">
+                    Iniciar sesión
+                  </h1>
+                  <p className="text-body text-muted">
+                    {saludo(new Date().getHours())}. Ingresa con tu cuenta institucional.
+                  </p>
                 </motion.div>
 
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
@@ -273,10 +266,10 @@ export default function LoginPage() {
                             <AnimatePresence mode="wait" initial={false}>
                               <motion.span
                                 key={verPassword ? 'ocultar' : 'ver'}
-                                initial={{ opacity: 0, rotate: -40, scale: 0.7 }}
-                                animate={{ opacity: 1, rotate: 0, scale: 1 }}
-                                exit={{ opacity: 0, rotate: 40, scale: 0.7 }}
-                                transition={{ duration: 0.16 }}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.12 }}
                                 className="flex"
                               >
                                 {verPassword ? (
@@ -309,7 +302,7 @@ export default function LoginPage() {
                   {esWeb ? null : (
                     <motion.label
                       variants={pieza}
-                      className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-border bg-surface-alt/60 px-3.5 py-3 transition-colors hover:border-border-strong"
+                      className="flex cursor-pointer items-center justify-between gap-4 rounded-md border border-border bg-surface-alt px-3.5 py-3 transition-colors hover:border-border-strong"
                     >
                       <span className="flex flex-col">
                         <span className="text-body font-semibold text-text">
@@ -334,7 +327,7 @@ export default function LoginPage() {
                       size="lg"
                       block
                       loading={submitting}
-                      className="group mt-1 h-12 transition-[transform,box-shadow,background-color] active:translate-y-px active:shadow-none"
+                      className="group mt-1"
                     >
                       Entrar
                       <ArrowRight
@@ -374,11 +367,11 @@ export default function LoginPage() {
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}
-                      transition={RESORTE}
+                      transition={{ duration: 0.2, ease: SALIDA }}
                       className="overflow-hidden"
                     >
                       <div className="mt-6 border-t border-border pt-4">
-                        <p className="flex items-start gap-2 rounded-lg bg-warning-soft px-3 py-2 text-caption text-warning">
+                        <p className="flex items-start gap-2 rounded-md border border-warning-border bg-warning-soft px-3 py-2 text-caption text-warning">
                           <Server className="mt-0.5 size-3.5 shrink-0" aria-hidden />
                           <span>
                             No hay respuesta de <span className="font-mono">{serverUrl}</span>.
@@ -410,7 +403,7 @@ export default function LoginPage() {
               </div>
             </motion.div>
           </div>
-        </div>
+        </main>
       </div>
     </MotionConfig>
   );

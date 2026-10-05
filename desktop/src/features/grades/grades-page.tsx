@@ -37,6 +37,8 @@ import { PendingGradesCard } from '@/features/grades/components/pending-grades-c
 import { StudentBreakdownDialog } from '@/features/grades/components/student-breakdown-dialog';
 import { useGroups, useSubjects } from '@/features/subjects/hooks/use-subjects';
 import { useCurrentUser, useUserRole } from '@/state/session.store';
+import { useEnLinea } from '@/state/connectivity.store';
+import { TEXTO_SIN_CONEXION } from '@/features/offline/requiere-conexion';
 import { ExportButton } from '@/features/reports/components/export-button';
 import { useRecorteWeb } from '@/shared/hooks/use-recorte-web';
 import { can } from '@/core/auth/permissions';
@@ -58,6 +60,7 @@ export default function GradesPage() {
   const [period, setPeriod] = useState(currentPeriod());
   const [subjectId, setSubjectId] = useState('');
   const [importOpen, setImportOpen] = useState(false);
+  const enLinea = useEnLinea();
   const [plantillasOpen, setPlantillasOpen] = useState(false);
   // Se guarda el ID y no la fila: la fila es una foto, y el desglose ahora
   // también registra notas — con la foto, cada nota añadida no se vería hasta
@@ -255,7 +258,12 @@ export default function GradesPage() {
                 </Button>
               ) : null}
               {canWrite && !recorteWeb ? (
-                <Button variant="secondary" onClick={() => setImportOpen(true)}>
+                <Button
+                  variant="secondary"
+                  onClick={() => setImportOpen(true)}
+                  disabled={!enLinea}
+                  title={enLinea ? undefined : TEXTO_SIN_CONEXION}
+                >
                   <FileUp aria-hidden />
                   Importar notas
                 </Button>

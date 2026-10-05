@@ -70,6 +70,7 @@ pub fn run() {
             segundo_plano::sistema_ajustes,
             segundo_plano::sistema_iniciar_con_windows,
             segundo_plano::sistema_segundo_plano,
+            segundo_plano::sistema_quitar_bandeja,
         ])
         .run(tauri::generate_context!())
         .expect("error while running UTS Nexus Academico");
