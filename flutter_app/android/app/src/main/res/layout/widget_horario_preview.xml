@@ -1,19 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Widget "Horario". `HorarioWidgetProvider` decide en cada repintado:
-  - qué filas siguen siendo futuras (comparando `finMillis` contra el reloj),
-  - si la fecha de una fila es "Hoy"/"Mañana" (comparando la fecha del campus
-    guardada por Flutter contra la de hoy en el campus, no la del teléfono),
-  - y muestra u oculta `widget_horario_mensaje` frente a la lista según haya
-    datos, y datos con alguna clase futura, o ninguna de las dos cosas.
-
-  Solo clases que RemoteViews sabe inflar (FrameLayout, LinearLayout,
-  TextView, ImageView…). Los separadores eran `<View>`, que no lo es: el
-  launcher no podía inflar el layout y pintaba «No se puede cargar el widget».
-  Ahora son `ImageView` con fondo.
+  Vista previa del widget "Horario" en el selector de widgets (Android 12+,
+  `previewLayout`). Es el mismo diseño que `widget_horario.xml` con tres clases
+  de ejemplo: el real, sin datos, sería una tarjeta vacía con tres líneas.
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widget_horario_root"
+    android:id="@+id/widget_horario_preview_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_background">
@@ -84,6 +76,7 @@
 
                     <TextView
                         android:id="@+id/fila1_dia"
+                        android:text="Hoy"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:textColor="@color/widget_text"
@@ -92,6 +85,7 @@
 
                     <TextView
                         android:id="@+id/fila1_hora"
+                        android:text="7:00 – 9:00 a. m."
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:textColor="@color/widget_muted"
@@ -106,6 +100,7 @@
 
                     <TextView
                         android:id="@+id/fila1_titulo"
+                        android:text="Ingeniería del Software"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:maxLines="1"
@@ -116,6 +111,7 @@
 
                     <TextView
                         android:id="@+id/fila1_detalle"
+                        android:text="Grupo A194 · Aula 302"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:maxLines="1"
@@ -152,6 +148,7 @@
 
                     <TextView
                         android:id="@+id/fila2_dia"
+                        android:text="Hoy"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:textColor="@color/widget_text"
@@ -160,6 +157,7 @@
 
                     <TextView
                         android:id="@+id/fila2_hora"
+                        android:text="10:00 a. m. – 12:00 p. m."
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:textColor="@color/widget_muted"
@@ -174,6 +172,7 @@
 
                     <TextView
                         android:id="@+id/fila2_titulo"
+                        android:text="Bases de Datos"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:maxLines="1"
@@ -184,6 +183,7 @@
 
                     <TextView
                         android:id="@+id/fila2_detalle"
+                        android:text="Grupo B212 · Aula Lab 4"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:maxLines="1"
@@ -220,6 +220,7 @@
 
                     <TextView
                         android:id="@+id/fila3_dia"
+                        android:text="Mañana"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:textColor="@color/widget_text"
@@ -228,6 +229,7 @@
 
                     <TextView
                         android:id="@+id/fila3_hora"
+                        android:text="8:00 – 10:00 a. m."
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:textColor="@color/widget_muted"
@@ -242,6 +244,7 @@
 
                     <TextView
                         android:id="@+id/fila3_titulo"
+                        android:text="Programación Web"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:maxLines="1"
@@ -252,6 +255,7 @@
 
                     <TextView
                         android:id="@+id/fila3_detalle"
+                        android:text="Grupo A193 · Aula 105"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:maxLines="1"
@@ -263,6 +267,7 @@
 
             <ImageView
                 android:id="@+id/divisor3"
+                android:visibility="gone"
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
                 android:background="@color/widget_border"
@@ -272,6 +277,7 @@
             <!-- Fila 4 -->
             <LinearLayout
                 android:id="@+id/fila4"
+                android:visibility="gone"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"

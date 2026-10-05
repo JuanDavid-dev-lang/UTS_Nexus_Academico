@@ -913,6 +913,7 @@ Agenda y Materias.
   repintado de 30 minutos, qué filas ya terminaron y si su fecha es «Hoy» o
   «Mañana» comparando con la fecha **del campus**, nunca con la zona del
   teléfono. Si la app no se abre en una semana, el widget se queda sin clases.
+- **Solo vistas que `RemoteViews` sabe inflar.** `FrameLayout`, `LinearLayout`, `TextView`, `ImageView` y pocas más; un `<View>` suelto no lo es. Los separadores del Horario eran `<View>` y el launcher pintaba «No se puede cargar el widget» desde la 1.8.1 (el log dice `Error inflating class android.view.View`): ahora son `ImageView` con fondo. Ni `flutter analyze` ni la compilación lo detectan; se comprueba añadiendo el widget en un emulador. La vista previa del selector es `widget_horario_preview.xml`, con tres clases de ejemplo, y el rango de horas se compacta (`rangoHorasWidget`: «7:00 – 9:00 a. m.», espacios no separables dentro de cada hora) porque la columna mide 96 dp.
 - **Los toques abren `utsnexus://abrir/<ruta>`** y la ruta pasa por una lista
   blanca (`home_widget_links.dart`) antes de `router.go`: una URI no puede
   llevar a cualquier pantalla.

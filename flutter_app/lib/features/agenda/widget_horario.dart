@@ -133,12 +133,31 @@ List<FilaHorarioWidget> proximasClasesParaWidget(
       finMillis: item.fin.millisecondsSinceEpoch,
       fecha: fechaCampus(item.inicio, offsetCampusMinutos),
       dia: _diaCorto(item.inicio, offsetCampusMinutos),
-      hora:
-          '${horaCampus(item.inicio, offsetCampusMinutos)} – ${horaCampus(item.fin, offsetCampusMinutos)}',
+      hora: rangoHorasWidget(item.inicio, item.fin, offsetCampusMinutos),
       titulo: item.titulo.isNotEmpty ? item.titulo : item.materia,
       detalle: detalle,
     );
   }).toList();
+}
+
+/// Rango de una clase para la columna estrecha del widget.
+///
+/// «7:00 a. m. – 9:00 a. m.» no cabe en los 96 dp de la columna y se partía a
+/// media palabra («9:00 / a. m.»). Si las dos horas caen en la misma mitad
+/// del día, el sufijo va una sola vez: «7:00 – 9:00 a. m.». Dentro de cada
+/// hora los espacios son no separables: si el rango no cabe en una línea,
+/// se corta junto al guion y no en «p. / m.».
+String rangoHorasWidget(DateTime inicio, DateTime fin, int offsetCampusMinutos) {
+  const nbsp = ' ';
+  final desde = horaCampus(inicio, offsetCampusMinutos);
+  final hasta = horaCampus(fin, offsetCampusMinutos);
+  final sufijoDesde = desde.substring(desde.indexOf(' ') + 1);
+  final sufijoHasta = hasta.substring(hasta.indexOf(' ') + 1);
+  String pegada(String hora) => hora.replaceAll(' ', nbsp);
+  if (sufijoDesde == sufijoHasta) {
+    return '${desde.substring(0, desde.indexOf(' '))} – ${pegada(hasta)}';
+  }
+  return '${pegada(desde)} – ${pegada(hasta)}';
 }
 
 /// JSON que se guarda en el almacenamiento del widget bajo
