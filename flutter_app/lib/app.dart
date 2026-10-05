@@ -187,6 +187,12 @@ class _UtsAppState extends ConsumerState<UtsApp> {
   /// Evita que dos eventos seguidos disparen dos reprogramaciones solapadas.
   bool _reprogramando = false;
 
+  /// Si el socket ya estuvo conectado en esta ejecución. La primera conexión
+  /// coincide con la carga inicial de las pantallas; las siguientes (volver de
+  /// segundo plano, un corte de red, el servidor reiniciándose) llegan tras un
+  /// hueco en el que los `sync:update` se perdieron.
+  bool _conectadoAntes = false;
+
   /// Suelta el socket mientras la aplicación no está en pantalla.
   ///
   /// Vive aquí, en la raíz, y no en cada pantalla: es una sola conexión y el
@@ -299,6 +305,35 @@ class _UtsAppState extends ConsumerState<UtsApp> {
     }
   }
 
+  /// Vuelve a pedir lo que se puede estar mirando tras una reconexión.
+  ///
+  /// Durante el corte, el servidor emitió `sync:update` que este teléfono no
+  /// recibió: una nota puesta en el escritorio, una matrícula, un cambio de
+  /// horario. Sin esto la pantalla se quedaba con la versión vieja hasta el
+  /// siguiente evento de esa misma entidad, sin nada que lo delatara. Los
+  /// providers no son `autoDispose`: invalidar uno que nadie mira solo lo
+  /// marca, y se pide de nuevo cuando alguien lo abre.
+  void _refrescarTrasReconexion() {
+    ref.invalidate(dashboardProvider);
+    ref.invalidate(subjectsProvider);
+    ref.invalidate(groupsProvider);
+    ref.invalidate(studentsProvider);
+    ref.invalidate(filteredStudentsProvider);
+    ref.invalidate(directorioEstudiantesProvider);
+    ref.invalidate(subjectRosterProvider);
+    ref.invalidate(consolidatedGradesProvider);
+    ref.invalidate(pendingGradesProvider);
+    ref.invalidate(periodosProvider);
+    ref.invalidate(casosAsistenciaProvider);
+    ref.invalidate(actividadesProvider);
+    ref.invalidate(avisosProvider);
+    ref.invalidate(scheduleProvider);
+    ref.invalidate(agendaResumenProvider);
+    ref.invalidate(agendaSemanaProvider);
+    ref.invalidate(agendaProximaProvider);
+    unawaited(_reprogramarRecordatorios());
+  }
+
   @override
   Widget build(BuildContext context) {
     // Un aviso que llega por Socket.IO con la app en segundo plano no se ve si
@@ -342,6 +377,8 @@ class _UtsAppState extends ConsumerState<UtsApp> {
     // pendiente ya puede salir.
     ref.listen(realtimeStatusProvider, (previous, next) {
       if (next.valueOrNull == RealtimeStatus.connected) {
+        if (_conectadoAntes) _refrescarTrasReconexion();
+        _conectadoAntes = true;
         OutboxService.instance.solicitarDrenaje();
         unawaited(PrecargaService.instance.solicitar());
       }

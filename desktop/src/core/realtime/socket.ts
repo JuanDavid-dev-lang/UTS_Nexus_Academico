@@ -261,12 +261,25 @@ export function connectRealtime(
     onStatus(fallosSeguidos >= FALLOS_ANTES_DE_AVISAR ? 'error' : 'reconnecting', detalle);
   };
 
+  // La primera conexión coincide con la carga inicial de las pantallas. Las
+  // siguientes llegan tras un hueco (suspensión, corte de red, servidor
+  // reiniciándose) en el que los `sync:update` se perdieron: sin volver a
+  // pedir, la pantalla se quedaba con la versión vieja hasta el siguiente
+  // evento de esa misma entidad, sin nada que lo delatara.
+  let conectadoAntes = false;
+
   active.on('connect', () => {
     refreshAttempted = false;
     fallosSeguidos = 0;
     if (reintento) clearTimeout(reintento);
     reintento = null;
     onStatus('connected');
+    if (conectadoAntes) {
+      // Todo caduca; solo se vuelve a pedir lo que hay en pantalla. Lo demás
+      // se pedirá cuando alguien lo abra.
+      void queryClient.invalidateQueries({ refetchType: 'active' });
+    }
+    conectadoAntes = true;
   });
   active.on('disconnect', (reason) => {
     // Solo el cierre pedido por la propia app es «desconectado». Un corte de
