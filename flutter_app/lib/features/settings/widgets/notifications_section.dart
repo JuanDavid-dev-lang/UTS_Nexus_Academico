@@ -107,11 +107,8 @@ class _NotificationsSectionState extends ConsumerState<NotificationsSection> {
               const SizedBox(height: AppSpacing.gap),
 
               Text(
-                'ANTELACIÓN DE LAS CLASES',
-                style: AppType.captionStrong.copyWith(
-                  color: muted,
-                  letterSpacing: 0.8,
-                ),
+                'Antelación de las clases',
+                style: AppType.captionStrong.copyWith(color: muted),
               ),
               const SizedBox(height: 8),
               Wrap(
@@ -144,11 +141,8 @@ class _NotificationsSectionState extends ConsumerState<NotificationsSection> {
 
               const Divider(height: 28),
               Text(
-                'QUÉ RECIBIR',
-                style: AppType.captionStrong.copyWith(
-                  color: muted,
-                  letterSpacing: 0.8,
-                ),
+                'Qué recibir',
+                style: AppType.captionStrong.copyWith(color: muted),
               ),
               for (final (clave, etiqueta, detalle) in _categorias)
                 SwitchListTile(

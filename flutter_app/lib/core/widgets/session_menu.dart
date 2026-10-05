@@ -87,17 +87,15 @@ class SessionMenuButton extends ConsumerWidget {
       ],
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12),
-        // Degradado de marca con un anillo claro: es la misma superficie que
-        // identifica a la aplicación, en pequeño, y se distingue de cualquier
-        // otro círculo de color de la barra.
+        // Anillo fino del color del borde: separa el avatar del resto de la barra
+        // sin sombra ni degradado.
         child: Container(
           width: 34,
           height: 34,
           padding: const EdgeInsets.all(1.5),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            gradient: AppGradients.brand(context.palette),
-            boxShadow: AppShadows.sm(context.palette.isDark),
+            color: context.palette.border,
           ),
           child: CircleAvatar(
             backgroundColor: scheme.primary,

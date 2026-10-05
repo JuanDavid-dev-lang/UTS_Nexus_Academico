@@ -5,21 +5,19 @@ import '../theme/app_theme.dart';
 
 /// Componentes reutilizables del sistema de diseño (DESIGN.md §8, §12, §18).
 
-/// Superficie de contenido.
-///
-/// Lleva sombra además del borde. Un rectángulo blanco con borde de 1 px sobre
-/// un fondo casi blanco no se lee como una capa, se lee como una línea
-/// dibujada: la tarjeta está ahí pero no está *encima* de nada. La sombra de
-/// dos capas —contacto corto y ambiente largo— es lo que le da un sitio en el
-/// eje Z, y es la diferencia entre una lista de recuadros y una de tarjetas.
+/// Superficie de contenido: plana, del color de la superficie y con un borde de
+/// un pixel. Sin degradado ni sombra: la jerarquía la da el borde y el espacio,
+/// igual que en el escritorio. La sombra queda para lo que flota (hojas,
+/// avisos, la barra de resumen).
 class AppCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
 
-  /// Sube un nivel de elevación. Para lo que está por encima del resto de la
-  /// pantalla: la clase en curso, una alerta que exige decisión.
+  /// Énfasis de borde para lo que está por encima del resto de la pantalla (la
+  /// clase en curso, una alerta que exige decisión). Sin sombra: el borde pasa
+  /// al color de énfasis de la paleta.
   final bool elevated;
 
   /// Realce de marca: borde y tinte del color primario. Para la tarjeta
@@ -50,19 +48,13 @@ class AppCard extends StatelessWidget {
       padding: padding,
       decoration: BoxDecoration(
         color: selected ? palette.primarySoft : palette.surface,
-        // El mismo degradado casi invisible que `.surface-card` en el
-        // escritorio: de la superficie a un 35 % hacia la alterna. Es lo que
-        // hace que una tarjeta se lea como un objeto con luz encima y no como
-        // un rectángulo plano; seleccionada, el tinte de marca manda.
-        gradient: selected ? null : AppGradients.surface(palette),
         borderRadius: radio,
         border: Border.all(
-          color: selected ? palette.primary : palette.border,
+          color: selected
+              ? palette.primary
+              : (elevated ? palette.borderStrong : palette.border),
           width: selected ? 1.5 : 1,
         ),
-        boxShadow: elevated
-            ? AppShadows.md(palette.isDark)
-            : AppShadows.sm(palette.isDark),
       ),
       // El `Material` transparente va DENTRO de la decoración, no alrededor:
       // un `ListTile` o un `InkWell` pintan su fondo y su onda sobre el
@@ -88,12 +80,14 @@ class AppCard extends StatelessWidget {
   }
 }
 
-/// Superficie de marca: degradado institucional con velo lima.
+/// Superficie de marca: el verde institucional plano.
 ///
-/// Reservada a lo que representa a la aplicación —la cabecera del panel, la
-/// clase que está ocurriendo ahora—. Si cada pantalla abriera con un bloque
-/// verde, el verde dejaría de significar «esto es UTS Nexus» y pasaría a
-/// significar «esto es una cabecera».
+/// Reservada a lo que representa a la aplicación —la clase que está ocurriendo
+/// ahora, el acceso—. Si cada pantalla abriera con un bloque verde, el verde
+/// dejaría de significar «esto es UTS Nexus» y pasaría a significar «esto es
+/// una cabecera». En claro es el primario liso con el texto `onPrimary`; en
+/// oscuro, la superficie suave de marca con su borde, porque el primario puro
+/// sería un bloque deslumbrante sobre el fondo oliva.
 class BrandSurface extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
@@ -112,49 +106,32 @@ class BrandSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
     final isDark = palette.isDark;
-    final radio = borderRadius ?? BorderRadius.circular(AppSpacing.radiusLarge);
+    final radio = borderRadius ?? BorderRadius.circular(AppSpacing.radiusCard);
+    final sobre = isDark ? palette.text : palette.onPrimary;
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        gradient: AppGradients.brand(palette),
+        color: isDark ? palette.primarySoft : palette.primary,
         borderRadius: radio,
-        boxShadow: AppShadows.md(isDark),
+        border: isDark ? Border.all(color: palette.border) : null,
       ),
       child: ClipRRect(
         borderRadius: radio,
-        child: Stack(
-          children: [
-            // El velo va detrás del contenido y no encima: encima bajaría el
-            // contraste del texto justo donde más claro está el degradado.
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(gradient: AppGradients.veil(palette)),
-              ),
-            ),
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: onTap,
-                child: Padding(
-                  padding: padding,
-                  // En claro el texto va en blanco; en oscuro el degradado es
-                  // apagado y el blanco puro vibra encima, así que hereda el
-                  // color de texto del tema.
-                  child: DefaultTextStyle.merge(
-                    style: TextStyle(
-                      color: isDark ? palette.text : Colors.white,
-                    ),
-                    child: IconTheme.merge(
-                      data: IconThemeData(
-                        color: isDark ? palette.text : Colors.white,
-                      ),
-                      child: child,
-                    ),
-                  ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: padding,
+              child: DefaultTextStyle.merge(
+                style: TextStyle(color: sobre),
+                child: IconTheme.merge(
+                  data: IconThemeData(color: sobre),
+                  child: child,
                 ),
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -319,7 +296,6 @@ class StatTile extends StatelessWidget {
     // competir con los CTAs. La cifra neutra usa el color de texto del tema.
     final valueColor =
         semantico?.fg ?? (palette.isDark ? palette.text : palette.primary);
-    final railColor = semantico?.fg ?? palette.primary;
 
     return AppCard(
       onTap: onTap,
@@ -328,19 +304,6 @@ class StatTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Franja de tono arriba. Es lo que permite reconocer la tarjeta sin
-          // leerla: con el color solo en la cifra, cuatro tarjetas en
-          // cuadrícula son cuatro rectángulos idénticos y hay que leerlas todas
-          // para encontrar la que está en rojo.
-          Container(
-            height: 3,
-            decoration: BoxDecoration(
-              color: railColor,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(AppSpacing.radiusCard),
-              ),
-            ),
-          ),
           Padding(
             padding: const EdgeInsets.all(AppSpacing.gap),
             child: Column(
@@ -349,30 +312,18 @@ class StatTile extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    if (icon != null) ...[
-                      Container(
-                        padding: const EdgeInsets.all(5),
-                        decoration: BoxDecoration(
-                          color: semantico?.bg ?? palette.primarySoft,
-                          borderRadius: BorderRadius.circular(
-                            AppSpacing.radiusInput - 4,
-                          ),
-                        ),
-                        child: Icon(icon, size: 14, color: valueColor),
-                      ),
-                      const SizedBox(width: AppSpacing.gapSm),
-                    ],
                     Expanded(
                       child: Text(
-                        label.toUpperCase(),
+                        label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppType.captionStrong.copyWith(
-                          letterSpacing: 0.8,
                           color: palette.muted,
                         ),
                       ),
                     ),
+                    if (icon != null)
+                      Icon(icon, size: 16, color: palette.subtle),
                   ],
                 ),
                 const SizedBox(height: AppSpacing.gapSm),

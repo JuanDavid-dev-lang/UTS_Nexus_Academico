@@ -670,10 +670,9 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                   child: Row(
                     children: [
                       Text(
-                        'MÁS SECCIONES',
+                        'Más secciones',
                         style: AppType.captionStrong.copyWith(
                           fontWeight: FontWeight.w700,
-                          letterSpacing: 0.8,
                           color: palette.muted,
                         ),
                       ),
@@ -918,13 +917,6 @@ class AppMobileNavigation extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: palette.border)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: palette.isDark ? 0.3 : 0.06),
-            blurRadius: 16,
-            offset: const Offset(0, -4),
-          ),
-        ],
       ),
       child: NavigationBar(
         height: 64,
@@ -1023,7 +1015,6 @@ class _CeldaDeMenu extends StatelessWidget {
                 color: activo ? palette.primary : palette.border,
                 width: activo ? 1.5 : 1,
               ),
-              boxShadow: AppShadows.sm(palette.isDark),
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,

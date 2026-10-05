@@ -14,6 +14,7 @@ import 'dart:convert';
 
 import '../../core/data/campus_time.dart';
 import 'data/agenda_models.dart';
+import '../../core/data/etiqueta_grupo.dart';
 
 /// Clave de `HomeWidget.saveWidgetData`/`getSharedPreferences` para el widget
 /// "Horario". Un solo sitio para que Dart y Kotlin no diverjan en el nombre.
@@ -125,7 +126,7 @@ List<FilaHorarioWidget> proximasClasesParaWidget(
 
   return futuras.take(tope).map((item) {
     final detalle = [
-      if (item.grupo.isNotEmpty) 'Grupo ${item.grupo}',
+      if (item.grupo.isNotEmpty) etiquetaGrupo(item.grupo),
       if (item.aula.isNotEmpty) 'Aula ${item.aula}',
     ].join(' · ');
     return FilaHorarioWidget(
