@@ -242,7 +242,7 @@ export default function HealthPage() {
                         {Object.entries(tarea.ultimoResultado).map(([clave, valor]) => (
                           <div key={clave} className="flex flex-col">
                             <dt className="text-muted">{clave}</dt>
-                            <dd className="font-mono tabular-nums">{String(valor)}</dd>
+                            <dd className="tabular-nums">{String(valor)}</dd>
                           </div>
                         ))}
                       </dl>

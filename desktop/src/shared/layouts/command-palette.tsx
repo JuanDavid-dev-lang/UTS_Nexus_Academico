@@ -267,7 +267,7 @@ export function CommandPalette({
                 return (
                   <div key={command.id}>
                     {showGroup ? (
-                      <p className="px-3 pb-1 pt-3 text-caption font-bold uppercase tracking-wide text-muted">
+                      <p className="px-3 pb-1 pt-3 text-caption font-semibold text-muted">
                         {command.group}
                       </p>
                     ) : null}

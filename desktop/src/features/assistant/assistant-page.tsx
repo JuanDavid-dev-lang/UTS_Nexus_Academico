@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CircleAlert, Send, Sparkles, User } from 'lucide-react';
+import { CircleAlert, Send, User } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Badge,
@@ -161,15 +161,9 @@ export default function AssistantPage() {
             ) : !enabled ? (
               <Badge tone="neutral">IA desactivada</Badge>
             ) : available ? (
-              <Badge tone="success">
-                <Sparkles className="size-3" aria-hidden />
-                {status.data?.model || 'Modelo local'}
-              </Badge>
+              <Badge tone="success">{status.data?.model || 'Modelo local'}</Badge>
             ) : status.data?.ml?.available ? (
-              <Badge tone="success">
-                <Sparkles className="size-3" aria-hidden />
-                Modelo de predicción activo
-              </Badge>
+              <Badge tone="success">Modelo de predicción activo</Badge>
             ) : status.data?.rubri?.available ? (
               <Badge tone="success">NLP interno activo</Badge>
             ) : (

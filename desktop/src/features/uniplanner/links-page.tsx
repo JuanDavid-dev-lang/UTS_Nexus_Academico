@@ -199,7 +199,7 @@ function PanelSolicitudes({
                 <span className="text-body font-semibold text-text">
                   {s.estudiante?.fullName ?? 'Documento sin estudiante en Nexus'}
                 </span>
-                <span className="font-mono tabular text-caption text-muted">
+                <span className="tabular text-caption text-muted">
                   {s.codigo}
                   {s.estudiante ? ` · ${s.estudiante.program}` : ''}
                   {s.estudiante?.email ? ` · ${s.estudiante.email}` : ''}
@@ -435,7 +435,7 @@ function FilaVinculo({
         <span className="truncate text-body font-medium text-text">
           {vinculo.estudiante?.fullName ?? 'Documento sin estudiante en Nexus'}
         </span>
-        <span className="truncate font-mono tabular text-caption text-muted">
+        <span className="truncate tabular text-caption text-muted">
           {vinculo.codigo}
           {vinculo.estudiante ? ` · ${vinculo.estudiante.program}` : ''}
           {vinculo.enlazadoEn ? ` · enlazado el ${fecha(vinculo.enlazadoEn)}` : ''}
@@ -595,7 +595,7 @@ function DialogoVinculo({
       >
         <p className="flex items-center gap-2 text-body text-muted">
           <Inbox className="size-4" aria-hidden />
-          Documento <span className="font-mono font-semibold tabular text-text">{vinculo.codigo}</span>
+          Documento <span className="font-semibold tabular text-text">{vinculo.codigo}</span>
         </p>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose} disabled={cambiar.isPending}>

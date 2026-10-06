@@ -177,7 +177,7 @@ void main() {
       final fila = filas.single;
       expect(fila.fecha, '2026-09-27');
       expect(fila.dia, 'dom 27 sep');
-      expect(fila.hora, '10:00 a. m. – 12:00 p. m.');
+      expect(fila.hora, '10:00 a. m. – 12:00 p. m.');
       expect(fila.titulo, 'Ingeniería del Software');
       expect(fila.detalle, 'Grupo A194 · Aula 301');
     });
@@ -245,6 +245,25 @@ void main() {
 
       expect(json['items'], isEmpty);
       expect(json['offsetCampusMinutos'], _offset);
+    });
+  });
+
+  group('rangoHorasWidget', () {
+    // Campus a -300: 12:00Z son las 7:00 a. m.
+    final siete = DateTime.parse('2026-10-05T12:00:00Z');
+
+    test('misma mitad del día: el sufijo va una sola vez', () {
+      expect(
+        rangoHorasWidget(siete, siete.add(const Duration(hours: 2)), -300),
+        '7:00 – 9:00 a. m.',
+      );
+    });
+
+    test('cruza el mediodía: cada hora con su sufijo', () {
+      expect(
+        rangoHorasWidget(siete.add(const Duration(hours: 3)), siete.add(const Duration(hours: 5)), -300),
+        '10:00 a. m. – 12:00 p. m.',
+      );
     });
   });
 }

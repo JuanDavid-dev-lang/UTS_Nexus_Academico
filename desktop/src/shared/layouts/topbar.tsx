@@ -71,14 +71,15 @@ const menuItemClass = cn(
   'transition-colors data-[highlighted]:bg-surface-alt',
 );
 
+/**
+ * Barra superior: navegación, búsqueda, estado y cuenta. No lleva el título de
+ * la pantalla —lo dice el h1 de la propia página, justo debajo—: repetirlo aquí
+ * con su subtítulo hacía que cada pantalla se presentara dos veces seguidas.
+ */
 export function TopBar({
-  title,
-  subtitle,
   onOpenSearch,
   onOpenNav,
 }: {
-  title: string;
-  subtitle: string;
   onOpenSearch: () => void;
   /** Solo en ventanas estrechas, donde el menú lateral pasa a ser un cajón. */
   onOpenNav?: () => void;
@@ -125,9 +126,8 @@ export function TopBar({
   return (
     <header
       className={cn(
-        // Vidrio y no color sólido: la barra queda sobre el contenido que se
-        // desplaza por debajo, y el desenfoque es lo que deja claro que hay
-        // algo pasando ahí abajo sin dejar que compita con el título.
+        // Superficie con filo: separa la barra del contenido sin competir
+        // con el título de la página.
         'surface-glass drag-region relative z-20 flex h-16 shrink-0 items-center gap-3 px-4 xl:px-6',
         'border-x-0 border-t-0',
       )}
@@ -144,14 +144,9 @@ export function TopBar({
         </Button>
       ) : null}
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        {/* Not a heading: this repeats the page title as window chrome, and the
-            page body already carries the document's only h1. */}
-        <p className="truncate text-body font-bold leading-tight text-text">{title}</p>
-        {/* En un teléfono el subtítulo se cortaba a «Gestiona…» y le quitaba
-            sitio al título, que quedaba en «Riesg…». La página ya lo dice. */}
-        <p className="hidden truncate text-caption leading-tight text-muted sm:block">{subtitle}</p>
-      </div>
+      {/* El hueco empuja los controles a la derecha y es la zona por la que se
+          arrastra la ventana en la aplicación de escritorio. */}
+      <div className="min-w-0 flex-1" aria-hidden />
 
       {/* Global search - the fastest path to any student, subject or action. */}
       <button
@@ -163,8 +158,8 @@ export function TopBar({
           // empujaban el nombre de la pantalla fuera de la barra.
           'no-drag group flex h-9 w-9 items-center gap-2 rounded-lg border border-border bg-surface px-2',
           'md:w-48 md:px-3 xl:w-72',
-          'text-body text-muted shadow-sm transition-all duration-200 ease-out',
-          'hover:border-primary/40 hover:text-text hover:shadow-md',
+          'text-body text-muted transition-colors duration-150 ease-out',
+          'hover:border-border-strong hover:text-text',
         )}
       >
         <Search className="size-4 shrink-0 transition-colors group-hover:text-primary" aria-hidden />

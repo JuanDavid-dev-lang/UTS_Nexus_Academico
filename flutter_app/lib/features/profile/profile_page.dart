@@ -80,9 +80,8 @@ class ProfilePage extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'CONEXIÓN',
+                  'Conexión',
                   style: AppType.captionStrong.copyWith(
-                    letterSpacing: 0.8,
                     fontWeight: FontWeight.w700,
                     color: muted,
                   ),

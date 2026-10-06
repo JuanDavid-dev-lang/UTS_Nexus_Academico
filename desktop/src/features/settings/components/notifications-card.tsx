@@ -123,7 +123,7 @@ export function NotificationsCard() {
 
       <CardContent className="flex flex-col gap-5">
         <section className="flex flex-col gap-2">
-          <h3 className="text-caption font-bold uppercase tracking-wide text-muted">
+          <h3 className="text-body font-semibold text-text">
             Antelación de las clases
           </h3>
           <div className="flex flex-wrap gap-2">
@@ -152,7 +152,7 @@ export function NotificationsCard() {
         </section>
 
         <section className="flex flex-col gap-2">
-          <h3 className="text-caption font-bold uppercase tracking-wide text-muted">Qué recibir</h3>
+          <h3 className="text-body font-semibold text-text">Qué recibir</h3>
           <ul className="flex flex-col divide-y divide-border">
             {CATEGORIAS.map((categoria) => (
               <li key={categoria.clave} className="flex items-center justify-between gap-4 py-2.5">
@@ -171,7 +171,7 @@ export function NotificationsCard() {
         </section>
 
         <section className="flex flex-col gap-2">
-          <h3 className="text-caption font-bold uppercase tracking-wide text-muted">Horas de silencio</h3>
+          <h3 className="text-body font-semibold text-text">Horas de silencio</h3>
           <div className="flex items-center justify-between gap-4">
             <p className="text-body text-muted">
               Dentro de la franja no suena nada, pero las notificaciones siguen llegando a la bandeja.
@@ -221,7 +221,7 @@ export function NotificationsCard() {
         </section>
 
         <section className="flex flex-col gap-2">
-          <h3 className="text-caption font-bold uppercase tracking-wide text-muted">Canales</h3>
+          <h3 className="text-body font-semibold text-text">Canales</h3>
           <div className="flex flex-wrap items-center gap-5">
             <label className="flex items-center gap-2 text-body text-text">
               <Switch checked={borrador.inApp} onCheckedChange={(valor) => cambiar({ inApp: valor })} />

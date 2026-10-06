@@ -26,6 +26,30 @@ export function formatGrade(value: number | null | undefined): string {
   return value.toFixed(2);
 }
 
+/**
+ * La cuenta de un promedio simple: «(4.10 + 3.50) ÷ 2».
+ *
+ * Sin el paréntesis, «4.10 + 3.50 ÷ 2» se lee con la precedencia de siempre
+ * —se divide solo la última nota— y la cuenta escrita no da el resultado que
+ * tiene al lado. Con una sola nota no hay suma que agrupar.
+ */
+export function formulaPromedio(notas: number[]): string {
+  const suma = notas.map(formatGrade).join(' + ');
+  return notas.length > 1 ? `(${suma}) ÷ ${notas.length}` : `${suma} ÷ ${notas.length}`;
+}
+
+/**
+ * Cómo se nombra un grupo en una frase: «Grupo A194».
+ *
+ * Hay grupos cuyo nombre ya empieza por «Grupo» («Grupo A»): anteponerle la
+ * palabra otra vez daba «Grupo Grupo A». Se compara sin mayúsculas ni tildes.
+ */
+export function etiquetaDeGrupo(nombre: string): string {
+  const limpio = nombre.trim();
+  const llano = limpio.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+  return /^grupo(\s|$)/.test(llano) ? limpio : `Grupo ${limpio}`;
+}
+
 export function formatPercent(value: number | null | undefined, decimals = 0): string {
   if (value === null || value === undefined || Number.isNaN(value)) return '—';
   return `${value.toFixed(decimals)}%`;

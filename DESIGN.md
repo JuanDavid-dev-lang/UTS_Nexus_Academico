@@ -278,8 +278,14 @@ debajo, en minúscula de frase.
 pequeño; `--radius-pill` solo para lo redondo de verdad (avatar, punto,
 interruptor). **Tics que no se reintroducen:** etiqueta en versalitas sobre un
 título, franja de color en el filo de una métrica o un aviso, icono en un
-cuadrado de color como estructura de tarjeta, cifras de datos en monoespaciada
-(se usa Inter con `tabular`), rebotes en la animación.
+cuadrado de color como estructura de tarjeta (ni en una tarjeta, ni en un aviso, ni
+en un paso del tutorial: el icono va suelto, en su color), cifras de datos en
+monoespaciada (cédulas, códigos, fechas y notas van en Inter con `tabular`; la
+monoespaciada queda para lo que es código: una URL, un identificador interno, un
+hex, un comando), rebotes en la animación, el icono de destellos como adorno de
+«IA», una tarjeta con borde dentro de otra (una lista dentro de una card separa
+sus filas con un filo) y el título de la pantalla repetido en la barra superior
+(lo dice el h1 de la página; la barra es navegación, búsqueda, estado y cuenta).
 
 > **Regla de semántica:** un color = un significado. El verde siempre es
 > éxito/bajo riesgo, el rojo siempre es peligro/alto riesgo. Nunca reutilizar un
@@ -344,8 +350,10 @@ densidad sin quitar información.
 | `gap` | **12** | 16 | Separación entre bloques |
 | `gapSm` | **8** | — | Etiqueta y su valor, entre chips |
 | `gapXs` | **4** | — | Dentro de una fila densa |
-| `radiusCard` | **14** | 12 | Esquinas de tarjeta |
-| `radiusInput` | **10** | 8 | Esquinas de campo |
+| `radiusCard` | **12** | 12 | Esquinas de tarjeta |
+| `radiusInput` | **8** | 8 | Esquinas de campo |
+| `radiusChip` | **6** | 6 | Chips de filtro |
+| `radiusLarge` | **16** | — | Hojas inferiores |
 | `rowHeight` | **56** | 48 | Alto mínimo de fila pulsable |
 
 **Lo que NO se comprime es el objetivo táctil.** `tapTarget` se queda en 48 dp y

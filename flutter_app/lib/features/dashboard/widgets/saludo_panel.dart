@@ -40,7 +40,7 @@ String fechaLarga(DateTime fecha) =>
 
 /// Cabecera del panel: la fecha, el saludo con el nombre y Rubri.
 ///
-/// Es la misma apertura que tiene el escritorio —fecha en versalitas, saludo
+/// Es la misma apertura que tiene el escritorio —fecha en texto corriente, saludo
 /// grande, una línea de contexto— y no una tarjeta más: va directamente sobre
 /// el fondo para que el primer bloque de la pantalla sea una persona saludando
 /// y no un recuadro. Rubri va a la derecha, pequeño y flotando; es la única
@@ -65,20 +65,16 @@ class SaludoPanel extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  fechaLarga(ahora).toUpperCase(),
-                  style: AppType.captionStrong.copyWith(
-                    letterSpacing: 0.8,
-                    color: palette.muted,
-                  ),
+                  fechaLarga(ahora),
+                  style: AppType.caption.copyWith(color: palette.muted),
                 ),
                 const SizedBox(height: 4),
                 RichText(
                   text: TextSpan(
                     style: AppType.h2.copyWith(
                       color: palette.text,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.6,
-                      height: 1.1,
+                      fontWeight: FontWeight.w700,
+                      height: 1.15,
                     ),
                     children: [
                       TextSpan(text: '${saludoSegunHora(ahora)},\n'),
@@ -151,7 +147,7 @@ class AvisoDeAtencion extends StatelessWidget {
                   height: 34,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: palette.surface.withValues(alpha: 0.7),
+                    color: palette.surface,
                     shape: BoxShape.circle,
                   ),
                   child: Icon(

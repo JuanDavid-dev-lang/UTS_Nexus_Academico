@@ -130,7 +130,7 @@ export function BuscarEstudianteDialog({
                         <span className="truncate text-body font-medium text-text">
                           {estudiante.fullName}
                         </span>
-                        <span className="truncate font-mono text-caption text-muted">
+                        <span className="tabular truncate text-caption text-muted">
                           {estudiante.code}
                           {estudiante.program ? ` · ${estudiante.program}` : ''}
                         </span>
@@ -176,7 +176,7 @@ export function BuscarEstudianteDialog({
                   <span className="truncate text-body font-medium text-text">
                     {registro.subjectName ?? 'Materia sin nombre'}
                   </span>
-                  <span className="truncate font-mono text-caption tabular-nums text-muted">
+                  <span className="truncate text-caption tabular-nums text-muted">
                     {registro.period} · nota {formatGrade(registro.finalGrade)} · asistencia{' '}
                     {formatPercent(registro.attendancePercentage)}
                   </span>

@@ -96,7 +96,7 @@ export function NotifyDialog({
       >
         <div className="flex flex-col gap-4 overflow-y-auto">
           <div className="surface-sunken flex flex-col gap-2 rounded-card p-3">
-            <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-wide text-muted">
+            <div className="flex items-center gap-2 text-caption font-semibold text-muted">
               <Smartphone className="size-4" aria-hidden />
               Le llegará a
             </div>
