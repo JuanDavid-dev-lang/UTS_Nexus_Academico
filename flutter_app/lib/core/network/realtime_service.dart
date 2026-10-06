@@ -213,6 +213,15 @@ class RealtimeService {
     connect(token: token);
   }
 
+  /// Reintenta ya, sin esperar al retroceso del Manager. Lo pide el indicador
+  /// de conexión cuando el docente toca «Reintentar ahora».
+  void reconectarAhora() {
+    final token = _token;
+    if (token == null || _enPausa) return;
+    if (_estadoActual == RealtimeStatus.connected) return;
+    connect(token: token);
+  }
+
   /// Reconecta con el token vigente tras una renovación.
   ///
   /// Rehace la conexión: el token viaja en el handshake, así que cambiarlo

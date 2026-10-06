@@ -9,7 +9,6 @@ import '../data/providers.dart';
 import '../navigation/menu_preferences.dart';
 import '../telemetry/error_reporter.dart';
 import '../theme/app_theme.dart';
-import './offline_banner.dart';
 import './session_menu.dart';
 import '../admin/admin_mode_provider.dart';
 
@@ -568,7 +567,6 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
               Expanded(
                 child: Column(
                   children: [
-                    const OfflineBanner(),
                     Expanded(
                       child: MediaQuery.removePadding(
                         context: context,
@@ -587,8 +585,8 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
 
     // En un teléfono: cuatro destinos + «Más».
     return Scaffold(
-      // La franja va por encima de la pantalla, no dentro: aplica a todas y
-      // ninguna debería tener que acordarse de mostrarla.
+      // El estado de la conexión vive en la esquina de cada barra superior,
+      // junto al avatar (`IndicadorConexion`, en `SessionMenuButton`).
       //
       // El SafeArea de fuera y el removePadding de dentro son la misma
       // decisión: el alto de la barra de estado se descuenta UNA vez. Sin el
@@ -599,7 +597,6 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         bottom: false,
         child: Column(
           children: [
-            const OfflineBanner(),
             Expanded(
               child: MediaQuery.removePadding(
                 context: context,

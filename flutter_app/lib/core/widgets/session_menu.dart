@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../auth/auth_controller.dart';
 import '../sync/outbox_service.dart';
 import '../theme/app_theme.dart';
+import 'indicador_conexion.dart';
 
 /// Acceso a la sesión desde la barra superior de cualquier pantalla.
 ///
@@ -27,88 +28,99 @@ class SessionMenuButton extends ConsumerWidget {
     // superficie oscura del menú se queda por debajo del AA que exige DESIGN.md.
     final danger = palette.danger.fg;
 
-    return PopupMenuButton<String>(
-      tooltip: 'Sesión',
-      offset: const Offset(0, 48),
-      onSelected: (value) async {
-        switch (value) {
-          case 'profile':
-            context.go('/profile');
-          case 'settings':
-            context.go('/settings');
-          case 'logout':
-            await confirmLogout(context, ref);
-        }
-      },
-      itemBuilder: (menuContext) => [
-        PopupMenuItem(
-          enabled: false,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(user.fullName, style: AppType.bodyStrong),
-              Text(
-                user.email,
-                style: AppType.caption.copyWith(color: palette.muted),
+    // El estado de la conexión va en la misma esquina que la sesión: es
+    // donde se mira «qué pasa con mi cuenta y con mis datos», y así llega a
+    // todas las pantallas sin que cada una tenga que acordarse.
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const IndicadorConexion(),
+        PopupMenuButton<String>(
+          tooltip: 'Sesión',
+          offset: const Offset(0, 48),
+          onSelected: (value) async {
+            switch (value) {
+              case 'profile':
+                context.go('/profile');
+              case 'settings':
+                context.go('/settings');
+              case 'logout':
+                await confirmLogout(context, ref);
+            }
+          },
+          itemBuilder: (menuContext) => [
+            PopupMenuItem(
+              enabled: false,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(user.fullName, style: AppType.bodyStrong),
+                  Text(
+                    user.email,
+                    style: AppType.caption.copyWith(color: palette.muted),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
-        const PopupMenuDivider(),
-        const PopupMenuItem(
-          value: 'profile',
-          child: ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.person_outline),
-            title: Text('Mi perfil'),
-          ),
-        ),
-        const PopupMenuItem(
-          value: 'settings',
-          child: ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.settings_outlined),
-            title: Text('Ajustes'),
-          ),
-        ),
-        const PopupMenuDivider(),
-        PopupMenuItem(
-          value: 'logout',
-          child: ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.logout_outlined, color: danger),
-            title: Text('Cerrar sesión', style: TextStyle(color: danger)),
-          ),
-        ),
-      ],
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        // Anillo fino del color del borde: separa el avatar del resto de la barra
-        // sin sombra ni degradado.
-        child: Container(
-          width: 34,
-          height: 34,
-          padding: const EdgeInsets.all(1.5),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: context.palette.border,
-          ),
-          child: CircleAvatar(
-            backgroundColor: scheme.primary,
-            foregroundImage: user.photoUrl != null
-                ? NetworkImage(user.photoUrl!)
-                : null,
-            child: Text(
-              initialsOf(user.fullName),
-              style: AppType.captionStrong.copyWith(color: scheme.onPrimary),
+            ),
+            const PopupMenuDivider(),
+            const PopupMenuItem(
+              value: 'profile',
+              child: ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.person_outline),
+                title: Text('Mi perfil'),
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'settings',
+              child: ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.settings_outlined),
+                title: Text('Ajustes'),
+              ),
+            ),
+            const PopupMenuDivider(),
+            PopupMenuItem(
+              value: 'logout',
+              child: ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.logout_outlined, color: danger),
+                title: Text('Cerrar sesión', style: TextStyle(color: danger)),
+              ),
+            ),
+          ],
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            // Anillo fino del color del borde: separa el avatar del resto de la barra
+            // sin sombra ni degradado.
+            child: Container(
+              width: 34,
+              height: 34,
+              padding: const EdgeInsets.all(1.5),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: context.palette.border,
+              ),
+              child: CircleAvatar(
+                backgroundColor: scheme.primary,
+                foregroundImage: user.photoUrl != null
+                    ? NetworkImage(user.photoUrl!)
+                    : null,
+                child: Text(
+                  initialsOf(user.fullName),
+                  style: AppType.captionStrong.copyWith(
+                    color: scheme.onPrimary,
+                  ),
+                ),
+              ),
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 }

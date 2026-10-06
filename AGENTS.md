@@ -752,7 +752,7 @@ Los eventos salen por `emitToUser` (sala `user:<id>` + las salas administrativas
 
 **Tras reconectar se vuelve a pedir lo que hay en pantalla.** Los `sync:update` emitidos mientras el socket estaba caído no se reciben; sin esto, una nota puesta en el escritorio durante un corte no aparecía en el teléfono hasta el siguiente evento de esa misma entidad. La primera conexión de la sesión no cuenta (coincide con la carga inicial); cada una de las siguientes invalida: el escritorio, `invalidateQueries({ refetchType: 'active' })` en `socket.ts`; el móvil, `_refrescarTrasReconexion()` en `app.dart` (providers no `autoDispose`: lo que nadie mira solo queda marcado).
 
-Lo que se enseña: el móvil espera 3 s antes de pintar un problema del tiempo real (`OfflineBanner`): volver de segundo plano pasa siempre por «conectando» durante el handshake. El escritorio no escucha `reconnect` del manager —se emite al abrir el transporte, antes de que el servidor acepte, y pintaba verde un instante antes del rechazo—, cuenta un corte de transporte como «reconectando» y solo dice «sin conexión» tras tres fallos seguidos, sin alternar en cada intento.
+Lo que se enseña: el móvil espera 3 s antes de pintar un problema del tiempo real (`IndicadorConexion`): volver de segundo plano pasa siempre por «conectando» durante el handshake. El escritorio no escucha `reconnect` del manager —se emite al abrir el transporte, antes de que el servidor acepte, y pintaba verde un instante antes del rechazo—, cuenta un corte de transporte como «reconectando» y solo dice «sin conexión» tras tres fallos seguidos, sin alternar en cada intento.
 
 ### Agenda académica
 `GET /agenda` expande el horario semanal (`ScheduleModel`) a ocurrencias con fecha y las une con `EventoCalendario` y `Actividad`. **Ningún cliente calcula a qué hora es una clase**: si PC y Android lo hicieran por su cuenta, un equipo con la zona horaria mal puesta mostraría otra hora y el docente no sabría cuál de los dos miente.
@@ -855,7 +855,7 @@ Dos mitades que no se mezclan:
   Es de mejor esfuerzo: corre dentro de `comoPrecarga`, y ahí los lectores de
   caché (`_leerConCache`, `listaConCache`, `mapaConCache`, agenda) **no marcan la
   app en línea y, si fallan, ni sirven lo guardado ni marcan «datos guardados»**:
-  un fallo de la precarga no puede encender la franja de sin conexión. Un lector
+  un fallo de la precarga no puede encender el indicador de sin conexión. Un lector
   de caché nuevo tiene que respetar `enPrecarga`.
 
 Garantías, las que fijan `outbox_logic_test.dart` y `outbox_service_test.dart`:
@@ -888,9 +888,19 @@ Garantías, las que fijan `outbox_logic_test.dart` y `outbox_service_test.dart`:
   hoja dice «el promedio se actualiza cuando salgan». Al vaciarse, la app
   invalida las mismas cachés que un `sync:update` de `grade`/`attendance`
   (`OutboxService.alSincronizar` → `app.dart`).
-- **Visible:** `OfflineBanner` suma una franja («N cambios sin enviar» /
-  «Enviando N…» / «N no se pudieron enviar») que abre la lista
-  (`outbox_sheet.dart`, `showCompactSheet`) con Reintentar y Descartar.
+- **Visible, en una esquina y no en una franja** (`core/widgets/indicador_conexion.dart`).
+  La franja de ancho completo que había encima de cada pantalla empujaba el
+  contenido cada vez que el teléfono volvía de segundo plano. Ahora es un
+  círculo de 32 dp junto al avatar, dentro de `SessionMenuButton` —así llega a
+  todas las pantallas sin que cada una lo pida—, que **solo aparece cuando hay
+  algo que contar**: reconectando (el icono gira), sin conexión, enviando,
+  cambios pendientes o rechazados, con una burbuja que cuenta lo que espera
+  salir (roja si algo se rechazó). Al volver la conexión pasa un instante a
+  verde y se va. Tocarlo abre una hoja con la explicación, «Reintentar ahora»
+  (`RealtimeService.reconectarAhora` + vaciar la bandeja) y el acceso a la
+  lista (`outbox_sheet.dart`) con Reintentar y Descartar. Qué enseña lo decide
+  `decidirIndicador`, puro y con pruebas en `test/indicador_conexion_test.dart`:
+  un rechazo manda sobre todo y la conexión manda sobre la bandeja.
 - **Arranque en frío sin red:** `SessionStorage` guarda el último `me`
   (almacén seguro, se borra con los tokens). Si `/auth/me` falla por red, tiempo,
   5xx o 429 y hay refresh token, se entra con ese usuario; solo un refresh
