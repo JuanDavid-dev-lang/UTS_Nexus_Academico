@@ -278,7 +278,7 @@ function ColumnPicker({
 }) {
   return (
     <div className="rounded-lg border border-border p-3">
-      <p className="mb-2 text-caption font-semibold uppercase tracking-wide text-muted">{label}</p>
+      <p className="mb-2 text-caption font-semibold text-muted">{label}</p>
       <div className="flex flex-wrap gap-x-4 gap-y-2">
         {options.map((option) => (
           <label key={option.key} className="flex cursor-pointer items-center gap-1.5 text-body text-text">

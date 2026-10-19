@@ -103,7 +103,7 @@ export function StudentTimeline({
         <section aria-label="Situación académica" className="rounded-lg border border-border bg-surface p-4">
           <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
             <div>
-              <p className="text-caption font-semibold uppercase tracking-wide text-muted">Expediente de seguimiento</p>
+              <p className="text-caption font-medium text-muted">Expediente de seguimiento</p>
               <h3 className="text-h3 font-semibold text-text">{historial.data.student.fullName}</h3>
               <p className="text-caption text-muted">{historial.data.student.code} · {historial.data.student.program || 'Programa sin registrar'}</p>
             </div>
@@ -175,7 +175,7 @@ export function StudentTimeline({
 
       {porDia.map(([fecha, eventos]) => (
         <section key={fecha} className="flex flex-col gap-2">
-          <h4 className="text-caption font-semibold uppercase tracking-wide text-muted">{fecha}</h4>
+          <h4 className="text-caption font-semibold text-muted">{fecha}</h4>
 
           <ol className="flex flex-col gap-2 border-l border-border pl-4">
             {eventos.map((evento) => {

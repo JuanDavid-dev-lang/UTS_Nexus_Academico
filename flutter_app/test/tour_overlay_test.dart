@@ -122,14 +122,14 @@ void main() {
       }
       overlay = tester.widget<TourOverlay>(find.byType(TourOverlay));
       expect(overlay.paso.ruta, '/grades');
-      expect(find.text('MÁS SECCIONES'), findsOneWidget);
+      expect(find.text('Más secciones'), findsOneWidget);
       expect(overlay.objetivo, isNotNull, reason: 'la celda Notas se mide');
 
       // Saltar cierra el recorrido y la hoja, y no vuelve a arrancar.
       await tester.tap(find.text('Saltar'));
       await _asentar(tester);
       expect(find.byType(TourOverlay), findsNothing);
-      expect(find.text('MÁS SECCIONES'), findsNothing);
+      expect(find.text('Más secciones'), findsNothing);
       expect(await tutorialVisto(), isTrue);
     },
   );

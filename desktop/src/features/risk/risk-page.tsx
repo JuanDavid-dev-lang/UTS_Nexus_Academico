@@ -194,7 +194,7 @@ export default function RiskPage() {
         title="Riesgo académico"
         subtitle="Quién necesita intervención, con el motivo detrás de cada alerta"
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               variant="secondary"
               onClick={() => void risks.refetch()}
@@ -317,27 +317,32 @@ export default function RiskPage() {
               <CardTitle>Motivos detallados</CardTitle>
               <CardDescription>Por qué el sistema marcó a cada estudiante</CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              {filtered.slice(0, 20).map((item) => (
-                <div
-                  key={`${item.studentId}-${item.subjectId}-reasons`}
-                  className="flex flex-col gap-1.5 rounded-lg border border-border p-3"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-body font-medium text-text">{item.fullName}</span>
-                    <RiskBadge level={item.level} />
-                  </div>
-                  {item.motivos.length > 0 ? (
-                    <ul className="ml-4 list-disc text-caption text-muted">
-                      {item.motivos.map((reason) => (
-                        <li key={reason}>{reason}</li>
-                      ))}
+            {/* Una lista con filos entre filas, no una tarjeta por estudiante
+                dentro de otra tarjeta: el marco doble no separaba nada que el
+                filo no separe ya. */}
+            <CardContent>
+              <ul className="flex flex-col divide-y divide-border">
+                {filtered.slice(0, 20).map((item) => (
+                  <li
+                    key={`${item.studentId}-${item.subjectId}-reasons`}
+                    className="flex flex-col gap-1.5 py-3 first:pt-0 last:pb-0"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-body font-medium text-text">{item.fullName}</span>
+                      <RiskBadge level={item.level} />
+                    </div>
+                    {item.motivos.length > 0 ? (
+                      <ul className="ml-4 list-disc text-caption text-muted">
+                        {item.motivos.map((reason) => (
+                          <li key={reason}>{reason}</li>
+                        ))}
                     </ul>
                   ) : (
                     <p className="text-caption text-muted">Sin motivos registrados.</p>
                   )}
-                </div>
+                </li>
               ))}
+              </ul>
             </CardContent>
           </Card>
         </>

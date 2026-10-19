@@ -67,10 +67,7 @@ class CompactHeader extends StatelessWidget implements PreferredSizeWidget {
               titulo,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: AppType.bodyStrong.copyWith(
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.2,
-              ),
+              style: AppType.bodyStrong.copyWith(fontWeight: FontWeight.w700),
             ),
           ),
           if (contexto != null && contexto!.isNotEmpty) ...[
@@ -161,7 +158,6 @@ class AcademicRow extends StatelessWidget {
           color: seleccionada ? palette.primary : palette.border,
           width: seleccionada ? 1.5 : 1,
         ),
-        boxShadow: AppShadows.sm(palette.isDark),
       ),
       child: Row(
         children: [
@@ -336,11 +332,10 @@ class MetricChip extends StatelessWidget {
       children: [
         if (etiqueta != null)
           Text(
-            etiqueta!.toUpperCase(),
+            etiqueta!,
             style: AppType.caption.copyWith(
               color: palette.subtle,
               fontSize: 11,
-              letterSpacing: 0.5,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -401,18 +396,6 @@ class CompactStat extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Franja de tono: es lo que permite reconocer la tarjeta de un
-          // vistazo. Con el color solo en la cifra y en un icono de 14 px,
-          // cuatro tarjetas en cuadrícula eran cuatro rectángulos iguales.
-          Container(
-            height: 3,
-            decoration: BoxDecoration(
-              color: rail,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(AppSpacing.radiusCard),
-              ),
-            ),
-          ),
           Padding(
             padding: const EdgeInsets.all(AppSpacing.gap),
             child: Column(
@@ -423,33 +406,19 @@ class CompactStat extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 3),
-                        child: Text(
-                          etiqueta.toUpperCase(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppType.captionStrong.copyWith(
-                            letterSpacing: 0.6,
-                            color: palette.muted,
-                          ),
+                      child: Text(
+                        etiqueta,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppType.captionStrong.copyWith(
+                          color: palette.muted,
                         ),
                       ),
                     ),
-                    // El icono a la derecha, en su cuadro de tono: identifica
-                    // la tarjeta sin robarle sitio a la etiqueta, que era lo
-                    // que pasaba con el icono delante en 360 dp.
+                    // El icono va suelto y apagado: identifica la tarjeta sin
+                    // cuadro de color ni robarle sitio a la etiqueta.
                     if (icono != null)
-                      Container(
-                        width: 28,
-                        height: 28,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: semantico?.bg ?? palette.primarySoft,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(icono, size: 15, color: color),
-                      ),
+                      Icon(icono, size: 16, color: palette.subtle),
                   ],
                 ),
                 const SizedBox(height: AppSpacing.gapXs),
@@ -458,8 +427,7 @@ class CompactStat extends StatelessWidget {
                   maxLines: 1,
                   style: AppType.metric.copyWith(
                     color: color,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 if (progreso != null) ...[
@@ -568,7 +536,7 @@ class FilterChipCompact extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(AppSpacing.radiusPill),
+          borderRadius: BorderRadius.circular(AppSpacing.radiusChip),
           onTap: onTap,
           child: AnimatedContainer(
             duration: AppMotion.fast,
@@ -581,11 +549,10 @@ class FilterChipCompact extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
             decoration: BoxDecoration(
               color: fondo,
-              borderRadius: BorderRadius.circular(AppSpacing.radiusPill),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusChip),
               border: Border.all(
                 color: activo ? palette.primary : palette.border,
               ),
-              boxShadow: activo ? AppShadows.sm(palette.isDark) : null,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -924,7 +891,7 @@ class StickySummaryBar extends StatelessWidget {
         // La sombra hacia arriba es lo que separa la barra del contenido que
         // pasa por debajo. Con solo el borde, en una lista larga la última fila
         // quedaba pegada a la barra y parecía formar parte de ella.
-        boxShadow: AppShadows.md(palette.isDark),
+        boxShadow: AppShadows.sm(palette.isDark),
       ),
       child: SafeArea(
         top: false,
@@ -944,11 +911,10 @@ class StickySummaryBar extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            metrica.etiqueta.toUpperCase(),
+                            metrica.etiqueta,
                             style: AppType.caption.copyWith(
                               color: palette.subtle,
                               fontSize: 11,
-                              letterSpacing: 0.5,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -1059,10 +1025,12 @@ class CompactEmpty extends StatelessWidget {
   }
 }
 
-/// Encabezado de sección compacto: 13 px en mayúsculas, con acción opcional.
+/// Encabezado de sección compacto: título en `bodyStrong`, alineado a la
+/// izquierda y sin adornos, con acción opcional a la derecha.
 ///
 /// Sustituye a [SectionHeader], que usa `h2` (30 px) y gasta 40 dp de alto por
-/// cada sección. En una pantalla con cuatro secciones eran 160 dp de títulos.
+/// cada sección. Sin versalitas, sin marca de acento y sin filete: lo separa el
+/// espacio, como en los encabezados del escritorio.
 class CompactSectionHeader extends StatelessWidget {
   final String titulo;
   final String? accion;
@@ -1083,30 +1051,17 @@ class CompactSectionHeader extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: AppSpacing.gapSm),
       child: Row(
         children: [
-          // Una marca de acento de 3×12: convierte el título en un ancla que
-          // el ojo encuentra al desplazar, sin gastar una línea más de alto.
-          Container(
-            width: 3,
-            height: 12,
-            margin: const EdgeInsets.only(right: AppSpacing.gapSm),
-            decoration: BoxDecoration(
-              color: palette.primary,
-              borderRadius: BorderRadius.circular(2),
+          Expanded(
+            child: Text(
+              titulo,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppType.bodyStrong.copyWith(
+                color: palette.text,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
-          Text(
-            titulo.toUpperCase(),
-            style: AppType.captionStrong.copyWith(
-              letterSpacing: 0.8,
-              color: palette.text,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          // Una línea que ocupa lo que sobra. Convierte un texto suelto en un
-          // encabezado de verdad: separa lo de arriba de lo de abajo sin gastar
-          // ni un dp más de alto que el propio texto.
-          const SizedBox(width: AppSpacing.gapSm),
-          Expanded(child: Divider(height: 1, color: palette.border)),
           if (accion != null && onAccion != null)
             // `TextButton` respeta el objetivo táctil por su relleno mínimo:
             // el texto mide 13 px pero la zona pulsable sigue en 48.

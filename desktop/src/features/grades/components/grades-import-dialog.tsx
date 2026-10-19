@@ -354,8 +354,8 @@ export function GradesImportDialog({
                 <table className="w-full text-body">
                   <thead>
                     <tr className="border-b border-border bg-surface-alt text-left">
-                      <th className="px-3 py-2 text-caption font-semibold uppercase tracking-wide text-muted">Estudiante</th>
-                      <th className="px-3 py-2 text-caption font-semibold uppercase tracking-wide text-muted">Coincidencia</th>
+                      <th className="px-3 py-2 text-caption font-semibold text-muted">Estudiante</th>
+                      <th className="px-3 py-2 text-caption font-semibold text-muted">Coincidencia</th>
                       {labels.map((label, i) => (
                         <th key={i} className="px-2 py-1.5">
                           <Input

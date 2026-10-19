@@ -63,7 +63,7 @@ export function WeekView({
               key={fechaCampus(dia, offset)}
               className={cn('flex flex-col items-center gap-0.5 border-l border-border px-1 py-2', hoy && 'bg-primary/5')}
             >
-              <span className="text-caption uppercase tracking-wide text-muted">
+              <span className="text-caption capitalize text-muted">
                 {nombreDia(dia, offset).slice(0, 3)}
               </span>
               <span

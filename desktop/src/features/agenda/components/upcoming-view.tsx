@@ -47,9 +47,9 @@ export function UpcomingView({
 
         return (
           <section key={fecha} className="flex flex-col gap-2">
-            <h2 className="text-caption font-bold uppercase tracking-wide text-muted">
+            <h2 className="text-caption font-semibold text-text first-letter:uppercase">
               {nombreDia(referencia, 0)} {dia} de {nombreMes(referencia, 0)}
-              <span className="ml-2 font-normal normal-case tracking-normal">
+              <span className="ml-2 font-normal text-muted">
                 · {delDia.length} {delDia.length === 1 ? 'actividad' : 'actividades'}
               </span>
             </h2>

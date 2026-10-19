@@ -10,7 +10,7 @@ import '../../core/data/providers.dart';
 import '../../core/network/api_error.dart';
 import '../../core/storage/offline_status.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/widgets/offline_banner.dart';
+import '../../core/widgets/requiere_conexion.dart';
 import '../../core/widgets/period_selector.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';

@@ -119,7 +119,7 @@ export default function AuditPage() {
       header: 'Fecha',
       width: '190px',
       sortValue: (fila) => fila.createdAt ?? '',
-      cell: (fila) => <span className="font-mono tabular-nums">{fechaHora(fila.createdAt)}</span>,
+      cell: (fila) => <span className="tabular-nums">{fechaHora(fila.createdAt)}</span>,
     },
     {
       key: 'actor',
@@ -296,7 +296,7 @@ export default function AuditPage() {
               <dl className="grid grid-cols-2 gap-3 text-caption">
                 <div>
                   <dt className="text-muted">Fecha</dt>
-                  <dd className="font-mono">{fechaHora(detalle.data.createdAt)}</dd>
+                  <dd className="tabular">{fechaHora(detalle.data.createdAt)}</dd>
                 </div>
                 <div>
                   <dt className="text-muted">Actor</dt>
@@ -319,13 +319,13 @@ export default function AuditPage() {
 
               <div className="grid gap-3 md:grid-cols-2">
                 <section className="flex flex-col gap-1">
-                  <h3 className="flex items-center gap-1.5 text-caption font-semibold uppercase tracking-wide text-muted">
+                  <h3 className="flex items-center gap-1.5 text-caption font-semibold text-text">
                     Antes
                   </h3>
                   <Valor dato={detalle.data.before} />
                 </section>
                 <section className="flex flex-col gap-1">
-                  <h3 className="flex items-center gap-1.5 text-caption font-semibold uppercase tracking-wide text-muted">
+                  <h3 className="flex items-center gap-1.5 text-caption font-semibold text-text">
                     <ShieldCheck className="size-3.5" aria-hidden />
                     Después
                   </h3>

@@ -154,7 +154,7 @@ export default function AgendaPage() {
         title="Agenda"
         subtitle="Tus clases, evaluaciones, entregas y eventos en un solo sitio"
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {esAdmin && <Button variant="secondary" onClick={() => setImportarInstitucional(true)}><FileUp aria-hidden />Importar calendario</Button>}
             {puedeImportarHorario ? (
               <Button variant="secondary" onClick={() => setImportarHorario(true)}>
@@ -217,7 +217,7 @@ export default function AgendaPage() {
             Hoy
           </Button>
 
-          <h2 className="ml-1 text-h3 font-semibold capitalize text-text">{titulo}</h2>
+          <h2 className="ml-1 text-h3 font-semibold text-text first-letter:uppercase">{titulo}</h2>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

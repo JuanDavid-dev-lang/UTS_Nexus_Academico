@@ -29,13 +29,7 @@ import { useCurrentUser, useUserRole } from '@/state/session.store';
 import { ExportButton } from '@/features/reports/components/export-button';
 import { useRecorteWeb } from '@/shared/hooks/use-recorte-web';
 import { can } from '@/core/auth/permissions';
-import {
-  currentPeriod,
-  formatDate,
-  formatPercent,
-  recentPeriods,
-  toIsoDate,
-} from '@/shared/lib/format';
+import { currentPeriod, etiquetaDeGrupo, formatDate, formatPercent, recentPeriods, toIsoDate } from '@/shared/lib/format';
 import { cn } from '@/shared/lib/cn';
 import { toast } from '@/state/toast.store';
 import { SheetScanDialog } from './components/sheet-scan-dialog';
@@ -247,7 +241,7 @@ export default function AttendancePage() {
           <>
             <CalendarCheck className="size-3.5" aria-hidden />
             {materiaActiva ? materiaActiva.name : 'Sin materia seleccionada'}
-            {grupoActivo ? ` · Grupo ${grupoActivo.name}` : ''}
+            {grupoActivo ? ` · ${etiquetaDeGrupo(grupoActivo.name)}` : ''}
             {' · '}
             {formatDate(`${date}T12:00:00`)}
           </>
@@ -402,11 +396,9 @@ export default function AttendancePage() {
       {subjectId && !faltaGrupo && enrolled.data.length > 0 ? (
         <div className="surface-glass sticky top-0 z-10 -mx-1 flex flex-wrap items-center gap-4 rounded-card px-4 py-3 shadow-sm">
           <div className="flex items-center gap-2">
-            <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary-soft text-primary">
-              <CalendarCheck className="size-4" aria-hidden />
-            </span>
+            <CalendarCheck className="size-4 shrink-0 text-muted" aria-hidden />
             <div className="flex flex-col">
-              <span className="text-caption font-semibold uppercase tracking-wide text-muted">
+              <span className="text-caption font-medium text-muted">
                 Progreso de la clase
               </span>
               <span className="text-body font-semibold tabular text-text">
@@ -525,7 +517,7 @@ export default function AttendancePage() {
 
                 <div className="flex min-w-[9rem] flex-1 flex-col">
                   <span className="truncate text-body font-medium text-text">{student.fullName}</span>
-                  <span className="truncate font-mono tabular text-caption text-muted">
+                  <span className="truncate tabular text-caption text-muted">
                     {student.code}
                   </span>
                 </div>

@@ -8,6 +8,7 @@ import '../../../core/data/providers.dart';
 import '../data/agenda_models.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/ui_kit.dart';
+import '../../../core/data/etiqueta_grupo.dart';
 
 /// Clase actual y próxima, con contador.
 ///
@@ -178,10 +179,9 @@ class _Bloque extends StatelessWidget {
                 Icon(Icons.schedule_outlined, size: 15, color: tenue),
               const SizedBox(width: AppSpacing.gapSm),
               Text(
-                enCurso ? 'CLASE EN CURSO' : 'PRÓXIMA CLASE',
+                enCurso ? 'Clase en curso' : 'Próxima clase',
                 style: AppType.captionStrong.copyWith(
                   color: enCurso ? palette.accent : tenue,
-                  letterSpacing: 1,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -223,7 +223,7 @@ class _Bloque extends StatelessWidget {
                   child: Text(
                     [
                       if (item.aula.isNotEmpty) 'Aula ${item.aula}',
-                      if (item.grupo.isNotEmpty) 'Grupo ${item.grupo}',
+                      if (item.grupo.isNotEmpty) etiquetaGrupo(item.grupo),
                       if (item.docente.isNotEmpty) item.docente,
                     ].join(' · '),
                     maxLines: 1,

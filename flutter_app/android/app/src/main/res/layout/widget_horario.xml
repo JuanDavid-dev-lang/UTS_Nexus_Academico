@@ -6,6 +6,11 @@
     guardada por Flutter contra la de hoy en el campus, no la del teléfono),
   - y muestra u oculta `widget_horario_mensaje` frente a la lista según haya
     datos, y datos con alguna clase futura, o ninguna de las dos cosas.
+
+  Solo clases que RemoteViews sabe inflar (FrameLayout, LinearLayout,
+  TextView, ImageView…). Los separadores eran `<View>`, que no lo es: el
+  launcher no podía inflar el layout y pintaba «No se puede cargar el widget».
+  Ahora son `ImageView` con fondo.
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_horario_root"
@@ -72,7 +77,8 @@
                 android:paddingBottom="6dp">
 
                 <LinearLayout
-                    android:layout_width="78dp"
+                    android:layout_width="96dp"
+                    android:paddingEnd="8dp"
                     android:layout_height="wrap_content"
                     android:orientation="vertical">
 
@@ -119,11 +125,13 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <View
+            <ImageView
                 android:id="@+id/divisor1"
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:background="@color/widget_border" />
+                android:background="@color/widget_border"
+                android:importantForAccessibility="no"
+                android:contentDescription="@null" />
 
             <!-- Fila 2 -->
             <LinearLayout
@@ -137,7 +145,8 @@
                 android:paddingBottom="6dp">
 
                 <LinearLayout
-                    android:layout_width="78dp"
+                    android:layout_width="96dp"
+                    android:paddingEnd="8dp"
                     android:layout_height="wrap_content"
                     android:orientation="vertical">
 
@@ -184,11 +193,13 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <View
+            <ImageView
                 android:id="@+id/divisor2"
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:background="@color/widget_border" />
+                android:background="@color/widget_border"
+                android:importantForAccessibility="no"
+                android:contentDescription="@null" />
 
             <!-- Fila 3 -->
             <LinearLayout
@@ -202,7 +213,8 @@
                 android:paddingBottom="6dp">
 
                 <LinearLayout
-                    android:layout_width="78dp"
+                    android:layout_width="96dp"
+                    android:paddingEnd="8dp"
                     android:layout_height="wrap_content"
                     android:orientation="vertical">
 
@@ -249,11 +261,13 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <View
+            <ImageView
                 android:id="@+id/divisor3"
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:background="@color/widget_border" />
+                android:background="@color/widget_border"
+                android:importantForAccessibility="no"
+                android:contentDescription="@null" />
 
             <!-- Fila 4 -->
             <LinearLayout
@@ -267,7 +281,8 @@
                 android:paddingBottom="6dp">
 
                 <LinearLayout
-                    android:layout_width="78dp"
+                    android:layout_width="96dp"
+                    android:paddingEnd="8dp"
                     android:layout_height="wrap_content"
                     android:orientation="vertical">
 

@@ -16,23 +16,6 @@ import { can } from '@/core/auth/permissions';
 import { menuEsHorizontal } from '@/domain/appearance/preferences';
 import { AvisoWeb } from '@/features/web/aviso-web';
 
-/** Title and subtitle per route, so the top bar always says where the user is. */
-const ROUTE_META: Record<string, { title: string; subtitle: string }> = {
-  '/': { title: 'Panel académico', subtitle: 'Rendimiento, riesgo y asistencia de un vistazo' },
-  '/estudiantes': { title: 'Estudiantes', subtitle: 'Consulta, crea y administra tus estudiantes' },
-  '/materias': { title: 'Materias', subtitle: 'Gestiona materias y periodos académicos' },
-  '/notas': { title: 'Notas', subtitle: 'Captura por corte y consulta el consolidado' },
-  '/agenda': { title: 'Agenda', subtitle: 'Clases, evaluaciones y eventos de tu semana' },
-  '/asistencia': { title: 'Asistencia', subtitle: 'Registra la asistencia por fecha y clase' },
-  '/riesgo': { title: 'Riesgo académico', subtitle: 'Quién necesita intervención y por qué' },
-  '/asistente': { title: 'Asistente IA', subtitle: 'Consulta tus datos académicos en lenguaje natural' },
-  '/reportes': { title: 'Reportes', subtitle: 'Exporta consolidados en PDF y Excel' },
-  '/notificaciones': { title: 'Notificaciones', subtitle: 'Alertas de riesgo y recordatorios' },
-  '/configuracion': { title: 'Configuración', subtitle: 'Apariencia, atajos y sesión' },
-};
-
-const FALLBACK_META = { title: 'UTS Nexus Académico', subtitle: 'Espacio docente' };
-
 export function AppShell() {
   // El tutorial se ofrece una sola vez por persona, la primera vez que entra.
   // Se guarda por usuario y no por instalación: en un equipo compartido, el
@@ -77,8 +60,6 @@ export function AppShell() {
   // Dónde va el menú: preferencia de este equipo (Configuración → Apariencia).
   const posicionMenu = useTheme((state) => state.apariencia.posicionMenu);
   const menuHorizontal = menuEsHorizontal(posicionMenu);
-
-  const meta = ROUTE_META[location.pathname] ?? FALLBACK_META;
 
   function toggleSidebar() {
     if (narrow) {
@@ -139,8 +120,6 @@ export function AppShell() {
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <TopBar
-          title={meta.title}
-          subtitle={meta.subtitle}
           onOpenSearch={() => setPaletteOpen(true)}
           onOpenNav={narrow ? () => setDrawerOpen(true) : undefined}
         />

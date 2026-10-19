@@ -23,6 +23,7 @@ import { useDebounce } from '@/shared/hooks/use-debounce';
 import { useEnrollStudent, useImportRoster } from '../hooks/use-enrollment';
 import { useCreateGroup, useGroups, useRenameGroup, useSubjects } from '../hooks/use-subjects';
 import { useRecorteWeb } from '@/shared/hooks/use-recorte-web';
+import { etiquetaDeGrupo } from '@/shared/lib/format';
 
 type Props = {
   open: boolean;
@@ -240,7 +241,7 @@ export function RosterImportDialog({ open, onOpenChange, subjectId, subjectName 
               >
                 {groups.map((group) => (
                   <option key={group._id} value={group._id}>
-                    Grupo {group.name}
+                    {etiquetaDeGrupo(group.name)}
                     {group.period ? ` · ${group.period}` : ''}
                   </option>
                 ))}

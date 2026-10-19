@@ -318,9 +318,8 @@ class _SubLabel extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 8),
       child: Text(
-        text.toUpperCase(),
+        text,
         style: AppType.captionStrong.copyWith(
-          letterSpacing: 0.8,
           fontWeight: FontWeight.w700,
           color: muted,
         ),

@@ -41,8 +41,7 @@ class PerfilResumen extends StatelessWidget {
             padding: const EdgeInsets.all(2),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: AppGradients.brand(palette),
-              boxShadow: AppShadows.sm(palette.isDark),
+              color: palette.border,
             ),
             child: CircleAvatar(
               backgroundColor: palette.primary,

@@ -288,10 +288,9 @@ class _EventSheetState extends ConsumerState<EventSheet> {
               const SizedBox(height: AppSpacing.gap),
 
               Text(
-                'RECORDATORIOS',
+                'Recordatorios',
                 style: AppType.captionStrong.copyWith(
                   color: muted,
-                  letterSpacing: 0.8,
                 ),
               ),
               const SizedBox(height: 8),

@@ -1,9 +1,9 @@
-// La pantalla de acceso: fondo de marca que respira y una apertura
-// escalonada. Lo que rompería en silencio: un desborde en un teléfono pequeño
-// con el teclado abierto (el formulario es lo único que hay que poder tocar),
-// una pieza que se quede transparente tras la apertura, o «reducir
-// movimiento» que no apague nada. Ninguna de las tres lanza una excepción en
-// producción: se ven como una pantalla a medio pintar.
+// La pantalla de acceso: banda de marca plana y tarjeta de formulario. Lo que
+// rompería en silencio: un desborde en un teléfono pequeño con el teclado
+// abierto (el formulario es lo único que hay que poder tocar), una pieza que se
+// quede transparente, o «reducir movimiento» que no deje la pantalla quieta.
+// Ninguna de las tres lanza una excepción en producción: se ven como una
+// pantalla a medio pintar.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -56,8 +56,8 @@ Future<void> _montar(
   );
 }
 
-/// Rubri y la aurora respiran sin parar: `pumpAndSettle` no termina con el
-/// movimiento activado, así que se deja correr la apertura entera a mano.
+/// Rubri respira sin parar: `pumpAndSettle` no termina con el movimiento
+/// activado, así que se deja correr el tiempo a mano.
 Future<void> _dejarAbrir(WidgetTester tester) async {
   for (var i = 0; i < 10; i++) {
     await tester.pump(const Duration(milliseconds: 100));
@@ -95,14 +95,14 @@ void main() {
     await _montar(tester, sinMovimiento: true);
     await tester.pump();
 
-    // Sin nada que anime, la pantalla se asienta; con la aurora o la apertura
-    // en marcha esto agotaría el tiempo.
+    // Sin nada que anime, la pantalla se asienta; con Rubri en marcha esto
+    // agotaría el tiempo.
     await tester.pumpAndSettle();
     expect(_todoOpaco(tester), isTrue);
     expect(find.text('Bienvenido de vuelta'), findsOneWidget);
   });
 
-  testWidgets('el formulario está en el árbol semántico durante la apertura', (
+  testWidgets('el formulario está en el árbol semántico desde el primer fotograma', (
     tester,
   ) async {
     final semantica = tester.ensureSemantics();

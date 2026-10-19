@@ -10,7 +10,8 @@ import './ui_kit.dart';
 /// Lista de lo que espera salir del teléfono, con su estado y, para lo que el
 /// servidor rechazó, el motivo y qué hacer: reintentar o descartar.
 ///
-/// Se abre desde la franja de la bandeja de salida (`OfflineBanner`).
+/// Se abre desde el indicador de conexión de la barra superior
+/// (`IndicadorConexion`).
 Future<void> mostrarBandejaDeSalida(BuildContext context) {
   return showCompactSheet<void>(
     context: context,

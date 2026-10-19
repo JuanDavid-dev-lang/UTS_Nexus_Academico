@@ -116,9 +116,8 @@ class _StudentDetailSheet extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'POR QUÉ ESTÁ EN RIESGO',
+                      'Por qué está en riesgo',
                       style: AppType.captionStrong.copyWith(
-                        letterSpacing: 0.8,
                         fontWeight: FontWeight.w700,
                         color: muted,
                       ),
@@ -185,9 +184,8 @@ class _StudentDetailSheet extends StatelessWidget {
           if (cuts.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.gap),
             Text(
-              'DESGLOSE POR CORTE',
+              'Desglose por corte',
               style: AppType.captionStrong.copyWith(
-                letterSpacing: 0.8,
                 fontWeight: FontWeight.w700,
                 color: muted,
               ),

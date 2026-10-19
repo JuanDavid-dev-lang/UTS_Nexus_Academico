@@ -179,7 +179,7 @@ export default function ThesisFormatsPage() {
                       ) : null}
                       {formato.camposALlenar.length > 0 && (
                         <div className="mt-2">
-                          <p className="text-caption font-semibold uppercase tracking-wide text-muted">
+                          <p className="text-caption font-semibold text-muted">
                             Qué se diligencia
                           </p>
                           <ul className="mt-1 list-inside list-disc text-caption text-text">

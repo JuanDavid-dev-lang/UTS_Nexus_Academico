@@ -314,7 +314,7 @@ export function Tour({ onFinish }: { onFinish: () => void }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-2 flex items-start justify-between gap-2">
-          <span className="text-caption font-semibold uppercase tracking-wide text-primary">
+          <span className="text-caption font-medium tabular text-muted">
             Paso {indice + 1} de {pasos.length}
           </span>
           <button
@@ -339,15 +339,15 @@ export function Tour({ onFinish }: { onFinish: () => void }) {
           >
             <div className="shrink-0 pt-0.5">
               {Icono ? (
-                <span className="grid size-10 place-items-center rounded-xl bg-primary-soft text-primary">
-                  <Icono className="size-5" aria-hidden />
-                </span>
+                // El icono va suelto, sin cuadro de color: identifica el paso,
+                // no es una pieza de la tarjeta.
+                <Icono className="size-5 text-primary" aria-hidden />
               ) : (
                 <Rubri emotion="happy" size="small" />
               )}
             </div>
             <div className="min-w-0">
-              <h3 className="mb-1 text-body font-bold text-text">{paso.titulo}</h3>
+              <h3 className="mb-1 text-body font-semibold text-text">{paso.titulo}</h3>
               <p className="text-body text-muted">{paso.texto}</p>
             </div>
           </motion.div>

@@ -152,7 +152,7 @@ export default function SupervisionAdminPage() {
       key: 'cedula',
       header: 'Cédula / Documento',
       width: '1.2fr',
-      cell: (row) => <span className="font-mono text-caption tabular">{row.cedula || 'Sin cédula'}</span>,
+      cell: (row) => <span className="text-caption tabular">{row.cedula || 'Sin cédula'}</span>,
     },
     {
       key: 'estado',
@@ -177,7 +177,7 @@ export default function SupervisionAdminPage() {
     },
     {
       key: 'director',
-      header: 'Director Grado',
+      header: 'Director de grado',
       width: '1fr',
       align: 'center',
       cell: (row) => (
@@ -281,13 +281,13 @@ export default function SupervisionAdminPage() {
     <PageContainer>
       <PageHeader
         eyebrow={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <ShieldCheck className="size-4 text-primary" aria-hidden />
-            <span>Consola de Administración Central</span>
-            <Badge tone="primary">MODO ADMIN ACTIVO</Badge>
+            <span>Consola de administración central</span>
+            <Badge tone="primary" className="whitespace-nowrap">Modo admin activo</Badge>
           </div>
         }
-        title="Supervisión Global: Cuentas y Docentes"
+        title="Supervisión global: cuentas y docentes"
         subtitle="Previsualización integral de todas las cuentas institucionales, docentes registrados y asignaciones académicas."
         actions={
           <Button variant="secondary" onClick={toggleAdminMode} className="gap-2">
@@ -301,7 +301,7 @@ export default function SupervisionAdminPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           index={0}
-          label="Total Cuentas"
+          label="Total de cuentas"
           value={stats.totalAccounts}
           hint="Usuarios registrados en el sistema"
           icon={Users}
@@ -309,7 +309,7 @@ export default function SupervisionAdminPage() {
         />
         <StatCard
           index={1}
-          label="Docentes Registrados"
+          label="Docentes registrados"
           value={stats.totalProfessors}
           hint={`${stats.activeProfessors} activos · ${stats.pendingProfessors} pendientes`}
           icon={UserCog}
@@ -325,7 +325,7 @@ export default function SupervisionAdminPage() {
         />
         <StatCard
           index={3}
-          label="Total Materias Creadas"
+          label="Materias creadas"
           value={subjectsQuery.data?.length ?? 0}
           hint="En todos los periodos y docentes"
           icon={BookOpen}
@@ -349,7 +349,7 @@ export default function SupervisionAdminPage() {
           className="gap-2"
         >
           <Users className="size-4" aria-hidden />
-          Cuentas y Usuarios ({filteredAccounts.length})
+          Cuentas y usuarios ({filteredAccounts.length})
         </Button>
       </div>
 
@@ -455,15 +455,15 @@ export default function SupervisionAdminPage() {
               {/* Resumen personal */}
               <div className="grid grid-cols-1 gap-3 rounded-lg border border-border bg-surface-alt/50 p-4 sm:grid-cols-2">
                 <div>
-                  <span className="text-caption text-muted">Nombre Completo:</span>
+                  <span className="text-caption text-muted">Nombre completo:</span>
                   <p className="font-medium text-text">{previewProf.apellidos}, {previewProf.nombres}</p>
                 </div>
                 <div>
                   <span className="text-caption text-muted">Documento / Cédula:</span>
-                  <p className="font-mono text-body text-text">{previewProf.cedula || 'Sin cédula'}</p>
+                  <p className="tabular text-body text-text">{previewProf.cedula || 'Sin cédula'}</p>
                 </div>
                 <div>
-                  <span className="text-caption text-muted">Correo Institucional:</span>
+                  <span className="text-caption text-muted">Correo institucional:</span>
                   <p className="text-body text-text">{previewProf.userId?.email ?? 'No registrado'}</p>
                 </div>
                 <div>
@@ -479,7 +479,7 @@ export default function SupervisionAdminPage() {
                   <p className="text-body text-text">{previewProf.esDirectorTrabajoGrado ? 'Sí (Habilitado)' : 'No'}</p>
                 </div>
                 <div>
-                  <span className="text-caption text-muted">Programas Asignados:</span>
+                  <span className="text-caption text-muted">Programas asignados:</span>
                   <p className="text-body text-text">
                     {previewProf.programas.length > 0 ? previewProf.programas.join(', ') : 'Docente institucional'}
                   </p>
@@ -510,10 +510,10 @@ export default function SupervisionAdminPage() {
                       <tbody className="divide-y divide-border">
                         {previewProfSubjects.map((s) => (
                           <tr key={s._id} className="hover:bg-surface-alt/40">
-                            <td className="p-2 font-mono font-medium text-text">{s.code}</td>
+                            <td className="tabular p-2 font-medium text-text">{s.code}</td>
                             <td className="p-2 text-text">{s.name}</td>
                             <td className="p-2 text-muted">{s.period}</td>
-                            <td className="p-2 text-center font-mono">{s.credits}</td>
+                            <td className="tabular p-2 text-center">{s.credits}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -548,7 +548,7 @@ export default function SupervisionAdminPage() {
                 </div>
                 <div>
                   <span className="text-caption text-muted">Correo electrónico:</span>
-                  <p className="font-mono text-body text-text">{previewUser.email}</p>
+                  <p className="text-body text-text">{previewUser.email}</p>
                 </div>
                 <div>
                   <span className="text-caption text-muted">Rol asignado:</span>

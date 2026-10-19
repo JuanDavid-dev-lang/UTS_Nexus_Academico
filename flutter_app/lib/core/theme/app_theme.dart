@@ -217,7 +217,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
   final Color accentSoft;
 
   /// Tres paradas del degradado de marca y el color de su velo. Ver
-  /// [AppGradients].
+  /// [BrandSurface].
   final Color brandStart;
   final Color brandMid;
   final Color brandEnd;
@@ -419,54 +419,6 @@ extension AppPaletteContext on BuildContext {
   AppPalette get palette => AppPalette.of(this);
 }
 
-/// Degradados de marca.
-///
-/// Solo para superficies que representan a la aplicación —cabecera del panel,
-/// tarjeta de la clase en curso, pantalla de acceso—, nunca detrás de una
-/// lista: el degradado cambia de tono a lo largo del bloque y cada fila
-/// acabaría sobre un fondo distinto.
-class AppGradients {
-  /// Las tres paradas del tono activo, de la esquina clara a la oscura. En
-  /// oscuro NUNCA es el color de acento puro: DESIGN.md §4 regla 2 prohíbe el
-  /// acento como fondo de superficie grande, y `brandStart/Mid/End` de cada
-  /// tono ya son la rampa neutra apagada que sustituye a la lima ahí.
-  /// Degradado de tarjeta: de la superficie a un 35 % hacia la alterna, de
-  /// arriba abajo. Casi invisible a propósito: da volumen sin cambiar el color
-  /// que el sistema de diseño asigna a la superficie.
-  static LinearGradient surface(AppPalette palette) => LinearGradient(
-    begin: Alignment.topCenter,
-    end: Alignment.bottomCenter,
-    colors: [
-      palette.surface,
-      Color.lerp(palette.surface, palette.surfaceAlt, 0.35)!,
-    ],
-  );
-
-  static LinearGradient brand(AppPalette palette) => LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [palette.brandStart, palette.brandMid, palette.brandEnd],
-    stops: const [0, 0.55, 1],
-  );
-
-  /// Velo del color de acento sobre el degradado de marca: profundidad sin
-  /// tocar el contraste del texto, porque solo aclara una esquina.
-  static RadialGradient veil(AppPalette palette) => RadialGradient(
-    center: const Alignment(0.7, -1),
-    radius: 1.2,
-    colors: [
-      palette.veil.withValues(alpha: palette.isDark ? 0.12 : 0.22),
-      palette.veil.withValues(alpha: 0),
-    ],
-  );
-
-  static const accent = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [Color(0xFFD8E04A), Color(0xFFCAD225)],
-  );
-}
-
 /// Sombras.
 ///
 /// Dos capas por nivel, no una. Una sombra sola tiene que elegir entre marcar
@@ -529,7 +481,9 @@ enum SemanticKind { success, warning, danger, info, brand }
 
 /// Espaciado y radios (DESIGN.md §7), en su escala compacta.
 ///
-/// Los valores bajaron de 24/16/18 a 16/12/14. No es un ajuste estético: en un
+/// Los valores bajaron de 24/16/18 a 16/12/14 y después, con el lenguaje sobrio
+/// del escritorio, a 16/12/8 (hojas y acceso / tarjeta / campo y control). La
+/// primera bajada no fue un ajuste estético: en un
 /// teléfono de 360 dp, 24 de margen exterior más 16 de interior dejaban unos
 /// 280 dp útiles y cada fila académica ocupaba casi cien de alto, así que en
 /// pantalla cabían cinco estudiantes. Pasar lista a un salón de treinta
@@ -552,9 +506,10 @@ class AppSpacing {
   /// Separación mínima: dentro de una fila densa.
   static const double gapXs = 4;
 
-  static const double radiusCard = 16;
-  static const double radiusInput = 12;
-  static const double radiusLarge = 24;
+  static const double radiusCard = 12;
+  static const double radiusInput = 8;
+  static const double radiusLarge = 16;
+  static const double radiusChip = 6;
   static const double radiusPill = 999;
 
   /// Alto mínimo de una fila académica pulsable.

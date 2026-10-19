@@ -111,9 +111,11 @@ export default function AnnouncementsPage() {
           {avisos.data.items.map(aviso => {
             const expandido = abierto === aviso._id;
             return (
+              // Sin franja en el filo: «Sin leer» ya lo dice la insignia, y el
+              // filo de marca basta para encontrarlo al recorrer la lista.
               <Card
                 key={aviso._id}
-                className={aviso.leido ? undefined : 'border-l-4 border-l-primary'}
+                className={aviso.leido ? undefined : 'border-primary-tint'}
               >
                 <CardContent className="p-4">
                   <button

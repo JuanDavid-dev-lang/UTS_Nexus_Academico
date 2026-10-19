@@ -15,6 +15,7 @@ import './widgets/event_sheet.dart';
 import './widgets/next_class_card.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/auth/permisos.dart';
+import '../../core/data/etiqueta_grupo.dart';
 
 /// Agenda académica en el teléfono.
 ///
@@ -297,9 +298,8 @@ class _AgendaPageState extends ConsumerState<AgendaPage> {
             const SizedBox(width: AppSpacing.gapSm - 2),
           ],
           Text(
-            esHoy ? 'HOY · ${texto.toUpperCase()}' : texto.toUpperCase(),
+            esHoy ? 'Hoy · $texto' : texto,
             style: AppType.captionStrong.copyWith(
-              letterSpacing: 0.8,
               fontWeight: FontWeight.w700,
               color: esHoy ? palette.primary : palette.muted,
             ),
@@ -441,7 +441,7 @@ class _FilaAgenda extends StatelessWidget {
                             if (item.materia.isNotEmpty &&
                                 item.materia != item.titulo)
                               item.materia,
-                            if (item.grupo.isNotEmpty) 'Grupo ${item.grupo}',
+                            if (item.grupo.isNotEmpty) etiquetaGrupo(item.grupo),
                             if (item.aula.isNotEmpty) 'Aula ${item.aula}',
                           ].join(' · '),
                           style: AppType.caption.copyWith(color: palette.muted),

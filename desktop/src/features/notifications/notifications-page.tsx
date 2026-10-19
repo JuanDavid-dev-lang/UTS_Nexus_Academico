@@ -44,17 +44,17 @@ import { can } from '@/core/auth/permissions';
 import { cn } from '@/shared/lib/cn';
 
 const TYPE_PRESENTATION: Record<NotificationType, { icon: typeof Bell; tone: string; label: string }> = {
-  RISK: { icon: AlertTriangle, tone: 'text-danger bg-danger-soft', label: 'Riesgo' },
-  GRADE: { icon: GraduationCap, tone: 'text-primary bg-primary/10', label: 'Notas' },
-  ATTENDANCE: { icon: CalendarClock, tone: 'text-warning bg-warning-soft', label: 'Asistencia' },
-  CLASS: { icon: BookOpen, tone: 'text-info bg-info-soft', label: 'Clase' },
-  ACTIVITY: { icon: Bell, tone: 'text-muted bg-surface-alt', label: 'Actividad' },
-  EXAM: { icon: GraduationCap, tone: 'text-danger bg-danger-soft', label: 'Evaluación' },
-  DEADLINE: { icon: CalendarClock, tone: 'text-warning bg-warning-soft', label: 'Fecha límite' },
-  EVENT: { icon: CalendarDays, tone: 'text-info bg-info-soft', label: 'Evento' },
-  REMINDER: { icon: CalendarClock, tone: 'text-muted bg-surface-alt', label: 'Recordatorio' },
-  SCHEDULE: { icon: CalendarDays, tone: 'text-primary bg-primary/10', label: 'Horario' },
-  SISTEMA: { icon: Megaphone, tone: 'text-muted bg-surface-alt', label: 'Sistema' },
+  RISK: { icon: AlertTriangle, tone: 'text-danger', label: 'Riesgo' },
+  GRADE: { icon: GraduationCap, tone: 'text-primary', label: 'Notas' },
+  ATTENDANCE: { icon: CalendarClock, tone: 'text-warning', label: 'Asistencia' },
+  CLASS: { icon: BookOpen, tone: 'text-info', label: 'Clase' },
+  ACTIVITY: { icon: Bell, tone: 'text-muted', label: 'Actividad' },
+  EXAM: { icon: GraduationCap, tone: 'text-danger', label: 'Evaluación' },
+  DEADLINE: { icon: CalendarClock, tone: 'text-warning', label: 'Fecha límite' },
+  EVENT: { icon: CalendarDays, tone: 'text-info', label: 'Evento' },
+  REMINDER: { icon: CalendarClock, tone: 'text-muted', label: 'Recordatorio' },
+  SCHEDULE: { icon: CalendarDays, tone: 'text-primary', label: 'Horario' },
+  SISTEMA: { icon: Megaphone, tone: 'text-muted', label: 'Sistema' },
 };
 
 const PRIORITY_PRESENTATION: Record<NotificationPriority, { label: string; tone: 'danger' | 'warning' | 'neutral' }> = {
@@ -133,7 +133,7 @@ export default function NotificationsPage() {
             : `${items.length} notificaciones`
         }
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {unreadCount > 0 ? (
               <Button
                 variant="secondary"
@@ -234,13 +234,13 @@ function NotificationRow({
     <li
       className={cn(
         'surface-card flex items-start gap-3 p-4 transition-colors',
-        unread && 'border-primary/30 bg-primary/[0.04]',
-        notification.priority === 'URGENT' && 'border-danger/40',
+        unread && 'border-primary-tint',
+        notification.priority === 'URGENT' && 'border-danger-border',
       )}
     >
-      <span className={cn('grid size-9 shrink-0 place-items-center rounded-xl', presentation.tone)}>
-        <presentation.icon className="size-4" aria-hidden />
-      </span>
+      {/* El icono va suelto, en el color del tipo: un cuadro de color por
+          aviso convertía la lista en una columna de fichas. */}
+      <presentation.icon className={cn('mt-1 size-4 shrink-0', presentation.tone)} aria-hidden />
 
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2">

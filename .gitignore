@@ -45,3 +45,9 @@ deploy/.env.*
 # HTML intermedio del conversor a PDF: se regenera con tools/documento-a-pdf.py
 # y el PDF final no vive en el repositorio.
 docs/*.html
+
+# Presentaciones generadas aparte y sus restos de compilación: no son código.
+.codex-ppt-build/
+.codex-ppt-decorated/
+UTS_Nexus_Resumen_Experiencia_EE-TICS*
+mac.txt

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Download, Sparkles } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { Button, Dialog, DialogContent, DialogFooter } from '@/shared/ui';
 import { checkForUpdate, installUpdate, type DownloadProgress, type UpdateInfo } from '@/core/platform/updater';
 import { isDesktop } from '@/core/platform/tauri';
@@ -113,10 +113,7 @@ export function UpdatePrompt() {
         <div className="flex flex-col gap-3">
           {update.notes.trim() && (
             <div className="rounded-lg border border-border p-3">
-              <p className="mb-1 flex items-center gap-2 text-caption font-semibold text-text">
-                <Sparkles className="size-4 text-primary" aria-hidden />
-                Qué trae
-              </p>
+              <p className="mb-1 text-caption font-semibold text-text">Qué trae</p>
               <NotasVersion notas={update.notes} className="max-h-48 overflow-y-auto pr-1" />
             </div>
           )}

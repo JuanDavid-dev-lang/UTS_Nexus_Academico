@@ -117,53 +117,59 @@ export function AttendanceCasesCard() {
             />
           ) : null}
 
-          {items.map((caso) => {
-            const severidad = SEVERIDAD[caso.severity] ?? SEVERIDAD_POR_DEFECTO;
-            return (
-              <div
-                key={caso._id}
-                className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border p-3"
-              >
-                <div className="flex min-w-0 flex-col gap-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <AlertTriangle className="size-3.5 text-warning" aria-hidden />
-                    <span className="text-body font-semibold text-text">
-                      {TITULO_PATRON[caso.pattern]}
-                    </span>
-                    <Badge tone={severidad.tono}>Severidad {severidad.texto}</Badge>
-                    {caso.occurrences > 1 ? (
-                      <Badge tone="neutral">visto {caso.occurrences} veces</Badge>
-                    ) : null}
-                  </div>
-
-                  {/* La evidencia es la parte accionable: un color solo no
-                      justifica contactar a un estudiante. */}
-                  <p className="text-caption text-muted">{caso.evidence}</p>
-                  <p className="text-caption text-muted">
-                    Detectado el {fecha(caso.detectedAt)} · periodo {caso.period} ·{' '}
-                    {caso.status === 'ABIERTO' ? 'sin intervención' : caso.status.toLowerCase()}
-                  </p>
-                </div>
-
-                <div className="flex shrink-0 items-center gap-2">
-                  <Button variant="ghost" asChild>
-                    {/* Al detalle de la asistencia de esa materia, que es donde
-                        se comprueba la evidencia. */}
-                    <Link to={`/asistencia?subjectId=${caso.subjectId}`}>Ver asistencia</Link>
-                  </Button>
-                  {puedeIntervenir ? <Button
-                    onClick={() => {
-                      setInterviniendo(caso);
-                      setNota(caso.interventionNote ?? '');
-                      setEstado('EN_SEGUIMIENTO');
-                    }}
+          {/* Filas con filo entre ellas, no una tarjeta por caso dentro de
+              la tarjeta. */}
+          {items.length > 0 ? (
+            <ul className="flex flex-col divide-y divide-border">
+              {items.map((caso) => {
+                const severidad = SEVERIDAD[caso.severity] ?? SEVERIDAD_POR_DEFECTO;
+                return (
+                  <li
+                    key={caso._id}
+                    className="flex flex-wrap items-start justify-between gap-3 py-3 first:pt-0 last:pb-0"
                   >
-                    Registrar seguimiento
-                  </Button> : null}
-                </div>
-              </div>
-            );
-          })}
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <AlertTriangle className="size-3.5 text-warning" aria-hidden />
+                        <span className="text-body font-semibold text-text">
+                          {TITULO_PATRON[caso.pattern]}
+                        </span>
+                        <Badge tone={severidad.tono}>Severidad {severidad.texto}</Badge>
+                        {caso.occurrences > 1 ? (
+                          <Badge tone="neutral">visto {caso.occurrences} veces</Badge>
+                        ) : null}
+                      </div>
+
+                      {/* La evidencia es la parte accionable: un color solo no
+                          justifica contactar a un estudiante. */}
+                      <p className="text-caption text-muted">{caso.evidence}</p>
+                      <p className="text-caption text-muted">
+                        Detectado el {fecha(caso.detectedAt)} · periodo {caso.period} ·{' '}
+                        {caso.status === 'ABIERTO' ? 'sin intervención' : caso.status.toLowerCase()}
+                      </p>
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Button variant="ghost" asChild>
+                        {/* Al detalle de la asistencia de esa materia, que es donde
+                            se comprueba la evidencia. */}
+                        <Link to={`/asistencia?subjectId=${caso.subjectId}`}>Ver asistencia</Link>
+                      </Button>
+                      {puedeIntervenir ? <Button
+                        onClick={() => {
+                          setInterviniendo(caso);
+                          setNota(caso.interventionNote ?? '');
+                          setEstado('EN_SEGUIMIENTO');
+                        }}
+                      >
+                        Registrar seguimiento
+                      </Button> : null}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
         </CardContent>
       </Card>
 

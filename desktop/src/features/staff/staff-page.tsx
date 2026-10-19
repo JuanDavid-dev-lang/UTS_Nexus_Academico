@@ -208,7 +208,7 @@ export default function StaffPage() {
           {roles.data.map((rol) => (
             <div
               key={rol.id}
-              className="flex gap-2 rounded-xl border border-border bg-surface-alt p-3"
+              className="flex items-start gap-2 rounded-card border border-border bg-surface-alt p-3"
             >
               <Badge tone={TONO_ROL[rol.id]}>{rol.nombre}</Badge>
               <p className="min-w-0 flex-1 text-caption text-muted">{rol.descripcion}</p>

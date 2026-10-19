@@ -5,7 +5,7 @@ import { Badge, Button, Dialog, DialogContent, DialogFooter } from '@/shared/ui'
 import { queryKeys } from '@/core/api/query-keys';
 import { agendaRepository } from '@/infrastructure/repositories/agenda.repository';
 import { toast } from '@/state/toast.store';
-import { currentPeriod } from '@/shared/lib/format';
+import { currentPeriod, etiquetaDeGrupo } from '@/shared/lib/format';
 import type { SesionHorario } from '@/domain/schemas/agenda';
 
 /**
@@ -141,7 +141,7 @@ export function ScheduleImportDialog({
                   {sesiones.map((sesion, indice) => (
                     <tr key={`${sesion.codigo}-${sesion.dia}-${indice}`}>
                       <td className="px-3 py-2 text-text">{DIAS[sesion.dia] ?? sesion.dia}</td>
-                      <td className="px-2 py-2 font-mono tabular-nums text-text">
+                      <td className="px-2 py-2 tabular-nums text-text">
                         {sesion.horaInicio}–{sesion.horaFin}
                       </td>
                       <td className="max-w-52 px-2 py-2">
@@ -149,7 +149,7 @@ export function ScheduleImportDialog({
                           {sesion.codigo} · {sesion.nombre}
                         </span>
                         {sesion.grupo ? (
-                          <span className="text-muted">Grupo {sesion.grupo}</span>
+                          <span className="text-muted">{etiquetaDeGrupo(sesion.grupo)}</span>
                         ) : null}
                       </td>
                       <td className="px-2 py-2 text-muted">{sesion.aula || '—'}</td>

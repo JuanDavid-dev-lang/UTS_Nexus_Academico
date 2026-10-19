@@ -148,7 +148,7 @@ export default function GradesPage() {
         cell: (row) => (
           <div className="flex min-w-0 flex-col">
             <span className="truncate font-medium">{row.fullName}</span>
-            <span className="truncate font-mono text-caption text-muted">{row.code}</span>
+            <span className="tabular truncate text-caption text-muted">{row.code}</span>
           </div>
         ),
       },
@@ -170,7 +170,7 @@ export default function GradesPage() {
               dice, y no cambia el peso ni el color de la cifra.
             */
             <span
-              className="inline-flex items-center justify-center gap-1 font-mono tabular"
+              className="inline-flex items-center justify-center gap-1 tabular"
               title={summary.completo ? 'Corte completo' : 'Faltan componentes por calificar'}
             >
               {formatGrade(summary.nota)}

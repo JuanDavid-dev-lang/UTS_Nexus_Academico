@@ -349,7 +349,7 @@ function EditorPlantilla({
                       title="Peso relativo. Ejemplo: 60 y 40, o 3 y 2."
                       className="h-8 w-16 text-caption"
                     />
-                    <span className="w-10 text-right font-mono text-caption tabular-nums text-muted">
+                    <span className="w-10 text-right text-caption tabular-nums text-muted">
                       {pct[indice] ?? 0}%
                     </span>
                     <Button

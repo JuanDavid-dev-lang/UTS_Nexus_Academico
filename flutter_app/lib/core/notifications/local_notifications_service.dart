@@ -8,6 +8,7 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../data/campus_time.dart';
 import '../../features/agenda/data/agenda_models.dart';
+import '../data/etiqueta_grupo.dart';
 
 /// Notificaciones en el teléfono.
 ///
@@ -385,7 +386,7 @@ class LocalNotificationsService {
     final nombre = item.titulo.isNotEmpty ? item.titulo : item.materia;
     final donde = [
       if (item.aula.isNotEmpty) 'Aula ${item.aula}',
-      if (item.grupo.isNotEmpty) 'Grupo ${item.grupo}',
+      if (item.grupo.isNotEmpty) etiquetaGrupo(item.grupo),
     ].join(' · ');
     final sufijo = donde.isEmpty ? '' : ' ($donde)';
 
