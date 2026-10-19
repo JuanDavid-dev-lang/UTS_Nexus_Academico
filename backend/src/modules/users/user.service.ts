@@ -74,7 +74,11 @@ type UsuarioCrudo = {
 type FichaCruda = {
   _id: unknown;
   cedula?: string | null;
-  estado: string;
+  /**
+   * Opcional aunque el modelo tenga `default: 'APROBADO'`: `lean()` no aplica
+   * valores por defecto, y las fichas anteriores al campo no lo tienen.
+   */
+  estado?: string | null;
   esDirectorTrabajoGrado?: boolean | null;
   programas?: string[] | null;
   /** Poblado con `institutionId nombre sigla`; un id suelto si no se pobló. */
@@ -117,7 +121,9 @@ function aPersonal(usuario: UsuarioCrudo, ficha: FichaCruda | undefined): Usuari
       ? {
           id: String(ficha._id),
           cedula: ficha.cedula ?? null,
-          estado: ficha.estado,
+          // Sin estado se lee como aprobada, igual que `/auth/login`. Mandar
+          // `undefined` tumbaba el listado entero en el escritorio por una fila.
+          estado: ficha.estado ?? 'APROBADO',
           esDirectorTrabajoGrado: Boolean(ficha.esDirectorTrabajoGrado),
           programas: ficha.programas ?? [],
           institucion: institucionDe(ficha),
