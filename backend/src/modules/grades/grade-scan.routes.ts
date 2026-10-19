@@ -2,33 +2,40 @@ import { Router } from 'express';
 import multer from 'multer';
 import { esExcel, excelAMatriz } from '../../shared/excel.js';
 import { z } from 'zod';
-import { Types } from 'mongoose';
-import { GroupModel } from '../../models/group.model.js';
-import { EnrollmentModel } from '../../models/enrollment.model.js';
-import { GradeModel } from '../../models/grade.model.js';
 import { identificar, requireRole } from '../../middlewares/auth.js';
-import { auditBatch } from '../../shared/audit.js';
 import { emitToUser } from '../../shared/socket.js';
 import {
   cruzarNotasConMatricula,
   interpretarMatrizNotas,
   type FilaNotasLeida,
 } from '../../domains/grading/import-notas.js';
-import type { Matriculado } from '../../domains/attendance/sheet-match.js';
+import {
+  esReporteAcademusoft,
+  interpretarReporteAcademusoft,
+  type ColumnaDeNota,
+  type ReporteAcademusoft,
+} from '../../domains/grading/academusoft.js';
 import { exigirPeriodoAbierto } from '../../shared/period-guard.js';
 import { mlFetch } from '../../shared/ml-client.js';
-import { ENTRADA_DE_ESCANER, exigirTipoReal, filtroPorMimetype } from '../../shared/uploads.js';
+import { elementosDeTextoPdf } from '../../shared/pdf-text.js';
+import { ENTRADA_DE_ESCANER, PDF, exigirTipoReal, filtroPorMimetype } from '../../shared/uploads.js';
 import { limiteLotes } from '../../middlewares/rate-limit.js';
-import { resolverPeso } from '../../domains/grading/plantilla-notas.js';
-import { estructuraDelCorte, estructuraPara } from './grade-templates.service.js';
+import {
+  codigoDeMateria,
+  escribirLoteDeNotas,
+  grupoPropio,
+  matriculadosDe,
+  type ColumnaDeLote,
+} from './grade-import.service.js';
 
 /**
  * Importación de calificaciones en dos pasos, con el mismo contrato que el
  * escáner de asistencia y el import de listados:
  *
- *   1. `POST /grades/import/scan` — PROPONE. Lee el archivo (Excel aquí; foto
- *      o PDF en el servicio de visión), cruza con la matrícula y devuelve la
- *      propuesta con confianza. Nunca escribe.
+ *   1. `POST /grades/import/scan` — PROPONE. Lee el archivo (Excel y el
+ *      reporte de Academusoft aquí; foto u otro PDF en el servicio de
+ *      visión), cruza con la matrícula y devuelve la propuesta con confianza.
+ *      Nunca escribe.
  *   2. `POST /grades/bulk` — ESCRIBE lo que el docente ya revisó.
  *
  * Separar proponer de escribir no es ceremonia: una nota mal leída no da
@@ -50,25 +57,108 @@ const subirArchivo = multer({
   ),
 });
 
-/** Verifica que el grupo pertenezca al profesor autenticado (o que sea ADMIN). */
-async function grupoPropio(req: any, groupId: string) {
-  const group = await GroupModel.findOne({ _id: groupId, deletedAt: null }).lean();
-  if (!group) return { error: { status: 404, message: 'Grupo no encontrado' } };
-  if (req.user?.role === 'PROFESSOR' && String(group.professorId) !== req.user.id) {
-    return { error: { status: 403, message: 'Grupo no asignado' } };
+type Lectura = {
+  origen: string;
+  avisos: string[];
+  filas: FilaNotasLeida[];
+  columnas: number;
+  /** Corte y componente de cada columna, cuando el archivo los dice. */
+  columnasDetalle: ColumnaDeNota[] | null;
+  encabezado: ReporteAcademusoft['encabezado'] | null;
+};
+
+const igualSinEspacios = (a: string, b: string) =>
+  a.replace(/\s+/g, '').toUpperCase() === b.replace(/\s+/g, '').toUpperCase();
+
+/**
+ * El reporte de Academusoft dice de qué materia y grupo es. Si no casa con el
+ * grupo elegido no se bloquea —el grupo puede llamarse distinto en Nexus—,
+ * pero se avisa: importar el reporte de otro grupo no da error, escribe notas
+ * a quien coincida por cédula.
+ */
+function avisosDeEncabezado(
+  encabezado: ReporteAcademusoft['encabezado'],
+  esperado: { codigoMateria: string | null; grupo: string },
+): string[] {
+  const avisos: string[] = [];
+  if (
+    encabezado.codigoMateria &&
+    esperado.codigoMateria &&
+    !igualSinEspacios(encabezado.codigoMateria, esperado.codigoMateria)
+  ) {
+    avisos.push(
+      `El reporte es de la materia ${encabezado.codigoMateria} y el grupo elegido es de ${esperado.codigoMateria}. ` +
+        'Comprueba que sea el archivo correcto.',
+    );
   }
-  return { group };
+  if (encabezado.grupo && !igualSinEspacios(encabezado.grupo, esperado.grupo)) {
+    avisos.push(
+      `El reporte es del grupo ${encabezado.grupo} y elegiste ${esperado.grupo}. Comprueba que sea el archivo correcto.`,
+    );
+  }
+  return avisos;
 }
 
-/** Matriculados activos del grupo, en el shape que espera el cruce. */
-async function matriculadosDe(groupId: string, period: string): Promise<Matriculado[]> {
-  const matriculas = await EnrollmentModel.find({ groupId, period, deletedAt: null })
-    .populate('studentId', 'code fullName')
-    .lean();
-  return matriculas
-    .map(m => m.studentId as unknown as { _id: unknown; code?: string; fullName?: string } | null)
-    .filter((s): s is { _id: unknown; code?: string; fullName?: string } => Boolean(s))
-    .map(s => ({ id: String(s._id), code: s.code ?? '', fullName: s.fullName ?? '' }));
+/** Foto o PDF cualquiera: los lee el servicio de visión con confianza por fila. */
+async function leerConVision(
+  archivo: Express.Multer.File,
+): Promise<{ lectura: Lectura } | { status: number; body: Record<string, unknown> }> {
+  const formulario = new FormData();
+  formulario.append('file', new Blob([new Uint8Array(archivo.buffer)]), archivo.originalname || 'notas.pdf');
+
+  let lectura: {
+    origen: string;
+    avisos: string[];
+    filas: FilaNotasLeida[];
+    columnas: number;
+  };
+  try {
+    // Sin `Content-Type`: lo compone `fetch` con su boundary a partir del
+    // FormData. `mlFetch` añade el secreto compartido del servicio.
+    const respuesta = await mlFetch('/vision/grades', {
+      method: 'POST',
+      body: formulario,
+      timeoutMs: 60_000,
+    });
+    if (!respuesta.ok) {
+      const detalle = await respuesta.json().catch(() => ({ detail: '' }));
+      const mensaje =
+        typeof detalle?.detail === 'string' && detalle.detail
+          ? detalle.detail
+          : 'No se pudo interpretar la planilla de notas.';
+      return { status: respuesta.status === 503 ? 503 : 422, body: { ok: false, message: mensaje } };
+    }
+    lectura = await respuesta.json();
+  } catch (error) {
+    return {
+      status: 503,
+      body: {
+        ok: false,
+        message:
+          'El servicio de lectura no está disponible. ' +
+          'Puedes subir el archivo como Excel o pegar las notas como texto mientras tanto.',
+        cause: error instanceof Error ? error.name : undefined,
+      },
+    };
+  }
+
+  return {
+    lectura: {
+      origen: lectura.origen,
+      avisos: lectura.avisos,
+      columnas: lectura.columnas,
+      columnasDetalle: null,
+      encabezado: null,
+      filas: lectura.filas.map(f => ({
+        indice: f.indice,
+        cedula: f.cedula,
+        nombre: f.nombre,
+        confianza: f.confianza,
+        notas: f.notas,
+        avisos: f.avisos,
+      })),
+    },
+  };
 }
 
 gradeScanRouter.post(
@@ -89,97 +179,66 @@ gradeScanRouter.post(
       const tipoReal = exigirTipoReal(req.file, ENTRADA_DE_ESCANER);
 
       const { groupId } = z.object({ groupId: z.string().min(1) }).parse(req.body);
-      const owned = await grupoPropio(req, groupId);
-      if (owned.error) {
+      const owned = await grupoPropio(req.user, groupId);
+      if ('error' in owned) {
         return res.status(owned.error.status).json({ ok: false, message: owned.error.message });
       }
-      const group = owned.group!;
+      const { group } = owned;
 
-      let origen: string;
-      let avisosLectura: string[] = [];
-      let filasLeidas: FilaNotasLeida[];
-      let columnas: number;
+      // Un reporte de Academusoft trae el texto exacto: se lee aquí, sin
+      // reconocimiento de imágenes y aunque el servicio de visión esté caído.
+      // Cualquier otro PDF sigue al servicio de visión como siempre.
+      const elementos = tipoReal.mimetype === PDF.mimetype ? await elementosDeTextoPdf(req.file.buffer) : null;
+      const academusoft = elementos && esReporteAcademusoft(elementos) ? interpretarReporteAcademusoft(elementos) : null;
 
-      if (esExcel(tipoReal)) {
+      let lectura: Lectura;
+      if (academusoft) {
+        lectura = {
+          origen: 'academusoft',
+          filas: academusoft.filas,
+          columnas: academusoft.columnas.length,
+          columnasDetalle: academusoft.columnas,
+          encabezado: academusoft.encabezado,
+          avisos: [
+            ...avisosDeEncabezado(academusoft.encabezado, {
+              codigoMateria: await codigoDeMateria(String(group.subjectId)),
+              grupo: group.name,
+            }),
+            ...academusoft.avisos,
+          ],
+        };
+      } else if (esExcel(tipoReal)) {
         // El Excel se interpreta aquí: exceljs ya es dependencia del backend y
         // no hay reconocimiento que pueda fallar — confianza 1.0.
-        const matriz = await excelAMatriz(req.file.buffer);
-        const interpretado = interpretarMatrizNotas(matriz);
-        origen = 'excel';
-        avisosLectura = interpretado.avisos;
-        filasLeidas = interpretado.filas;
-        columnas = interpretado.columnas;
-      } else {
-        // Foto o PDF: los lee el servicio de visión y devuelve confianza por fila.
-        const formulario = new FormData();
-        const bytes = new Uint8Array(req.file.buffer);
-        formulario.append('file', new Blob([bytes]), req.file.originalname || 'notas.pdf');
-
-        let lectura: {
-          origen: string;
-          avisos: string[];
-          filas: Array<{
-            indice: number;
-            cedula: string;
-            nombre: string;
-            confianza: number;
-            notas: (number | null)[];
-            avisos: string[];
-          }>;
-          columnas: number;
+        const interpretado = interpretarMatrizNotas(await excelAMatriz(req.file.buffer));
+        lectura = {
+          origen: 'excel',
+          avisos: interpretado.avisos,
+          filas: interpretado.filas,
+          columnas: interpretado.columnas,
+          columnasDetalle: null,
+          encabezado: null,
         };
-        try {
-          // Sin `Content-Type`: lo compone `fetch` con su boundary a partir del
-          // FormData. `mlFetch` añade el secreto compartido del servicio.
-          const respuesta = await mlFetch('/vision/grades', {
-            method: 'POST',
-            body: formulario,
-            timeoutMs: 60_000,
-          });
-          if (!respuesta.ok) {
-            const detalle = await respuesta.json().catch(() => ({ detail: '' }));
-            const mensaje =
-              typeof detalle?.detail === 'string' && detalle.detail
-                ? detalle.detail
-                : 'No se pudo interpretar la planilla de notas.';
-            return res.status(respuesta.status === 503 ? 503 : 422).json({ ok: false, message: mensaje });
-          }
-          lectura = await respuesta.json();
-        } catch (error) {
-          return res.status(503).json({
-            ok: false,
-            message:
-              'El servicio de lectura no está disponible. ' +
-              'Puedes subir el archivo como Excel o pegar las notas como texto mientras tanto.',
-            cause: error instanceof Error ? error.name : undefined,
-          });
-        }
-
-        origen = lectura.origen;
-        avisosLectura = lectura.avisos;
-        columnas = lectura.columnas;
-        filasLeidas = lectura.filas.map(f => ({
-          indice: f.indice,
-          cedula: f.cedula,
-          nombre: f.nombre,
-          confianza: f.confianza,
-          notas: f.notas,
-          avisos: f.avisos,
-        }));
+      } else {
+        const resultado = await leerConVision(req.file);
+        if ('status' in resultado) return res.status(resultado.status).json(resultado.body);
+        lectura = resultado.lectura;
       }
 
-      const matriculados = await matriculadosDe(groupId, String(group.period));
-      const cruce = cruzarNotasConMatricula(filasLeidas, matriculados);
+      const matriculados = await matriculadosDe(groupId, group.period);
+      const cruce = cruzarNotasConMatricula(lectura.filas, matriculados);
 
       // Solo PROPONE: la escritura es `POST /grades/bulk` con lo revisado.
       res.json({
         ok: true,
-        origen,
+        origen: lectura.origen,
         groupId,
         subjectId: String(group.subjectId),
-        period: String(group.period),
-        columnas,
-        avisos: [...avisosLectura, ...cruce.avisos],
+        period: group.period,
+        columnas: lectura.columnas,
+        columnasDetalle: lectura.columnasDetalle,
+        encabezado: lectura.encabezado,
+        avisos: [...lectura.avisos, ...cruce.avisos],
         filas: cruce.filas,
         sinFila: cruce.sinFila,
       });
@@ -191,60 +250,109 @@ gradeScanRouter.post(
 
 const filaBulkSchema = z.object({
   studentId: z.string().min(1),
-  /** Una posición por label; `null` = no escribir esa celda. */
+  /** Una posición por columna; `null` = no escribir esa celda. */
   scores: z.array(z.number().min(0).max(5).nullable()).min(1),
 });
+
+const corteSchema = z.union([z.literal(1), z.literal(2), z.literal(3)]);
+const componenteSchema = z.enum(['TRABAJOS', 'PARCIALES', 'AUTOEVALUACION']);
+const etiquetaSchema = z.string().trim().min(1).max(60);
+const pesoSchema = z.number().min(0.01).max(1000);
+
+/**
+ * Dos formas del mismo lote:
+ *
+ * - **Un corte y un componente para todo** (`corte`, `componentType`,
+ *   `labels`, `weights`): la planilla de un docente, como siempre.
+ * - **Cada columna con su corte y su componente** (`columnas`): el reporte
+ *   de Academusoft trae los tres componentes de hasta tres cortes en el mismo
+ *   archivo, y partirlo en nueve peticiones gastaría casi la mitad del cupo
+ *   de lotes en una sola importación.
+ */
+const loteSchema = z
+  .object({
+    groupId: z.string().min(1),
+    corte: corteSchema.optional(),
+    componentType: componenteSchema.optional(),
+    labels: z.array(etiquetaSchema).min(1).max(10).optional(),
+    // Peso relativo por columna, alineado con `labels`. Sin él, cada
+    // columna pesa lo que diga la plantilla aplicada al grupo, o 1.
+    weights: z.array(pesoSchema).max(10).optional(),
+    columnas: z
+      .array(
+        z.object({
+          corte: corteSchema,
+          componentType: componenteSchema,
+          label: etiquetaSchema,
+          weight: pesoSchema.optional(),
+        }),
+      )
+      .min(1)
+      .max(10)
+      .optional(),
+    filas: z.array(filaBulkSchema).min(1).max(500),
+  })
+  .superRefine((lote, ctx) => {
+    const porLote = lote.corte !== undefined || lote.componentType !== undefined || lote.labels !== undefined;
+    if (Boolean(lote.columnas) === porLote) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Manda `columnas`, o bien `corte`, `componentType` y `labels`; no las dos cosas.',
+      });
+    } else if (porLote && (lote.corte === undefined || !lote.componentType || !lote.labels)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Faltan `corte`, `componentType` o `labels`.' });
+    }
+  });
+
+/** Las dos formas del lote, reducidas a una lista de columnas. */
+function columnasDelLote(lote: z.infer<typeof loteSchema>): ColumnaDeLote[] {
+  if (lote.columnas) return lote.columnas;
+  const { corte, componentType } = lote;
+  if (corte === undefined || !componentType) return [];
+  return (lote.labels ?? []).map((label, i) => {
+    const weight = lote.weights?.[i];
+    return weight === undefined ? { corte, componentType, label } : { corte, componentType, label, weight };
+  });
+}
 
 /**
  * Escritura masiva de notas, solo tras la revisión del docente.
  *
- * Corte y componente se eligen una vez para todo el lote; cada columna lleva
- * su `label`. El upsert usa la misma clave única del alta unitaria
- * (estudiante, materia, periodo, corte, componente, label): repetir un label
- * SOBRESCRIBE la nota anterior, y por eso la respuesta separa `creadas` de
- * `actualizadas` — el cliente debe decir cuántas pisó.
+ * Repetir una columna (mismo corte, componente y etiqueta) SOBRESCRIBE la nota
+ * anterior, y por eso la respuesta separa `creadas` de `actualizadas` — el
+ * cliente debe decir cuántas pisó.
  */
 gradeScanRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR'), limiteLotes, async (req, res, next) => {
   try {
-    const body = z
-      .object({
-        groupId: z.string().min(1),
-        corte: z.union([z.literal(1), z.literal(2), z.literal(3)]),
-        componentType: z.enum(['TRABAJOS', 'PARCIALES', 'AUTOEVALUACION']),
-        labels: z.array(z.string().trim().min(1).max(60)).min(1).max(10),
-        // Peso relativo por columna, alineado con `labels`. Sin él, cada
-        // columna pesa lo que diga la plantilla aplicada al grupo, o 1.
-        weights: z.array(z.number().min(0.01).max(1000)).max(10).optional(),
-        filas: z.array(filaBulkSchema).min(1).max(500),
-      })
-      .parse(req.body);
+    const body = loteSchema.parse(req.body);
 
-    if (body.weights && body.weights.length !== body.labels.length) {
+    if (body.weights && body.labels && body.weights.length !== body.labels.length) {
       return res.status(400).json({ ok: false, message: 'Debe venir un peso por cada etiqueta de columna.' });
     }
+    const columnas = columnasDelLote(body);
 
-    if (new Set(body.labels).size !== body.labels.length) {
-      return res.status(400).json({ ok: false, message: 'Hay etiquetas de columna repetidas.' });
+    const claves = columnas.map(c => `${c.corte}|${c.componentType}|${c.label}`);
+    if (new Set(claves).size !== claves.length) {
+      return res.status(400).json({ ok: false, message: 'Hay columnas repetidas (mismo corte, componente y etiqueta).' });
     }
-    const malFormadas = body.filas.filter(f => f.scores.length !== body.labels.length);
-    if (malFormadas.length) {
+    if (body.filas.some(f => f.scores.length !== columnas.length)) {
       return res.status(400).json({
         ok: false,
-        message: 'Cada fila debe traer una nota (o null) por cada etiqueta de columna.',
+        message: 'Cada fila debe traer una nota (o null) por cada columna.',
       });
     }
 
-    const owned = await grupoPropio(req, body.groupId);
-    if (owned.error) {
+    const owned = await grupoPropio(req.user, body.groupId);
+    if ('error' in owned) {
       return res.status(owned.error.status).json({ ok: false, message: owned.error.message });
     }
-    const group = owned.group!;
+    const { group } = owned;
 
-    await exigirPeriodoAbierto(String(group.period), 'grade');
+    await exigirPeriodoAbierto(group.period, 'grade');
 
     // Solo matriculados del grupo: un id colado escribiría la nota de un
     // estudiante ajeno con el nombre de este grupo.
-    const matriculados = await matriculadosDe(body.groupId, String(group.period));
+    const matriculados = await matriculadosDe(body.groupId, group.period);
     const permitidos = new Set(matriculados.map(m => m.id));
     const intrusos = body.filas.filter(f => !permitidos.has(f.studentId));
     if (intrusos.length) {
@@ -254,144 +362,19 @@ gradeScanRouter.post('/bulk', requireRole('ADMIN', 'PROFESSOR'), limiteLotes, as
       });
     }
 
-    // Los ids llegan como texto y el esquema los guarda como ObjectId.
-    // `bulkWrite` no convierte por su cuenta —`findOneAndUpdate` sí—, y sin la
-    // conversión el filtro no encuentra la nota existente: en vez de
-    // sobrescribirla, intentaría crear una segunda y chocaría con el índice
-    // único.
-    const subjectId = new Types.ObjectId(String(group.subjectId));
-    const period = String(group.period);
-    const groupObjectId = new Types.ObjectId(body.groupId);
-    const teacherObjectId = new Types.ObjectId(String(group.professorId));
-
-    /**
-     * Escritura del lote, en cuatro consultas en vez de una por celda.
-     *
-     * Antes esto era un bucle anidado con `findOne` + `findOneAndUpdate` +
-     * auditoría por cada casilla: una planilla llena (500 filas × 10 columnas)
-     * salían unas quince mil idas y vueltas **en serie** contra Atlas. Con
-     * treinta milisegundos de latencia por consulta eso son siete minutos de
-     * petición colgada, y el docente ya había cerrado la ventana.
-     *
-     * Ahora: se leen de golpe las notas que ya existen, se escriben todas con
-     * un `bulkWrite`, se releen para auditar con el documento real y se
-     * registra la auditoría en una sola inserción.
-     */
-    let omitidas = 0;
-    const estructura = estructuraDelCorte(
-      await estructuraPara({ subjectId: String(group.subjectId), groupId: body.groupId, period }),
-      body.corte,
-    );
-    const pesoDeColumna = body.labels.map((label, i) =>
-      resolverPeso(body.weights?.[i], estructura, body.componentType, label),
-    );
-    const celdas: Array<{ studentId: string; label: string; score: number; weight: number }> = [];
-    for (const fila of body.filas) {
-      for (let i = 0; i < body.labels.length; i++) {
-        const score = fila.scores[i];
-        if (score === null || score === undefined) {
-          omitidas++;
-          continue;
-        }
-        celdas.push({
-          studentId: fila.studentId,
-          label: body.labels[i] as string,
-          score,
-          weight: pesoDeColumna[i] as number,
-        });
-      }
-    }
-
-    /** Clave única de Nota, en texto, para cruzar antes y después sin consultar. */
-    const claveDe = (studentId: string, label: string) => `${studentId}|${label}`;
-
-    const previas = celdas.length
-      ? await GradeModel.find({
-          subjectId,
-          period,
-          corte: body.corte,
-          componentType: body.componentType,
-          label: { $in: body.labels },
-          studentId: { $in: [...new Set(celdas.map(c => c.studentId))].map(id => new Types.ObjectId(id)) },
-          deletedAt: null,
-        }).lean()
-      : [];
-    const antesPorClave = new Map(
-      previas.map(nota => [claveDe(String(nota.studentId), String(nota.label)), nota]),
-    );
-
-    if (celdas.length > 0) {
-      await GradeModel.bulkWrite(
-        celdas.map(celda => ({
-          updateOne: {
-            filter: {
-              studentId: new Types.ObjectId(celda.studentId),
-              subjectId,
-              period,
-              corte: body.corte,
-              componentType: body.componentType,
-              label: celda.label,
-            },
-            update: {
-              $set: {
-                groupId: groupObjectId,
-                teacherId: teacherObjectId,
-                score: celda.score,
-                maxScore: 5,
-                weight: celda.weight,
-                deletedAt: null,
-                status: 'ACTIVE',
-              },
-            },
-            upsert: true,
-          },
-        })),
-        { ordered: false },
-      );
-    }
-
-    // Relectura única para auditar con el documento tal y como quedó: la
-    // auditoría tiene que poder responder "qué había" y "qué hay", y el
-    // resultado de `bulkWrite` no devuelve los documentos.
-    const despues = celdas.length
-      ? await GradeModel.find({
-          subjectId,
-          period,
-          corte: body.corte,
-          componentType: body.componentType,
-          label: { $in: body.labels },
-          studentId: { $in: [...new Set(celdas.map(c => c.studentId))].map(id => new Types.ObjectId(id)) },
-          deletedAt: null,
-        }).lean()
-      : [];
-    const despuesPorClave = new Map(
-      despues.map(nota => [claveDe(String(nota.studentId), String(nota.label)), nota]),
-    );
-
-    let creadas = 0;
-    let actualizadas = 0;
-    const registros = celdas.map(celda => {
-      const clave = claveDe(celda.studentId, celda.label);
-      const before = antesPorClave.get(clave) ?? null;
-      if (before) actualizadas++;
-      else creadas++;
-      return {
-        actorId: req.user?.id,
-        action: before ? 'UPDATE' : 'CREATE',
-        entity: 'Nota',
-        entityId: String(despuesPorClave.get(clave)?._id ?? ''),
-        before,
-        after: despuesPorClave.get(clave) ?? null,
-      };
+    const resultado = await escribirLoteDeNotas({
+      group,
+      columnas,
+      filas: body.filas,
+      actorId: req.user?.id,
     });
-    await auditBatch(registros);
 
     emitToUser(String(group.professorId), 'sync:update', {
       entity: 'grade',
       action: 'bulk',
       id: body.groupId,
     });
-    res.status(201).json({ ok: true, creadas, actualizadas, omitidas });
+    res.status(201).json({ ok: true, ...resultado });
   } catch (err) {
     next(err);
   }

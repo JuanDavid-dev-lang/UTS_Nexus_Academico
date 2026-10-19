@@ -159,6 +159,16 @@ export const filaNotasImportSchema = z.object({
 });
 export type FilaNotasImport = z.infer<typeof filaNotasImportSchema>;
 
+export const componenteNotaSchema = z.enum(['TRABAJOS', 'PARCIALES', 'AUTOEVALUACION']);
+export type ComponenteNota = z.infer<typeof componenteNotaSchema>;
+
+/** Corte y componente de una columna, cuando el archivo los dice (Academusoft). */
+export const columnaDeNotaSchema = z.object({
+  corte: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+  componentType: componenteNotaSchema,
+});
+export type ColumnaDeNota = z.infer<typeof columnaDeNotaSchema>;
+
 /** Propuesta del servidor. Solo describe: la escritura es `POST /grades/bulk`. */
 export const escaneoNotasSchema = z.object({
   ok: z.literal(true),
@@ -167,6 +177,20 @@ export const escaneoNotasSchema = z.object({
   subjectId: objectId,
   period: z.string(),
   columnas: numberish,
+  /**
+   * `null` cuando el archivo no dice a qué corte y componente va cada columna
+   * (una planilla, una foto): entonces se eligen una vez para todo el lote.
+   * `.default(null)`: un servidor anterior no manda el campo.
+   */
+  columnasDetalle: z.array(columnaDeNotaSchema).nullable().default(null),
+  encabezado: z
+    .object({
+      codigoMateria: z.string().nullable(),
+      nombreMateria: z.string().nullable(),
+      grupo: z.string().nullable(),
+    })
+    .nullable()
+    .default(null),
   avisos: z.array(z.string()),
   filas: z.array(filaNotasImportSchema),
   sinFila: z.array(z.object({ id: objectId, code: z.string(), fullName: z.string() })),

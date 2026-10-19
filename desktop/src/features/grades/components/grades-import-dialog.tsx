@@ -21,6 +21,7 @@ import { toast } from '@/state/toast.store';
 import { useStudents } from '@/features/students/hooks/use-students';
 import { useGroups, useSubjects } from '@/features/subjects/hooks/use-subjects';
 import type { CutNumber, NivelCoincidencia } from '@/domain/schemas/academic';
+import type { ColumnaDeNota, ComponenteNota } from '@/domain/schemas/grades';
 
 /**
  * Importación de calificaciones en dos pasos: entrada (pegar texto o subir
@@ -30,9 +31,22 @@ import type { CutNumber, NivelCoincidencia } from '@/domain/schemas/academic';
  * calificación equivocada, y eso se descubre cuando el consolidado reprueba a
  * alguien que aprobó. Por eso confirmar exige mirar la tabla, y la respuesta
  * dice cuántas notas existentes se SOBRESCRIBIERON.
+ *
+ * El reporte «Ver Calificaciones» de Academusoft dice él mismo a qué corte y
+ * componente va cada columna. Con él no se elige corte ni componente: la
+ * cabecera de cada columna lo enseña y todas comparten una etiqueta.
  */
 
-type ComponentType = 'TRABAJOS' | 'PARCIALES' | 'AUTOEVALUACION';
+type ComponentType = ComponenteNota;
+
+const NOMBRE_COMPONENTE: Record<ComponenteNota, string> = {
+  AUTOEVALUACION: 'Autoevaluación',
+  PARCIALES: 'Parciales',
+  TRABAJOS: 'Trabajos',
+};
+
+/** Etiqueta por defecto de lo que viene de Academusoft: dice de dónde salió la nota. */
+const ETIQUETA_ACADEMUSOFT = 'Academusoft';
 
 type FilaRevision = {
   key: string;
@@ -76,6 +90,9 @@ export function GradesImportDialog({
   const [labels, setLabels] = useState<string[]>([]);
   const [revision, setRevision] = useState<FilaRevision[] | null>(null);
   const [avisosScan, setAvisosScan] = useState<string[]>([]);
+  /** Corte y componente de cada columna, si el archivo los trae. */
+  const [columnasDetalle, setColumnasDetalle] = useState<ColumnaDeNota[] | null>(null);
+  const [etiquetaComun, setEtiquetaComun] = useState(ETIQUETA_ACADEMUSOFT);
   const fileInput = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
@@ -120,6 +137,8 @@ export function GradesImportDialog({
     setRevision(null);
     setLabels([]);
     setAvisosScan([]);
+    setColumnasDetalle(null);
+    setEtiquetaComun(ETIQUETA_ACADEMUSOFT);
     onOpenChange(false);
   }
 
@@ -149,6 +168,7 @@ export function GradesImportDialog({
       }),
     );
     setAvisosScan([]);
+    setColumnasDetalle(null);
   }
 
   /** CSV se queda en el textarea; Excel, PDF y foto van al servidor a proponer. */
@@ -185,6 +205,7 @@ export function GradesImportDialog({
         })),
       );
       setAvisosScan(lectura.avisos);
+      setColumnasDetalle(lectura.columnasDetalle);
     } catch (error) {
       toast.fromError(error, 'No se pudo leer el archivo');
     } finally {
@@ -205,19 +226,27 @@ export function GradesImportDialog({
     (fila) => fila.studentId && fila.scores.some((cell) => typeof parseCell(cell) === 'number'),
   );
 
+  const cortesDelReporte = [...new Set((columnasDetalle ?? []).map((columna) => columna.corte))];
+
   function handleConfirm() {
+    const filas = importables.map((fila) => ({
+      studentId: fila.studentId as string,
+      scores: fila.scores.map((cell) => {
+        const value = parseCell(cell);
+        return typeof value === 'number' ? value : null;
+      }),
+    }));
+    if (columnasDetalle) {
+      const label = etiquetaComun.trim() || ETIQUETA_ACADEMUSOFT;
+      confirmar.mutate({ groupId, columnas: columnasDetalle.map((columna) => ({ ...columna, label })), filas });
+      return;
+    }
     confirmar.mutate({
       groupId,
       corte,
       componentType,
       labels: labels.map((label, i) => label.trim() || `Nota ${i + 1}`),
-      filas: importables.map((fila) => ({
-        studentId: fila.studentId as string,
-        scores: fila.scores.map((cell) => {
-          const value = parseCell(cell);
-          return typeof value === 'number' ? value : null;
-        }),
-      })),
+      filas,
     });
   }
 
@@ -225,7 +254,7 @@ export function GradesImportDialog({
     <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(next) : close())}>
       <DialogContent
         title="Importar calificaciones"
-        description="Pega las notas o sube un Excel, un PDF o una foto de la planilla. Nada se guarda hasta que revises."
+        description="Pega las notas o sube un Excel, el PDF de Academusoft, otro PDF o una foto de la planilla. Nada se guarda hasta que revises."
         className="max-w-4xl"
       >
         <div className="flex flex-col gap-4">
@@ -242,24 +271,41 @@ export function GradesImportDialog({
                 </NativeSelect>
               )}
             </Field>
-            <Field label="Corte" className="w-28">
-              {(props) => (
-                <NativeSelect {...props} value={corte} onChange={(event) => setCorte(Number(event.target.value) as CutNumber)}>
-                  <option value={1}>Corte 1</option>
-                  <option value={2}>Corte 2</option>
-                  <option value={3}>Corte 3</option>
-                </NativeSelect>
-              )}
-            </Field>
-            <Field label="Componente" className="w-44">
-              {(props) => (
-                <NativeSelect {...props} value={componentType} onChange={(event) => setComponentType(event.target.value as ComponentType)}>
-                  <option value="TRABAJOS">Trabajos (30%)</option>
-                  <option value="PARCIALES">Parciales (60%)</option>
-                  <option value="AUTOEVALUACION">Autoevaluación (10%)</option>
-                </NativeSelect>
-              )}
-            </Field>
+            {/* Con el reporte de Academusoft cada columna ya dice su corte y su
+                componente: elegirlos aquí no significaría nada. */}
+            {!columnasDetalle && (
+              <>
+                <Field label="Corte" className="w-28">
+                  {(props) => (
+                    <NativeSelect {...props} value={corte} onChange={(event) => setCorte(Number(event.target.value) as CutNumber)}>
+                      <option value={1}>Corte 1</option>
+                      <option value={2}>Corte 2</option>
+                      <option value={3}>Corte 3</option>
+                    </NativeSelect>
+                  )}
+                </Field>
+                <Field label="Componente" className="w-44">
+                  {(props) => (
+                    <NativeSelect {...props} value={componentType} onChange={(event) => setComponentType(event.target.value as ComponentType)}>
+                      <option value="TRABAJOS">Trabajos (30%)</option>
+                      <option value="PARCIALES">Parciales (60%)</option>
+                      <option value="AUTOEVALUACION">Autoevaluación (10%)</option>
+                    </NativeSelect>
+                  )}
+                </Field>
+              </>
+            )}
+            {columnasDetalle && (
+              <Field
+                label="Etiqueta de las notas"
+                className="w-48"
+                hint="Con la misma etiqueta, volver a importar el reporte actualiza estas notas."
+              >
+                {(props) => (
+                  <Input {...props} value={etiquetaComun} onChange={(event) => setEtiquetaComun(event.target.value)} />
+                )}
+              </Field>
+            )}
           </div>
           {subjectName ? (
             <p className="-mt-2 text-caption text-muted">Materia del grupo: {subjectName}</p>
@@ -296,7 +342,8 @@ export function GradesImportDialog({
               />
               <p className="text-caption text-muted">
                 Una línea por estudiante: cédula y una o más notas de 0 a 5 (el nombre es opcional).
-                Sirve punto y coma, coma o tabulación.
+                Sirve punto y coma, coma o tabulación. El PDF «Ver Calificaciones» de Academusoft se
+                abre tal cual: cada columna va sola a su corte y componente.
               </p>
 
               {text.trim().length > 0 && (
@@ -344,6 +391,12 @@ export function GradesImportDialog({
                 {sinAsignar > 0 && <Badge tone="danger">{sinAsignar} sin asignar (no se importan)</Badge>}
                 {celdasInvalidas > 0 && <Badge tone="danger">{celdasInvalidas} celda(s) inválida(s)</Badge>}
               </div>
+              {columnasDetalle && (
+                <p className="text-caption text-muted">
+                  Reporte de Academusoft: cada columna va a su corte y componente. Si ya registraste
+                  notas de ese componente en Nexus, se promedian con estas.
+                </p>
+              )}
               {avisosScan.map((aviso) => (
                 <p key={aviso} className="text-caption text-warning">
                   {aviso}
@@ -356,18 +409,28 @@ export function GradesImportDialog({
                     <tr className="border-b border-border bg-surface-alt text-left">
                       <th className="px-3 py-2 text-caption font-semibold text-muted">Estudiante</th>
                       <th className="px-3 py-2 text-caption font-semibold text-muted">Coincidencia</th>
-                      {labels.map((label, i) => (
-                        <th key={i} className="px-2 py-1.5">
-                          <Input
-                            value={label}
-                            aria-label={`Etiqueta de la columna ${i + 1}`}
-                            onChange={(event) =>
-                              setLabels((previas) => previas.map((previa, j) => (j === i ? event.target.value : previa)))
-                            }
-                            className="h-8 w-24"
-                          />
-                        </th>
-                      ))}
+                      {labels.map((label, i) => {
+                        const detalle = columnasDetalle?.[i];
+                        return detalle ? (
+                          <th key={i} className="px-2 py-1.5 text-left">
+                            <span className="block text-caption font-semibold text-text">Corte {detalle.corte}</span>
+                            <span className="block text-caption text-muted">
+                              {NOMBRE_COMPONENTE[detalle.componentType]}
+                            </span>
+                          </th>
+                        ) : (
+                          <th key={i} className="px-2 py-1.5">
+                            <Input
+                              value={label}
+                              aria-label={`Etiqueta de la columna ${i + 1}`}
+                              onChange={(event) =>
+                                setLabels((previas) => previas.map((previa, j) => (j === i ? event.target.value : previa)))
+                              }
+                              className="h-8 w-24"
+                            />
+                          </th>
+                        );
+                      })}
                     </tr>
                   </thead>
                   <tbody>
@@ -412,7 +475,14 @@ export function GradesImportDialog({
               </div>
 
               <DialogFooter>
-                <Button variant="ghost" onClick={() => setRevision(null)} disabled={confirmar.isPending}>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setRevision(null);
+                    setColumnasDetalle(null);
+                  }}
+                  disabled={confirmar.isPending}
+                >
                   Volver
                 </Button>
                 <Button
@@ -422,7 +492,10 @@ export function GradesImportDialog({
                   onClick={handleConfirm}
                 >
                   <Upload className="size-4" aria-hidden />
-                  Importar {importables.length || ''} al corte {corte}
+                  Importar {importables.length || ''}{' '}
+                  {columnasDetalle
+                    ? `${cortesDelReporte.length > 1 ? 'a los cortes' : 'al corte'} ${cortesDelReporte.join(' y ')}`
+                    : `al corte ${corte}`}
                 </Button>
               </DialogFooter>
             </>
