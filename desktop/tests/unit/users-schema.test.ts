@@ -62,4 +62,31 @@ describe('usuarioPersonalSchema', () => {
     expect(parsed.profesor?.institucion).toBeNull();
     expect(parsed.profesor?.institucionSolicitada).toBeNull();
   });
+
+  // Ocurrió en producción (octubre de 2026): una ficha docente anterior al
+  // campo `estado` dejaba toda la pantalla de Personal en «formato inesperado».
+  it('lee como aprobada una ficha docente sin estado, en vez de tumbar la lista', () => {
+    const ficha = {
+      id: '65f0000000000000000000cc',
+      cedula: null,
+      esDirectorTrabajoGrado: false,
+      programas: [],
+    };
+
+    for (const estado of [undefined, null]) {
+      const parsed = usuarioPersonalSchema.parse({
+        ...BASE,
+        role: 'PROFESSOR',
+        profesor: { ...ficha, estado },
+      });
+      expect(parsed.profesor?.estado).toBe('APROBADO');
+    }
+    expect(
+      usuarioPersonalSchema.parse({
+        ...BASE,
+        role: 'PROFESSOR',
+        profesor: { ...ficha, estado: 'PENDIENTE' },
+      }).profesor?.estado,
+    ).toBe('PENDIENTE');
+  });
 });

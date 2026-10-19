@@ -43,7 +43,12 @@ export const usuarioPersonalSchema = z.object({
     .object({
       id: objectId,
       cedula: z.string().nullable(),
-      estado: z.string(),
+      /**
+       * Una ficha anterior al campo no lo trae, y un servidor sin el arreglo lo
+       * manda vacío: exigirlo dejaba la pantalla de Personal entera en «formato
+       * inesperado» por una sola fila. Mismo defecto que en `professors.ts`.
+       */
+      estado: z.string().nullish().transform((valor) => valor ?? 'APROBADO'),
       esDirectorTrabajoGrado: z.boolean(),
       programas: z.array(z.string()),
       institucion: institucionPublicaSchema.nullable().default(null),

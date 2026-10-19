@@ -12,7 +12,7 @@ import {
   resumenDeSeleccion,
 } from '@/shared/ui';
 import type { Role } from '@/domain/schemas/common';
-import type { CambioDeUsuario, UsuarioPersonal } from '@/domain/schemas/users';
+import type { CambioDeUsuario, RolCatalogo, UsuarioPersonal } from '@/domain/schemas/users';
 import type { Area, Programa } from '@/domain/schemas/registration';
 import type { InstitucionPublica } from '@/domain/schemas/institutions';
 
@@ -28,9 +28,15 @@ import type { InstitucionPublica } from '@/domain/schemas/institutions';
  * no significan nada: el alcance de un docente lo da su matrícula. El selector
  * de institución sigue la misma regla, pero con ADMIN: esa cuenta no se acota
  * a ninguna, así que ni se muestra ni se envía.
+ *
+ * Bajo el rol se dice qué puede hacer: cambiar de rol es cambiar lo que esa
+ * persona ve, y el nombre solo («Secretaría») no lo cuenta. La propia cuenta
+ * de administración no puede bajarse de rol —el servidor lo rechaza— y el
+ * selector lo dice antes de que se intente.
  */
 export function EditorDePersonal({
   usuario,
+  esPropia,
   areas,
   programas,
   roles,
@@ -40,9 +46,10 @@ export function EditorDePersonal({
   onSave,
 }: {
   usuario: UsuarioPersonal;
+  esPropia: boolean;
   areas: Area[];
   programas: Programa[];
-  roles: { id: Role; nombre: string }[];
+  roles: RolCatalogo[];
   instituciones: InstitucionPublica[];
   guardando: boolean;
   onCancel: () => void;
@@ -55,6 +62,10 @@ export function EditorDePersonal({
   const [institutionId, setInstitutionId] = useState(institucionOriginal);
 
   const porPrograma = role === 'COORDINATOR' || role === 'SECRETARY';
+  const rolBloqueado = esPropia && usuario.role === 'ADMIN';
+  const descripcionRol = rolBloqueado
+    ? 'Es tu cuenta: nadie puede quitarse a sí mismo la administración. Pídeselo a otra cuenta de administración.'
+    : roles.find((opcion) => opcion.id === role)?.descripcion;
   const requiereInstitucion = role !== 'ADMIN';
 
   function handleGuardar() {
@@ -92,12 +103,13 @@ export function EditorDePersonal({
             )}
           </Field>
 
-          <Field label="Rol">
+          <Field label="Rol" {...(descripcionRol ? { hint: descripcionRol } : {})}>
             {(props) => (
               <NativeSelect
                 {...props}
                 value={role}
                 onChange={(event) => setRole(event.target.value as Role)}
+                disabled={guardando || rolBloqueado}
               >
                 {roles.map((option) => (
                   <option key={option.id} value={option.id}>
@@ -113,8 +125,8 @@ export function EditorDePersonal({
               label="Institución"
               hint={
                 institutionId
-                  ? 'Acota lo que ve la cuenta a esa institución.'
-                  : 'Sin institución, la cuenta queda sin acotar hasta que se guarde con una.'
+                  ? 'Solo verá datos de esta institución.'
+                  : 'Elige una: sin institución, la cuenta no queda acotada.'
               }
             >
               {(props) => (
@@ -139,11 +151,11 @@ export function EditorDePersonal({
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="size-4 text-muted" aria-hidden />
-                <p className="text-body font-medium text-text">Carreras a cargo</p>
+                <p className="text-body font-medium text-text">Carreras de las que responde</p>
               </div>
               <p className="text-caption text-muted">
                 {elegidos.length === 0
-                  ? 'Sin ninguna marcada, esta cuenta ve la institución completa.'
+                  ? 'Ninguna marcada: verá toda la institución. Marca las carreras para acotarla.'
                   : `Verá los grupos, docentes y estudiantes de ${resumenDeSeleccion(
                       areas,
                       elegidos,
