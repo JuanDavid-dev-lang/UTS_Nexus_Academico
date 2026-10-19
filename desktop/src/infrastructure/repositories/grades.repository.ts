@@ -14,6 +14,7 @@ import {
   scopeToQuery,
   z,
 } from './academic-base';
+import type { ColumnaDeNota, ComponenteNota } from '@/domain/schemas/grades';
 
 export const gradeRepository: GradeRepository = {
   async list(scope: Scope) {
@@ -69,14 +70,22 @@ export const gradeImportRepository = {
     });
   },
 
-  /** Escribe lo ya revisado. Devuelve cuántas notas creó y cuántas SOBRESCRIBIÓ. */
-  async bulk(input: {
-    groupId: string;
-    corte: CutNumber;
-    componentType: 'TRABAJOS' | 'PARCIALES' | 'AUTOEVALUACION';
-    labels: string[];
-    filas: { studentId: string; scores: (number | null)[] }[];
-  }): Promise<{ creadas: number; actualizadas: number; omitidas: number }> {
+  /**
+   * Escribe lo ya revisado. Devuelve cuántas notas creó y cuántas SOBRESCRIBIÓ.
+   *
+   * O un corte y un componente para todo el lote, o `columnas` con el suyo
+   * cada una (el reporte de Academusoft trae varios cortes en el mismo
+   * archivo). El servidor rechaza las dos formas a la vez.
+   */
+  async bulk(
+    input: {
+      groupId: string;
+      filas: { studentId: string; scores: (number | null)[] }[];
+    } & (
+      | { corte: CutNumber; componentType: ComponenteNota; labels: string[] }
+      | { columnas: (ColumnaDeNota & { label: string })[] }
+    ),
+  ): Promise<{ creadas: number; actualizadas: number; omitidas: number }> {
     return http.post('/grades/bulk', input, {
       schema: z.object({
         ok: z.literal(true),

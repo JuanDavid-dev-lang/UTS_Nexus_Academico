@@ -326,6 +326,46 @@ async function ejecutar(puerto: number) {
     }
   }
 
+  /*
+   * Lote por columnas (el reporte de Academusoft): cada columna con su corte
+   * y su componente, en una sola petición. Reescribe las mismas notas del
+   * corte 1, así que todas tienen que salir como actualizadas y ninguna
+   * creada: si la clave de la columna se perdiera por el camino, el upsert
+   * crearía duplicados y el consolidado contaría doble.
+   */
+  const porColumnas = await post(
+    '/grades/bulk',
+    {
+      groupId,
+      columnas: COMPONENTES.map(componentType => ({ corte: 1, componentType, label: 'Nota' })),
+      filas: ESTUDIANTES.map(e => ({
+        studentId: porId.get(e.code),
+        scores: COMPONENTES.map(() => NOTAS[e.code]),
+      })),
+    },
+    docente,
+  );
+  ok(
+    'Lote por columnas (Academusoft) sobrescribe sin duplicar',
+    porColumnas.status === 201 &&
+      porColumnas.json?.creadas === 0 &&
+      porColumnas.json?.actualizadas === COMPONENTES.length * ESTUDIANTES.length,
+    JSON.stringify(porColumnas.json).slice(0, 140),
+  );
+  const loteMixto = await post(
+    '/grades/bulk',
+    {
+      groupId,
+      corte: 1,
+      componentType: 'PARCIALES',
+      labels: ['Nota'],
+      columnas: [{ corte: 1, componentType: 'PARCIALES', label: 'Nota' }],
+      filas: [{ studentId: porId.get(ESTUDIANTES[0]!.code), scores: [5] }],
+    },
+    docente,
+  );
+  ok('Lote con las dos formas a la vez → 400', loteMixto.status === 400, `status ${loteMixto.status}`);
+
   const notaAjena = await post(
     '/grades/bulk',
     {
