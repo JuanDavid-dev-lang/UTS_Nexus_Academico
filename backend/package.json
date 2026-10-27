@@ -18,6 +18,7 @@
     "test:e2e": "tsx src/scripts/e2e.ts",
     "test:e2e:qr": "tsx src/scripts/e2e-asistencia-qr.ts",
     "check:env": "node check-env.mjs",
+    "check:docentes-sin-ficha": "tsx src/scripts/check-docentes-sin-ficha.ts",
     "configurar:uniplanner": "node configurar-uniplanner.mjs",
     "test": "vitest run",
     "test:watch": "vitest",

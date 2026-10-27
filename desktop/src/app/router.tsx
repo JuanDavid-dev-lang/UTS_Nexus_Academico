@@ -6,6 +6,7 @@ import { Con } from '@/app/require-capability';
 import { ConConexion } from '@/features/offline/con-conexion';
 import { GuardaWeb } from '@/features/web/guarda-web';
 import { BootScreen, UnreachableScreen } from '@/app/boot-screen';
+import { RouteError } from '@/app/route-error';
 
 /**
  * Routes.
@@ -65,6 +66,11 @@ function RedirectIfAuthenticated() {
 
 export const router = createBrowserRouter([
   {
+  // Sin `errorElement`, un fallo de cualquier pantalla lo pintaba React Router
+  // con su página por defecto y no llegaba a la telemetría (`route-error.tsx`).
+  errorElement: <RouteError />,
+  children: [
+  {
     element: <RedirectIfAuthenticated />,
     children: [
       { path: '/login', element: <LoginPage /> },
@@ -114,6 +120,8 @@ export const router = createBrowserRouter([
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },
+  ],
+  },
 ], {
   // En la versión web la aplicación vive en `/web` del servidor (`base` de
   // Vite en modo web); en la de escritorio, en la raíz.

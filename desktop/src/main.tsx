@@ -9,7 +9,12 @@ import { iniciarTelemetria } from '@/core/telemetry/reporter';
 import { useSession } from '@/state/session.store';
 import { iniciarMantenimientoDeSesion } from '@/core/auth/keep-alive';
 import { iniciarPantallaCompleta } from '@/core/platform/pantalla-completa';
+import { iniciarRecargaPorVersionNueva } from '@/core/platform/version-nueva';
 import '@/styles/globals.css';
+
+// Una pestaña de la web abierta antes de un despliegue pide trozos que ya no
+// existen: se recarga sola en vez de enseñar la pantalla de error.
+iniciarRecargaPorVersionNueva();
 
 // Applied before the first paint so the window never flashes light then dark.
 initTheme();

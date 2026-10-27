@@ -400,6 +400,9 @@ authRouter.post('/refresh', async (req, res, next) => {
 const passwordChangeLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
+  // Por cuenta: la ruta exige sesión. Por IP, diez docentes cambiándose la
+  // contraseña desde el campus dejaban sin cupo al undécimo.
+  keyGenerator: (req) => `u:${req.user?.id ?? req.ip}`,
   standardHeaders: true,
   legacyHeaders: false,
   message: { ok: false, message: 'Demasiados intentos. Intenta nuevamente más tarde.' },
@@ -515,6 +518,9 @@ const recoveryRequestLimit = rateLimit({
 const recoveryResetLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 20,
+  // Frena a quien prueba códigos, no a quien acierta: un cambio correcto no
+  // gasta el cupo de los demás detrás de la misma IP.
+  skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
   message: { ok: false, message: 'Demasiados intentos. Intenta nuevamente más tarde.' },

@@ -69,6 +69,13 @@ describe('orígenes permitidos por CORS', () => {
     expect(origenes).not.toContain('');
   });
 
+  it('quita la barra final y las mayúsculas: el navegador manda el origen sin ellas', async () => {
+    const origenes = await origenesCon('https://UtsNexusWeb.ciaiuts.com/');
+
+    expect(origenes).toContain('https://utsnexusweb.ciaiuts.com');
+    expect(origenes).not.toContain('https://UtsNexusWeb.ciaiuts.com/');
+  });
+
   it('deja pasar el comodín tal cual: fuera de producción vale, y allí no llega', async () => {
     // `validarProduccion()` rechaza `*` cuando NODE_ENV es production, así que
     // aquí solo se comprueba que en local no se convierta en una lista corta.

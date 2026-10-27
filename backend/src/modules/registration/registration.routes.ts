@@ -93,9 +93,23 @@ registrationRouter.get('/catalogo', async (_req, res, next) => {
  * responder a nadie más y llena de basura la cola de la administración.
  * `/recovery/request` ya lo llevaba por lo mismo.
  */
-const limiteSolicitudes = rateLimit({
+/**
+ * Dos frenos por IP. Uno solo de 10 contando también las solicitudes buenas
+ * dejaba con un 429 al undécimo docente que se registraba desde el wifi del
+ * campus el mismo día. Los errores siguen frenados en 10; las solicitudes
+ * correctas, que crean una cuenta pendiente cada una, en 60.
+ */
+const limiteSolicitudesFallidas = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
+  skipSuccessfulRequests: true,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, message: 'Demasiadas solicitudes. Intenta nuevamente más tarde.' },
+});
+const limiteSolicitudesTotal = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
   standardHeaders: true,
   legacyHeaders: false,
   message: { ok: false, message: 'Demasiadas solicitudes. Intenta nuevamente más tarde.' },
@@ -149,7 +163,7 @@ const solicitud = z.object({
 });
 
 // ── Solicitud de registro ───────────────────────────────────────────────────
-registrationRouter.post('/', limiteSolicitudes, async (req, res, next) => {
+registrationRouter.post('/', limiteSolicitudesTotal, limiteSolicitudesFallidas, async (req, res, next) => {
   try {
     if (!(await registroAbierto())) {
       return res.status(403).json({
@@ -197,6 +211,10 @@ registrationRouter.post('/', limiteSolicitudes, async (req, res, next) => {
       institutionId: institucion.institutionId,
     });
 
+    // Las dos escrituras van juntas o ninguna. Si la ficha fallaba, la cuenta
+    // quedaba sin ficha: el reintento recibía «Ya hay una cuenta con ese
+    // correo» y el login, al no encontrar estado PENDIENTE, la dejaba entrar
+    // sin que nadie la revisara.
     const profesor = await ProfessorModel.create({
       userId: usuario._id,
       cedula: datos.cedula,
@@ -212,6 +230,9 @@ registrationRouter.post('/', limiteSolicitudes, async (req, res, next) => {
       institucionSolicitada: institucion.institucionSolicitada,
       // Nace pendiente: la cuenta existe pero todavía no abre nada.
       estado: 'PENDIENTE',
+    }).catch(async (err: unknown) => {
+      await UserModel.deleteOne({ _id: usuario._id }).catch(() => undefined);
+      throw err;
     });
 
     await auditChange({

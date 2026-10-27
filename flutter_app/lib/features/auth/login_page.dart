@@ -80,12 +80,17 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       final apiError = ApiError.from(error);
       if (!mounted) return;
 
+      final credencialesMal = apiError.kind == ApiErrorKind.unauthorized;
       setState(() {
-        if (apiError.kind == ApiErrorKind.unauthorized) {
-          _passwordError = 'Correo o contraseña incorrectos';
-        }
+        if (credencialesMal) _passwordError = 'Correo o contraseña incorrectos';
       });
-      AppToast.error(context, 'No se pudo iniciar sesión', apiError.message);
+      // El 401 del login no es una sesión caducada: el texto genérico de ese
+      // tipo («Tu sesión expiró…») aquí se leía como una avería.
+      AppToast.error(
+        context,
+        'No se pudo iniciar sesión',
+        credencialesMal ? 'Correo o contraseña incorrectos.' : apiError.message,
+      );
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -149,6 +154,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
               TextField(
                 controller: _email,
+                // El error se va al corregir, no al volver a enviar.
+                onChanged: (_) {
+                  if (_emailError != null) setState(() => _emailError = null);
+                },
                 keyboardType: TextInputType.emailAddress,
                 autocorrect: false,
                 textInputAction: TextInputAction.next,
@@ -163,6 +172,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
               TextField(
                 controller: _password,
+                onChanged: (_) {
+                  if (_passwordError != null) {
+                    setState(() => _passwordError = null);
+                  }
+                },
                 obscureText: _obscurePassword,
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => _submit(),

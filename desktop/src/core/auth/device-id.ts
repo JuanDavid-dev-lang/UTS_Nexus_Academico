@@ -21,11 +21,22 @@ const VALIDO = /^[A-Za-z0-9_-]{16,128}$/;
 
 let pendiente: Promise<string> | null = null;
 
+/**
+ * `randomUUID` no existe en Safari anterior a 15.4: lanzaba un `TypeError`, que
+ * `errors.ts` lee como fallo de red, y el acceso de la web decía «No hay
+ * conexión con el servidor». `getRandomValues` está en todos.
+ */
+function aleatorio(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 async function leerOCrear(): Promise<string> {
   const guardado = await platform.secureStore.get(CLAVE).catch(() => null);
   if (guardado && VALIDO.test(guardado)) return guardado;
 
-  const nuevo = crypto.randomUUID();
+  const nuevo = aleatorio();
   // Si el almacén falla, el identificador vive lo que dure la ejecución: la
   // sesión funciona, y en el siguiente arranque se pedirá entrar de nuevo, que
   // es lo mismo que ya pasaría con los tokens en ese almacén roto.

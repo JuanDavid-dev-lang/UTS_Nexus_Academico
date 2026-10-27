@@ -311,11 +311,21 @@ export const ORIGENES_APP_ESCRITORIO = [
   'tauri://localhost',
 ] as const;
 
+/**
+ * Un origen es `esquema://host[:puerto]`, sin barra final y en minúsculas, que
+ * es como lo manda el navegador. `cors` compara la cadena exacta: con
+ * `https://utsnexusweb.ciaiuts.com/` en el `.env` la web fallaba con «error de
+ * red» y sin una línea en el registro del servidor.
+ */
+export function normalizarOrigen(origen: string): string {
+  return origen.trim().replace(/\/+$/, '').toLowerCase();
+}
+
 /** Orígenes permitidos por CORS, ya separados. `*` solo sobrevive fuera de producción. */
 export function origenesPermitidos(): string[] | '*' {
   if (env.CLIENT_ORIGIN === '*') return '*';
   const declarados = env.CLIENT_ORIGIN.split(',')
-    .map(origen => origen.trim())
+    .map(normalizarOrigen)
     .filter(Boolean);
   return [...new Set([...declarados, ...ORIGENES_APP_ESCRITORIO])];
 }

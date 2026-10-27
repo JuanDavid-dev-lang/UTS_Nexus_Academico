@@ -58,11 +58,14 @@ export const catalogoSchema = z.object({
 });
 export type Catalogo = z.infer<typeof catalogoSchema>;
 
+/** Valor del selector para «la mía no está en la lista». */
+export const OTRA_INSTITUCION = '__otra__';
+
 export const solicitudRegistroSchema = z
   .object({
     cedula: z.string().regex(/^\d{6,10}$/, 'La cédula debe tener entre 6 y 10 dígitos'),
-    nombres: z.string().min(2, 'Escribe tus nombres'),
-    apellidos: z.string().min(2, 'Escribe tus apellidos'),
+    nombres: z.string().trim().min(2, 'Escribe tus nombres'),
+    apellidos: z.string().trim().min(2, 'Escribe tus apellidos'),
     sede: sedeId,
     facultad: facultadId,
     niveles: z.array(nivelId).min(1, 'Marca al menos un nivel'),
@@ -73,16 +76,19 @@ export const solicitudRegistroSchema = z
     // exige elegir uno de forma explícita, por eso el `superRefine`.
     institutionId: z.string().optional(),
     institucionSolicitada: z.string().max(160, 'Máximo 160 caracteres').optional(),
-    email: z.string().email('Correo inválido'),
+    email: z.string().trim().email('Correo inválido'),
     password: z
       .string()
       .min(10, 'Mínimo 10 caracteres')
+      .max(128, 'Máximo 128 caracteres')
       .regex(/[a-z]/, 'Incluye una minúscula')
       .regex(/[A-Z]/, 'Incluye una mayúscula')
       .regex(/\d/, 'Incluye un número'),
   })
   .superRefine((datos, ctx) => {
-    const tieneId = Boolean(datos.institutionId?.trim());
+    // «Otra institución…» no es una institución: sin el nombre escrito, el
+    // envío no llevaba ninguno de los dos campos y el servidor asumía UTS.
+    const tieneId = Boolean(datos.institutionId?.trim()) && datos.institutionId !== OTRA_INSTITUCION;
     const tieneTexto = Boolean(datos.institucionSolicitada?.trim());
     if (!tieneId && !tieneTexto) {
       ctx.addIssue({
