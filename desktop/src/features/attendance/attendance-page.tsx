@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarCheck, Camera, Check, QrCode, Send, Smartphone, X } from 'lucide-react';
+import { CalendarCheck, Camera, Check, FileCheck2, QrCode, Send, Smartphone, X } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -33,6 +33,8 @@ import { currentPeriod, etiquetaDeGrupo, formatDate, formatPercent, recentPeriod
 import { cn } from '@/shared/lib/cn';
 import { toast } from '@/state/toast.store';
 import { SheetScanDialog } from './components/sheet-scan-dialog';
+import { ExcusaDialog, type FaltaAJustificar } from './components/excusa-dialog';
+import { MOTIVOS_EXCUSA, type Attendance } from '@/domain/schemas/attendance';
 import { QrSessionDialog } from './components/qr-session-dialog';
 import { useSesionQrAbierta } from './hooks/use-attendance-qr';
 import {
@@ -60,10 +62,12 @@ export default function AttendancePage() {
   const [scanOpen, setScanOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [avisando, setAvisando] = useState<DestinatarioAviso[] | null>(null);
+  const [justificando, setJustificando] = useState<FaltaAJustificar | null>(null);
 
   const user = useCurrentUser();
   const role = useUserRole();
   const canWrite = can(role, 'attendance.write');
+  const puedeJustificar = can(role, 'attendance.excuse');
   const puedeExportar = can(role, 'reports.export');
   // Leer una planilla desde una foto pasa por el servicio de visión: en la
   // versión web no está. El QR sí: proyectarlo desde el navegador funciona igual.
@@ -161,11 +165,9 @@ export default function AttendancePage() {
    * desde aquí los pondría a cero sobre lo que el móvil hubiera anotado.
    */
   const registroGuardado = useMemo(() => {
-    const map = new Map<string, { lateMinutes: number; notes: string }>();
+    const map = new Map<string, Attendance>();
     for (const record of attendance.data ?? []) {
-      if (record.date.slice(0, 10) === date) {
-        map.set(record.studentId, { lateMinutes: record.lateMinutes, notes: record.notes });
-      }
+      if (record.date.slice(0, 10) === date) map.set(record.studentId, record);
     }
     return map;
   }, [attendance.data, date]);
@@ -174,6 +176,8 @@ export default function AttendancePage() {
   const ratesByStudent = useMemo(() => {
     const totals = new Map<string, { present: number; total: number }>();
     for (const record of attendance.data ?? []) {
+      // Una falta justificada no cuenta, igual que en el servidor.
+      if (!record.present && record.excusa) continue;
       const current = totals.get(record.studentId) ?? { present: 0, total: 0 };
       current.total += 1;
       if (record.present) current.present += 1;
@@ -484,6 +488,14 @@ export default function AttendancePage() {
           {enrolled.data.map((student) => {
             const marked = marksForDate.get(student._id);
             const rate = ratesByStudent.get(student._id);
+            // Solo se justifica una falta que ya está en el servidor: una que
+            // sigue en la cola de envíos todavía no tiene registro.
+            const guardado = registroGuardado.get(student._id);
+            const faltaGuardada =
+              marked === false && guardado && !guardado.present && !pendientes.has(student._id) ? guardado : null;
+            const etiquetaExcusa = faltaGuardada?.excusa
+              ? MOTIVOS_EXCUSA.find((m) => m.value === faltaGuardada.excusa?.motivo)?.label
+              : undefined;
 
             return (
               <li
@@ -535,6 +547,26 @@ export default function AttendancePage() {
                   >
                     {pendientes.get(student._id)?.fallida ? 'Con error' : 'Pendiente'}
                   </Badge>
+                ) : null}
+
+                {faltaGuardada?.excusa ? (
+                  <Badge tone="info" title={[etiquetaExcusa, faltaGuardada.excusa.detalle].filter(Boolean).join(' · ')}>
+                    <FileCheck2 aria-hidden className="size-3.5" />
+                    Justificada
+                  </Badge>
+                ) : null}
+
+                {faltaGuardada && puedeJustificar ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setJustificando({ registro: faltaGuardada, nombre: student.fullName })}
+                    disabled={!enLinea}
+                    title={enLinea ? 'Registrar la excusa de esta falta' : TEXTO_SIN_CONEXION}
+                  >
+                    <FileCheck2 aria-hidden />
+                    {faltaGuardada.excusa ? 'Ver excusa' : 'Excusa'}
+                  </Button>
                 ) : null}
 
                 {rate !== undefined ? (
@@ -654,6 +686,14 @@ export default function AttendancePage() {
           })}
         </ul>
       )}
+
+      <ExcusaDialog
+        key={justificando?.registro._id ?? 'cerrado'}
+        falta={justificando}
+        onOpenChange={(abierto) => {
+          if (!abierto) setJustificando(null);
+        }}
+      />
 
       {avisando ? (
         <NotifyDialog

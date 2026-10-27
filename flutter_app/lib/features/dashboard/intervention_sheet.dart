@@ -64,7 +64,9 @@ class _InterventionSheetState extends ConsumerState<_InterventionSheet> {
   Map<String, dynamic>? _seg;
   bool _cargandoSeg = true;
   bool _accionando = false;
-  String _accion = 'LLAMADA';
+
+  /// Con un corte por debajo de 3.0 se propone la tutoría.
+  late String _accion = widget.risk.cortesBajos.isEmpty ? 'LLAMADA' : 'TUTORIA';
   final _notaSeg = TextEditingController();
 
   @override

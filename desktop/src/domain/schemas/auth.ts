@@ -43,7 +43,9 @@ export const meResponseSchema = z.object({
 });
 
 export const loginInputSchema = z.object({
-  email: z.string().min(1, 'El correo es obligatorio').email('Correo inválido'),
+  // `trim` antes de `email`: el autocompletado del teclado y el texto pegado
+  // traen un espacio al final, y sin esto el acceso decía «Correo inválido».
+  email: z.string().trim().min(1, 'El correo es obligatorio').email('Correo inválido'),
   password: z.string().min(1, 'La contraseña es obligatoria'),
 });
 

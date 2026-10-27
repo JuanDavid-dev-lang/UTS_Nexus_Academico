@@ -644,75 +644,84 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
                 const SizedBox(height: 8),
 
-                // Selector de niveles interactivo en chips/cards
-                Row(
-                  children: c.niveles.map((n) {
-                    final marcado = _niveles.contains(n.id);
-                    return Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () => _alternarNivel(n.id),
-                            borderRadius: BorderRadius.circular(
-                              AppSpacing.radiusCard,
-                            ),
-                            child: AnimatedContainer(
-                              duration: AppMotion.fast,
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 10,
-                                horizontal: 8,
+                // Selector de niveles interactivo en chips/cards. El nombre
+                // pasa a dos líneas en vez de cortarse: a 360 dp «Nivel
+                // universitario» salía con puntos suspensivos. `IntrinsicHeight`
+                // deja las dos tarjetas del mismo alto.
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: c.niveles.map((n) {
+                      final marcado = _niveles.contains(n.id);
+                      return Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () => _alternarNivel(n.id),
+                              borderRadius: BorderRadius.circular(
+                                AppSpacing.radiusCard,
                               ),
-                              decoration: BoxDecoration(
-                                color: marcado
-                                    ? Theme.of(context).colorScheme.primary
-                                          .withValues(alpha: 0.1)
-                                    : Theme.of(context).colorScheme.surface,
-                                borderRadius: BorderRadius.circular(
-                                  AppSpacing.radiusCard,
+                              child: AnimatedContainer(
+                                duration: AppMotion.fast,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                  horizontal: 8,
                                 ),
-                                border: Border.all(
+                                decoration: BoxDecoration(
                                   color: marcado
                                       ? Theme.of(context).colorScheme.primary
-                                      : Theme.of(context).dividerColor,
-                                  width: marcado ? 1.5 : 1,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    marcado
-                                        ? Icons.check_circle
-                                        : Icons.school_outlined,
-                                    size: 18,
+                                            .withValues(alpha: 0.1)
+                                      : Theme.of(context).colorScheme.surface,
+                                  borderRadius: BorderRadius.circular(
+                                    AppSpacing.radiusCard,
+                                  ),
+                                  border: Border.all(
                                     color: marcado
                                         ? Theme.of(context).colorScheme.primary
-                                        : muted,
+                                        : Theme.of(context).dividerColor,
+                                    width: marcado ? 1.5 : 1,
                                   ),
-                                  const SizedBox(width: 6),
-                                  Flexible(
-                                    child: Text(
-                                      n.nombre,
-                                      style: AppType.captionStrong.copyWith(
-                                        color: marcado
-                                            ? Theme.of(
-                                                context,
-                                              ).colorScheme.primary
-                                            : null,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      marcado
+                                          ? Icons.check_circle
+                                          : Icons.school_outlined,
+                                      size: 18,
+                                      color: marcado
+                                          ? Theme.of(
+                                              context,
+                                            ).colorScheme.primary
+                                          : muted,
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: Text(
+                                        n.nombre,
+                                        style: AppType.captionStrong.copyWith(
+                                          color: marcado
+                                              ? Theme.of(
+                                                  context,
+                                                ).colorScheme.primary
+                                              : null,
+                                        ),
+                                        maxLines: 2,
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                    );
-                  }).toList(),
+                      );
+                    }).toList(),
+                  ),
                 ),
 
                 const SizedBox(height: 16),

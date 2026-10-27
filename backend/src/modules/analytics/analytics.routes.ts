@@ -8,6 +8,7 @@ import { RiskFeedbackModel } from '../../models/risk-feedback.model.js';
 import { getProfessorScope } from '../../shared/professor-scope.js';
 import { emitToUser } from '../../shared/socket.js';
 import { computeAcademicRecords, type AcademicFilter, type AcademicRecord } from '../../shared/academic.service.js';
+import { cortesEnAlerta } from '../../domains/risk/alerta-corte.js';
 
 export const analyticsRouter = Router();
 
@@ -404,15 +405,23 @@ analyticsRouter.get('/risks', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), 
     const filter = await scopedFilter(req);
     const records = await computeAcademicRecords(filter);
 
-    // Un registro por estudiante: el peor riesgo entre sus materias.
+    // Cortes completos por debajo de 3.0 en el semestre más reciente: la misma
+    // regla que la alerta temprana. Un estudiante con uno entra en la lista
+    // aunque su riesgo esté en BAJO, porque es a esta lista adonde lleva el
+    // aviso y desde aquí se abre el seguimiento.
+    const actual = records.reduce((max, r) => (r.period > max ? r.period : max), '');
+    const cortesBajosDe = (r: AcademicRecord) =>
+      r.period === actual ? cortesEnAlerta(r.cortes, r.cortesCompletos) : [];
+
+    // Un registro por estudiante: el peor riesgo entre sus materias que piden atención.
     const peor = new Map<string, AcademicRecord>();
     for (const r of records) {
+      if (r.riesgo.nivel === 'BAJO' && cortesBajosDe(r).length === 0) continue;
       const prev = peor.get(r.studentId);
       if (!prev || r.riesgo.puntaje > prev.riesgo.puntaje) peor.set(r.studentId, r);
     }
 
     const enRiesgo = [...peor.values()]
-      .filter(r => r.riesgo.nivel !== 'BAJO')
       .sort((a, b) => b.riesgo.puntaje - a.riesgo.puntaje)
       .slice(0, 50);
 
@@ -446,6 +455,7 @@ analyticsRouter.get('/risks', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), 
         riskScore: r.riesgo.puntaje,
         level: r.riesgo.nivel === 'ALTO' ? 'HIGH' : r.riesgo.nivel === 'MEDIO' ? 'MEDIUM' : 'LOW',
         motivos: r.riesgo.motivos,
+        cortesBajos: cortesBajosDe(r),
         interventionStatus: seguimiento?.interventionStatus ?? 'PENDIENTE',
         interventionNote: seguimiento?.interventionNote ?? '',
         interventionAt: seguimiento?.interventionAt ?? null,

@@ -27,6 +27,7 @@ import { feedbackRouter } from '../modules/feedback/feedback.routes.js';
 import { thesisRouter } from '../modules/thesis/thesis.routes.js';
 import { periodRouter } from '../modules/periods/period.routes.js';
 import { attendancePatternRouter } from '../modules/attendance/attendance-patterns.routes.js';
+import { attendanceExcuseRouter } from '../modules/attendance/attendance-excuse.routes.js';
 import { auditRouter } from '../modules/audit/audit.routes.js';
 import { healthRouter } from '../modules/health/health.routes.js';
 import { timelineRouter } from '../modules/timeline/timeline.routes.js';
@@ -97,6 +98,7 @@ apiRouter.use('/attendance', attendanceScanRouter);
 // Los casos de patrón van antes que el router general por la misma razón que
 // el escáner: sus rutas son más específicas.
 apiRouter.use('/attendance', attendancePatternRouter);
+apiRouter.use('/attendance', attendanceExcuseRouter);
 apiRouter.use('/attendance', attendanceRouter);
 apiRouter.use('/activities', activityRouter);
 apiRouter.use('/notifications', notificationRouter);

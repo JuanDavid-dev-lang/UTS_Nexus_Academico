@@ -367,14 +367,16 @@ export async function construirHistorial(
       id: `attendance:${clase._id}`,
       type: 'ASISTENCIA',
       occurredAt: iso(clase.date),
-      title: clase.present ? 'Llegada tarde' : 'Ausencia',
+      title: clase.present ? 'Llegada tarde' : clase.excusa ? 'Ausencia justificada' : 'Ausencia',
       summary: clase.present
         ? `${nombreDe(clase.subjectId) ?? 'Materia'} · ${tarde} min de retraso.`
-        : `${nombreDe(clase.subjectId) ?? 'Materia'} · no asistió.`,
+        : clase.excusa
+          ? `${nombreDe(clase.subjectId) ?? 'Materia'} · no asistió, con excusa.`
+          : `${nombreDe(clase.subjectId) ?? 'Materia'} · no asistió.`,
       period: String(clase.period ?? ''),
       subjectId: String(clase.subjectId),
       subjectName: nombreDe(clase.subjectId),
-      metadata: { presente: clase.present, minutosTarde: tarde },
+      metadata: { presente: clase.present, minutosTarde: tarde, justificada: Boolean(clase.excusa) },
       sourceId: String(clase._id),
       link: `/asistencia?subjectId=${clase.subjectId}`,
     });

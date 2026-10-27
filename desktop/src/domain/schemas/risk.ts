@@ -31,6 +31,15 @@ export const riskItemSchema = z.object({
   riskScore: numberish,
   level: riskLevel,
   motivos: z.array(z.string()).optional().default([]),
+  /**
+   * Cortes completos por debajo de 3.0 en el semestre actual: la alerta
+   * temprana. Un estudiante puede estar aquí con riesgo bajo, porque un buen
+   * corte posterior tapa en el promedio el que pedía una tutoría.
+   */
+  cortesBajos: z
+    .array(z.object({ corte: z.number().int(), nota: numberish }))
+    .optional()
+    .default([]),
   /*
    * Qué se hizo ya con este estudiante. Convierte el tablero en un seguimiento:
    * sin esto la lista repetía los mismos nombres cada semana sin distinguir el

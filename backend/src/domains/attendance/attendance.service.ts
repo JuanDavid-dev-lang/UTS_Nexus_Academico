@@ -18,11 +18,21 @@ export const ASISTENCIA = {
 export type RegistroAsistencia = {
   present: boolean;
   durationMinutes?: number | null;
+  /**
+   * Falta con excusa registrada (`Asistencia.excusa`). Una falta justificada
+   * **no cuenta**: sale del numerador y del denominador, así que ni baja el
+   * porcentaje ni suma al cupo de faltas. En un registro presente no significa
+   * nada y se ignora.
+   */
+  justificada?: boolean;
 };
 
 export type ResumenAsistencia = {
+  /** Clases que cuentan: las dictadas menos las faltas justificadas. */
   totalClases: number;
   clasesPresente: number;
+  /** Faltas con excusa; no entran en ninguna otra cifra. */
+  clasesJustificadas: number;
   clasesAusente: number;
   minutosTotales: number;
   minutosPresente: number;
@@ -36,7 +46,12 @@ function duracion(registro: RegistroAsistencia): number {
   return Number.isFinite(minutos) && minutos > 0 ? minutos : ASISTENCIA.DURACION_DEFECTO;
 }
 
-export function calcularAsistencia(registros: RegistroAsistencia[]): ResumenAsistencia {
+export function esFaltaJustificada(registro: RegistroAsistencia): boolean {
+  return !registro.present && registro.justificada === true;
+}
+
+export function calcularAsistencia(entrada: RegistroAsistencia[]): ResumenAsistencia {
+  const registros = entrada.filter(r => !esFaltaJustificada(r));
   let minutosTotales = 0;
   let minutosPresente = 0;
   let clasesPresente = 0;
@@ -57,6 +72,7 @@ export function calcularAsistencia(registros: RegistroAsistencia[]): ResumenAsis
   return {
     totalClases: registros.length,
     clasesPresente,
+    clasesJustificadas: entrada.length - registros.length,
     clasesAusente: registros.length - clasesPresente,
     minutosTotales,
     minutosPresente,

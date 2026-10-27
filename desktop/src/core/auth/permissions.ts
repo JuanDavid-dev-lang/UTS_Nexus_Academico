@@ -18,6 +18,9 @@ export type Capability =
   | 'grades.write'
   | 'attendance.read'
   | 'attendance.write'
+  // Justificar una falta: lo hace quien recibe el soporte, el docente o
+  // coordinación. Coordinación no pasa lista pero sí atiende excusas.
+  | 'attendance.excuse'
   | 'reports.export'
   | 'notifications.scan'
   | 'assistant.use'
@@ -67,7 +70,7 @@ const MATRIX: Record<Role, Capability[]> = {
     'students.read', 'students.write', 'students.delete',
     'subjects.read', 'subjects.write', 'subjects.delete',
     'grades.read', 'grades.write',
-    'attendance.read', 'attendance.write',
+    'attendance.read', 'attendance.write', 'attendance.excuse',
     'reports.export', 'notifications.scan', 'assistant.use', 'analytics.risks', 'analytics.intervene',
     'professors.manage',
     'activities.read', 'activities.write', 'activities.reopen',
@@ -81,7 +84,7 @@ const MATRIX: Record<Role, Capability[]> = {
     'students.read', 'students.write', 'students.delete',
     'subjects.read',
     'grades.read',
-    'attendance.read',
+    'attendance.read', 'attendance.excuse',
     'reports.export', 'notifications.scan', 'assistant.use', 'analytics.risks', 'analytics.intervene',
     'professors.manage',
     'activities.read', 'activities.write', 'activities.reopen',
@@ -129,7 +132,7 @@ const MATRIX: Record<Role, Capability[]> = {
     'students.read', 'students.write',
     'subjects.read', 'subjects.write',
     'grades.read', 'grades.write',
-    'attendance.read', 'attendance.write',
+    'attendance.read', 'attendance.write', 'attendance.excuse',
     'reports.export', 'notifications.scan', 'assistant.use', 'analytics.risks', 'analytics.intervene',
     'activities.read', 'activities.write',
     // Ve en qué estado está el periodo para no intentar guardar en uno cerrado.

@@ -4,7 +4,7 @@
   "outputDirectory": "dist-web",
   "installCommand": "npm ci",
   "framework": null,
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+  "rewrites": [{ "source": "/((?!assets/).*)", "destination": "/index.html" }],
   "headers": [
     {
       "source": "/assets/(.*)",

@@ -74,6 +74,15 @@ export const limiteGeneral = limitador({
  * defensas distintas —cuánto cabe en una petición y cuántas peticiones caben en
  * una ventana— y hacen falta las dos.
  */
+/**
+ * Abrir, renovar y cerrar sesión no escriben el expediente. Llegan sin
+ * cabecera de sesión, así que contaban por IP: detrás de la NAT del campus,
+ * unas 120 renovaciones (una por docente cada 15 min) agotaban el cupo y la
+ * siguiente recibía 429, que el escritorio lee como «sin servidor». El login
+ * tiene su propio freno a los intentos fallidos.
+ */
+const RUTAS_DE_SESION = new Set(['/auth/login', '/auth/refresh', '/auth/logout']);
+
 export const limiteEscritura = limitador({
   windowMs: 15 * 60 * 1000,
   limit: 120,
@@ -81,7 +90,7 @@ export const limiteEscritura = limitador({
   // `apiRouter`, cualquier ruta de escritura que alguien añada mañana queda
   // cubierta sin acordarse de nada. Marcar cuáles escriben deja fuera la nueva,
   // y una ruta de escritura sin marcar no falla: concede.
-  skip: (req: Request) => esLectura(req.method),
+  skip: (req: Request) => esLectura(req.method) || RUTAS_DE_SESION.has(req.path),
   message: {
     ok: false,
     message:

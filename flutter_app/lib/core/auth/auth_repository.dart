@@ -6,7 +6,10 @@ class AuthRepository {
   final ApiClient _api = ApiClient.instance;
 
   Future<Map<String, dynamic>> login(String email, String password) async {
-    final response = await _api.post('/auth/login', data: {'email': email, 'password': password, 'device': 'flutter'});
+    final response = await _api.post(
+      '/auth/login',
+      data: {'email': email, 'password': password, 'device': 'flutter'},
+    );
     return Map<String, dynamic>.from(response.data as Map);
   }
 
@@ -21,11 +24,24 @@ class AuthRepository {
     required String actual,
     required String nueva,
   }) async {
-    final response = await _api.post('/auth/password', data: {
-      'currentPassword': actual,
-      'newPassword': nueva,
-    });
+    final response = await _api.post(
+      '/auth/password',
+      data: {'currentPassword': actual, 'newPassword': nueva},
+    );
     return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  /// Revoca la sesión en el servidor. De mejor esfuerzo: sin red o sin
+  /// respuesta en 3 s se sale igual, porque no se puede atrapar a nadie en una
+  /// sesión que quiere dejar.
+  Future<void> cerrarSesionEnServidor(String refreshToken) async {
+    try {
+      await _api
+          .post('/auth/logout', data: {'refreshToken': refreshToken})
+          .timeout(const Duration(seconds: 3));
+    } on Object {
+      // El token caduca solo; lo local se borra de todas formas.
+    }
   }
 
   Future<Map<String, dynamic>> me() async {

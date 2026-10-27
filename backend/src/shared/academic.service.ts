@@ -46,6 +46,8 @@ export type AcademicRecord = {
   notaFinal: number;
   /** Nota de cada corte [C1, C2, C3]. */
   cortes: number[];
+  /** Si cada corte tiene sus tres componentes con nota. */
+  cortesCompletos: boolean[];
   aprobado: boolean;
   notaCompleta: boolean;
   tieneNotas: boolean;
@@ -59,7 +61,7 @@ type Bucket = {
   teacherId: string | null;
   period: string;
   notas: NotaComponente[];
-  asistencia: { present: boolean; durationMinutes?: number | null }[];
+  asistencia: { present: boolean; durationMinutes?: number | null; justificada?: boolean }[];
 };
 
 /**
@@ -150,7 +152,7 @@ export async function computeAcademicRecords(filter: AcademicFilter): Promise<Ac
       ClaveAgrupada & {
         groupId: unknown;
         teacherId: unknown;
-        asistencia: { present: boolean; durationMinutes: number | null }[];
+        asistencia: { present: boolean; durationMinutes: number | null; excusa?: string | null }[];
       }
     >([
       { $match: match },
@@ -160,7 +162,7 @@ export async function computeAcademicRecords(filter: AcademicFilter): Promise<Ac
           groupId: { $first: '$groupId' },
           teacherId: { $first: '$teacherId' },
           asistencia: {
-            $push: { present: '$present', durationMinutes: '$durationMinutes' },
+            $push: { present: '$present', durationMinutes: '$durationMinutes', excusa: '$excusa.motivo' },
           },
         },
       },
@@ -224,7 +226,11 @@ export async function computeAcademicRecords(filter: AcademicFilter): Promise<Ac
       grupo.teacherId,
     );
     for (const clase of grupo.asistencia) {
-      bucket.asistencia.push({ present: clase.present, durationMinutes: clase.durationMinutes });
+      bucket.asistencia.push({
+        present: clase.present,
+        durationMinutes: clase.durationMinutes,
+        justificada: Boolean(clase.excusa),
+      });
     }
   }
 
@@ -248,6 +254,7 @@ export async function computeAcademicRecords(filter: AcademicFilter): Promise<Ac
       fullName: student?.fullName ?? '',
       notaFinal: nota.notaFinal,
       cortes: nota.cortes.map(c => c.nota),
+      cortesCompletos: nota.cortes.map(c => c.completo),
       aprobado: nota.aprobado,
       notaCompleta: nota.completo,
       tieneNotas: bucket.notas.length > 0,

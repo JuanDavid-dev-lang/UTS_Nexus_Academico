@@ -17,6 +17,8 @@ import { apiBaseUrl, env } from '@/core/config/env';
 import { AppError, appErrorFromResponse, messageFor, toAppError } from '@/core/api/errors';
 import { tokenService } from '@/core/auth/token.service';
 import { idDelEquipo } from '@/core/auth/device-id';
+import { abrirCanal, conCandado, crearCoordinador } from '@/core/auth/pestanas';
+import { esWeb } from '@/core/platform/tauri';
 import { parsearRetryAfter } from '@/domain/offline/clasificacion';
 import { respuestaProbarServidor } from '@/domain/offline/conectividad';
 
@@ -112,9 +114,37 @@ const refreshResponseSchema = z.object({
   refreshToken: z.string().min(1),
 });
 
-async function refreshSession(): Promise<RefreshOutcome> {
+/**
+ * Solo la web: la aplicación es de una instancia, así que no hay otra pestaña
+ * con la que coordinarse (`core/auth/pestanas.ts`).
+ */
+const pestanas = crearCoordinador({
+  canal: esWeb ? abrirCanal() : null,
+  leerPar: () => {
+    const accessToken = tokenService.getAccessToken();
+    const refreshToken = tokenService.getRefreshToken();
+    return accessToken && refreshToken ? { accessToken, refreshToken } : null;
+  },
+  adoptar: (par) => tokenService.set(par),
+});
+
+function refreshSession(): Promise<RefreshOutcome> {
+  return esWeb ? conCandado(renovarContraServidor) : renovarContraServidor();
+}
+
+async function renovarContraServidor(): Promise<RefreshOutcome> {
   const refreshToken = tokenService.getRefreshToken();
   if (!refreshToken) return 'rejected';
+
+  // Otra pestaña con la misma sesión pudo rotarla mientras se esperaba el
+  // candado: mandar el token viejo al servidor las cerraría todas.
+  if (esWeb) {
+    const yaRotado = await pestanas.consultar(refreshToken);
+    if (yaRotado) {
+      await tokenService.set(yaRotado);
+      return 'renewed';
+    }
+  }
 
   let response: Response;
   try {
@@ -138,10 +168,9 @@ async function refreshSession(): Promise<RefreshOutcome> {
   const parsed = refreshResponseSchema.safeParse(await response.json().catch(() => null));
   if (!parsed.success) return 'rejected';
 
-  await tokenService.set({
-    accessToken: parsed.data.accessToken,
-    refreshToken: parsed.data.refreshToken,
-  });
+  const par = { accessToken: parsed.data.accessToken, refreshToken: parsed.data.refreshToken };
+  await tokenService.set(par);
+  pestanas.anunciarRotacion(refreshToken, par);
   return 'renewed';
 }
 

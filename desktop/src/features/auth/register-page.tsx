@@ -27,6 +27,7 @@ import { Logo } from '@/shared/ui/logo';
 import { registroRepository } from '@/infrastructure/repositories/academic.repository';
 import { queryKeys } from '@/core/api/query-keys';
 import {
+  OTRA_INSTITUCION,
   solicitudRegistroSchema,
   type FacultadId,
   type NivelId,
@@ -56,9 +57,6 @@ const VACIO = {
   email: '',
   password: '',
 };
-
-/** Valor del selector cuando la institución no está en la lista. No es un slug real: nunca viaja al servidor. */
-const OTRA_INSTITUCION = '__otra__';
 
 /**
  * Solicitud de registro de un docente.

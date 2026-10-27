@@ -21,14 +21,16 @@ class AuthState {
 
   bool get isAuthenticated => user != null;
 
-  AuthState copyWith({bool? loading, AuthUser? user}) => AuthState(loading: loading ?? this.loading, user: user ?? this.user);
+  AuthState copyWith({bool? loading, AuthUser? user}) =>
+      AuthState(loading: loading ?? this.loading, user: user ?? this.user);
 }
 
 final authRepositoryProvider = Provider((ref) => AuthRepository());
 final sessionStorageProvider = Provider((ref) => SessionStorage());
 
 class AuthController extends StateNotifier<AuthState> {
-  AuthController(this._repo, this._storage, this._realtime) : super(const AuthState(loading: true));
+  AuthController(this._repo, this._storage, this._realtime)
+    : super(const AuthState(loading: true));
 
   final AuthRepository _repo;
   final SessionStorage _storage;
@@ -57,7 +59,8 @@ class AuthController extends StateNotifier<AuthState> {
         // refresh token la termina (y eso ya lo hizo `onSessionExpired`, que
         // borró los tokens). Mandar al login por un wifi caído dejaba al
         // docente sin poder abrir la app justo cuando más la necesita.
-        if (_esFalloDeServidor(error) && ApiClient.instance.refreshToken != null) {
+        if (_esFalloDeServidor(error) &&
+            ApiClient.instance.refreshToken != null) {
           final guardado = await _storage.loadUser();
           if (guardado != null) {
             await _entrar(guardado);
@@ -175,6 +178,12 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   Future<void> logout() async {
+    // Antes solo se borraba lo local y el refresh token seguía valiendo 15
+    // días en el servidor: en el teléfono compartido de la sala de docentes,
+    // una copia hecha antes de salir seguía entrando. Tras una sesión caducada
+    // (`onSessionExpired`) ya no hay token y no se llama.
+    final refresh = ApiClient.instance.refreshToken;
+    if (refresh != null) await _repo.cerrarSesionEnServidor(refresh);
     await _storage.clear();
     // Los datos cacheados de un docente no pueden quedar legibles para el
     // siguiente que entre en el mismo teléfono. En un equipo compartido —que es
@@ -195,8 +204,14 @@ class AuthController extends StateNotifier<AuthState> {
   }
 }
 
-final authControllerProvider = StateNotifierProvider<AuthController, AuthState>((ref) {
-  final controller = AuthController(ref.read(authRepositoryProvider), ref.read(sessionStorageProvider), RealtimeService.instance);
-  controller.bootstrap();
-  return controller;
-});
+final authControllerProvider = StateNotifierProvider<AuthController, AuthState>(
+  (ref) {
+    final controller = AuthController(
+      ref.read(authRepositoryProvider),
+      ref.read(sessionStorageProvider),
+      RealtimeService.instance,
+    );
+    controller.bootstrap();
+    return controller;
+  },
+);

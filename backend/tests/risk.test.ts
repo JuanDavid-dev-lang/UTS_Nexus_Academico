@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { evaluarRiesgo } from '../src/domains/risk/risk.service.js';
+import { claveAlertaCorte, cortesEnAlerta } from '../src/domains/risk/alerta-corte.js';
 import type { NotaComponente } from '../src/domains/grading/grading.service.js';
 import type { RegistroAsistencia } from '../src/domains/attendance/attendance.service.js';
 
@@ -101,5 +102,24 @@ describe('evaluarRiesgo', () => {
     expect(resultado.nivel).toBe('BAJO');
     expect(resultado.puntaje).toBe(0);
     expect(resultado.motivos).toHaveLength(0);
+  });
+});
+
+describe('alerta temprana por corte', () => {
+  it('avisa del corte completo por debajo de 3.0', () => {
+    expect(cortesEnAlerta([2.6, 4.5, 0], [true, true, false])).toEqual([{ corte: 1, nota: 2.6 }]);
+  });
+
+  it('no avisa de un corte a medio calificar', () => {
+    // Con solo los trabajos puestos el corte lleva ceros en lo demás: no es un 0.9 real.
+    expect(cortesEnAlerta([0.9, 0, 0], [false, false, false])).toEqual([]);
+  });
+
+  it('3.0 aprueba y no avisa', () => {
+    expect(cortesEnAlerta([3, 3, 3], [true, true, true])).toEqual([]);
+  });
+
+  it('la clave identifica el corte, no la pasada del escáner', () => {
+    expect(claveAlertaCorte('e1', 'm1', '2026-2', 2)).toBe('corte-bajo:e1:m1:2026-2:2');
   });
 });

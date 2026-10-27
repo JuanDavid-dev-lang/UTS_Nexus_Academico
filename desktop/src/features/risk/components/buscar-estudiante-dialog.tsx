@@ -164,6 +164,7 @@ export function BuscarEstudianteDialog({
                     riskScore: registro.risk.score,
                     level: NIVEL[registro.risk.level] ?? 'LOW',
                     motivos: registro.risk.reasons,
+                    cortesBajos: [],
                     interventionStatus: 'PENDIENTE',
                     interventionNote: '',
                     interventionAt: null,

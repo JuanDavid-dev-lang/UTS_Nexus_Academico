@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { CheckCircle2 } from 'lucide-react';
 import { Button } from '@/shared/ui/button';
@@ -20,6 +20,8 @@ export default function RecoveryPage() {
   const [devCode, setDevCode] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [canResend, setCanResend] = useState(false);
+  const esperaReenvio = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(esperaReenvio.current), []);
 
   async function requestCode() {
     const parsed = recoveryEmailSchema.safeParse(email);
@@ -28,7 +30,10 @@ export default function RecoveryPage() {
     try {
       const result = await authRepository.requestPasswordReset(parsed.data);
       setEmail(parsed.data); setDevCode(result.devCode); setCanResend(false); setStep('reset');
-      window.setTimeout(() => setCanResend(true), 60_000);
+      // Un reenvío reinicia la espera: el temporizador anterior habilitaba
+      // «Reenviar» a los pocos segundos del nuevo.
+      window.clearTimeout(esperaReenvio.current);
+      esperaReenvio.current = window.setTimeout(() => setCanResend(true), 60_000);
     } catch (cause) { setError(toAppError(cause).message); }
     finally { setBusy(false); }
   }
@@ -75,7 +80,7 @@ export default function RecoveryPage() {
                 revisa la carpeta de <strong>correo no deseado</strong> o spam.
               </p>
               <Field label="Código recibido" required>{(props) => <Input {...props} inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value)} />}</Field>
-              <Field label="Nueva contraseña" hint="Entre 8 y 128 caracteres" required>{(props) => <Input {...props} type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />}</Field>
+              <Field label="Nueva contraseña" hint="Mínimo 10 caracteres, con una mayúscula, una minúscula y un número" required>{(props) => <Input {...props} type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />}</Field>
               <Field label="Confirmar contraseña" required>{(props) => <Input {...props} type="password" autoComplete="new-password" value={confirmation} onChange={(e) => setConfirmation(e.target.value)} />}</Field>
             </> : null}
             {error ? <p role="alert" className="text-caption font-medium text-danger">{error}</p> : null}

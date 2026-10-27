@@ -61,6 +61,8 @@ export type ClaseAsistida = {
   durationMinutes?: number | null;
   /** Minutos de retraso. Ausente en registros anteriores a su captura: cuenta 0. */
   lateMinutes?: number | null;
+  /** Falta con excusa: no forma parte de ningún patrón. */
+  justificada?: boolean;
 };
 
 export type DeteccionPatron = {
@@ -131,7 +133,11 @@ function porcentaje(clases: ClaseAsistida[]): number {
  * sin que nada falle.
  */
 export function detectarPatrones(clasesEntrada: ClaseAsistida[]): DeteccionPatron[] {
-  const clases = [...clasesEntrada].sort((a, b) => aTiempo(a) - aTiempo(b));
+  // Una falta justificada no es un patrón de inasistencia: se quita antes de
+  // mirar rachas, caídas o tardanzas, igual que la quita el porcentaje.
+  const clases = clasesEntrada
+    .filter(c => c.present || c.justificada !== true)
+    .sort((a, b) => aTiempo(a) - aTiempo(b));
   if (clases.length === 0) return [];
 
   const detecciones: DeteccionPatron[] = [];

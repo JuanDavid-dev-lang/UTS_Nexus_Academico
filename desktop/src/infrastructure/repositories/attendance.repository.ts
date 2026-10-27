@@ -1,3 +1,4 @@
+import type { MotivoExcusa } from '@/domain/schemas/attendance';
 import {
   AttendanceRepository,
   EscaneoPlanilla,
@@ -33,6 +34,21 @@ export const attendanceRepository: AttendanceRepository = {
       misses: data.summary.misses,
       attendanceRate: data.summary.attendanceRate,
     };
+  },
+};
+
+/**
+ * Excusas de inasistencia. Van aparte del `AttendanceRepository` porque no
+ * pasan por la cola de envíos: justificar una falta exige que la falta ya esté
+ * en el servidor, y se hace con conexión.
+ */
+export const attendanceExcuseRepository = {
+  async justificar(id: string, input: { motivo: MotivoExcusa; detalle: string }) {
+    return (await http.put(`/attendance/${id}/excusa`, input, { schema: attendanceItemResponse })).item;
+  },
+
+  async quitar(id: string) {
+    return (await http.delete(`/attendance/${id}/excusa`, { schema: attendanceItemResponse })).item;
   },
 };
 

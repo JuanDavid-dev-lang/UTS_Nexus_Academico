@@ -141,7 +141,11 @@ aiRouter.post('/predict', requireRole('ADMIN', 'PROFESSOR', 'COORDINATOR'), asyn
     const resumen = calcularNotaFinal(notas);
     const riesgo = evaluarRiesgo({
       notas,
-      asistencia: attendance.map(a => ({ present: a.present, durationMinutes: a.durationMinutes })),
+      asistencia: attendance.map(a => ({
+        present: a.present,
+        durationMinutes: a.durationMinutes,
+        justificada: Boolean(a.excusa),
+      })),
     });
 
     const currentAverage = resumen.notaFinal;

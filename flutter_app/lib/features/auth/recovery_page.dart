@@ -100,15 +100,6 @@ class _RecoveryPageState extends State<RecoveryPage> {
                               prefixIcon: Icon(Icons.pin_outlined),
                             ),
                           ),
-                          const SizedBox(height: 14),
-                          TextField(
-                            controller: _confirmation,
-                            obscureText: true,
-                            decoration: const InputDecoration(
-                              labelText: 'Confirmar contraseña',
-                              prefixIcon: Icon(Icons.lock_outline),
-                            ),
-                          ),
                           if (_devCode != null) ...[
                             const SizedBox(height: 12),
                             Text(
@@ -136,6 +127,15 @@ class _RecoveryPageState extends State<RecoveryPage> {
                               labelText: 'Nueva contraseña',
                               prefixIcon: Icon(Icons.lock_outline),
                               helperText: ayudaPassword,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          TextField(
+                            controller: _confirmation,
+                            obscureText: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Confirmar contraseña',
+                              prefixIcon: Icon(Icons.lock_outline),
                             ),
                           ),
                         ],
@@ -225,8 +225,18 @@ class _RecoveryPageState extends State<RecoveryPage> {
       if (_step == _Step.requestCode) {
         await _requestCode();
       } else {
-        if (_code.text.trim().isEmpty) {
+        final codigo = _code.text.trim();
+        if (codigo.isEmpty) {
           setState(() => _error = 'Ingresa el código que recibiste.');
+          return;
+        }
+        // El servidor exige 4 a 12 caracteres; fuera de eso devolvía el
+        // mensaje de validación en inglés.
+        if (codigo.length < 4 || codigo.length > 12) {
+          setState(
+            () => _error =
+                'El código no tiene la longitud esperada. Revísalo en el correo.',
+          );
           return;
         }
         // Misma política que el autorregistro y que `passwordNueva` en el
@@ -269,7 +279,7 @@ class _RecoveryPageState extends State<RecoveryPage> {
 
   Future<void> _requestCode() async {
     final email = _email.text.trim();
-    if (email.isEmpty || !email.contains('@')) {
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
       setState(() => _error = 'Ingresa un correo válido.');
       return;
     }
