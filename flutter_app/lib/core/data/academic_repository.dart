@@ -59,7 +59,11 @@ class AcademicRepository {
   }
 
   Future<List<Subject>> subjects() {
-    return _leerConCache('subjects', () => _api.get('/subjects'), Subject.fromJson);
+    return _leerConCache(
+      'subjects',
+      () => _api.get('/subjects'),
+      Subject.fromJson,
+    );
   }
 
   /// Crea una materia. El backend exige el docente dueño en el cuerpo.
@@ -70,13 +74,16 @@ class AcademicRepository {
     required String professorId,
     int credits = 0,
   }) async {
-    final response = await _api.post('/subjects', data: {
-      'name': name,
-      'code': code,
-      'period': period,
-      'professorId': professorId,
-      'credits': credits,
-    });
+    final response = await _api.post(
+      '/subjects',
+      data: {
+        'name': name,
+        'code': code,
+        'period': period,
+        'professorId': professorId,
+        'credits': credits,
+      },
+    );
     return Subject.fromJson(
       Map<String, dynamic>.from((response.data as Map)['item'] as Map),
     );
@@ -90,11 +97,10 @@ class AcademicRepository {
     required String subjectId,
     required String period,
   }) async {
-    await _api.post('/groups', data: {
-      'name': name,
-      'subjectId': subjectId,
-      'period': period,
-    });
+    await _api.post(
+      '/groups',
+      data: {'name': name, 'subjectId': subjectId, 'period': period},
+    );
   }
 
   /// Estudiantes visibles.
@@ -115,11 +121,14 @@ class AcademicRepository {
     return _leerConCache(
       'students.${subjectId ?? "todas"}.${groupId ?? "todos"}'
       '${period == null ? "" : ".$period"}',
-      () => _api.get('/students', query: {
-        if (subjectId != null) 'subjectId': subjectId,
-        if (groupId != null) 'groupId': groupId,
-        if (period != null) 'period': period,
-      }),
+      () => _api.get(
+        '/students',
+        query: {
+          if (subjectId != null) 'subjectId': subjectId,
+          if (groupId != null) 'groupId': groupId,
+          if (period != null) 'period': period,
+        },
+      ),
       Student.fromJson,
     );
   }
@@ -143,11 +152,14 @@ class AcademicRepository {
     return _leerConCache(
       'students.${subjectId ?? "todas"}.${groupId ?? "todos"}'
       '${period == null ? "" : ".$period"}',
-      () => _api.get('/students', query: {
-        if (subjectId != null) 'subjectId': subjectId,
-        if (groupId != null) 'groupId': groupId,
-        if (period != null) 'period': period,
-      }),
+      () => _api.get(
+        '/students',
+        query: {
+          if (subjectId != null) 'subjectId': subjectId,
+          if (groupId != null) 'groupId': groupId,
+          if (period != null) 'period': period,
+        },
+      ),
       (m) => m,
     );
   }
@@ -175,13 +187,16 @@ class AcademicRepository {
     int limit = 30,
   }) async {
     try {
-      final response = await _api.get('/students', query: {
-        if (subjectId != null) 'subjectId': subjectId,
-        if (groupId != null) 'groupId': groupId,
-        if (q != null && q.trim().isNotEmpty) 'q': q.trim(),
-        'page': page,
-        'limit': limit,
-      });
+      final response = await _api.get(
+        '/students',
+        query: {
+          if (subjectId != null) 'subjectId': subjectId,
+          if (groupId != null) 'groupId': groupId,
+          if (q != null && q.trim().isNotEmpty) 'q': q.trim(),
+          'page': page,
+          'limit': limit,
+        },
+      );
       OfflineStatus.instance.marcarEnLinea();
       return PaginaDe.desdeRespuesta(response.data, _items, Student.fromJson);
     } catch (error) {
@@ -213,18 +228,23 @@ class AcademicRepository {
   /// Directorio global por nombre o cédula. Devuelve solo identidad, sin notas.
   Future<List<Student>> searchStudents(String term) async {
     if (term.trim().length < 3) return const [];
-    final response =
-        await _api.get('/students/search', query: {'q': term.trim()});
+    final response = await _api.get(
+      '/students/search',
+      query: {'q': term.trim()},
+    );
     return _items(response.data).map(Student.fromJson).toList();
   }
 
   Future<List<Enrollment>> enrollments({String? subjectId, String? period}) {
     return _leerConCache(
       'matriculas.${subjectId ?? "todas"}.${period ?? "todos"}',
-      () => _api.get('/enrollments', query: {
-        if (subjectId != null) 'subjectId': subjectId,
-        if (period != null) 'period': period,
-      }),
+      () => _api.get(
+        '/enrollments',
+        query: {
+          if (subjectId != null) 'subjectId': subjectId,
+          if (period != null) 'period': period,
+        },
+      ),
       Enrollment.fromJson,
     );
   }
@@ -237,10 +257,10 @@ class AcademicRepository {
     required String studentId,
     required String groupId,
   }) async {
-    await _api.post('/enrollments', data: {
-      'studentId': studentId,
-      'groupId': groupId,
-    });
+    await _api.post(
+      '/enrollments',
+      data: {'studentId': studentId, 'groupId': groupId},
+    );
   }
 
   /// Matricula una lista en un grupo: crea a quien no existe (por documento) y
@@ -253,10 +273,10 @@ class AcademicRepository {
     required String groupId,
     required List<Map<String, dynamic>> students,
   }) async {
-    final response = await _api.post('/enrollments/bulk', data: {
-      'groupId': groupId,
-      'students': students,
-    });
+    final response = await _api.post(
+      '/enrollments/bulk',
+      data: {'groupId': groupId, 'students': students},
+    );
     return ResultadoMatricula.fromJson(
       Map<String, dynamic>.from(response.data as Map),
     );
@@ -268,10 +288,13 @@ class AcademicRepository {
   }) {
     return _leerConCache(
       'consolidado.$period.${subjectId ?? "todas"}',
-      () => _api.get('/grades/consolidado', query: {
-        'period': period,
-        if (subjectId != null) 'subjectId': subjectId,
-      }),
+      () => _api.get(
+        '/grades/consolidado',
+        query: {
+          'period': period,
+          if (subjectId != null) 'subjectId': subjectId,
+        },
+      ),
       ConsolidatedRow.fromJson,
     );
   }
@@ -286,16 +309,23 @@ class AcademicRepository {
   }) {
     return _leerConCache(
       'pendientes.$period.${subjectId ?? "todas"}',
-      () => _api.get('/grades/pendientes', query: {
-        'period': period,
-        if (subjectId != null) 'subjectId': subjectId,
-      }),
+      () => _api.get(
+        '/grades/pendientes',
+        query: {
+          'period': period,
+          if (subjectId != null) 'subjectId': subjectId,
+        },
+      ),
       PendingSubject.fromJson,
     );
   }
 
   Future<List<RiskItem>> risks() {
-    return _leerConCache('risks', () => _api.get('/analytics/risks'), RiskItem.fromJson);
+    return _leerConCache(
+      'risks',
+      () => _api.get('/analytics/risks'),
+      RiskItem.fromJson,
+    );
   }
 
   /// Anota qué se hizo con un estudiante en riesgo.
@@ -310,13 +340,16 @@ class AcademicRepository {
     required String estado,
     String nota = '',
   }) async {
-    await _api.patch('/analytics/risks/intervencion', data: {
-      'studentId': studentId,
-      'subjectId': subjectId,
-      'period': period,
-      'estado': estado,
-      'nota': nota,
-    });
+    await _api.patch(
+      '/analytics/risks/intervencion',
+      data: {
+        'studentId': studentId,
+        'subjectId': subjectId,
+        'period': period,
+        'estado': estado,
+        'nota': nota,
+      },
+    );
   }
 
   // ── Seguimiento: episodios de acompañamiento ──────────────────────────
@@ -328,11 +361,10 @@ class AcademicRepository {
     required String subjectId,
     required String period,
   }) async {
-    final response = await _api.get('/analytics/risks/seguimientos', query: {
-      'studentId': studentId,
-      'subjectId': subjectId,
-      'period': period,
-    });
+    final response = await _api.get(
+      '/analytics/risks/seguimientos',
+      query: {'studentId': studentId, 'subjectId': subjectId, 'period': period},
+    );
     return Map<String, dynamic>.from(response.data as Map);
   }
 
@@ -343,13 +375,16 @@ class AcademicRepository {
     required String accion,
     String nota = '',
   }) async {
-    await _api.post('/analytics/risks/seguimientos', data: {
-      'studentId': studentId,
-      'subjectId': subjectId,
-      'period': period,
-      'accion': accion,
-      'nota': nota,
-    });
+    await _api.post(
+      '/analytics/risks/seguimientos',
+      data: {
+        'studentId': studentId,
+        'subjectId': subjectId,
+        'period': period,
+        'accion': accion,
+        'nota': nota,
+      },
+    );
   }
 
   Future<void> cerrarSeguimiento(
@@ -357,10 +392,10 @@ class AcademicRepository {
     required String resultado, // 'BIEN' | 'NEGADO'
     String nota = '',
   }) async {
-    await _api.patch('/analytics/risks/seguimientos/$id', data: {
-      'resultado': resultado,
-      'nota': nota,
-    });
+    await _api.patch(
+      '/analytics/risks/seguimientos/$id',
+      data: {'resultado': resultado, 'nota': nota},
+    );
   }
 
   Future<List<AppNotification>> notifications() {
@@ -376,8 +411,10 @@ class AcademicRepository {
   }
 
   Future<Map<String, dynamic>> scanRisks({String? period}) async {
-    final response = await _api.post('/notifications/risks/scan',
-        data: {if (period != null) 'period': period});
+    final response = await _api.post(
+      '/notifications/risks/scan',
+      data: {if (period != null) 'period': period},
+    );
     return Map<String, dynamic>.from(response.data as Map);
   }
 
@@ -387,12 +424,32 @@ class AcademicRepository {
   }) {
     return _leerConCache(
       'asistencia.${subjectId ?? "todas"}.${period ?? "todos"}',
-      () => _api.get('/attendance', query: {
-        if (subjectId != null) 'subjectId': subjectId,
-        if (period != null) 'period': period,
-      }),
+      () => _api.get(
+        '/attendance',
+        query: {
+          if (subjectId != null) 'subjectId': subjectId,
+          if (period != null) 'period': period,
+        },
+      ),
       (registro) => registro,
     );
+  }
+
+  /// Justifica una falta ya guardada. No pasa por la bandeja de salida: la
+  /// falta tiene que estar en el servidor, así que se hace con conexión.
+  Future<void> justificarFalta(
+    String attendanceId, {
+    required String motivo,
+    String detalle = '',
+  }) async {
+    await _api.put(
+      '/attendance/$attendanceId/excusa',
+      data: {'motivo': motivo, 'detalle': detalle},
+    );
+  }
+
+  Future<void> quitarExcusa(String attendanceId) async {
+    await _api.delete('/attendance/$attendanceId/excusa');
   }
 
   Future<void> markAttendance({
@@ -403,14 +460,17 @@ class AcademicRepository {
     required DateTime date,
     required bool present,
   }) async {
-    await _api.post('/attendance', data: {
-      'studentId': studentId,
-      'subjectId': subjectId,
-      'teacherId': teacherId,
-      'period': period,
-      'date': date.toIso8601String(),
-      'present': present,
-    });
+    await _api.post(
+      '/attendance',
+      data: {
+        'studentId': studentId,
+        'subjectId': subjectId,
+        'teacherId': teacherId,
+        'period': period,
+        'date': date.toIso8601String(),
+        'present': present,
+      },
+    );
   }
 
   /// Guarda una nota por la bandeja de salida.
@@ -538,8 +598,11 @@ class AcademicRepository {
     final ausentes = registros.where((r) => r['present'] == false).length;
     return OutboxService.instance.escribir(
       kind: OutboxKind.attendanceClass,
-      clave:
-          claveAsistencia(subjectId: subjectId, groupId: groupId, date: date),
+      clave: claveAsistencia(
+        subjectId: subjectId,
+        groupId: groupId,
+        date: date,
+      ),
       method: 'POST',
       path: '/attendance/bulk',
       body: {
@@ -574,7 +637,8 @@ class AcademicRepository {
   /// se devuelven los bytes para que el llamador los guarde.
   Future<List<int>> downloadReport({
     required String format, // 'pdf' | 'excel'
-    required String kind, // 'consolidado' | 'grades' | 'attendance' | 'combined'
+    required String
+    kind, // 'consolidado' | 'grades' | 'attendance' | 'combined'
     required String period,
     String? subjectId,
   }) async {
@@ -600,10 +664,7 @@ class AcademicRepository {
   }) async {
     final response = await _api.get(
       '/reports/preview/attendance',
-      query: {
-        'period': period,
-        if (subjectId != null) 'subjectId': subjectId,
-      },
+      query: {'period': period, if (subjectId != null) 'subjectId': subjectId},
     );
     return ReportPreview.fromJson(response.data as Map<String, dynamic>);
   }
@@ -614,11 +675,18 @@ class AcademicRepository {
   }
 
   /// Listado administrativo de docentes (solo ADMIN o COORDINATOR).
-  Future<List<Map<String, dynamic>>> listProfessors({String? query, String? programa}) async {
-    final response = await _api.get('/professors', query: {
-      if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
-      if (programa != null && programa.trim().isNotEmpty) 'programa': programa.trim(),
-    });
+  Future<List<Map<String, dynamic>>> listProfessors({
+    String? query,
+    String? programa,
+  }) async {
+    final response = await _api.get(
+      '/professors',
+      query: {
+        if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
+        if (programa != null && programa.trim().isNotEmpty)
+          'programa': programa.trim(),
+      },
+    );
     return _items(response.data);
   }
 
@@ -635,22 +703,33 @@ class AcademicRepository {
     int page = 1,
     int limit = 30,
   }) async {
-    final response = await _api.get('/professors', query: {
-      if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
-      if (programa != null && programa.trim().isNotEmpty) 'programa': programa.trim(),
-      if (institutionId != null && institutionId.isNotEmpty) 'institutionId': institutionId,
-      'page': page,
-      'limit': limit,
-    });
+    final response = await _api.get(
+      '/professors',
+      query: {
+        if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
+        if (programa != null && programa.trim().isNotEmpty)
+          'programa': programa.trim(),
+        if (institutionId != null && institutionId.isNotEmpty)
+          'institutionId': institutionId,
+        'page': page,
+        'limit': limit,
+      },
+    );
     return PaginaDe.desdeRespuesta(response.data, _items, (m) => m);
   }
 
   /// Listado administrativo de cuentas/usuarios (solo ADMIN).
-  Future<List<Map<String, dynamic>>> listUsers({String? role, String? query}) async {
-    final response = await _api.get('/usuarios', query: {
-      if (role != null && role.isNotEmpty) 'role': role,
-      if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
-    });
+  Future<List<Map<String, dynamic>>> listUsers({
+    String? role,
+    String? query,
+  }) async {
+    final response = await _api.get(
+      '/usuarios',
+      query: {
+        if (role != null && role.isNotEmpty) 'role': role,
+        if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
+      },
+    );
     return _items(response.data);
   }
 
@@ -662,13 +741,17 @@ class AcademicRepository {
     int page = 1,
     int limit = 30,
   }) async {
-    final response = await _api.get('/usuarios', query: {
-      if (role != null && role.isNotEmpty) 'role': role,
-      if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
-      if (institutionId != null && institutionId.isNotEmpty) 'institutionId': institutionId,
-      'page': page,
-      'limit': limit,
-    });
+    final response = await _api.get(
+      '/usuarios',
+      query: {
+        if (role != null && role.isNotEmpty) 'role': role,
+        if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
+        if (institutionId != null && institutionId.isNotEmpty)
+          'institutionId': institutionId,
+        'page': page,
+        'limit': limit,
+      },
+    );
     return PaginaDe.desdeRespuesta(response.data, _items, (m) => m);
   }
 }

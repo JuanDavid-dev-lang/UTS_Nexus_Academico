@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { RefreshCw, ScanSearch, UserSearch } from 'lucide-react';
 import {
   Badge,
@@ -50,7 +51,10 @@ type Filter = 'all' | RiskLevel;
  */
 export default function RiskPage() {
   const [filter, setFilter] = useState<Filter>('all');
-  const [query, setQuery] = useState('');
+  // Las alertas de riesgo y de corte llegan con `?buscar=<cédula>`: la lista
+  // abre ya filtrada en el estudiante del aviso.
+  const [searchParams] = useSearchParams();
+  const [query, setQuery] = useState(() => searchParams.get('buscar') ?? '');
   const debouncedQuery = useDebounce(query, 200);
 
   const role = useUserRole();
@@ -107,7 +111,14 @@ export default function RiskPage() {
         width: '2fr',
         sortValue: (row) => row.riskScore,
         cell: (row) => (
-          <RiskBadge level={row.level} {...(row.motivos[0] ? { reason: row.motivos[0] } : {})} />
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <RiskBadge level={row.level} {...(row.motivos[0] ? { reason: row.motivos[0] } : {})} />
+            {row.cortesBajos.map((c) => (
+              <Badge key={c.corte} tone="danger" title="Corte completo por debajo de 3.0: considera una tutoría">
+                C{c.corte} · {formatGrade(c.nota)}
+              </Badge>
+            ))}
+          </div>
         ),
       },
       {

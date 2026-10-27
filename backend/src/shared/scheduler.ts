@@ -371,10 +371,17 @@ export function startScheduler() {
   const run = async () => {
     const result = await ejecutarTarea('risk-scan', async () => {
       const salida = await generateRiskNotifications();
-      return { enRiesgo: salida.enRiesgo, notificaciones: salida.notificaciones };
+      return {
+        enRiesgo: salida.enRiesgo,
+        notificaciones: salida.notificaciones,
+        alertasCorte: salida.alertasCorte,
+      };
     });
     if (result) {
-      console.log(`[riesgo] escaneo automático: ${result.enRiesgo} en riesgo, ${result.notificaciones} notificaciones.`);
+      console.log(
+        `[riesgo] escaneo automático: ${result.enRiesgo} en riesgo, ${result.notificaciones} notificaciones, ` +
+          `${result.alertasCorte} alertas de corte.`,
+      );
     }
 
     // Mismo intervalo que el riesgo, tarea aparte: el centro de salud tiene

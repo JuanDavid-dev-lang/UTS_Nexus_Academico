@@ -233,6 +233,8 @@ export function SeguimientoDialog({
               />
             ) : (
               <AbrirPanel
+                key={row.studentId}
+                sugerirTutoria={row.cortesBajos.length > 0}
                 huboNegado={datos?.huboNegado ?? false}
                 enviando={crear.isPending}
                 onCrear={(accion, nota) => crear.mutate({ accion, nota })}
@@ -282,8 +284,16 @@ function Veredicto({ row }: { row: RiskItem }) {
         />
       </div>
 
-      {row.motivos.length > 0 ? (
+      {row.motivos.length > 0 || row.cortesBajos.length > 0 ? (
         <ul className="mt-3 flex flex-col gap-1 border-t border-border pt-3">
+          {row.cortesBajos.map((c) => (
+            <li key={`corte-${c.corte}`} className="flex gap-2 text-caption text-danger">
+              <span className="select-none" aria-hidden>
+                ·
+              </span>
+              Corte {c.corte} en {formatGrade(c.nota)}: una tutoría ahora pesa más que al final del semestre.
+            </li>
+          ))}
           {row.motivos.map((motivo) => (
             <li key={motivo} className="flex gap-2 text-caption text-muted">
               <span className="select-none text-subtle" aria-hidden>
@@ -432,15 +442,18 @@ function ActualizarPanel({
 
 /** Apertura de un episodio, con la advertencia si ya hubo un NEGADO. */
 function AbrirPanel({
+  sugerirTutoria,
   huboNegado,
   enviando,
   onCrear,
 }: {
+  /** Un corte por debajo de 3.0: la acción que se propone es la tutoría. */
+  sugerirTutoria: boolean;
   huboNegado: boolean;
   enviando: boolean;
   onCrear: (accion: AccionSeguimiento, nota: string) => void;
 }) {
-  const [accion, setAccion] = useState<AccionSeguimiento>('LLAMADA');
+  const [accion, setAccion] = useState<AccionSeguimiento>(sugerirTutoria ? 'TUTORIA' : 'LLAMADA');
   const [nota, setNota] = useState('');
   const [confirmando, setConfirmando] = useState(false);
 

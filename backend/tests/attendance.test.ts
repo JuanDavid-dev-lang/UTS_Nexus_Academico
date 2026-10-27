@@ -75,3 +75,27 @@ describe('calcularAsistencia', () => {
     expect(ASISTENCIA.UMBRAL_CRITICO).toBeLessThan(ASISTENCIA.UMBRAL_MINIMO);
   });
 });
+
+describe('faltas justificadas', () => {
+  const justificada = (durationMinutes = 90): RegistroAsistencia => ({ present: false, durationMinutes, justificada: true });
+
+  it('una falta con excusa no baja el porcentaje ni cuenta como ausencia', () => {
+    const resumen = calcularAsistencia([clase(true, 90), justificada(), clase(true, 90)]);
+
+    expect(resumen.porcentaje).toBe(100);
+    expect(resumen.clasesAusente).toBe(0);
+    expect(resumen.clasesJustificadas).toBe(1);
+    expect(resumen.totalClases).toBe(2);
+  });
+
+  it('la justificación de un registro presente se ignora', () => {
+    const resumen = calcularAsistencia([{ present: true, durationMinutes: 90, justificada: true }, clase(false, 90)]);
+
+    expect(resumen.clasesJustificadas).toBe(0);
+    expect(resumen.porcentaje).toBe(50);
+  });
+
+  it('solo con faltas justificadas no hay clases que contar: 100 %', () => {
+    expect(calcularAsistencia([justificada(), justificada()]).porcentaje).toBe(100);
+  });
+});

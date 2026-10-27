@@ -101,12 +101,21 @@ export function indicadoresNotas(notas: NotaDelReporte[]): Indicador[] {
   ];
 }
 
-type AsistenciaDelReporte = { studentId?: unknown; present: boolean; durationMinutes?: number | null };
+type AsistenciaDelReporte = {
+  studentId?: unknown;
+  present: boolean;
+  durationMinutes?: number | null;
+  excusa?: unknown;
+};
+
+/** La excusa guardada se traduce a la marca que entiende el dominio. */
+const conJustificacion = (registros: AsistenciaDelReporte[]) =>
+  registros.map(r => ({ ...r, justificada: Boolean(r.excusa) }));
 
 /** Porcentaje ponderado por minutos, con la función del dominio y sus umbrales. */
 export function indicadorDeAsistencia(registros: AsistenciaDelReporte[]): Indicador | null {
   if (!registros.length) return null;
-  const { porcentaje } = calcularAsistencia(registros);
+  const { porcentaje } = calcularAsistencia(conJustificacion(registros));
   const tono: Tono =
     porcentaje < ASISTENCIA.UMBRAL_CRITICO ? 'mal' : porcentaje < ASISTENCIA.UMBRAL_MINIMO ? 'alerta' : 'ok';
   return { etiqueta: 'Asistencia (por minutos)', valor: `${porcentaje.toFixed(1)}%`, tono };
@@ -115,12 +124,15 @@ export function indicadorDeAsistencia(registros: AsistenciaDelReporte[]): Indica
 export function indicadoresAsistencia(registros: AsistenciaDelReporte[]): Indicador[] {
   const porcentaje = indicadorDeAsistencia(registros);
   if (!porcentaje) return [];
-  const resumen = calcularAsistencia(registros);
+  const resumen = calcularAsistencia(conJustificacion(registros));
   return [
-    { etiqueta: 'Registros', valor: String(resumen.totalClases) },
+    { etiqueta: 'Registros', valor: String(registros.length) },
     { etiqueta: 'Estudiantes', valor: String(distintos(registros.map(r => r.studentId))) },
     { etiqueta: 'Presentes', valor: String(resumen.clasesPresente), tono: 'ok' },
     { etiqueta: 'Ausencias', valor: String(resumen.clasesAusente), tono: resumen.clasesAusente ? 'mal' : undefined },
+    ...(resumen.clasesJustificadas
+      ? [{ etiqueta: 'Justificadas', valor: String(resumen.clasesJustificadas) }]
+      : []),
     porcentaje,
   ];
 }

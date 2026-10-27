@@ -23,6 +23,7 @@ npm run migrate:v3       # migración v3 — simula; con -- --aplicar escribe
 npm run migrate:fechas-asistencia   # une la asistencia duplicada por fecha — simula; -- --aplicar escribe
 npm run migrate:nombres-estudiantes # nombres de estudiante en mayúsculas y solo letras — simula; -- --aplicar escribe
 npm run check:env        # valida .env sin imprimir secretos
+npm run check:docentes-sin-ficha  # solo lectura: cuentas PROFESSOR sin ficha
 npm test                 # Vitest — dominio puro (tests/)
 npm run lint             # eslint
 ```
@@ -490,6 +491,18 @@ nueve fallos por 429 a partir del décimo escenario.
   siempre en la IP y el arreglo parecería hecho sin estarlo. Un campus entero
   sale a internet por una sola dirección: contar por IP dejaba a una facultad
   compartiendo el cupo de quien más pidiera, y a un script con las 250 para él.
+- **Abrir, renovar y cerrar sesión no gastan el cupo de escritura**
+  (`RUTAS_DE_SESION`): llegan sin sesión y contaban por IP, así que detrás de
+  la NAT del campus unas 120 renovaciones agotaban el cupo de todos.
+- **Cerrar sesión en el móvil revoca la sesión en el servidor**
+  (`POST /auth/logout`, de mejor esfuerzo y con 3 s de tope). Antes solo borraba
+  lo local y el refresh token seguía valiendo 15 días.
+- **Registro, cambio de contraseña y recuperación no castigan a un campus
+  entero.** El registro frena los errores en 10 y las solicitudes buenas en 60
+  por IP; `/auth/password` cuenta por cuenta; `/recovery/reset` solo cuenta
+  fallos. `npm run check:docentes-sin-ficha` (solo lectura) lista cuentas
+  PROFESSOR sin ficha, que de antes del arreglo del registro podían entrar sin
+  aprobación.
 - **El corte de escritura es por método**, con `skip: req => esLectura(...)`, no
   ruta por ruta: marcar cuáles escriben deja fuera la que se añada mañana, y una
   ruta de escritura sin marcar no falla — concede.
@@ -659,6 +672,45 @@ casos sobre estudiantes puntuales.
 Un `CasoAsistencia` es único por (estudiante, materia, periodo, patrón), sin
 fecha: el hecho seguido es el problema, no el día. Que el patrón desaparezca lo
 pasa a `RESUELTO`; **no lo borra**.
+
+### Excusas de inasistencia (`domains/attendance/excusa.ts`)
+
+La excusa de una falta la registra **quien recibe el soporte** —el docente de
+la materia, coordinación o ADMIN—, no el estudiante: `PUT|DELETE
+/attendance/:id/excusa` (`modules/attendance/attendance-excuse.*`), con motivo
+(`MEDICA`, `CALAMIDAD`, `INSTITUCIONAL`, `LABORAL`, `OTRA`, que exige detalle) y
+detalle. Registrarla ya es aceptarla: no hay estado pendiente. No pasa por
+UniPlanner.
+
+- **Una falta justificada no cuenta.** `calcularAsistencia()` la saca del
+  numerador y del denominador (`clasesJustificadas` aparte), así que no baja el
+  porcentaje, no suma al cupo de faltas ni al riesgo, y `detectarPatrones()` la
+  quita antes de mirar rachas. Todo lo que calcula asistencia pasa la marca:
+  `computeAcademicRecords`, patrones, `/attendance/summary/:id` (que tenía su
+  propia fórmula y ahora usa la del dominio), asistente, reportes (columna
+  «Justificada», indicador «Justificadas») e historial del estudiante.
+- Solo se justifica una **falta ya guardada** (un registro presente es 409
+  `NO_JUSTIFICABLE`); respeta alcance (fuera de él, 404) y periodo cerrado. Pasar
+  lista de nuevo no borra la excusa: las escrituras de la lista no tocan el campo.
+- Escritorio: botón «Excusa» en la fila de una falta guardada (Asistencia), con
+  capacidad `attendance.excuse` (docente, coordinación, ADMIN). Móvil: mantener
+  pulsada la fila ausente del día o tocar la falta en el historial
+  (`features/attendance/excusa_sheet.dart`). Requiere conexión en los dos.
+
+### Alerta temprana por corte (`domains/risk/alerta-corte.ts`)
+
+Un **corte completo** (sus tres componentes con nota) por debajo de 3.0 avisa
+al docente una vez —`dedupeKey` `corte-bajo:<est>:<mat>:<periodo>:<corte>`—
+sugiriendo abrir un seguimiento de tutoría. Corre dentro del escaneo de riesgo
+(`generateRiskNotifications`, sin una segunda agregación) y solo sobre el
+semestre más reciente, para no avisar de semestres cerrados al desplegar. Un
+corte a medio calificar no cuenta: llevaría ceros y avisaría de un 0.9 que no
+existe. `GET /analytics/risks` devuelve `cortesBajos` e incluye al estudiante
+**aunque su riesgo sea BAJO** (un buen segundo corte tapa en el promedio el
+primero), porque esa lista es adonde lleva el aviso y desde ella se abre el
+seguimiento, que propone la tutoría. `AcademicRecord.cortesCompletos` es lo
+que lo hace posible. El móvil traduce los enlaces del escritorio de las
+notificaciones (`rutaMovilDe`: `/riesgo` → panel, `/estudiantes` → `/students`).
 
 ### Centro de salud
 
@@ -1394,6 +1446,29 @@ todas las pantallas —y para la ventana estrecha del escritorio—:
   pantalla. `PageContainer` deja `pb-24` para que Rubri no tape la última fila.
 Una lista propia con botones (la de Asistencia) tiene que hacer `flex-wrap`:
 sin eso el interruptor Presente/Ausente dejaba el nombre en cero píxeles.
+
+**Despliegue nuevo con la pestaña abierta.** Cada pantalla es un trozo con
+hash, y Vercel redespliega en cada push: una pestaña (o la web instalada en el
+iPhone) que cargó el `index.html` anterior pide trozos que ya no existen. Dos
+cosas lo cubren. `vercel.json` **no reescribe `/assets/`** a `index.html`: antes
+un trozo perdido respondía 200 con el HTML y la cabecera `immutable` de un año,
+y el navegador lo guardaba como si fuera el JavaScript. Y el cliente recarga
+solo una vez (`core/platform/version-nueva.ts`, reglas puras en
+`domain/platform/version-nueva.ts`, con freno de 60 s contra bucles) desde
+`vite:preloadError`, `AppErrorBoundary` y el `errorElement` del enrutador
+(`app/route-error.tsx`). **El enrutador necesita ese `errorElement`**: con
+`createBrowserRouter`, un fallo dentro de una ruta lo atrapa React Router y
+pintaba su página por defecto en inglés, sin pasar por `AppErrorBoundary` ni
+por la telemetría.
+
+**Varias pestañas con la misma sesión** (`core/auth/pestanas.ts`, solo web).
+«Duplicar pestaña» copia el `sessionStorage`: dos pestañas con el mismo refresh
+token, y la que renovaba tarde mandaba uno ya rotado, que el servidor trata como
+robo y revoca todas las sesiones. La renovación va bajo un candado
+(`navigator.locks`), la pestaña que rota publica el par nuevo por
+`BroadcastChannel` y las que tenían el anterior lo adoptan; una que estuvo
+congelada pregunta antes de renovar. Solo se adopta un par si el token anterior
+es el propio.
 
 **Sesión en la web**: sin casilla de recordar. Los tokens van a
 `sessionStorage`, así que recargar no echa a nadie y cerrar la pestaña termina

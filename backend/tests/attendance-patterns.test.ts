@@ -146,3 +146,17 @@ describe('clave de deduplicación', () => {
     expect(a).not.toBe(claveDePatron('e1', 'm2', '2026-1', 'AUSENCIAS_CONSECUTIVAS_3'));
   });
 });
+
+describe('faltas justificadas', () => {
+  it('una racha de faltas con excusa no abre ningún caso', () => {
+    const clases = serie('PPPAAA').map((c, i) => (i >= 3 ? { ...c, justificada: true } : c));
+    expect(patronesDe(clases)).not.toContain('AUSENCIAS_CONSECUTIVAS_3');
+    expect(patronesDe(clases)).not.toContain('AUSENCIAS_CONSECUTIVAS_2');
+  });
+
+  it('una excusa en medio no rompe la racha de las faltas sin excusa', () => {
+    // P P A [A con excusa] A A: quitada la justificada quedan tres seguidas al final.
+    const clases = serie('PPAAAA').map((c, i) => (i === 3 ? { ...c, justificada: true } : c));
+    expect(patronesDe(clases)).toContain('AUSENCIAS_CONSECUTIVAS_3');
+  });
+});

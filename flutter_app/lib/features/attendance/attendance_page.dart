@@ -15,6 +15,7 @@ import '../../core/widgets/debounced_search_field.dart';
 import '../../core/widgets/session_menu.dart';
 import '../../core/widgets/ui_kit.dart';
 import '../../core/auth/permisos.dart';
+import 'excusa_sheet.dart';
 
 /// Toma de asistencia de una clase.
 ///
@@ -87,6 +88,10 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
   final Map<String, int> _minutosTarde = {};
   final Map<String, Map<String, dynamic>> _studentById = {};
 
+  /// La falta ya guardada de cada estudiante en el día elegido: es la que se
+  /// puede justificar desde su fila (manteniéndola pulsada).
+  final Map<String, Map<String, dynamic>> _faltaDelDia = {};
+
   /// Recuento en vivo para la barra inferior.
   ///
   /// Un `ValueNotifier` y no `setState`: marcar a un estudiante tiene que
@@ -136,7 +141,10 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
     try {
       // Materias y grupos a la vez: ninguna depende de la otra. Encadenadas la
       // pantalla se quedaba en blanco el doble de tiempo sobre el wifi del aula.
-      final resultados = await Future.wait([repo.subjectsRaw(), repo.groupsRaw()]);
+      final resultados = await Future.wait([
+        repo.subjectsRaw(),
+        repo.groupsRaw(),
+      ]);
       allSubjects = resultados[0];
       allGroups = resultados[1];
     } catch (error) {
@@ -147,22 +155,36 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
       });
       return;
     }
-    final filteredSubjects =
-        allSubjects.where((s) => s['period']?.toString() == _period).toList();
-    final subjectId = _subjectId ??
-        (filteredSubjects.isNotEmpty ? filteredSubjects.first['_id']?.toString() : null);
+    final filteredSubjects = allSubjects
+        .where((s) => s['period']?.toString() == _period)
+        .toList();
+    final subjectId =
+        _subjectId ??
+        (filteredSubjects.isNotEmpty
+            ? filteredSubjects.first['_id']?.toString()
+            : null);
 
     // Se pasa lista a un grupo (A194, A193…), no a la materia entera: cada
     // grupo es otro salón, con otros estudiantes.
-    final groups = allGroups
-        .where((g) =>
-            g['subjectId']?.toString() == subjectId &&
-            ((g['period'] ?? '').toString().isEmpty || g['period'].toString() == _period))
-        .toList()
-      ..sort((a, b) => (a['name'] ?? '').toString().compareTo((b['name'] ?? '').toString()));
+    final groups =
+        allGroups
+            .where(
+              (g) =>
+                  g['subjectId']?.toString() == subjectId &&
+                  ((g['period'] ?? '').toString().isEmpty ||
+                      g['period'].toString() == _period),
+            )
+            .toList()
+          ..sort(
+            (a, b) => (a['name'] ?? '').toString().compareTo(
+              (b['name'] ?? '').toString(),
+            ),
+          );
     final groupId = groups.length == 1
         ? groups.first['_id'].toString()
-        : (groups.any((g) => g['_id'].toString() == _groupId) ? _groupId : null);
+        : (groups.any((g) => g['_id'].toString() == _groupId)
+              ? _groupId
+              : null);
     final faltaGrupo = groups.length > 1 && groupId == null;
 
     // Solo los matriculados de esa materia y ese grupo. Antes se cargaban todos
@@ -174,17 +196,21 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
       if (subjectId == null || faltaGrupo) {
         students = [];
       } else {
-        students = (await repo.studentsRaw(
-          subjectId: subjectId,
-          groupId: groupId,
-          period: _period,
-        ))
-            .toList()
-          ..sort((a, b) =>
-              (a['code'] ?? '').toString().compareTo((b['code'] ?? '').toString()));
+        students =
+            (await repo.studentsRaw(
+              subjectId: subjectId,
+              groupId: groupId,
+              period: _period,
+            )).toList()..sort(
+              (a, b) => (a['code'] ?? '').toString().compareTo(
+                (b['code'] ?? '').toString(),
+              ),
+            );
       }
-      attendanceItems =
-          await repo.attendance(subjectId: subjectId, period: _period);
+      attendanceItems = await repo.attendance(
+        subjectId: subjectId,
+        period: _period,
+      );
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -224,6 +250,21 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
       _studentById[id] = estudiante;
       _marcas.putIfAbsent(id, () => Marca.presente);
     }
+    final dia =
+        '${_date.year.toString().padLeft(4, '0')}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}';
+    _faltaDelDia
+      ..clear()
+      ..addEntries(
+        attendance
+            .where(
+              (fila) =>
+                  fila['present'] == false &&
+                  fila['pendiente'] != true &&
+                  fila['_id'] != null &&
+                  fila['date']?.toString().split('T').first == dia,
+            )
+            .map((fila) => MapEntry(fila['studentId'].toString(), fila)),
+      );
     // Lo ya registrado manda sobre el valor por defecto: reabrir una clase que
     // ya se pasó tiene que mostrar lo que se guardó, no todo presente.
     for (final fila in attendance) {
@@ -268,11 +309,27 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
     var total = 0;
     var presente = 0;
     for (final fila in _attendance) {
-      final minutos = int.tryParse(fila['durationMinutes']?.toString() ?? '90') ?? 90;
+      // Una falta justificada no cuenta, igual que en el servidor.
+      if (fila['present'] != true && etiquetaDeExcusa(fila) != null) continue;
+      final minutos =
+          int.tryParse(fila['durationMinutes']?.toString() ?? '90') ?? 90;
       total += minutos;
       if (fila['present'] == true) presente += minutos;
     }
     return total == 0 ? 0 : (presente / total) * 100;
+  }
+
+  Future<void> _abrirExcusa(
+    Map<String, dynamic> fila,
+    Map<String, dynamic> estudiante,
+  ) async {
+    final cambio = await mostrarHojaExcusa(
+      context,
+      repo: ref.read(academicRepositoryProvider),
+      registro: fila,
+      nombre: estudiante['fullName']?.toString() ?? 'Estudiante',
+    );
+    if (cambio == true && mounted && !_sucio) await _load();
   }
 
   List<Map<String, dynamic>> get _filtrados {
@@ -339,40 +396,42 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
 
     final ResultadoEscritura resultado;
     try {
-      resultado = await ref.read(academicRepositoryProvider).saveAttendanceClass(
-        subjectId: _subjectId!,
-        groupId: _groupId,
-        teacherId: ref.read(authControllerProvider).user?.id ?? '',
-        period: _period,
-        date: _date,
-        durationMinutes: _durationMinutes,
-        subjectLabel: _subjects
-            .where((s) => s['_id'].toString() == _subjectId)
-            .map((s) => s['code']?.toString() ?? '')
-            .firstOrNull,
-        groupLabel: _groups
-            .where((g) => g['_id'].toString() == _groupId)
-            .map((g) => g['name']?.toString() ?? '')
-            .firstOrNull,
-        registros: [
-          for (final estudiante in _students)
-            () {
-              final id = estudiante['_id'].toString();
-              final marca = _marcas[id] ?? Marca.presente;
-              return {
-                'studentId': id,
-                'present': marca != Marca.ausente,
-                // El retraso solo viaja cuando se marcó tarde: mandarlo en 0
-                // para todos es correcto, pero deja el campo lleno de ceros que
-                // no significan nada.
-                'lateMinutes': marca == Marca.tarde
-                    ? (_minutosTarde[id] ?? _minutosTardeDefecto)
-                    : 0,
-                'notes': '',
-              };
-            }(),
-        ],
-      );
+      resultado = await ref
+          .read(academicRepositoryProvider)
+          .saveAttendanceClass(
+            subjectId: _subjectId!,
+            groupId: _groupId,
+            teacherId: ref.read(authControllerProvider).user?.id ?? '',
+            period: _period,
+            date: _date,
+            durationMinutes: _durationMinutes,
+            subjectLabel: _subjects
+                .where((s) => s['_id'].toString() == _subjectId)
+                .map((s) => s['code']?.toString() ?? '')
+                .firstOrNull,
+            groupLabel: _groups
+                .where((g) => g['_id'].toString() == _groupId)
+                .map((g) => g['name']?.toString() ?? '')
+                .firstOrNull,
+            registros: [
+              for (final estudiante in _students)
+                () {
+                  final id = estudiante['_id'].toString();
+                  final marca = _marcas[id] ?? Marca.presente;
+                  return {
+                    'studentId': id,
+                    'present': marca != Marca.ausente,
+                    // El retraso solo viaja cuando se marcó tarde: mandarlo en 0
+                    // para todos es correcto, pero deja el campo lleno de ceros que
+                    // no significan nada.
+                    'lateMinutes': marca == Marca.tarde
+                        ? (_minutosTarde[id] ?? _minutosTardeDefecto)
+                        : 0,
+                    'notes': '',
+                  };
+                }(),
+            ],
+          );
     } catch (error) {
       if (!mounted) return;
       setState(() => _guardando = false);
@@ -411,10 +470,13 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
     // secretaría ven la lista y no la guardan. El boton desactivado dice eso
     // antes de intentarlo, en vez de dejar que el servidor lo diga despues de
     // que alguien haya marcado a treinta estudiantes.
-    final soloLectura = !puedeCapturar(ref.watch(authControllerProvider).user?.role);
+    final rol = ref.watch(authControllerProvider).user?.role;
+    final soloLectura = !puedeCapturar(rol);
+    final puedeJustificar = puedeJustificarFalta(rol);
     final periodo = ref.watch(selectedPeriodProvider);
     final offlineStatus = ref.watch(offlineStatusProvider).valueOrNull;
-    final sinConexion = offlineStatus != null && offlineStatus.desdeCache != null;
+    final sinConexion =
+        offlineStatus != null && offlineStatus.desdeCache != null;
     // Reconstruye al cambiar la bandeja: cuando salga la clase pendiente, el
     // aviso de «sin enviar» tiene que desaparecer.
     ref.watch(outboxProvider);
@@ -430,7 +492,9 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
             onPressed: sinConexion
                 ? null
                 : () async {
-                    final importado = await context.push<bool>('/attendance/scan');
+                    final importado = await context.push<bool>(
+                      '/attendance/scan',
+                    );
                     // Solo se recarga si de verdad se guardó algo: volver sin
                     // importar no debería costar una consulta.
                     if (importado == true && mounted) {
@@ -477,8 +541,9 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                   ),
 
                   SliverPadding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: AppSpacing.page),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.page,
+                    ),
                     sliver: SliverList.separated(
                       itemCount: filtrados.length,
                       separatorBuilder: (_, __) =>
@@ -495,8 +560,16 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                           codigo: estudiante['code']?.toString() ?? '',
                           programa: estudiante['program']?.toString() ?? '',
                           marca: _marcas[id] ?? Marca.presente,
-                          minutosTarde: _minutosTarde[id] ?? _minutosTardeDefecto,
+                          minutosTarde:
+                              _minutosTarde[id] ?? _minutosTardeDefecto,
                           habilitada: periodoAbierto,
+                          excusa: _faltaDelDia[id] == null
+                              ? null
+                              : etiquetaDeExcusa(_faltaDelDia[id]!),
+                          onExcusa: puedeJustificar && _faltaDelDia[id] != null
+                              ? () =>
+                                    _abrirExcusa(_faltaDelDia[id]!, estudiante)
+                              : null,
                           onCambio: (marca, minutos) {
                             _marcas[id] = marca;
                             _sucio = true;
@@ -530,15 +603,31 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                       AppSpacing.tapTarget,
                     ),
                     sliver: SliverList.separated(
-                      itemCount: _attendance.length > 12 ? 12 : _attendance.length,
+                      itemCount: _attendance.length > 12
+                          ? 12
+                          : _attendance.length,
                       separatorBuilder: (_, __) =>
                           const SizedBox(height: AppSpacing.gapSm),
-                      itemBuilder: (_, indice) => _FilaHistorial(
-                        fila: _attendance[indice],
-                        estudiante: _studentById[
-                                _attendance[indice]['studentId']?.toString()] ??
-                            const {},
-                      ),
+                      itemBuilder: (_, indice) {
+                        final fila = _attendance[indice];
+                        final estudiante =
+                            _studentById[fila['studentId']?.toString()] ??
+                            const <String, dynamic>{};
+                        // Solo se justifica una falta que ya está en el
+                        // servidor: una que sigue en la bandeja no tiene id.
+                        final justificable =
+                            puedeJustificar &&
+                            fila['present'] != true &&
+                            fila['pendiente'] != true &&
+                            fila['_id'] != null;
+                        return _FilaHistorial(
+                          fila: fila,
+                          estudiante: estudiante,
+                          onTap: justificable
+                              ? () => _abrirExcusa(fila, estudiante)
+                              : null,
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -555,25 +644,24 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                   (
                     etiqueta: 'Presentes',
                     valor: '${resumen.presentes}',
-                    tono: SemanticKind.success
+                    tono: SemanticKind.success,
                   ),
                   (
                     etiqueta: 'Tarde',
                     valor: '${resumen.tarde}',
-                    tono: SemanticKind.warning
+                    tono: SemanticKind.warning,
                   ),
                   (
                     etiqueta: 'Ausentes',
                     valor: '${resumen.ausentes}',
-                    tono: SemanticKind.danger
+                    tono: SemanticKind.danger,
                   ),
                 ],
                 etiquetaAccion: 'Guardar ${_students.length}',
                 cargando: _guardando,
-                onAccion:
-                    periodoAbierto && _subjectId != null && !soloLectura
-                        ? _guardar
-                        : null,
+                onAccion: periodoAbierto && _subjectId != null && !soloLectura
+                    ? _guardar
+                    : null,
               ),
             ),
     );
@@ -622,13 +710,15 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                 initialValue: _subjectId,
                 isExpanded: true,
                 items: _subjects
-                    .map((s) => DropdownMenuItem(
-                          value: s['_id'].toString(),
-                          child: Text(
-                            '${s['code'] ?? ''} · ${s['name'] ?? ''}',
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ))
+                    .map(
+                      (s) => DropdownMenuItem(
+                        value: s['_id'].toString(),
+                        child: Text(
+                          '${s['code'] ?? ''} · ${s['name'] ?? ''}',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
                     .toList(),
                 onChanged: (value) async {
                   _subjectId = value;
@@ -651,10 +741,12 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                   isExpanded: true,
                   hint: const Text('Grupo'),
                   items: _groups
-                      .map((g) => DropdownMenuItem(
-                            value: g['_id'].toString(),
-                            child: Text(g['name']?.toString() ?? ''),
-                          ))
+                      .map(
+                        (g) => DropdownMenuItem(
+                          value: g['_id'].toString(),
+                          child: Text(g['name']?.toString() ?? ''),
+                        ),
+                      )
                       .toList(),
                   onChanged: _groups.length == 1
                       ? null
@@ -758,6 +850,12 @@ class _FilaAsistencia extends StatefulWidget {
   final bool habilitada;
   final void Function(Marca marca, int? minutos) onCambio;
 
+  /// Motivo de la excusa de la falta guardada de este día, si la tiene.
+  final String? excusa;
+
+  /// Abre la hoja de la excusa. Solo con una falta ya guardada ese día.
+  final VoidCallback? onExcusa;
+
   const _FilaAsistencia({
     super.key,
     required this.nombre,
@@ -767,6 +865,8 @@ class _FilaAsistencia extends StatefulWidget {
     required this.minutosTarde,
     required this.habilitada,
     required this.onCambio,
+    this.excusa,
+    this.onExcusa,
   });
 
   @override
@@ -819,8 +919,16 @@ class _FilaAsistenciaState extends State<_FilaAsistencia> {
       titulo: widget.nombre,
       metadatos: [
         widget.codigo,
-        if (_marca == Marca.tarde) '$_minutos min tarde' else widget.programa,
+        if (_marca == Marca.tarde)
+          '$_minutos min tarde'
+        else if (_marca == Marca.ausente && widget.excusa != null)
+          'Justificada · ${widget.excusa}'
+        else if (_marca == Marca.ausente && widget.onExcusa != null)
+          'Mantén pulsado para la excusa'
+        else
+          widget.programa,
       ],
+      onLongPress: _marca == Marca.ausente ? widget.onExcusa : null,
       // Sin avatar en esta pantalla, a diferencia del resto de listados.
       //
       // No es por estética: los tres botones necesitan 44 dp cada uno para
@@ -832,7 +940,8 @@ class _FilaAsistenciaState extends State<_FilaAsistencia> {
       acento: switch (_marca) {
         Marca.presente => null,
         Marca.tarde => SemanticKind.warning,
-        Marca.ausente => SemanticKind.danger,
+        Marca.ausente =>
+          widget.excusa != null ? SemanticKind.info : SemanticKind.danger,
       },
       estado: _SelectorDeMarca(
         marca: _marca,
@@ -991,12 +1100,20 @@ class _FilaHistorial extends StatelessWidget {
   final Map<String, dynamic> fila;
   final Map<String, dynamic> estudiante;
 
-  const _FilaHistorial({required this.fila, required this.estudiante});
+  /// Abre la hoja de la excusa. Solo en una falta ya guardada.
+  final VoidCallback? onTap;
+
+  const _FilaHistorial({
+    required this.fila,
+    required this.estudiante,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final presente = fila['present'] == true;
     final tarde = int.tryParse(fila['lateMinutes']?.toString() ?? '0') ?? 0;
+    final excusa = presente ? null : etiquetaDeExcusa(fila);
 
     return AcademicRow(
       titulo: estudiante['fullName']?.toString() ?? 'Estudiante',
@@ -1004,16 +1121,20 @@ class _FilaHistorial extends StatelessWidget {
         fila['date']?.toString().split('T').first ?? '',
         '${fila['durationMinutes'] ?? 90} min',
         if (tarde > 0) '$tarde min tarde',
+        if (excusa != null) excusa,
       ],
+      onTap: onTap,
       acento: presente
           ? (tarde > 0 ? SemanticKind.warning : null)
-          : SemanticKind.danger,
+          : (excusa != null ? SemanticKind.info : SemanticKind.danger),
       estado: fila['pendiente'] == true
           ? StatusPill.warning('Sin enviar')
           : presente
           ? (tarde > 0
-              ? StatusPill.warning('Tarde')
-              : StatusPill.success('Presente'))
+                ? StatusPill.warning('Tarde')
+                : StatusPill.success('Presente'))
+          : excusa != null
+          ? const StatusPill('Justificada')
           : StatusPill.danger('Falta'),
     );
   }

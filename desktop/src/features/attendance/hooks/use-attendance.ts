@@ -4,6 +4,8 @@ import { queryKeys } from '@/core/api/query-keys';
 import { avisarGuardadoEnEquipo } from '@/core/offline/avisos';
 import { outbox } from '@/core/offline/outbox';
 import { attendanceRepository } from '@/infrastructure/repositories/academic.repository';
+import { attendanceExcuseRepository } from '@/infrastructure/repositories/attendance.repository';
+import type { MotivoExcusa } from '@/domain/schemas/attendance';
 import {
   asistenciaPendiente,
   type ClaseAsistencia,
@@ -65,6 +67,33 @@ export function useMarkAttendance() {
 
     onError(error) {
       toast.fromError(error, 'No se pudo registrar la asistencia');
+    },
+  });
+}
+
+/**
+ * Registra o retira la excusa de una falta. Con `motivo: null` la retira.
+ *
+ * Tira también `analytics`: una falta justificada sale del porcentaje y del
+ * riesgo, y el panel tiene que reflejarlo.
+ */
+export function useExcusaDeFalta() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, motivo, detalle }: { id: string; motivo: MotivoExcusa | null; detalle?: string }) =>
+      motivo
+        ? attendanceExcuseRepository.justificar(id, { motivo, detalle: detalle ?? '' })
+        : attendanceExcuseRepository.quitar(id),
+
+    onSuccess(_item, { motivo }) {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.attendance.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all });
+      toast.success(motivo ? 'Falta justificada' : 'Excusa retirada');
+    },
+
+    onError(error) {
+      toast.fromError(error, 'No se pudo guardar la excusa');
     },
   });
 }

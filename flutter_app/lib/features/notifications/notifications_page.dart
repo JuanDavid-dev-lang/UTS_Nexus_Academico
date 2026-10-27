@@ -214,7 +214,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   Future<void> _abrir(AppNotification notification) async {
     await _markRead(notification);
     if (!mounted || !notification.esNavegable) return;
-    context.go(notification.link);
+    context.go(notification.rutaEnMovil);
   }
 
   Future<void> _markRead(AppNotification notification) async {

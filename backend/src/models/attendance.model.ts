@@ -1,5 +1,6 @@
 import { Schema, model } from 'mongoose';
 import { baseFields } from './base.js';
+import { MOTIVOS_EXCUSA } from '../domains/attendance/excusa.js';
 
 const schema = new Schema(
   {
@@ -33,6 +34,25 @@ const schema = new Schema(
      * puso mirando el salón que una que llegó sola desde un teléfono.
      */
     origen: { type: String, enum: ['MANUAL', 'PLANILLA', 'QR'], default: 'MANUAL' },
+    /**
+     * Excusa de una falta (`domains/attendance/excusa.ts`). La pone el docente
+     * o coordinación al recibir el soporte; con ella la falta deja de contar en
+     * el porcentaje, el cupo de faltas, el riesgo y los patrones. `null` = sin
+     * excusa. Las escrituras de la lista no la tocan: volver a pasar lista no
+     * borra una justificación ya registrada.
+     */
+    excusa: {
+      type: new Schema(
+        {
+          motivo: { type: String, enum: MOTIVOS_EXCUSA, required: true },
+          detalle: { type: String, default: '' },
+          registradaPor: { type: Schema.Types.ObjectId, ref: 'Usuario', required: true },
+          registradaEn: { type: Date, required: true },
+        },
+        { _id: false },
+      ),
+      default: null,
+    },
   },
   { timestamps: true }
 );

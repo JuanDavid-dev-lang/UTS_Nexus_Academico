@@ -47,12 +47,12 @@ class Subject {
   });
 
   factory Subject.fromJson(Map<String, dynamic> json) => Subject(
-        id: _toStr(json['_id'] ?? json['id']),
-        name: _toStr(json['name'], 'Sin nombre'),
-        code: _toStr(json['code']),
-        period: _toStr(json['period']),
-        credits: _toInt(json['credits']),
-      );
+    id: _toStr(json['_id'] ?? json['id']),
+    name: _toStr(json['name'], 'Sin nombre'),
+    code: _toStr(json['code']),
+    period: _toStr(json['period']),
+    credits: _toInt(json['credits']),
+  );
 }
 
 class Student {
@@ -71,12 +71,12 @@ class Student {
   });
 
   factory Student.fromJson(Map<String, dynamic> json) => Student(
-        id: _toStr(json['_id'] ?? json['id']),
-        code: _toStr(json['code']),
-        fullName: _toStr(json['fullName'], 'Sin nombre'),
-        email: _toStr(json['email']),
-        program: _toStr(json['program']),
-      );
+    id: _toStr(json['_id'] ?? json['id']),
+    code: _toStr(json['code']),
+    fullName: _toStr(json['fullName'], 'Sin nombre'),
+    email: _toStr(json['email']),
+    program: _toStr(json['program']),
+  );
 }
 
 class Enrollment {
@@ -95,14 +95,14 @@ class Enrollment {
   });
 
   factory Enrollment.fromJson(Map<String, dynamic> json) => Enrollment(
-        id: _toStr(json['_id'] ?? json['id']),
-        // `GET /enrollments` puebla `studentId` con la identidad del
-        // estudiante: llega un objeto, no un id.
-        studentId: _toId(json['studentId']),
-        subjectId: _toId(json['subjectId']),
-        groupId: json['groupId'] == null ? null : _toId(json['groupId']),
-        period: _toStr(json['period']),
-      );
+    id: _toStr(json['_id'] ?? json['id']),
+    // `GET /enrollments` puebla `studentId` con la identidad del
+    // estudiante: llega un objeto, no un id.
+    studentId: _toId(json['studentId']),
+    subjectId: _toId(json['subjectId']),
+    groupId: json['groupId'] == null ? null : _toId(json['groupId']),
+    period: _toStr(json['period']),
+  );
 }
 
 /// Resumen de un corte, tal como lo calcula el motor del backend.
@@ -136,23 +136,23 @@ class GradeDetail {
   });
 
   GradeDetail conEstadoLocal(EstadoLocalNota nuevo) => GradeDetail(
-        id: id,
-        label: label,
-        score: score,
-        weight: weight,
-        pesoRelativo: pesoRelativo,
-        local: nuevo,
-      );
+    id: id,
+    label: label,
+    score: score,
+    weight: weight,
+    pesoRelativo: pesoRelativo,
+    local: nuevo,
+  );
 
   factory GradeDetail.fromJson(Map<String, dynamic> json) => GradeDetail(
-        id: _toStr(json['id']),
-        label: _toStr(json['label'], 'Nota'),
-        score: _toDouble(json['score']),
-        weight: json['weight'] == null ? 1 : _toDouble(json['weight']),
-        pesoRelativo: json['pesoRelativo'] == null
-            ? null
-            : _toDouble(json['pesoRelativo']),
-      );
+    id: _toStr(json['id']),
+    label: _toStr(json['label'], 'Nota'),
+    score: _toDouble(json['score']),
+    weight: json['weight'] == null ? 1 : _toDouble(json['weight']),
+    pesoRelativo: json['pesoRelativo'] == null
+        ? null
+        : _toDouble(json['pesoRelativo']),
+  );
 }
 
 /// Un componente del corte (trabajos 30%, parciales 60%, autoevaluación 10%).
@@ -184,7 +184,9 @@ class ComponentSummary {
         // Ausente si el servidor es anterior a este campo: se ve sin desglose,
         // no revienta.
         notes: ((json['notas'] as List?) ?? const [])
-            .map((e) => GradeDetail.fromJson(Map<String, dynamic>.from(e as Map)))
+            .map(
+              (e) => GradeDetail.fromJson(Map<String, dynamic>.from(e as Map)),
+            )
             .toList(),
       );
 }
@@ -205,15 +207,16 @@ class CutSummary {
   });
 
   factory CutSummary.fromJson(Map<String, dynamic> json) => CutSummary(
-        cut: _toInt(json['corte']),
-        weight: _toDouble(json['peso']),
-        grade: _toDouble(json['nota']),
-        complete: json['completo'] == true,
-        components: ((json['componentes'] as List?) ?? const [])
-            .map((e) =>
-                ComponentSummary.fromJson(Map<String, dynamic>.from(e as Map)))
-            .toList(),
-      );
+    cut: _toInt(json['corte']),
+    weight: _toDouble(json['peso']),
+    grade: _toDouble(json['nota']),
+    complete: json['completo'] == true,
+    components: ((json['componentes'] as List?) ?? const [])
+        .map(
+          (e) => ComponentSummary.fromJson(Map<String, dynamic>.from(e as Map)),
+        )
+        .toList(),
+  );
 }
 
 /// Lo que falta por calificar de un componente dentro de un corte.
@@ -248,13 +251,14 @@ class PendingCut {
   });
 
   factory PendingCut.fromJson(Map<String, dynamic> json) => PendingCut(
-        cut: _toInt(json['corte']),
-        missing: _toInt(json['faltan']),
-        components: ((json['componentes'] as List?) ?? const [])
-            .map((e) =>
-                PendingComponent.fromJson(Map<String, dynamic>.from(e as Map)))
-            .toList(),
-      );
+    cut: _toInt(json['corte']),
+    missing: _toInt(json['faltan']),
+    components: ((json['componentes'] as List?) ?? const [])
+        .map(
+          (e) => PendingComponent.fromJson(Map<String, dynamic>.from(e as Map)),
+        )
+        .toList(),
+  );
 }
 
 /// Trabajo pendiente de una materia.
@@ -281,15 +285,15 @@ class PendingSubject {
   });
 
   factory PendingSubject.fromJson(Map<String, dynamic> json) => PendingSubject(
-        subjectId: _toStr(json['subjectId']),
-        name: _toStr(json['name'], 'Materia'),
-        code: _toStr(json['code']),
-        enrolled: _toInt(json['matriculados']),
-        missing: _toInt(json['faltan']),
-        cuts: ((json['cortes'] as List?) ?? const [])
-            .map((e) => PendingCut.fromJson(Map<String, dynamic>.from(e as Map)))
-            .toList(),
-      );
+    subjectId: _toStr(json['subjectId']),
+    name: _toStr(json['name'], 'Materia'),
+    code: _toStr(json['code']),
+    enrolled: _toInt(json['matriculados']),
+    missing: _toInt(json['faltan']),
+    cuts: ((json['cortes'] as List?) ?? const [])
+        .map((e) => PendingCut.fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList(),
+  );
 }
 
 /// Fila del consolidado: nota final por estudiante.
@@ -316,7 +320,8 @@ class ConsolidatedRow {
     required this.cuts,
   });
 
-  factory ConsolidatedRow.fromJson(Map<String, dynamic> json) => ConsolidatedRow(
+  factory ConsolidatedRow.fromJson(Map<String, dynamic> json) =>
+      ConsolidatedRow(
         studentId: _toStr(json['studentId']),
         code: _toStr(json['code']),
         fullName: _toStr(json['fullName'], 'Sin nombre'),
@@ -324,7 +329,9 @@ class ConsolidatedRow {
         passed: json['aprobado'] == true,
         complete: json['completo'] == true,
         cuts: ((json['cortes'] as List?) ?? const [])
-            .map((e) => CutSummary.fromJson(Map<String, dynamic>.from(e as Map)))
+            .map(
+              (e) => CutSummary.fromJson(Map<String, dynamic>.from(e as Map)),
+            )
             .toList(),
       );
 }
@@ -362,6 +369,12 @@ class RiskItem {
   final String interventionStatus;
   final String interventionNote;
 
+  /// Cortes completos por debajo de 3.0 en el semestre actual (la alerta
+  /// temprana). Puede haberlos con riesgo bajo: un buen corte posterior tapa en
+  /// el promedio el que pedía una tutoría. Ya van también al principio de
+  /// [reasons], que es lo que pintan las pantallas.
+  final List<({int corte, double nota})> cortesBajos;
+
   const RiskItem({
     required this.studentId,
     required this.code,
@@ -375,25 +388,34 @@ class RiskItem {
     required this.reasons,
     this.interventionStatus = 'PENDIENTE',
     this.interventionNote = '',
+    this.cortesBajos = const [],
   });
 
-  factory RiskItem.fromJson(Map<String, dynamic> json) => RiskItem(
-        studentId: _toStr(json['studentId']),
-        code: _toStr(json['code']),
-        fullName: _toStr(json['fullName'], 'Sin nombre'),
-        subjectId: _toStr(json['subjectId']),
-        finalGrade: _toDouble(json['notaFinal']),
-        attendanceRate: _toDouble(json['attendanceRate']),
-        missed: _toInt(json['missed']),
-        score: _toInt(json['riskScore']),
-        level: riskLevelFrom(json['level']?.toString()),
-        reasons: ((json['motivos'] as List?) ?? const [])
-            .map((e) => e.toString())
-            .toList(),
-        interventionStatus:
-            _toStr(json['interventionStatus'], 'PENDIENTE'),
-        interventionNote: _toStr(json['interventionNote']),
-      );
+  factory RiskItem.fromJson(Map<String, dynamic> json) {
+    final cortesBajos = [
+      for (final c in (json['cortesBajos'] as List?) ?? const [])
+        if (c is Map) (corte: _toInt(c['corte']), nota: _toDouble(c['nota'])),
+    ];
+    return RiskItem(
+      studentId: _toStr(json['studentId']),
+      code: _toStr(json['code']),
+      fullName: _toStr(json['fullName'], 'Sin nombre'),
+      subjectId: _toStr(json['subjectId']),
+      finalGrade: _toDouble(json['notaFinal']),
+      attendanceRate: _toDouble(json['attendanceRate']),
+      missed: _toInt(json['missed']),
+      score: _toInt(json['riskScore']),
+      level: riskLevelFrom(json['level']?.toString()),
+      reasons: [
+        for (final c in cortesBajos)
+          'Corte ${c.corte} en ${c.nota.toStringAsFixed(1)}: considera una tutoría.',
+        ...((json['motivos'] as List?) ?? const []).map((e) => e.toString()),
+      ],
+      interventionStatus: _toStr(json['interventionStatus'], 'PENDIENTE'),
+      interventionNote: _toStr(json['interventionNote']),
+      cortesBajos: cortesBajos,
+    );
+  }
 }
 
 class AppNotification {
@@ -436,7 +458,16 @@ class AppNotification {
   bool get esNavegable =>
       link.startsWith('/') && !link.startsWith('//') && !link.startsWith(r'/\');
 
-  factory AppNotification.fromJson(Map<String, dynamic> json) => AppNotification(
+  /// La ruta del enlace en el móvil.
+  ///
+  /// El servidor escribe los enlaces con las rutas del escritorio
+  /// (`/riesgo?buscar=…`, `/estudiantes?buscar=…`) y el móvil las nombra de
+  /// otra forma: `context.go` con una del escritorio caía en la pantalla de
+  /// ruta desconocida. El riesgo vive en el panel.
+  String get rutaEnMovil => rutaMovilDe(link);
+
+  factory AppNotification.fromJson(Map<String, dynamic> json) =>
+      AppNotification(
         id: _toStr(json['_id'] ?? json['id']),
         title: _toStr(json['title']),
         message: _toStr(json['message']),
@@ -468,17 +499,17 @@ class ReportPreview {
   });
 
   factory ReportPreview.fromJson(Map<String, dynamic> json) => ReportPreview(
-        headers: [
-          for (final header in (json['headers'] as List? ?? const []))
-            _toStr(header),
-        ],
-        rows: [
-          for (final row in (json['rows'] as List? ?? const []))
-            [for (final cell in (row as List? ?? const [])) _toStr(cell)],
-        ],
-        total: _toInt(json['total']),
-        truncado: json['truncado'] == true,
-      );
+    headers: [
+      for (final header in (json['headers'] as List? ?? const []))
+        _toStr(header),
+    ],
+    rows: [
+      for (final row in (json['rows'] as List? ?? const []))
+        [for (final cell in (row as List? ?? const [])) _toStr(cell)],
+    ],
+    total: _toInt(json['total']),
+    truncado: json['truncado'] == true,
+  );
 }
 
 /// Un estudiante dentro de una materia concreta, con todo lo que el docente
@@ -491,11 +522,7 @@ class SubjectStudent {
   final ConsolidatedRow? grades;
   final RiskItem? risk;
 
-  const SubjectStudent({
-    required this.student,
-    this.grades,
-    this.risk,
-  });
+  const SubjectStudent({required this.student, this.grades, this.risk});
 
   double? get finalGrade => grades?.finalGrade;
   RiskLevel get riskLevel => risk?.level ?? RiskLevel.low;
@@ -554,13 +581,13 @@ class Group {
   });
 
   factory Group.fromJson(Map<String, dynamic> json) => Group(
-        id: _toId(json['_id'] ?? json['id']),
-        name: _toStr(json['name']),
-        // `_toId` y no `toString()`: si el backend poblara esta referencia,
-        // toString() daría un id basura que no casa con nada, en silencio.
-        subjectId: json['subjectId'] == null ? null : _toId(json['subjectId']),
-        period: _toStr(json['period']),
-      );
+    id: _toId(json['_id'] ?? json['id']),
+    name: _toStr(json['name']),
+    // `_toId` y no `toString()`: si el backend poblara esta referencia,
+    // toString() daría un id basura que no casa con nada, en silencio.
+    subjectId: json['subjectId'] == null ? null : _toId(json['subjectId']),
+    period: _toStr(json['period']),
+  );
 }
 
 /// Una página de un listado del backend.
@@ -602,11 +629,26 @@ class PaginaDe<T> {
   }
 
   PaginaDe<T> mas(PaginaDe<T> siguiente) => PaginaDe(
-        items: [...items, ...siguiente.items],
-        total: siguiente.total,
-        hasMore: siguiente.hasMore,
-      );
+    items: [...items, ...siguiente.items],
+    total: siguiente.total,
+    hasMore: siguiente.hasMore,
+  );
 
   static PaginaDe<T> vacia<T>() =>
       PaginaDe(items: const [], total: 0, hasMore: false);
+}
+
+const _rutasDelEscritorio = <String, String>{
+  '/riesgo': '/',
+  '/estudiantes': '/students',
+  '/asistencia': '/attendance',
+  '/notas': '/grades',
+};
+
+/// Traduce la ruta de un enlace del escritorio a la del móvil; las que ya son
+/// del móvil pasan igual. Se pierde la consulta de las traducidas: sus
+/// parámetros (`buscar`, `subjectId`) son los del escritorio.
+String rutaMovilDe(String link) {
+  final ruta = link.split('?').first;
+  return _rutasDelEscritorio[ruta] ?? link;
 }

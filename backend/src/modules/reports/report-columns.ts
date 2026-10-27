@@ -86,10 +86,12 @@ export const COLUMNAS_ATTENDANCE: ColumnaReporte[] = [
     key: 'present',
     header: 'Presente',
     pdfWidth: 54,
-    excelWidth: 10,
+    excelWidth: 12,
     align: 'center',
     tono: valor => (valor === 'No' ? 'mal' : null),
-    value: r => (r.present ? 'Sí' : 'No'),
+    // Una falta con excusa no se pinta como falta: no cuenta en el porcentaje
+    // del acta, y en rojo contradiría la cifra de la cabecera.
+    value: r => (r.present ? 'Sí' : r.excusa ? 'Justificada' : 'No'),
   },
   { key: 'notes', header: 'Observación', pdfWidth: 146, excelWidth: 30, value: r => r.notes ?? '' },
   { key: 'period', header: 'Semestre', pdfWidth: 52, excelWidth: 10, align: 'center', value: r => r.period ?? '' },

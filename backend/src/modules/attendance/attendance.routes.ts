@@ -14,6 +14,7 @@ import { getProfessorScope } from '../../shared/professor-scope.js';
 import { filtroDeListado } from '../../domains/scope/professor-scope.js';
 import { exigirPeriodoAbierto } from '../../shared/period-guard.js';
 import { campoFechaDeClase } from '../../shared/class-date.js';
+import { calcularAsistencia } from '../../domains/attendance/attendance.service.js';
 
 export const attendanceRouter = Router();
 attendanceRouter.use(identificar);
@@ -340,12 +341,24 @@ attendanceRouter.get('/summary/:studentId', requireRole('ADMIN', 'PROFESSOR', 'C
       return res.status(403).json({ ok: false, message: 'Forbidden' });
     }
     const items = await AttendanceModel.find(filtro).lean();
-    const totalMinutes = items.reduce((sum, row) => sum + Number(row.durationMinutes ?? 90), 0);
-    const presentMinutes = items.reduce((sum, row) => sum + (row.present ? Number(row.durationMinutes ?? 90) : 0), 0);
-    const totalClasses = items.length;
-    const misses = items.filter(row => !row.present).length;
-    const attendanceRate = totalMinutes ? Number(((presentMinutes / totalMinutes) * 100).toFixed(2)) : 0;
-    res.json({ ok: true, summary: { totalClasses, misses, totalMinutes, presentMinutes, attendanceRate } });
+    // La función del dominio y no una cuenta propia: esta tenía su propia
+    // fórmula y, con las excusas, habría contado como falta lo justificado.
+    const resumen = calcularAsistencia(
+      items.map(row => ({ present: row.present, durationMinutes: row.durationMinutes, justificada: Boolean(row.excusa) })),
+    );
+    res.json({
+      ok: true,
+      summary: {
+        totalClasses: resumen.totalClases,
+        misses: resumen.clasesAusente,
+        justified: resumen.clasesJustificadas,
+        totalMinutes: resumen.minutosTotales,
+        presentMinutes: resumen.minutosPresente,
+        // Sin clases la cuenta propia daba 0 %; mantenerlo evita que un
+        // estudiante sin registros aparezca de pronto con asistencia perfecta.
+        attendanceRate: items.length ? resumen.porcentaje : 0,
+      },
+    });
   } catch (err) {
     next(err);
   }

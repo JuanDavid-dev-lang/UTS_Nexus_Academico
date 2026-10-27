@@ -64,7 +64,13 @@ async function reunirSeries(filtro: { period?: string; teacherId?: string }): Pr
     _id: { studentId: unknown; subjectId: unknown; period: string };
     groupId: unknown;
     teacherId: unknown;
-    clases: { date: Date; present: boolean; durationMinutes: number | null; lateMinutes: number | null }[];
+    clases: {
+      date: Date;
+      present: boolean;
+      durationMinutes: number | null;
+      lateMinutes: number | null;
+      excusa?: string | null;
+    }[];
   }>([
     { $match: match },
     { $sort: { date: 1 } },
@@ -79,6 +85,7 @@ async function reunirSeries(filtro: { period?: string; teacherId?: string }): Pr
             present: '$present',
             durationMinutes: '$durationMinutes',
             lateMinutes: '$lateMinutes',
+            excusa: '$excusa.motivo',
           },
         },
       },
@@ -91,7 +98,7 @@ async function reunirSeries(filtro: { period?: string; teacherId?: string }): Pr
     period: String(grupo._id.period ?? ''),
     groupId: grupo.groupId ? String(grupo.groupId) : null,
     teacherId: grupo.teacherId ? String(grupo.teacherId) : null,
-    clases: grupo.clases,
+    clases: grupo.clases.map(({ excusa, ...clase }) => ({ ...clase, justificada: Boolean(excusa) })),
   }));
 }
 

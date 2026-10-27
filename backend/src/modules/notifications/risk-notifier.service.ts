@@ -8,6 +8,12 @@
  */
 import { NotificationModel } from '../../models/notification.model.js';
 import { UserModel } from '../../models/user.model.js';
+import { SubjectModel } from '../../models/subject.model.js';
+import {
+  claveAlertaCorte,
+  cortesEnAlerta,
+  mensajeAlertaCorte,
+} from '../../domains/risk/alerta-corte.js';
 import { computeAcademicRecords, type AcademicRecord } from '../../shared/academic.service.js';
 import { emitToUser } from '../../shared/socket.js';
 import { crearNotificacion } from '../../shared/notify.js';
@@ -110,5 +116,65 @@ export async function generateRiskNotifications(options: RiskScanOptions = {}) {
     }
   }
 
-  return { evaluados: records.length, enRiesgo: enRiesgo.length, notificaciones: creadasOActualizadas };
+  const alertasCorte = await avisarCortesBajos(records);
+
+  return {
+    evaluados: records.length,
+    enRiesgo: enRiesgo.length,
+    notificaciones: creadasOActualizadas,
+    alertasCorte,
+  };
+}
+
+/**
+ * Alerta temprana: un corte completo por debajo de 3.0 avisa al docente una
+ * vez (`dedupeKey` por estudiante, materia, periodo y corte) y lo lleva al
+ * seguimiento del caso. Va aunque el riesgo esté en BAJO: un buen segundo corte
+ * tapa en el promedio el primero que merecía una tutoría.
+ *
+ * Reusa los registros del escaneo de riesgo: una segunda agregación sería el
+ * mismo trabajo dos veces por pasada.
+ */
+async function avisarCortesBajos(records: AcademicRecord[]): Promise<number> {
+  // Solo el semestre más reciente: el escaneo automático no filtra periodo, y
+  // sin esto el primer despliegue avisaría de cada corte perdido en semestres
+  // ya cerrados, cuando una tutoría ya no cambia nada.
+  const actual = records.reduce((max, r) => (r.period > max ? r.period : max), '');
+  const conAlerta = records
+    .filter(r => r.teacherId && r.period === actual)
+    .map(r => ({ record: r, alertas: cortesEnAlerta(r.cortes, r.cortesCompletos) }))
+    .filter(x => x.alertas.length > 0);
+  if (conAlerta.length === 0) return 0;
+
+  const materias = await SubjectModel.find({ _id: { $in: [...new Set(conAlerta.map(x => x.record.subjectId))] } })
+    .select('name')
+    .lean();
+  const nombreMateria = new Map(materias.map(m => [String(m._id), String(m.name ?? 'la materia')]));
+
+  let creadas = 0;
+  for (const { record, alertas } of conAlerta) {
+    const nombre = record.fullName || record.code || 'Un estudiante';
+    for (const alerta of alertas) {
+      const resultado = await crearNotificacion({
+        userId: String(record.teacherId),
+        title: `Corte ${alerta.corte} por debajo de 3.0`,
+        message: mensajeAlertaCorte(nombre, nombreMateria.get(record.subjectId) ?? 'la materia', alerta),
+        type: 'RISK',
+        priority: 'IMPORTANT',
+        dedupeKey: claveAlertaCorte(record.studentId, record.subjectId, record.period, alerta.corte),
+        link: `/riesgo?buscar=${encodeURIComponent(record.code)}`,
+        metadata: {
+          studentId: record.studentId,
+          subjectId: record.subjectId,
+          period: record.period,
+          code: record.code,
+          corte: alerta.corte,
+          notaCorte: alerta.nota,
+          sugerencia: 'TUTORIA',
+        },
+      });
+      if (resultado.creada) creadas += 1;
+    }
+  }
+  return creadas;
 }
