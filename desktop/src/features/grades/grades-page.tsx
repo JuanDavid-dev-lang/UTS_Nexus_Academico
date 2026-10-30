@@ -5,26 +5,21 @@ import {
   FileUp,
   LayoutTemplate,
   ListChecks,
-  ListTree,
   Plus,
   Sigma,
   XCircle,
 } from 'lucide-react';
 import {
-  Badge,
   Button,
   Card,
-  DataTable,
   EmptyState,
   ErrorState,
   Field,
-  GradeBadge,
   NativeSelect,
   PageContainer,
   PageHeader,
   SkeletonTable,
   StatCard,
-  type Column,
 } from '@/shared/ui';
 import {
   useConsolidated,
@@ -35,6 +30,7 @@ import { GradeTemplatesDialog } from '@/features/grades/components/grade-templat
 import { useCurrentStructure } from '@/features/grades/hooks/use-grade-templates';
 import { PendingGradesCard } from '@/features/grades/components/pending-grades-card';
 import { StudentBreakdownDialog } from '@/features/grades/components/student-breakdown-dialog';
+import { PlanillaNotas, type VistaPlanilla } from '@/features/grades/components/planilla-notas';
 import { useGroups, useSubjects } from '@/features/subjects/hooks/use-subjects';
 import { useCurrentUser, useUserRole } from '@/state/session.store';
 import { useEnLinea } from '@/state/connectivity.store';
@@ -42,8 +38,8 @@ import { TEXTO_SIN_CONEXION } from '@/features/offline/requiere-conexion';
 import { ExportButton } from '@/features/reports/components/export-button';
 import { useRecorteWeb } from '@/shared/hooks/use-recorte-web';
 import { can } from '@/core/auth/permissions';
-import { currentPeriod, formatGrade, recentPeriods } from '@/shared/lib/format';
-import type { ConsolidatedRow, CutNumber } from '@/domain/schemas/academic';
+import { currentPeriod, etiquetaDeGrupo, formatGrade, recentPeriods } from '@/shared/lib/format';
+import { filasDePlanilla } from '@/domain/grades/planilla';
 
 /**
  * Grade capture and consolidated view.
@@ -53,8 +49,6 @@ import type { ConsolidatedRow, CutNumber } from '@/domain/schemas/academic';
  * implementations of the same rubric would eventually disagree, and the one
  * students see has to be the authoritative one.
  */
-
-const CUTS: CutNumber[] = [1, 2, 3];
 
 export default function GradesPage() {
   const [period, setPeriod] = useState(currentPeriod());
@@ -67,6 +61,7 @@ export default function GradesPage() {
   // cerrar y volver a abrir. Con el ID, la fila se re-deriva del consolidado
   // fresco en cada render.
   const [desgloseId, setDesgloseId] = useState<string | null>(null);
+  const [vistaPlanilla, setVistaPlanilla] = useState<VistaPlanilla>('completa');
 
   const user = useCurrentUser();
   const role = useUserRole();
@@ -110,7 +105,7 @@ export default function GradesPage() {
     [subjects.data, period],
   );
 
-  const rows = consolidated.data ?? [];
+  const rows = useMemo(() => consolidated.data ?? [], [consolidated.data]);
   const materiaActiva = periodSubjects.find((subject) => subject._id === subjectId);
 
   // La fila viva del estudiante abierto (null si aún no tiene notas) y su
@@ -138,90 +133,25 @@ export default function GradesPage() {
     };
   }, [rows]);
 
-  const columns = useMemo<Column<ConsolidatedRow>[]>(
-    () => [
-      {
-        key: 'student',
-        header: 'Estudiante',
-        width: '2fr',
-        sortValue: (row) => row.fullName,
-        cell: (row) => (
-          <div className="flex min-w-0 flex-col">
-            <span className="truncate font-medium">{row.fullName}</span>
-            <span className="tabular truncate text-caption text-muted">{row.code}</span>
-          </div>
-        ),
-      },
-      ...CUTS.map<Column<ConsolidatedRow>>((cut) => ({
-        key: `cut-${cut}`,
-        header: `Corte ${cut}`,
-        width: '1fr',
-        align: 'center',
-        sortValue: (row) => row.cortes.find((item) => item.corte === cut)?.nota ?? 0,
-        cell: (row) => {
-          const summary = row.cortes.find((item) => item.corte === cut);
-          if (!summary) return <span className="text-subtle">—</span>;
-          return (
-            /*
-              Un corte incompleto se marcaba en cursiva y gris. La cursiva no
-              dice qué le pasa a ese número —se lee como énfasis— y el gris lo
-              confunde con un dato ausente, cuando la nota está y es correcta:
-              lo que falta son componentes por calificar. El punto ámbar sí lo
-              dice, y no cambia el peso ni el color de la cifra.
-            */
-            <span
-              className="inline-flex items-center justify-center gap-1 tabular"
-              title={summary.completo ? 'Corte completo' : 'Faltan componentes por calificar'}
-            >
-              {formatGrade(summary.nota)}
-              {summary.completo ? null : (
-                <span className="size-1.5 shrink-0 rounded-full bg-warning" aria-hidden />
-              )}
-              {summary.completo ? null : <span className="sr-only">Corte incompleto</span>}
-            </span>
-          );
-        },
-      })),
-      {
-        key: 'final',
-        header: 'Nota final',
-        width: '1fr',
-        align: 'center',
-        sortValue: (row) => row.notaFinal,
-        cell: (row) => <GradeBadge value={row.notaFinal} />,
-      },
-      {
-        key: 'status',
-        header: 'Estado',
-        width: '1fr',
-        align: 'center',
-        sortValue: (row) => (row.completo ? 1 : 0),
-        cell: (row) =>
-          row.completo ? (
-            <Badge tone="success">Completo</Badge>
-          ) : (
-            <Badge tone="warning">En curso</Badge>
-          ),
-      },
-      {
-        key: 'breakdown',
-        header: '',
-        width: '48px',
-        align: 'center',
-        cell: (row) => (
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={`Ver el desglose de ${row.fullName}`}
-            onClick={() => setDesgloseId(row.studentId)}
-          >
-            <ListTree className="size-4" aria-hidden />
-          </Button>
-        ),
-      },
-    ],
-    [],
+  // La planilla lleva a todo el grupo: con una materia elegida se suman los
+  // matriculados que aún no tienen notas. Sin materia, la matrícula no acota.
+  const filas = useMemo(
+    () => filasDePlanilla(rows, subjectId ? enrolled.data : []),
+    [rows, subjectId, enrolled.data],
   );
+  const grupoActivo = gruposDeMateria.find((group) => group._id === grupoElegido);
+  const ficha = {
+    titulo: materiaActiva ? `${materiaActiva.name} (${materiaActiva.code})` : 'Todas las materias',
+    detalles: [
+      ...(grupoActivo
+        ? [etiquetaDeGrupo(grupoActivo.name)]
+        : gruposDeMateria.length > 1
+          ? ['Todos los grupos']
+          : []),
+      `Periodo ${period}`,
+      `${filas.length} estudiante${filas.length === 1 ? '' : 's'}`,
+    ],
+  };
 
   return (
     <PageContainer>
@@ -437,15 +367,22 @@ export default function GradesPage() {
         <Card>
           <ErrorState error={consolidated.error} onRetry={() => void consolidated.refetch()} />
         </Card>
-      ) : rows.length === 0 ? (
+      ) : filas.length === 0 ? (
         <Card>
           <EmptyState
             title="Sin notas en este periodo"
-            message="Cuando registres la primera nota, el consolidado aparecerá aquí calculado con la rúbrica 30/60/10."
+            message="Cuando registres la primera nota, la planilla aparecerá aquí calculada con la rúbrica 30/60/10."
           />
         </Card>
       ) : (
-        <DataTable rows={rows} columns={columns} getRowId={(row) => row.studentId} />
+        <PlanillaNotas
+          filas={filas}
+          consolidado={rows}
+          vista={vistaPlanilla}
+          onVistaChange={setVistaPlanilla}
+          onAbrir={setDesgloseId}
+          ficha={ficha}
+        />
       )}
 
       {/* La fila del consolidado dice cuánto sacó; esto, de qué notas salió —

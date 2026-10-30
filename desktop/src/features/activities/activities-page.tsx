@@ -1,34 +1,21 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Plus, Search } from 'lucide-react';
 import {
-  CalendarClock,
-  CheckCircle2,
-  Clock,
-  Link2,
-  Pencil,
-  Plus,
-  RotateCcw,
-  Trash2,
-} from 'lucide-react';
-import {
-  Badge,
   Button,
-  Card,
-  CardContent,
   ConfirmDialog,
-  Dialog,
-  DialogContent,
-  DialogFooter,
   EmptyState,
   ErrorState,
-  Field,
   Input,
   NativeSelect,
   PageContainer,
   PageHeader,
   SkeletonList,
-  Textarea,
+  Tabs,
+  TabsList,
+  TabsTrigger,
 } from '@/shared/ui';
 import { activitiesRepository } from '@/infrastructure/repositories/activities.repository';
 import { subjectRepository } from '@/infrastructure/repositories/academic.repository';
@@ -37,67 +24,47 @@ import { queryKeys } from '@/core/api/query-keys';
 import { useUserRole } from '@/state/session.store';
 import { can } from '@/core/auth/permissions';
 import { toast } from '@/state/toast.store';
-import type { Actividad, ActividadInput, EstadoActividad } from '@/domain/schemas/activities';
+import { useSinMovimiento } from '@/shared/hooks/use-sin-movimiento';
+import { useAhora } from '@/features/agenda/hooks/use-agenda';
+import { OFFSET_CAMPUS_POR_DEFECTO } from '@/domain/agenda/calendar';
+import { agruparActividades, contarPorEstado } from '@/domain/activities/linea-de-tiempo';
+import { ActivityCard } from '@/features/activities/components/activity-card';
+import { ActivityFormDialog } from '@/features/activities/components/activity-form-dialog';
+import { CalendarioActividades } from '@/features/activities/components/calendario-actividades';
+import type { Actividad, EstadoActividad } from '@/domain/schemas/activities';
 
 /**
- * Actividades académicas.
+ * Actividades académicas: una línea de tiempo con lo urgente arriba y, al
+ * lado, el mes con las entregas y lo que trae la agenda cada día.
  *
  * El estado que se pinta (`estado`) lo calcula el servidor: `LATE` no está
- * guardado, se deriva del reloj del backend. Aquí no se compara ninguna fecha
- * con `Date.now()` — un equipo con la hora mal puesta mostraría vencida una
- * entrega que no lo está, y el docente no sabría cuál de los dos miente.
+ * guardado, se deriva del reloj del backend. Aquí no se decide si algo está
+ * vencido — un equipo con la hora mal puesta mostraría vencida una entrega que
+ * no lo está, y el docente no sabría cuál de los dos miente. El reparto en
+ * «hoy», «mañana» y «esta semana» sí usa el reloj local: es presentación.
  */
 
-const ESTADO: Record<EstadoActividad, { tono: 'success' | 'warning' | 'info'; texto: string; Icono: typeof Clock }> = {
-  OPEN: { tono: 'info', texto: 'Abierta', Icono: Clock },
-  CLOSED: { tono: 'success', texto: 'Cerrada', Icono: CheckCircle2 },
-  LATE: { tono: 'warning', texto: 'Vencida', Icono: CalendarClock },
-};
-
-/** Fecha y hora legibles. El backend ya entrega instantes absolutos. */
-function fechaHora(iso: string): string {
-  const instante = new Date(iso);
-  if (Number.isNaN(instante.getTime())) return '—';
-  return instante.toLocaleString('es-CO', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-/** Valor para un `<input type="datetime-local">`, que no admite zona horaria. */
-function aInputLocal(iso: string): string {
-  const instante = new Date(iso);
-  if (Number.isNaN(instante.getTime())) return '';
-  const desfase = instante.getTimezoneOffset() * 60_000;
-  return new Date(instante.getTime() - desfase).toISOString().slice(0, 16);
-}
-
-const VACIA: ActividadInput = {
-  title: '',
-  description: '',
-  subjectId: '',
-  dueAt: '',
-  weight: 0,
-};
+type FiltroEstado = EstadoActividad | 'TODAS';
 
 export default function ActivitiesPage() {
   const role = useUserRole();
   const puedeEscribir = can(role, 'activities.write');
   const puedeReabrir = can(role, 'activities.reopen');
+  const sinMovimiento = useSinMovimiento();
+  const ahora = useAhora(60_000);
+  const offset = OFFSET_CAMPUS_POR_DEFECTO;
 
   const [parametros, setParametros] = useSearchParams();
   const destacada = parametros.get('item');
 
   const [subjectId, setSubjectId] = useState('');
   const [period, setPeriod] = useState('');
-  const [estado, setEstado] = useState<EstadoActividad | ''>('');
-  const [editando, setEditando] = useState<Actividad | null>(null);
-  const [creando, setCreando] = useState(false);
+  const [estado, setEstado] = useState<FiltroEstado>('TODAS');
+  const [busqueda, setBusqueda] = useState('');
+  // El formulario se monta de nuevo en cada apertura (`claveFormulario`): así
+  // siempre parte de la actividad elegida y no de lo que quedó escrito.
+  const [formulario, setFormulario] = useState<{ actividad: Actividad | null; clave: number } | null>(null);
   const [borrando, setBorrando] = useState<Actividad | null>(null);
-  const [formulario, setFormulario] = useState<ActividadInput>(VACIA);
 
   const queryClient = useQueryClient();
   const invalidar = () => {
@@ -106,13 +73,12 @@ export default function ActivitiesPage() {
     void queryClient.invalidateQueries({ queryKey: [...queryKeys.agenda.all] });
   };
 
+  // El estado se filtra en la pantalla y no en el servidor: las pestañas
+  // enseñan cuántas hay de cada uno, y para contarlas hace falta la lista
+  // entera. Sigue siendo el `estado` que mandó el servidor.
   const filtro = useMemo(
-    () => ({
-      subjectId: subjectId || undefined,
-      period: period || undefined,
-      estado: estado || undefined,
-    }),
-    [subjectId, period, estado],
+    () => ({ subjectId: subjectId || undefined, period: period || undefined }),
+    [subjectId, period],
   );
 
   const listado = useQuery({
@@ -134,25 +100,7 @@ export default function ActivitiesPage() {
     () => new Map((materias.data ?? []).map((materia) => [materia._id, materia.name])),
     [materias.data],
   );
-
-  const guardar = useMutation({
-    mutationFn: () =>
-      editando
-        ? activitiesRepository.update(editando._id, {
-            ...formulario,
-            dueAt: new Date(formulario.dueAt).toISOString(),
-          })
-        : activitiesRepository.create({
-            ...formulario,
-            dueAt: new Date(formulario.dueAt).toISOString(),
-          }),
-    onSuccess() {
-      invalidar();
-      cerrarFormulario();
-      toast.success(editando ? 'Actividad actualizada' : 'Actividad creada');
-    },
-    onError: (causa) => toast.fromError(causa, 'No se pudo guardar'),
-  });
+  const materiaDe = (id: string) => nombreDeMateria.get(id) ?? 'Materia';
 
   const cambiarEstado = useMutation({
     mutationFn: ({ id, abrir }: { id: string; abrir: boolean }) =>
@@ -174,43 +122,50 @@ export default function ActivitiesPage() {
     onError: (causa) => toast.fromError(causa, 'No se pudo eliminar'),
   });
 
-  function abrirNueva() {
-    setEditando(null);
-    setFormulario({ ...VACIA, subjectId, period: period || undefined });
-    setCreando(true);
-  }
+  const todas = useMemo(() => listado.data?.items ?? [], [listado.data]);
+  const cuenta = useMemo(() => contarPorEstado(todas), [todas]);
 
-  function abrirEdicion(actividad: Actividad) {
-    setEditando(actividad);
-    setFormulario({
-      title: actividad.title,
-      description: actividad.description,
-      subjectId: actividad.subjectId,
-      groupId: actividad.groupId ?? undefined,
-      period: actividad.period || undefined,
-      dueAt: aInputLocal(actividad.dueAt),
-      weight: actividad.weight,
-      attachmentUrl: actividad.attachmentUrl ?? '',
+  const visibles = useMemo(() => {
+    const texto = busqueda.trim().toLocaleLowerCase('es');
+    return todas.filter(
+      (actividad) =>
+        (estado === 'TODAS' || actividad.estado === estado) &&
+        (!texto || actividad.title.toLocaleLowerCase('es').includes(texto)),
+    );
+  }, [todas, estado, busqueda]);
+
+  const grupos = useMemo(() => agruparActividades(visibles, ahora, offset), [visibles, ahora, offset]);
+
+  // Desde una notificación o desde la agenda: llevar la vista a esa actividad.
+  useEffect(() => {
+    if (!destacada || todas.length === 0) return;
+    document.getElementById(`actividad-${destacada}`)?.scrollIntoView({
+      behavior: sinMovimiento ? 'auto' : 'smooth',
+      block: 'center',
     });
-    setCreando(true);
+  }, [destacada, todas.length, sinMovimiento]);
+
+  function enfocar(id: string) {
+    setEstado('TODAS');
+    setBusqueda('');
+    setParametros({ item: id });
   }
 
-  function cerrarFormulario() {
-    setCreando(false);
-    setEditando(null);
-    setFormulario(VACIA);
-  }
-
-  const items = listado.data?.items ?? [];
+  const pestanas: { valor: FiltroEstado; texto: string; total: number }[] = [
+    { valor: 'TODAS', texto: 'Todas', total: todas.length },
+    { valor: 'OPEN', texto: 'Abiertas', total: cuenta.OPEN },
+    { valor: 'LATE', texto: 'Vencidas', total: cuenta.LATE },
+    { valor: 'CLOSED', texto: 'Cerradas', total: cuenta.CLOSED },
+  ];
 
   return (
     <PageContainer>
       <PageHeader
         title="Actividades"
-        subtitle="Talleres, entregas y parciales con fecha límite. El aviso de vencimiento lo manda el servidor."
+        subtitle="Talleres, entregas y parciales con fecha límite, junto a lo que trae la agenda cada día."
         actions={
           puedeEscribir ? (
-            <Button onClick={abrirNueva}>
+            <Button onClick={() => setFormulario({ actividad: null, clave: Date.now() })}>
               <Plus className="size-4" aria-hidden />
               Nueva actividad
             </Button>
@@ -218,301 +173,135 @@ export default function ActivitiesPage() {
         }
       />
 
-      <Card>
-        <CardContent className="flex flex-wrap items-end gap-3 p-4">
-          <Field label="Materia" className="min-w-[220px] flex-1">
-            {(props) => (
-              <NativeSelect
-                {...props}
-                value={subjectId}
-                onChange={(evento) => setSubjectId(evento.target.value)}
-              >
-                <option value="">Todas</option>
-                {(materias.data ?? []).map((materia) => (
-                  <option key={materia._id} value={materia._id}>
-                    {materia.name}
-                  </option>
-                ))}
-              </NativeSelect>
-            )}
-          </Field>
+      <div className="surface-well flex flex-wrap items-center gap-3 p-2 pl-3">
+        <Tabs value={estado} onValueChange={(valor) => setEstado(valor as FiltroEstado)}>
+          <TabsList className="bg-surface-hover">
+            {pestanas.map((pestana) => (
+              <TabsTrigger key={pestana.valor} value={pestana.valor}>
+                {pestana.texto}
+                <span className="ml-1.5 text-caption text-muted tabular">{pestana.total}</span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
 
-          <Field label="Periodo" className="min-w-[140px]">
-            {(props) => (
-              <NativeSelect
-                {...props}
-                value={period}
-                onChange={(evento) => setPeriod(evento.target.value)}
-              >
-                <option value="">Todos</option>
-                {(periodos.data ?? []).map((registro) => (
-                  <option key={registro.period} value={registro.period}>
-                    {registro.period}
-                  </option>
-                ))}
-              </NativeSelect>
-            )}
-          </Field>
+        <div className="relative min-w-48 flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-subtle" aria-hidden />
+          <Input
+            value={busqueda}
+            onChange={(evento) => setBusqueda(evento.target.value)}
+            placeholder="Buscar por título"
+            aria-label="Buscar actividades por título"
+            className="h-9 pl-8"
+          />
+        </div>
 
-          <Field label="Estado" className="min-w-[160px]">
-            {(props) => (
-              <NativeSelect
-                {...props}
-                value={estado}
-                onChange={(evento) => setEstado(evento.target.value as EstadoActividad | '')}
-              >
-                <option value="">Todos</option>
-                <option value="OPEN">Abiertas</option>
-                <option value="LATE">Vencidas</option>
-                <option value="CLOSED">Cerradas</option>
-              </NativeSelect>
-            )}
-          </Field>
-        </CardContent>
-      </Card>
+        <NativeSelect
+          value={subjectId}
+          onChange={(evento) => setSubjectId(evento.target.value)}
+          aria-label="Filtrar por materia"
+          className="h-9 w-56"
+        >
+          <option value="">Todas las materias</option>
+          {(materias.data ?? []).map((materia) => (
+            <option key={materia._id} value={materia._id}>
+              {materia.name}
+            </option>
+          ))}
+        </NativeSelect>
 
-      {listado.isPending ? <SkeletonList rows={6} /> : null}
-
-      {listado.isError ? (
-        <ErrorState error={listado.error} onRetry={() => void listado.refetch()} />
-      ) : null}
-
-      {listado.isSuccess && items.length === 0 ? (
-        <EmptyState
-          title="Sin actividades"
-          message={
-            puedeEscribir
-              ? 'Crea la primera para que el servidor avise de su vencimiento.'
-              : 'Todavía no hay actividades registradas con estos filtros.'
-          }
-        />
-      ) : null}
-
-      <div className="flex flex-col gap-2">
-        {items.map((actividad) => {
-          const presentacion = ESTADO[actividad.estado];
-          const resaltada = destacada === actividad._id;
-
-          return (
-            <Card
-              key={actividad._id}
-              className={resaltada ? 'ring-2 ring-accent' : undefined}
-              // La notificación abre exactamente esta actividad; al tocar
-              // cualquier otra se limpia el resalte para no dejarlo pegado.
-              onClick={() => resaltada && setParametros({})}
-            >
-              <CardContent className="flex flex-wrap items-start justify-between gap-3 p-4">
-                <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="truncate text-body font-semibold text-text">
-                      {actividad.title}
-                    </span>
-                    <Badge tone={presentacion.tono}>
-                      <presentacion.Icono className="size-3.5" aria-hidden />
-                      {presentacion.texto}
-                    </Badge>
-                    {actividad.weight > 0 ? (
-                      <Badge tone="neutral">{Math.round(actividad.weight * 100)}% del corte</Badge>
-                    ) : null}
-                  </div>
-
-                  <p className="text-caption text-muted">
-                    {nombreDeMateria.get(actividad.subjectId) ?? 'Materia'} ·{' '}
-                    {actividad.period || 'sin periodo'} · vence {fechaHora(actividad.dueAt)}
-                  </p>
-
-                  {actividad.description ? (
-                    <p className="line-clamp-2 text-caption text-muted">{actividad.description}</p>
-                  ) : null}
-                </div>
-
-                <div className="flex shrink-0 items-center gap-1">
-                  {actividad.attachmentUrl ? (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      asChild
-                      aria-label="Abrir el archivo adjunto"
-                    >
-                      <a href={actividad.attachmentUrl} target="_blank" rel="noreferrer">
-                        <Link2 className="size-4" aria-hidden />
-                      </a>
-                    </Button>
-                  ) : null}
-
-                  {puedeEscribir ? (
-                    <>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Editar ${actividad.title}`}
-                        onClick={() => abrirEdicion(actividad)}
-                      >
-                        <Pencil className="size-4" aria-hidden />
-                      </Button>
-
-                      {actividad.status === 'CLOSED' ? (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Reabrir ${actividad.title}`}
-                          // Reabrir cambia lo que se le puede exigir a un
-                          // estudiante pasada la fecha: no es del docente.
-                          disabled={!puedeReabrir}
-                          title={puedeReabrir ? undefined : 'Reabrir requiere permiso de coordinación.'}
-                          onClick={() =>
-                            cambiarEstado.mutate({ id: actividad._id, abrir: true })
-                          }
-                        >
-                          <RotateCcw className="size-4" aria-hidden />
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Cerrar ${actividad.title}`}
-                          onClick={() =>
-                            cambiarEstado.mutate({ id: actividad._id, abrir: false })
-                          }
-                        >
-                          <CheckCircle2 className="size-4" aria-hidden />
-                        </Button>
-                      )}
-
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Eliminar ${actividad.title}`}
-                        onClick={() => setBorrando(actividad)}
-                      >
-                        <Trash2 className="size-4 text-danger" aria-hidden />
-                      </Button>
-                    </>
-                  ) : null}
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+        <NativeSelect
+          value={period}
+          onChange={(evento) => setPeriod(evento.target.value)}
+          aria-label="Filtrar por periodo"
+          className="h-9 w-32"
+        >
+          <option value="">Periodos</option>
+          {(periodos.data ?? []).map((registro) => (
+            <option key={registro.period} value={registro.period}>
+              {registro.period}
+            </option>
+          ))}
+        </NativeSelect>
       </div>
 
-      <Dialog open={creando} onOpenChange={(abierto) => (abierto ? null : cerrarFormulario())}>
-        <DialogContent
-          title={editando ? 'Editar actividad' : 'Nueva actividad'}
-          description="La fecha límite es lo que decide cuándo avisa el servidor."
-        >
-          <form
-            className="flex flex-col gap-3"
-            onSubmit={(evento) => {
-              evento.preventDefault();
-              guardar.mutate();
-            }}
-          >
-            <Field label="Título" required>
-              {(props) => (
-                <Input
-                  {...props}
-                  value={formulario.title}
-                  maxLength={200}
-                  required
-                  onChange={(evento) =>
-                    setFormulario((previo) => ({ ...previo, title: evento.target.value }))
-                  }
-                />
-              )}
-            </Field>
+      <div className="grid items-start gap-4 @4xl:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="flex min-w-0 flex-col gap-5">
+          {listado.isPending ? <SkeletonList rows={6} /> : null}
 
-            <Field label="Materia" required>
-              {(props) => (
-                <NativeSelect
-                  {...props}
-                  value={formulario.subjectId}
-                  required
-                  // Cambiar de materia una actividad ya creada movería la
-                  // entrega al listado de otro grupo sin avisar a nadie.
-                  disabled={Boolean(editando)}
-                  onChange={(evento) =>
-                    setFormulario((previo) => ({ ...previo, subjectId: evento.target.value }))
-                  }
-                >
-                  <option value="">Elige una materia</option>
-                  {(materias.data ?? []).map((materia) => (
-                    <option key={materia._id} value={materia._id}>
-                      {materia.name}
-                    </option>
-                  ))}
-                </NativeSelect>
-              )}
-            </Field>
+          {listado.isError ? <ErrorState error={listado.error} onRetry={() => void listado.refetch()} /> : null}
 
-            <Field label="Fecha y hora límite" required>
-              {(props) => (
-                <Input
-                  {...props}
-                  type="datetime-local"
-                  value={formulario.dueAt}
-                  required
-                  onChange={(evento) =>
-                    setFormulario((previo) => ({ ...previo, dueAt: evento.target.value }))
-                  }
-                />
-              )}
-            </Field>
+          {listado.isSuccess && grupos.length === 0 ? (
+            <EmptyState
+              title={todas.length === 0 ? 'Sin actividades' : 'Nada con estos filtros'}
+              message={
+                todas.length > 0
+                  ? 'Prueba con otra pestaña o borra la búsqueda.'
+                  : puedeEscribir
+                    ? 'Crea la primera para que el servidor avise de su vencimiento.'
+                    : 'Todavía no hay actividades registradas.'
+              }
+            />
+          ) : null}
 
-            <Field label="Peso dentro del corte" hint="0 si no cuenta para la nota.">
-              {(props) => (
-                <Input
-                  {...props}
-                  type="number"
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  value={formulario.weight}
-                  onChange={(evento) =>
-                    setFormulario((previo) => ({ ...previo, weight: Number(evento.target.value) }))
-                  }
-                />
-              )}
-            </Field>
+          {grupos.map((grupo) => (
+            <section key={grupo.tramo} className="flex flex-col gap-2" aria-label={grupo.titulo}>
+              <h2 className="flex items-center gap-2 text-body font-semibold text-text">
+                {grupo.titulo}
+                <span className="text-caption font-normal text-muted tabular">{grupo.items.length}</span>
+              </h2>
+              <AnimatePresence initial={false} mode="popLayout">
+                {grupo.items.map((actividad) => (
+                  <motion.div
+                    key={actividad._id}
+                    layout={!sinMovimiento}
+                    initial={sinMovimiento ? false : { opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={sinMovimiento ? { opacity: 0, transition: { duration: 0 } } : { opacity: 0, scale: 0.98 }}
+                    transition={{ duration: 0.18, ease: 'easeOut' }}
+                  >
+                    <ActivityCard
+                      actividad={actividad}
+                      materia={materiaDe(actividad.subjectId)}
+                      offset={offset}
+                      ahora={ahora}
+                      resaltada={destacada === actividad._id}
+                      puedeEscribir={puedeEscribir}
+                      puedeReabrir={puedeReabrir}
+                      onEditar={() => setFormulario({ actividad, clave: Date.now() })}
+                      onCambiarEstado={(abrir) => cambiarEstado.mutate({ id: actividad._id, abrir })}
+                      onBorrar={() => setBorrando(actividad)}
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </section>
+          ))}
+        </div>
 
-            <Field label="Enlace o archivo adjunto" hint="Opcional.">
-              {(props) => (
-                <Input
-                  {...props}
-                  type="url"
-                  value={formulario.attachmentUrl ?? ''}
-                  onChange={(evento) =>
-                    setFormulario((previo) => ({ ...previo, attachmentUrl: evento.target.value }))
-                  }
-                />
-              )}
-            </Field>
+        <div className="@4xl:sticky @4xl:top-4">
+          <CalendarioActividades
+            actividades={todas}
+            subjectId={subjectId}
+            offset={offset}
+            ahora={ahora}
+            nombreDeMateria={materiaDe}
+            onElegirActividad={enfocar}
+          />
+        </div>
+      </div>
 
-            <Field label="Descripción">
-              {(props) => (
-                <Textarea
-                  {...props}
-                  rows={3}
-                  maxLength={4000}
-                  value={formulario.description}
-                  onChange={(evento) =>
-                    setFormulario((previo) => ({ ...previo, description: evento.target.value }))
-                  }
-                />
-              )}
-            </Field>
-
-            <DialogFooter>
-              <Button type="button" variant="ghost" onClick={cerrarFormulario}>
-                Cancelar
-              </Button>
-              <Button type="submit" loading={guardar.isPending}>
-                {editando ? 'Guardar cambios' : 'Crear actividad'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {formulario ? (
+        <ActivityFormDialog
+          key={formulario.clave}
+          open
+          onOpenChange={(abierto) => (abierto ? null : setFormulario(null))}
+          actividad={formulario.actividad}
+          materias={materias.data ?? []}
+          inicial={{ subjectId, period }}
+          onGuardada={invalidar}
+        />
+      ) : null}
 
       <ConfirmDialog
         open={Boolean(borrando)}

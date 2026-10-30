@@ -646,6 +646,17 @@ suyo dejaría vencidas presentándose como abiertas sin que nada lo delatara. Lo
 clientes **no** comparan fechas: un equipo con la hora mal puesta mostraría
 vencida una entrega que no lo está.
 
+**Pantalla de actividades del escritorio** (`features/activities/`): una línea
+de tiempo con lo urgente arriba (vencidas, hoy, mañana, próximos 7 días, más
+adelante, cerradas) y, al lado, el mes con las entregas y lo que trae la agenda
+ese día (`calendario-actividades.tsx`, misma consulta `useAgendaRange` que la
+Agenda; las entregas salen de la lista de actividades para no contarlas dos
+veces). El reparto lo hace `domain/activities/linea-de-tiempo.ts`, puro y con
+pruebas: «Vencidas» sale **solo** del `estado` del servidor; el reloj local
+decide únicamente si una abierta va en «hoy» o en «mañana», que es
+presentación. Una entrega abierta en la Agenda lleva a «Ver en actividades»
+(`/actividades?item=<id>`), que la resalta en la lista.
+
 ### Saneado de auditoría y telemetría
 
 `shared/sanitize.ts` es el punto único, y se aplica **al escribir** dentro de
@@ -790,6 +801,16 @@ de un grupo manda sobre la de la materia).
   plantilla vigente se enseña junto a los filtros y el desglose lleva el campo
   «Peso» opcional. El móvil solo pinta los pesos; las plantillas se gestionan
   desde el escritorio.
+- **Notas del escritorio es una planilla de colegio**
+  (`grades/components/planilla-notas.tsx`): el grupo en orden de lista y
+  numerado —también quien aún no tiene notas, sacado de la matrícula—, y por
+  cada corte sus tres componentes y la nota del corte, con la definitiva al
+  final; pestañas para ver la planilla completa o un solo corte. Es una
+  `<table>` y no `DataTable` (encabezados de dos niveles y columnas fijas).
+  Las cifras son las del consolidado; `domain/grades/planilla.ts` solo decide
+  qué casilla lleva cada una, y rotula los porcentajes con los pesos que
+  manda el servidor en vez de escribir 30/60/10. Un componente sin registros es
+  «—», no un cero.
 
 ### Sincronización en tiempo real
 El backend emite un evento único `sync:update` con payload `{entity, action, id}` — no una familia de eventos por entidad. El escritorio v2 mapea cada `entity` a las claves de caché de TanStack Query que invalida (`desktop/src/core/realtime/socket.ts`) y el móvil a sus providers de Riverpod (`flutter_app/lib/app.dart`). Al añadir una entidad o mutación nueva, emitir `sync:update` y registrar el mapeo de invalidación **en los dos clientes**.
