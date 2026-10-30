@@ -1,8 +1,11 @@
-import { CalendarClock, DoorOpen, MapPin, Users } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { CalendarClock, DoorOpen, ListChecks, MapPin, Users } from 'lucide-react';
 import { Badge, Button, Dialog, DialogContent, DialogFooter } from '@/shared/ui';
 import { cn } from '@/shared/lib/cn';
 import { horaCampus } from '@/domain/agenda/calendar';
 import { ETIQUETA_PRIORIDAD, PRESENTACION_TIPO } from '@/features/agenda/presentacion';
+import { useUserRole } from '@/state/session.store';
+import { can } from '@/core/auth/permissions';
 import type { AgendaItem } from '@/domain/schemas/agenda';
 
 /**
@@ -11,7 +14,7 @@ import type { AgendaItem } from '@/domain/schemas/agenda';
  * Es de lectura salvo para los eventos propios: una clase viene del horario y
  * una entrega de `/activities`, y ofrecer aquí un botón de editar que abre otra
  * pantalla distinta según el caso confundiría más de lo que ayuda. Se dice de
- * dónde sale y ya.
+ * dónde sale; una entrega lleva además a su actividad, resaltada en la lista.
  */
 export function ItemDialog({
   item,
@@ -24,6 +27,8 @@ export function ItemDialog({
   onOpenChange: (open: boolean) => void;
   onEditar: (item: AgendaItem) => void;
 }) {
+  const navigate = useNavigate();
+  const puedeVerActividades = can(useUserRole(), 'activities.read');
   if (!item) return null;
 
   const presentacion = PRESENTACION_TIPO[item.type];
@@ -136,6 +141,18 @@ export function ItemDialog({
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
             Cerrar
           </Button>
+          {item.origen === 'activity' && puedeVerActividades ? (
+            <Button
+              variant="primary"
+              onClick={() => {
+                onOpenChange(false);
+                navigate(`/actividades?item=${encodeURIComponent(item.sourceId)}`);
+              }}
+            >
+              <ListChecks aria-hidden />
+              Ver en actividades
+            </Button>
+          ) : null}
           {esEventoPropio ? (
             <Button variant="primary" onClick={() => onEditar(item)}>
               Editar evento
