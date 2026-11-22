@@ -59,6 +59,12 @@ flutter pub get
 flutter run              # emulador Android resuelve la API en http://10.0.2.2:4000
 flutter test
 ```
+**La versión de Flutter de CI y de la publicación está fijada en
+`flutter_app/.flutter-version`** (hoy 3.47.8), que leen `verificar.yml` y
+`release.yml`. Con `channel: stable` a secas, la 3.50 cambió el analizador
+—marcó `package:flutter/material.dart` como obsoleto— y dejó en rojo PR que no
+tocaban el móvil. Subir Flutter es editar ese archivo en un commit propio, con
+`flutter analyze` y `flutter test` pasando en esa versión.
 
 ### Servicio ML (`ml_service/` — FastAPI + scikit-learn)
 ```bash

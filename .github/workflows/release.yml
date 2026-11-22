@@ -528,9 +528,19 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      # La versión de Flutter se fija en `flutter_app/.flutter-version`, el
+      # único sitio donde se declara. Con `channel: stable` a secas, cada
+      # versión nueva de Flutter cambiaba el analizador bajo el código sin que
+      # nadie tocara nada: la 3.50 marcó `material.dart` como obsoleto y dejó
+      # en rojo PR que no tocaban el móvil. Subirla es editar ese archivo.
+      - name: Versión de Flutter
+        id: flutter
+        run: echo "version=$(tr -d '[:space:]' < flutter_app/.flutter-version)" >> "$GITHUB_OUTPUT"
+
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: ${{ steps.flutter.outputs.version }}
           cache: true
 
       - name: Restaurar el keystore de firma
