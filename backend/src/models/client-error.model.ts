@@ -41,7 +41,7 @@ const schema = new Schema(
      * cliente, ruta y mensaje normalizado: si la calculara el cliente, dos
      * versiones distintas agruparían distinto el mismo defecto.
      */
-    signature: { type: String, required: true, index: true },
+    signature: { type: String, required: true },
 
     /** Mensaje ya saneado y acotado. */
     message: { type: String, default: '' },

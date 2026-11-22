@@ -22,6 +22,7 @@ npm run test:e2e:qr      # asistencia por QR: servicio real + mongod local + Fir
 npm run migrate:v3       # migración v3 — simula; con -- --aplicar escribe
 npm run migrate:fechas-asistencia   # une la asistencia duplicada por fecha — simula; -- --aplicar escribe
 npm run migrate:nombres-estudiantes # nombres de estudiante en mayúsculas y solo letras — simula; -- --aplicar escribe
+npm run migrate:indices            # repara índices que la base tiene distintos al modelo (TTL de sesiones, únicos) — simula; -- --aplicar escribe
 npm run check:env        # valida .env sin imprimir secretos
 npm run check:docentes-sin-ficha  # solo lectura: cuentas PROFESSOR sin ficha
 npm test                 # Vitest — dominio puro (tests/)

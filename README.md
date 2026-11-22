@@ -1266,6 +1266,7 @@ npm run migrate:v3           # Periodos, lateMinutes y periodo de actividades
 npm run migrate:v3 -- --aplicar   # …y escribirlo de verdad (por defecto simula)
 npm run migrate:fechas-asistencia    # Une la asistencia duplicada por fecha de clase (simula; -- --aplicar escribe)
 npm run migrate:nombres-estudiantes  # Nombres de estudiante en mayúsculas y solo letras (simula; -- --aplicar escribe)
+npm run migrate:indices              # Repara índices distintos al modelo: TTL de sesiones y únicos (simula; -- --aplicar escribe)
 npm run test:e2e:qr                  # E2E de la asistencia por QR (Firestore simulado)
 
 # Desde /desktop

@@ -14,6 +14,7 @@
     "migrate:student-emails": "tsx src/scripts/migrate-student-emails.ts",
     "migrate:fechas-asistencia": "tsx src/scripts/migrate-attendance-dates.ts",
     "migrate:nombres-estudiantes": "tsx src/scripts/migrate-student-names.ts",
+    "migrate:indices": "tsx src/scripts/repair-indexes.ts",
     "smoke": "tsx src/scripts/smoke.ts",
     "test:e2e": "tsx src/scripts/e2e.ts",
     "test:e2e:qr": "tsx src/scripts/e2e-asistencia-qr.ts",
