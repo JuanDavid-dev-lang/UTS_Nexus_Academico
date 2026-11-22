@@ -53,7 +53,7 @@ const schema = new Schema(
     nombre: { type: String, required: true },
     sigla: { type: String, required: true },
     aliases: { type: [String], default: [] },
-    clavesBusqueda: { type: [String], default: [], index: true },
+    clavesBusqueda: { type: [String], default: [] },
     activa: { type: Boolean, default: true, index: true },
     /** `null` hasta que un administrador la configure. Nunca se inventa. */
     configuracionAcademica: { type: configuracionSchema, default: null },

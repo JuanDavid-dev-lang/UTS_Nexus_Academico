@@ -408,6 +408,7 @@ respaldan antes de escribir—:
 |---|---|---|---|
 | `npm run migrate:fechas-asistencia` | Une la asistencia duplicada por fecha de clase y deja la fecha canónica (mediodía del campus) | `asistencias_respaldo_fechas` | Aplicada el 13-09-2026 (15 clases duplicadas); **volver a pasarla tras desplegar el backend** |
 | `npm run migrate:nombres-estudiantes` | Nombres de estudiante en mayúsculas y solo letras, como los guarda UniPlanner | `estudiantes_respaldo_nombres` | Aplicada el 13-09-2026 (23 nombres) |
+| `npm run migrate:indices` | Sustituye `sesiones.expiresAt_1` (sin TTL) por el índice de caducidad, y `errores_cliente.signature_1` y `instituciones.clavesBusqueda_1` por los únicos que pide el modelo. No usa `syncIndexes()`: borraría `estudiantes_email_activo_unico`. Al crear el TTL, Mongo borra las sesiones ya vencidas | — (comprueba duplicados antes; restaura el índice anterior si falla) | Aplicada el 21-11-2026 (3 índices; el TTL barre las 249 sesiones vencidas) |
 
 ---
 
