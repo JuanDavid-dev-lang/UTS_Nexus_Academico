@@ -234,10 +234,17 @@ export async function crearNotificacion(entrada: EntradaNotificacion): Promise<R
         $set: previa ? { title: base.title, message: base.message, metadata: base.metadata } : base,
         $setOnInsert: previa ? {} : { dedupeKey: entrada.dedupeKey },
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
+      { upsert: true, new: true, setDefaultsOnInsert: true, includeResultMetadata: true },
     );
-    documentoId = String(documento._id);
-    esNueva = !previa;
+    if (!documento.value) throw new Error('El upsert de la notificación no devolvió documento.');
+    documentoId = String(documento.value._id);
+    // Nueva solo si este upsert la insertó. Deducirlo del `findOne` previo no
+    // vale con dos instancias: las dos ven «no existe», una inserta, la otra
+    // actualiza, y las dos mandaban el push.
+    esNueva = documento.lastErrorObject?.updatedExisting === false;
+    if (!esNueva && !entrada.actualizarSiExiste) {
+      return { creada: false, omitida: 'duplicada', id: documentoId, push: null };
+    }
   } else {
     const documento = await NotificationModel.create(base);
     documentoId = String(documento._id);

@@ -106,6 +106,14 @@ void main() {
       expect(indiceDeRama('/actividades'), isNonNegative);
     });
 
+    test('el uso de la aplicación es solo de ADMIN', () {
+      final uso = secondaryDestinations.firstWhere((d) => d.route == '/uso');
+      expect(uso.visiblePara('ADMIN'), isTrue);
+      expect(uso.visiblePara('COORDINATOR'), isFalse);
+      expect(uso.visiblePara('PROFESSOR'), isFalse);
+      expect(indiceDeRama('/uso'), isNonNegative);
+    });
+
     test('un destino acotado por rol declara los roles que lo ven', () {
       // Un estudiante no gestiona estudiantes ni pasa lista: el menú no debe
       // ofrecer entradas que el backend va a rechazar con un 403.

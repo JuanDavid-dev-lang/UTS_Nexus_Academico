@@ -61,7 +61,7 @@ export function useMarkAttendance() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.attendance.all });
       void queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all });
       if (resultado.enCola) {
-        avisarGuardadoEnEquipo('Asistencia guardada en este equipo');
+        avisarGuardadoEnEquipo();
       }
     },
 

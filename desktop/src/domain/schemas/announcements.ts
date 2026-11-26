@@ -38,8 +38,15 @@ export const avisoSchema = mongoDoc.extend({
   leido: z.boolean().optional().default(false),
   lecturas: z.number().optional().default(0),
   autorId: autorAviso,
+  /**
+   * Lo decide el servidor con su reloj. Solo ADMIN recibe `PROGRAMADO` y
+   * `CADUCADO`; a los demás el filtro ya se los quita. Un servidor anterior no
+   * lo manda y se lee como vigente, que es lo único que entonces veían.
+   */
+  estado: z.enum(['PROGRAMADO', 'VIGENTE', 'CADUCADO']).catch('VIGENTE').optional().default('VIGENTE'),
 });
 export type Aviso = z.infer<typeof avisoSchema>;
+export type EstadoAviso = Aviso['estado'];
 
 export const avisoInputSchema = z.object({
   titulo: z.string().min(4, 'El título es demasiado corto').max(140),
@@ -49,5 +56,9 @@ export const avisoInputSchema = z.object({
   facultades: z.array(facultadId).default([]),
   programas: z.array(z.string()).default([]),
   fijado: z.boolean().default(false),
+  /** Instante ISO de salida; sin él el servidor publica ahora. */
+  publicadoEn: z.string().optional(),
+  /** Instante ISO de caducidad, o `null` si no caduca. */
+  expiraEn: z.string().nullable().optional(),
 });
 export type AvisoInput = z.infer<typeof avisoInputSchema>;

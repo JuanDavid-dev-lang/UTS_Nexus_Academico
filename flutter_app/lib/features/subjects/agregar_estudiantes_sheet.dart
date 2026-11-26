@@ -8,6 +8,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/compact.dart';
 import '../../core/widgets/debounced_search_field.dart';
 import '../../core/widgets/ui_kit.dart';
+import '../students/leer_listado.dart';
 import '../students/roster_parser.dart';
 import '../students/students_paginados_provider.dart';
 
@@ -560,6 +561,9 @@ class _PegarListaState extends ConsumerState<_PegarLista> {
   String? _error;
   String? _exito;
 
+  /// Lo que dijo la última lectura de un archivo (filas leídas, dudosas).
+  ListadoLeido? _lectura;
+
   /// Errores de línea que se enseñan: el resto se cuenta, no se lista. La hoja
   /// ya se desplaza, y cien líneas de error esconderían el botón.
   static const _erroresVisibles = 8;
@@ -576,6 +580,19 @@ class _PegarListaState extends ConsumerState<_PegarLista> {
       _propuesta = null;
       _error = null;
       _exito = null;
+    });
+  }
+
+  /// Lo leído de un archivo cae en el mismo cuadro que la lista pegada y se
+  /// revisa en el acto con `parseRoster`, igual que si se hubiera escrito: el
+  /// botón pasa a «Matricular N», que es lo único que escribe.
+  void _alLeer(ListadoLeido lectura) {
+    _texto.text = lectura.texto;
+    setState(() {
+      _lectura = lectura;
+      _error = null;
+      _exito = null;
+      _propuesta = parseRoster(lectura.texto, exigirPrograma: false);
     });
   }
 
@@ -609,6 +626,7 @@ class _PegarListaState extends ConsumerState<_PegarLista> {
       _texto.clear();
       setState(() {
         _propuesta = null;
+        _lectura = null;
         _exito = _resumen(resultado);
       });
       widget.onMatriculados();
@@ -649,6 +667,12 @@ class _PegarListaState extends ConsumerState<_PegarLista> {
           'punto y coma o tabulación; correo y programa son opcionales. '
           'Primero revisas la propuesta; nada se guarda sin confirmar.',
           style: AppType.caption.copyWith(color: context.palette.muted),
+        ),
+        const SizedBox(height: AppSpacing.gapSm),
+        LeerListado(
+          groupId: widget.grupo.id,
+          habilitado: !_enviando,
+          onLeido: _alLeer,
         ),
         const SizedBox(height: AppSpacing.gapSm),
         TextField(
@@ -702,7 +726,20 @@ class _PegarListaState extends ConsumerState<_PegarLista> {
 
   List<Widget> _revision(RosterParseResult propuesta) {
     final ocultos = propuesta.errors.length - _erroresVisibles;
+    final lectura = _lectura;
     return [
+      if (lectura != null) ...[
+        const SizedBox(height: AppSpacing.gapSm),
+        Text(
+          lectura.resumen,
+          key: const Key('matricula-lectura'),
+          style: AppType.caption.copyWith(
+            color: lectura.hayDudosas
+                ? SemanticTone.of(context, SemanticKind.warning).fg
+                : context.palette.muted,
+          ),
+        ),
+      ],
       const SizedBox(height: AppSpacing.gapSm),
       Text(
         '${propuesta.rows.length} listos · ${propuesta.errors.length} con '

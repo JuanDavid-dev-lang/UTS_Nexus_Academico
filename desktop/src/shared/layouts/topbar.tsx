@@ -22,6 +22,7 @@ import { Button } from '@/shared/ui/button';
 import { ConfirmDialog } from '@/shared/ui/dialog';
 import { EstadoEnvios } from '@/features/offline/estado-envios';
 import { textoAlCerrarSesion } from '@/domain/offline/outbox';
+import { etiquetaSinServidor } from '@/domain/offline/aviso-servidor';
 import { useEnLinea } from '@/state/connectivity.store';
 import { useOutbox, useResumenDeCola } from '@/state/outbox.store';
 import { useState } from 'react';
@@ -107,7 +108,9 @@ export function TopBar({
   const estadoSocket: keyof typeof SYNC_PRESENTATION =
     enLinea && syncStatus === 'error' ? 'reconnecting' : syncStatus;
   const sync = enLinea ? SYNC_PRESENTATION[estadoSocket] : SYNC_PRESENTATION.disconnected;
-  const syncEtiqueta = enLinea ? sync.label : 'Sin conexión · trabajando con datos guardados';
+  const syncEtiqueta = enLinea
+    ? sync.label
+    : etiquetaSinServidor(colaPersiste ? 'equipo' : 'pestana');
   const syncVisible: keyof typeof SYNC_PRESENTATION = enLinea ? estadoSocket : 'disconnected';
 
   function pedirSalida() {
@@ -198,7 +201,9 @@ export function TopBar({
           {/* La etiqueta solo aparece cuando algo va mal: en el caso normal el
               punto verde basta y el texto sería ruido permanente. */}
           {syncVisible !== 'connected' ? (
-            <span className="hidden xl:inline">{sync.label}</span>
+            <span className="hidden xl:inline">
+              {enLinea ? sync.label : 'Problema en el servidor'}
+            </span>
           ) : null}
         </span>
       </Tooltip>

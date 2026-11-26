@@ -108,7 +108,7 @@ export function useSaveGrade() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.grades.all });
       void queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all });
       if (resultado.enCola) {
-        avisarGuardadoEnEquipo('Nota guardada en este equipo');
+        avisarGuardadoEnEquipo();
       } else {
         toast.success('Nota guardada');
       }
@@ -139,7 +139,7 @@ export function useDeleteGrade() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.grades.all });
       void queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all });
       if (resultado.enCola) {
-        avisarGuardadoEnEquipo('Eliminación guardada en este equipo');
+        avisarGuardadoEnEquipo();
       } else {
         toast.success('Nota eliminada');
       }

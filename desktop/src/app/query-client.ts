@@ -4,6 +4,11 @@ import { AppError, toAppError } from '@/core/api/errors';
 import { useConectividad } from '@/state/connectivity.store';
 import { registrarCliente } from '@/core/offline/cache';
 import { RAICES_PERSISTIDAS, VIDA_MAXIMA_CACHE_MS } from '@/domain/offline/persistencia';
+import { avisoDeLectura, esFalloDelServidor } from '@/domain/offline/aviso-servidor';
+
+/** Entre dos avisos de «mostrando lo último guardado». */
+const MIN_ENTRE_AVISOS_DE_LECTURA_MS = 60_000;
+let ultimoAvisoDeLectura = 0;
 
 /**
  * Builds the query client.
@@ -48,6 +53,18 @@ export function createQueryClient(): QueryClient {
         // La precarga en segundo plano es de mejor esfuerzo: no avisa de nada.
         if (query.meta?.silencioso) return;
         if (!useConectividad.getState().online) return;
+        // Un fallo del servidor con datos en pantalla no es un error: se
+        // sigue viendo lo guardado y se dice con una nota discreta, una vez
+        // por minuto como mucho (varias consultas fallan a la vez).
+        const appError = error instanceof AppError ? error : toAppError(error);
+        if (esFalloDelServidor(appError)) {
+          const ahora = Date.now();
+          if (ahora - ultimoAvisoDeLectura < MIN_ENTRE_AVISOS_DE_LECTURA_MS) return;
+          ultimoAvisoDeLectura = ahora;
+          const aviso = avisoDeLectura(true);
+          toast.info(aviso.titulo, aviso.detalle);
+          return;
+        }
         toast.fromError(error, 'No se pudo actualizar la información');
       },
     }),

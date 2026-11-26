@@ -140,5 +140,32 @@ export async function connectDb(): Promise<void> {
     lastError = explain(error);
     // No relanzamos: el servidor debe escuchar igual para poder reportar el fallo.
     console.error(`[db] No se pudo conectar: ${lastError}`);
+    programarReintento();
   }
+}
+
+/**
+ * Reintento de la conexión inicial, con espera creciente hasta 60 s.
+ *
+ * Mongoose reconecta solo una conexión que ya existió, pero no reintenta la
+ * primera. Sin esto, un arranque con Atlas caído (o con la red del servidor
+ * aún levantándose tras un reinicio) dejaba el proceso vivo —systemd no lo
+ * reinicia— y sin base para siempre, respondiendo error a todo hasta que
+ * alguien lo reiniciara a mano.
+ */
+let intentosDeConexion = 0;
+let reintentoProgramado: NodeJS.Timeout | null = null;
+function programarReintento(): void {
+  if (reintentoProgramado) return;
+  intentosDeConexion += 1;
+  const esperaMs = Math.min(60_000, 5_000 * 2 ** Math.min(intentosDeConexion - 1, 4));
+  console.warn(`[db] Reintento de conexión en ${Math.round(esperaMs / 1000)} s (intento ${intentosDeConexion}).`);
+  reintentoProgramado = setTimeout(() => {
+    reintentoProgramado = null;
+    void connectDb().then(() => {
+      if (status === 'connected') intentosDeConexion = 0;
+    });
+  }, esperaMs);
+  // No mantiene vivo el proceso por sí solo: si el servidor se está cerrando, que cierre.
+  reintentoProgramado.unref();
 }

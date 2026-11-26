@@ -34,6 +34,13 @@ const schema = new Schema(
      * `domains/periods/period-calendar.ts`.
      */
     endsOn: { type: String, default: null },
+    /**
+     * Primer día del semestre (`AAAA-MM-DD`). Con `endsOn` decide qué periodo
+     * corre hoy (`domains/periods/period-current.ts`) y con ello el semestre
+     * con el que abren las pantallas de los tres clientes. Sin él se usa el de
+     * por defecto (1 de enero / 1 de julio).
+     */
+    startsOn: { type: String, default: null },
     state: {
       type: String,
       enum: ['OPEN', 'CLOSING', 'CLOSED'],

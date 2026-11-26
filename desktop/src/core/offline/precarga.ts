@@ -28,6 +28,7 @@ import { periodosRepository } from '@/infrastructure/repositories/administracion
 import { analyticsRepository } from '@/infrastructure/repositories/insights.repository';
 import type { Subject, Group } from '@/domain/schemas/academic';
 import { currentPeriod } from '@/shared/lib/format';
+import { opcionesPeriodoActual } from '@/shared/hooks/use-periodo-actual';
 import { useConectividad } from '@/state/connectivity.store';
 import { useSession } from '@/state/session.store';
 import { clienteRegistrado } from './cache';
@@ -124,9 +125,15 @@ export async function precargar(): Promise<void> {
 
     const materias = client.getQueryData<Subject[]>(queryKeys.subjects.list()) ?? [];
     const grupos = client.getQueryData<Group[]>(queryKeys.groups.list()) ?? [];
+    // El periodo con la misma clave que las pantallas: así queda en caché el
+    // vigente del servidor y las materias se precargan de ese semestre, no del
+    // que dice el reloj del equipo.
+    const actual = await client
+      .fetchQuery({ ...opcionesPeriodoActual, meta: { silencioso: true } })
+      .catch(() => null);
     await correr(
       client,
-      tareasPorMateria({ periodo: currentPeriod(), materias, grupos }),
+      tareasPorMateria({ periodo: actual?.period ?? currentPeriod(), materias, grupos }),
     );
 
     // Si se cortó la conexión a medias, la próxima vez que vuelva se completa.

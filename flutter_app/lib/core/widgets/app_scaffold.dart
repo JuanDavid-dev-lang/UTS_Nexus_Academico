@@ -11,6 +11,9 @@ import '../telemetry/error_reporter.dart';
 import '../theme/app_theme.dart';
 import './session_menu.dart';
 import '../admin/admin_mode_provider.dart';
+import '../storage/offline_status.dart';
+import '../../features/usage/aviso_uso.dart';
+import '../../features/usage/data/usage_repository.dart';
 
 /// Estructura de navegación.
 ///
@@ -74,6 +77,9 @@ const rutasDeRama = <String>[
   '/settings',
   '/trabajos-grado',
   '/profile',
+  // Solo ADMIN (el destino declara `roles`). Al final: añadir una rama en
+  // medio correría el índice de todas las siguientes.
+  '/uso',
 ];
 
 /// Índice de la rama que atiende una ruta. -1 si ninguna.
@@ -178,6 +184,13 @@ const secondaryDestinations = <NavDestination>[
     route: '/settings',
     label: 'Configuración',
     icon: Icons.settings_outlined,
+  ),
+  // Estadística interna de uso: solo ADMIN, como en el escritorio.
+  NavDestination(
+    route: '/uso',
+    label: 'Uso de la app',
+    icon: Icons.insights_outlined,
+    roles: ['ADMIN'],
   ),
 ];
 
@@ -298,9 +311,33 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     // Se lanza tras el primer fotograma: navegar durante el build dejaría el
     // árbol a medio construir.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (await tutorialVisto()) return;
+      if (await tutorialVisto()) {
+        // El aviso de uso no se monta encima del recorrido: si hoy toca el
+        // recorrido, el aviso sale en el siguiente inicio.
+        if (mounted) _mostrarAvisoUsoSiFalta();
+        return;
+      }
       if (mounted) _abrirTutorial();
     });
+  }
+
+  /// Una vez por ejecución, como mucho. Sin conexión no se enseña.
+  static bool _avisoUsoMostrado = false;
+
+  void _mostrarAvisoUsoSiFalta() {
+    final usuario = ref.read(authControllerProvider).user;
+    if (!debeMostrarAvisoUso(
+      pendiente: usuario?.avisoUsoPendiente ?? false,
+      sinConexion: OfflineStatus.instance.desde != null,
+      yaMostrado: _avisoUsoMostrado,
+    )) {
+      return;
+    }
+    _avisoUsoMostrado = true;
+    mostrarDialogoAvisoUso(
+      context,
+      onEntendido: () => UsageRepository().marcarAvisoVisto(),
+    );
   }
 
   @override

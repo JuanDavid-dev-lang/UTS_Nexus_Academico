@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'firma_uts.dart';
 import 'rubri.dart';
 import '../theme/app_theme.dart';
 
@@ -641,7 +642,10 @@ class StateView extends StatelessWidget {
               title,
               style: AppType.bodyStrong.copyWith(fontWeight: FontWeight.w700),
             ),
-            const SizedBox(height: AppSpacing.gapXs),
+            // La firma UTS separa el título de la explicación (DESIGN.md §4.1).
+            const SizedBox(height: AppSpacing.gapSm),
+            const FirmaUts(),
+            const SizedBox(height: AppSpacing.gapSm),
             Text(
               message,
               textAlign: TextAlign.center,

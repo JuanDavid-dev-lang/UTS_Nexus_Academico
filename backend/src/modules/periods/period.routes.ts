@@ -50,6 +50,38 @@ periodRouter.get('/', exigirSesion, async (_req, res, next) => {
   }
 });
 
+/**
+ * El semestre que corre hoy. Lo leen todas las pantallas al abrir, en los tres
+ * clientes y en la web: el periodo por defecto lo decide el servidor con las
+ * fechas que pone ADMIN, no el reloj de cada equipo.
+ *
+ * Va antes de `/:period`: si no, `current` se leería como un periodo y
+ * respondería 400.
+ *
+ * @openapi
+ * /periods/current:
+ *   get:
+ *     tags: [Periodos]
+ *     summary: Semestre vigente
+ *     description: >
+ *       El periodo cuyo [startsOn, endsOn] contiene hoy (día del campus). Sin
+ *       fechas configuradas, el de calendario (enero–junio `-1`, julio–diciembre
+ *       `-2`); entre semestres, el siguiente si ya tiene inicio. `origen` dice
+ *       cuál de las dos fuentes decidió.
+ *     responses:
+ *       200:
+ *         description: "{ period, label, startsOn, endsOn, origen, state }"
+ *       401:
+ *         description: Sin sesión
+ */
+periodRouter.get('/current', exigirSesion, async (_req, res, next) => {
+  try {
+    res.json({ ok: true, item: await servicio.periodoActual() });
+  } catch (err) {
+    next(err);
+  }
+});
+
 periodRouter.get('/:period', exigirSesion, async (req, res, next) => {
   try {
     const clave = periodo.parse(String(req.params.period));
@@ -60,7 +92,12 @@ periodRouter.get('/:period', exigirSesion, async (req, res, next) => {
 });
 
 /**
- * Nombre y último día del periodo.
+ * Nombre, primer y último día del periodo.
+ *
+ * El primero decide, junto con el último, qué semestre corre hoy
+ * (`GET /periods/current`). `startsOn: null` vuelve al de por defecto.
+ * Si el periodo no existe se crea: así ADMIN prepara el siguiente semestre con
+ * sus fechas antes de que empiece.
  *
  * El último día sale del acuerdo del Consejo Académico (el de las notas de
  * habilitación): hasta ese día queda fijo el enlace de UniPlanner de quien
@@ -77,6 +114,11 @@ periodRouter.patch('/:period', requireRole('ADMIN'), async (req, res, next) => {
     const cambios = z
       .object({
         label: campo.linea.optional(),
+        startsOn: z
+          .string()
+          .refine(esFinDePeriodoValido, 'Usa un día real con la forma AAAA-MM-DD.')
+          .nullable()
+          .optional(),
         endsOn: z
           .string()
           .refine(esFinDePeriodoValido, 'Usa un día real con la forma AAAA-MM-DD.')

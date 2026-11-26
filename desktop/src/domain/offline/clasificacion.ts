@@ -5,6 +5,7 @@
  * escritura; un rechazo del servidor sí la detiene, pero a la vista.** Perder
  * una nota en silencio es peor que mostrar un error que alguien tenga que leer.
  */
+import { respuestaProbarServidor } from './conectividad';
 import type { OutboxKind } from './outbox';
 
 export type ErrorDeEnvio = {
@@ -75,6 +76,12 @@ export function clasificarFallo(
   }
 
   if (kind === 'server') {
+    // 502/503/504 y 52x los pone lo que está delante cuando el servidor (o su
+    // base: `BASE_NO_DISPONIBLE`) no responde. No dicen nada de esta entrada:
+    // es «sin servidor», se espera sin gastar intentos ni seguir con la cola.
+    if (codigo === 'BASE_NO_DISPONIBLE' || (status !== undefined && !respuestaProbarServidor(status))) {
+      return { tipo: 'reintentar', red: true, detener: true, mensaje: error.mensaje, esperaMs: espera };
+    }
     if (contexto.intentos + 1 >= MAX_INTENTOS_5XX) {
       return { tipo: 'fallida', mensaje: error.mensaje };
     }

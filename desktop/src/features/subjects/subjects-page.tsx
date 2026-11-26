@@ -30,11 +30,13 @@ import {
 import { useDebounce } from '@/shared/hooks/use-debounce';
 import { useCurrentUser, useUserRole } from '@/state/session.store';
 import { can } from '@/core/auth/permissions';
-import { currentPeriod, recentPeriods } from '@/shared/lib/format';
+import { opcionesDePeriodo } from '@/shared/lib/format';
+import { usePeriodoActual } from '@/shared/hooks/use-periodo-actual';
 import { subjectInputSchema, type Subject, type SubjectInput } from '@/domain/schemas/academic';
 import { RosterImportDialog } from './components/roster-import-dialog';
 
-const EMPTY: SubjectInput = { name: '', code: '', period: currentPeriod(), credits: 3 };
+/** Formulario vacío; el periodo lo pone el vigente del servidor al abrirlo. */
+const EMPTY: SubjectInput = { name: '', code: '', period: '', credits: 3 };
 
 export default function SubjectsPage() {
   const [searchParams] = useSearchParams();
@@ -51,6 +53,7 @@ export default function SubjectsPage() {
   const [grupo, setGrupo] = useState('');
 
   const user = useCurrentUser();
+  const periodoVigente = usePeriodoActual();
   const role = useUserRole();
   const canWrite = can(role, 'subjects.write');
   const canDelete = can(role, 'subjects.delete');
@@ -77,11 +80,11 @@ export default function SubjectsPage() {
             period: editing.period,
             credits: editing.credits,
           }
-        : EMPTY,
+        : { ...EMPTY, period: periodoVigente },
     );
     setGrupo('');
     setErrors({});
-  }, [formOpen, editing]);
+  }, [formOpen, editing, periodoVigente]);
 
   const filtered = useMemo(() => {
     const term = debouncedQuery.trim().toLowerCase();
@@ -357,7 +360,7 @@ export default function SubjectsPage() {
                     value={values.period}
                     onChange={(event) => setValues({ ...values, period: event.target.value })}
                   >
-                    {recentPeriods(6).map((period) => (
+                    {opcionesDePeriodo(values.period || periodoVigente).map((period) => (
                       <option key={period} value={period}>
                         {period}
                       </option>

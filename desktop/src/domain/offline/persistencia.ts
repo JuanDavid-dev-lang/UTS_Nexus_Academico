@@ -21,7 +21,7 @@ const PERSISTIBLES: Readonly<Record<string, readonly string[] | null>> = {
   grades: null,
   gradeTemplates: null,
   attendance: ['list', 'summary'],
-  periods: ['list'],
+  periods: ['list', 'current'],
   profile: null,
   analytics: ['dashboard', 'risks'],
   schedules: null,

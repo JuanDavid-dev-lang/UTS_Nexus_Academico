@@ -38,7 +38,8 @@ import { TEXTO_SIN_CONEXION } from '@/features/offline/requiere-conexion';
 import { ExportButton } from '@/features/reports/components/export-button';
 import { useRecorteWeb } from '@/shared/hooks/use-recorte-web';
 import { can } from '@/core/auth/permissions';
-import { currentPeriod, etiquetaDeGrupo, formatGrade, recentPeriods } from '@/shared/lib/format';
+import { etiquetaDeGrupo, formatGrade, opcionesDePeriodo } from '@/shared/lib/format';
+import { usePeriodoSeleccionado } from '@/shared/hooks/use-periodo-actual';
 import { filasDePlanilla } from '@/domain/grades/planilla';
 
 /**
@@ -51,7 +52,7 @@ import { filasDePlanilla } from '@/domain/grades/planilla';
  */
 
 export default function GradesPage() {
-  const [period, setPeriod] = useState(currentPeriod());
+  const [period, setPeriod] = usePeriodoSeleccionado();
   const [subjectId, setSubjectId] = useState('');
   const [importOpen, setImportOpen] = useState(false);
   const enLinea = useEnLinea();
@@ -252,7 +253,7 @@ export default function GradesPage() {
                 setSubjectId('');
               }}
             >
-              {recentPeriods(6).map((option) => (
+              {opcionesDePeriodo(period).map((option) => (
                 <option key={option} value={option}>
                   {option}
                 </option>

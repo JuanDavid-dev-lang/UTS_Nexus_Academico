@@ -34,6 +34,7 @@ import {
   type SolicitudRegistro,
 } from '@/domain/schemas/academic';
 import { toast } from '@/state/toast.store';
+import { AVISO_USO_PARRAFOS, AVISO_USO_TITULO } from '@/domain/usage/aviso-uso';
 
 type Errores = Partial<Record<keyof SolicitudRegistro, string>>;
 
@@ -56,6 +57,7 @@ const VACIO = {
   institucionSolicitada: '',
   email: '',
   password: '',
+  aceptaAvisoUso: false,
 };
 
 /**
@@ -643,6 +645,30 @@ export default function RegisterPage() {
               </div>
             )}
           </SeccionFormulario>
+
+          {/* AVISO DE USO Y PRIVACIDAD: visible y aceptado antes de enviar. */}
+          <div className="rounded-card border border-border bg-surface p-5">
+            <h2 className="text-body font-semibold text-text">{AVISO_USO_TITULO}</h2>
+            <div className="mt-2 flex flex-col gap-2 text-caption text-muted">
+              {AVISO_USO_PARRAFOS.map((parrafo) => (
+                <p key={parrafo}>{parrafo}</p>
+              ))}
+            </div>
+            <label className="mt-3 flex cursor-pointer items-center gap-3 text-body text-text">
+              <input
+                type="checkbox"
+                className="size-4 shrink-0 accent-primary"
+                checked={valores.aceptaAvisoUso}
+                onChange={(e) => set('aceptaAvisoUso', e.target.checked)}
+              />
+              He leído el aviso de uso y privacidad
+            </label>
+            {errores.aceptaAvisoUso ? (
+              <p role="alert" className="mt-1 text-caption text-danger">
+                {errores.aceptaAvisoUso}
+              </p>
+            ) : null}
+          </div>
 
           {/* ACCIONES FINALES */}
           <div className="mt-2 rounded-card border border-border bg-surface p-5">

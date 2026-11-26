@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import './academic_repository.dart';
 import './models.dart';
+import './periodo_vigente.dart';
 
 // ── Índice de providers ─────────────────────────────────────────────────────
 //
@@ -24,6 +25,7 @@ export '../../features/settings/settings_providers.dart';
 export '../../features/students/students_providers.dart';
 export '../../features/subjects/subjects_providers.dart';
 export '../../features/thesis/thesis_providers.dart';
+export './periodo_vigente.dart';
 
 // ── Lo que de verdad comparten todas ────────────────────────────────────────
 
@@ -31,32 +33,38 @@ export '../../features/thesis/thesis_providers.dart';
 /// riesgo y notificaciones, así que vive aquí y no en ninguna de ellas.
 final academicRepositoryProvider = Provider((ref) => AcademicRepository());
 
+/// El semestre que corre según el servidor, o `null` sin respuesta ni caché.
+///
+/// Sin `autoDispose`, como el resto: se pide una vez por sesión y lo refresca
+/// el `sync:update` de `period`. Un fallo se traga y deja `null`, que hace caer
+/// al calendario: sin servidor, abrir en el semestre del mes es mejor que no
+/// abrir.
+final periodoVigenteProvider = FutureProvider<String?>((ref) async {
+  try {
+    return await ref.watch(academicRepositoryProvider).periodoActual();
+  } catch (_) {
+    return null;
+  }
+});
+
+/// El semestre que el docente eligió a mano en el selector; `null` si no
+/// eligió ninguno y se sigue al servidor.
+final periodoElegidoProvider = StateProvider<String?>((ref) => null);
+
 /// Periodo académico activo. Lo comparten notas, asistencia y reportes: cambiar
 /// de semestre en una pantalla lo cambia en todas, que es lo que un docente
 /// espera.
-final selectedPeriodProvider = StateProvider<String>((ref) => currentPeriod());
-
-String currentPeriod([DateTime? now]) {
-  final date = now ?? DateTime.now();
-  return '${date.year}-${date.month <= 6 ? 1 : 2}';
-}
-
-List<String> recentPeriods({int count = 6, DateTime? now}) {
-  final date = now ?? DateTime.now();
-  var year = date.year;
-  var half = date.month <= 6 ? 1 : 2;
-
-  return List.generate(count, (_) {
-    final value = '$year-$half';
-    if (half == 1) {
-      half = 2;
-      year -= 1;
-    } else {
-      half = 1;
-    }
-    return value;
-  });
-}
+///
+/// Se deriva en vez de guardarse: arranca en el del servidor cuando llega (y
+/// mientras tanto en el del calendario), y lo que se elige a mano manda.
+/// Copiar la respuesta del servidor a un `StateProvider` pisaría la elección
+/// del docente si llegara después.
+final selectedPeriodProvider = Provider<String>((ref) {
+  return periodoEnUso(
+    elegido: ref.watch(periodoElegidoProvider),
+    delServidor: ref.watch(periodoVigenteProvider).valueOrNull,
+  );
+});
 
 /// Listado global de materias del docente. Es la raíz de la navegación por
 /// materia, así que lo consultan varias capacidades a la vez.

@@ -2,6 +2,7 @@ import { AlertCircle, Inbox, PlugZap, SearchX } from 'lucide-react';
 import { Button } from '@/shared/ui/button';
 import { AppError, toAppError } from '@/core/api/errors';
 import { cn } from '@/shared/lib/cn';
+import { avisoDeLectura, esFalloDelServidor } from '@/domain/offline/aviso-servidor';
 
 /**
  * Empty, error and offline states.
@@ -34,6 +35,8 @@ function StateView({ icon, title, message, action, className }: StateViewProps) 
       */}
       <div className="flex text-subtle [&_svg]:size-7">{icon}</div>
       <h3 className="text-body font-semibold text-text">{title}</h3>
+      {/* La firma UTS separa el título de la explicación (DESIGN.md §4.1). */}
+      <span aria-hidden className="firma firma-filete" />
       <p className="max-w-sm text-caption leading-relaxed text-muted">{message}</p>
       {action ? (
         <Button variant="primary" size="sm" onClick={action.onClick} className="mt-2">
@@ -77,6 +80,10 @@ export function NoResultsState({ query, onClear }: { query: string; onClear: () 
  *
  * Retry is only offered when retrying could actually help - re-running a
  * request that failed with 403 just wastes the user's time.
+ *
+ * Un fallo del servidor (sin respuesta, tiempo, 5xx) no es un error de la
+ * persona ni una avería suya: se dice con calma y sin rojo
+ * (`domain/offline/aviso-servidor.ts`). Un 4xx se enseña tal cual.
  */
 export function ErrorState({
   error,
@@ -88,7 +95,8 @@ export function ErrorState({
   className?: string;
 }) {
   const appError = error instanceof AppError ? error : toAppError(error);
-  const offline = appError.kind === 'network';
+  const offline = esFalloDelServidor(appError);
+  const aviso = avisoDeLectura(false);
 
   return (
     <StateView
@@ -99,8 +107,8 @@ export function ErrorState({
           <AlertCircle className="size-6 text-danger" aria-hidden />
         )
       }
-      title={offline ? 'Sin conexión con el servidor' : 'No pudimos cargar la información'}
-      message={appError.message}
+      title={offline ? aviso.titulo : 'No pudimos cargar la información'}
+      message={offline ? aviso.detalle : appError.message}
       {...(onRetry && appError.isRetryable
         ? { action: { label: 'Reintentar', onClick: onRetry } }
         : {})}

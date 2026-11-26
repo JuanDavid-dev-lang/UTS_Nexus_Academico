@@ -41,8 +41,29 @@ export const periodoSchema = z.object({
    */
   endsOn: z.string().nullable().default(null),
   endsOnPorDefecto: z.string().nullable().default(null),
+  /**
+   * Primer día del semestre (`AAAA-MM-DD`). Con `endsOn` decide en el servidor
+   * qué semestre corre hoy. `startsOnPorDefecto` es el que se usa sin él.
+   */
+  startsOn: z.string().nullable().default(null),
+  startsOnPorDefecto: z.string().nullable().default(null),
 });
 export type Periodo = z.infer<typeof periodoSchema>;
+
+/**
+ * El semestre que corre hoy, decidido por el servidor (`GET /periods/current`).
+ * `origen` dice si salió de fechas que puso la administración o del
+ * calendario por defecto.
+ */
+export const periodoActualSchema = z.object({
+  period: z.string(),
+  label: z.string().default(''),
+  startsOn: z.string().nullable().default(null),
+  endsOn: z.string().nullable().default(null),
+  origen: z.enum(['configurado', 'calendario']).catch('calendario'),
+  state: estadoPeriodo.catch('OPEN'),
+});
+export type PeriodoActual = z.infer<typeof periodoActualSchema>;
 
 export const fotografiaSchema = mongoDoc.extend({
   period: z.string(),

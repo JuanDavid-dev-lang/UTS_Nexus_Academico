@@ -20,6 +20,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
+  ChartNoAxesColumn,
   FileSpreadsheet,
   GraduationCap,
   Landmark,
@@ -44,6 +45,7 @@ import { queryKeys } from '@/core/api/query-keys';
 import type { PosicionMenu } from '@/domain/appearance/preferences';
 import { rutaEnWeb } from '@/domain/platform/web-access';
 import { esWeb } from '@/core/platform/tauri';
+import { useSinMovimiento } from '@/shared/hooks/use-sin-movimiento';
 
 type NavItem = {
   to: string;
@@ -130,6 +132,7 @@ const NAV_GROUPS: NavGroup[] = [
       // secretaría consultan el estado y el acta aunque no cierren nada.
       { to: '/periodos', label: 'Periodos', icon: CalendarRange, capability: 'coordination.read' },
       { to: '/auditoria', label: 'Auditoría', icon: ScrollText, capability: 'audit.read' },
+      { to: '/uso', label: 'Uso de la aplicación', icon: ChartNoAxesColumn, capability: 'usage.read' },
       { to: '/estado-sistema', label: 'Estado del sistema', icon: Activity, capability: 'system.health' },
     ],
   },
@@ -146,10 +149,10 @@ const POR_POSICION: Record<
     indicador: string;
   }
 > = {
-  izquierda: { horizontal: false, borde: 'border-r', tooltip: 'right', indicador: 'left-0 h-5 w-[3px] rounded-r-full' },
-  derecha: { horizontal: false, borde: 'border-l', tooltip: 'left', indicador: 'right-0 h-5 w-[3px] rounded-l-full' },
-  arriba: { horizontal: true, borde: 'border-b', tooltip: 'bottom', indicador: 'bottom-0 left-2 right-2 h-[3px] rounded-t-full' },
-  abajo: { horizontal: true, borde: 'border-t', tooltip: 'top', indicador: 'top-0 left-2 right-2 h-[3px] rounded-b-full' },
+  izquierda: { horizontal: false, borde: 'border-r', tooltip: 'right', indicador: 'firma-vertical left-0 h-5 w-[3px]' },
+  derecha: { horizontal: false, borde: 'border-l', tooltip: 'left', indicador: 'firma-vertical right-0 h-5 w-[3px]' },
+  arriba: { horizontal: true, borde: 'border-b', tooltip: 'bottom', indicador: 'bottom-0 left-2 right-2 h-[3px]' },
+  abajo: { horizontal: true, borde: 'border-t', tooltip: 'top', indicador: 'top-0 left-2 right-2 h-[3px]' },
 };
 
 export function Sidebar({
@@ -165,6 +168,7 @@ export function Sidebar({
   const role = useUserRole();
   const unread = useUnreadCount();
   const forma = POR_POSICION[position];
+  const sinMovimiento = useSinMovimiento();
   const horizontal = forma.horizontal;
 
   // Como barra, con etiquetas puede no caber (un ADMIN en modo admin tiene
@@ -211,6 +215,7 @@ export function Sidebar({
         item.to === '/docentes' ||
         item.to === '/periodos' ||
         item.to === '/auditoria' ||
+        item.to === '/uso' ||
         item.to === '/estado-sistema'
       ) {
         return false;
@@ -260,8 +265,11 @@ export function Sidebar({
             {isActive ? (
               <motion.span
                 layoutId="nav-active-indicator"
-                className={cn('absolute bg-primary', forma.indicador)}
-                transition={{ type: 'spring', stiffness: 500, damping: 36 }}
+                // La firma UTS como marcador de sección (DESIGN.md §4.1): el
+                // guion de marca y el punto lima, en la misma forma que bajo
+                // el título de cada página.
+                className={cn('firma absolute', forma.indicador)}
+                transition={sinMovimiento ? { duration: 0 } : { type: 'spring', stiffness: 500, damping: 36 }}
               />
             ) : null}
             <item.icon className="size-4 shrink-0" aria-hidden />

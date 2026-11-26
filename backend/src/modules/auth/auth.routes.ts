@@ -14,6 +14,7 @@ import { passwordEntrante, passwordNueva } from '../../shared/validation.js';
 import { buscarPrograma } from '../../domains/catalog/uts.js';
 import { ORIGENES_APP_ESCRITORIO } from '../../shared/env.js';
 import { canalDeOrigen, type Canal } from '../../domains/scope/web-access.js';
+import { AVISO_USO_VERSION, avisoUsoPendiente } from '../../domains/usage/aviso-uso.js';
 import {
   DIAS_DE_SESION,
   PATRON_ID_DISPOSITIVO,
@@ -197,7 +198,14 @@ authRouter.post('/login', async (req, res, next) => {
       ok: true,
       accessToken,
       refreshToken,
-      user: { id: user.id, email: user.email, role: user.role, fullName: user.fullName, photoUrl: user.photoUrl },
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        fullName: user.fullName,
+        photoUrl: user.photoUrl,
+        avisoUsoPendiente: avisoUsoPendiente(user.avisoUsoVistoEn, user.avisoUsoVersion),
+      },
     });
   } catch (err) {
     next(err);
@@ -554,12 +562,46 @@ authRouter.post('/recovery/reset', recoveryResetLimit, async (req, res, next) =>
 
 authRouter.get('/me', identificar, exigirSesion, async (req, res) => {
   const user = await UserModel.findById(req.user!.id)
-    .select('_id email role fullName studentId tenantId photoUrl lastLoginAt createdAt updatedAt')
+    .select('_id email role fullName studentId tenantId photoUrl lastLoginAt createdAt updatedAt avisoUsoVistoEn avisoUsoVersion')
     .lean();
   if (!user) return res.status(404).json({ ok: false, message: 'Not found' });
+  const { avisoUsoVistoEn, avisoUsoVersion, ...resto } = user;
   // `id`, no el `_id` crudo de `lean()`: es la misma forma que devuelve
   // `/auth/login`, y el escritorio valida las dos respuestas con el mismo
   // esquema. Con `_id` el parse fallaba al restaurar la sesión y la aplicación
   // arrancaba pidiendo entrar de nuevo, sin decir por qué.
-  res.json({ ok: true, user: { ...user, id: user._id.toString() } });
+  res.json({
+    ok: true,
+    user: {
+      ...resto,
+      id: user._id.toString(),
+      // Si falta ver el aviso de uso y privacidad vigente. Los clientes
+      // anteriores ignoran el campo.
+      avisoUsoPendiente: avisoUsoPendiente(avisoUsoVistoEn, avisoUsoVersion),
+    },
+  });
+});
+
+/**
+ * Marca visto el aviso de uso y privacidad (`docs/USO_Y_PRIVACIDAD.md`).
+ *
+ * Sobre la propia cuenta y sobre nada más: por eso está en la lista blanca de
+ * secretaría (`role-access.ts`) y fuera del cupo de escritura
+ * (`RUTAS_DE_SESION`). Idempotente: repetirlo solo actualiza la fecha. La
+ * versión que manda el cliente se acota a la vigente: un cliente no puede dar
+ * por vista una versión que todavía no existe.
+ */
+authRouter.post('/aviso-uso', identificar, exigirSesion, async (req, res, next) => {
+  try {
+    const { version } = z
+      .object({ version: z.coerce.number().int().min(1).max(AVISO_USO_VERSION).default(AVISO_USO_VERSION) })
+      .parse(req.body ?? {});
+    await UserModel.updateOne(
+      { _id: req.user!.id, deletedAt: null },
+      { $set: { avisoUsoVistoEn: new Date(), avisoUsoVersion: version } },
+    );
+    res.json({ ok: true, avisoUsoPendiente: avisoUsoPendiente(new Date(), version) });
+  } catch (err) {
+    next(err);
+  }
 });

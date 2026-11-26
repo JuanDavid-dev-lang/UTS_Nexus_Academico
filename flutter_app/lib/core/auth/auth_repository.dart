@@ -8,7 +8,13 @@ class AuthRepository {
   Future<Map<String, dynamic>> login(String email, String password) async {
     final response = await _api.post(
       '/auth/login',
-      data: {'email': email, 'password': password, 'device': 'flutter'},
+      data: {
+        'email': email,
+        'password': password,
+        'device': 'flutter',
+        // Ata la sesión a este teléfono (`Sesion.deviceIdHash`).
+        if (_api.deviceId != null) 'deviceId': _api.deviceId,
+      },
     );
     return Map<String, dynamic>.from(response.data as Map);
   }
@@ -26,7 +32,12 @@ class AuthRepository {
   }) async {
     final response = await _api.post(
       '/auth/password',
-      data: {'currentPassword': actual, 'newPassword': nueva},
+      data: {
+        'currentPassword': actual,
+        'newPassword': nueva,
+        // El par nuevo sale atado al mismo teléfono que el anterior.
+        if (_api.deviceId != null) 'deviceId': _api.deviceId,
+      },
     );
     return Map<String, dynamic>.from(response.data as Map);
   }

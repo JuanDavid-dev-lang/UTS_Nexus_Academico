@@ -109,6 +109,23 @@ export function currentPeriod(now: Date = new Date()): string {
   return `${now.getFullYear()}-${now.getMonth() < 6 ? 1 : 2}`;
 }
 
+/**
+ * Opciones de un selector de periodo: los recientes del calendario más el
+ * vigente que decidió el servidor, sin repetir y del más nuevo al más viejo.
+ *
+ * El vigente puede no estar entre los recientes —en diciembre el servidor ya
+ * puede decir `2027-1` si la administración fijó su inicio—, y un `<select>`
+ * cuyo valor no está entre sus opciones enseña la primera y miente.
+ */
+export function opcionesDePeriodo(vigente: string, count = 6, now: Date = new Date()): string[] {
+  const todos = new Set([vigente, ...recentPeriods(count, now)]);
+  return [...todos].sort((a, b) => {
+    const [anioA = 0, cicloA = 0] = a.split('-').map(Number);
+    const [anioB = 0, cicloB = 0] = b.split('-').map(Number);
+    return anioB - anioA || cicloB - cicloA;
+  });
+}
+
 /** Recent periods, newest first - used to populate period selectors. */
 export function recentPeriods(count = 6, now: Date = new Date()): string[] {
   const periods: string[] = [];

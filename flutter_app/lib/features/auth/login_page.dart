@@ -7,6 +7,7 @@ import '../../core/network/api_error.dart';
 import '../../core/network/connection_controller.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/firma_uts.dart';
 import '../../core/widgets/rubri.dart';
 import '../../core/widgets/ui_kit.dart';
 import 'widgets/rubri_del_acceso.dart';
@@ -42,6 +43,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   bool _showManualServer = false;
   bool _obscurePassword = true;
 
+  /// «Mantener la sesión iniciada», como en el escritorio: marcada por defecto
+  /// y recordada en el teléfono. Desmarcada, nada de la sesión se guarda y
+  /// cerrar la app la termina (teléfono prestado, tableta de la sala común).
+  bool _mantener = true;
+
   @override
   void initState() {
     super.initState();
@@ -49,6 +55,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     // descubrimiento no se siente como una espera.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(connectionControllerProvider.notifier).initialize();
+      ref.read(authControllerProvider.notifier).leerMantenerSesion().then((
+        mantener,
+      ) {
+        if (mounted && mantener != _mantener) {
+          setState(() => _mantener = mantener);
+        }
+      });
     });
   }
 
@@ -74,7 +87,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     setState(() => _submitting = true);
     try {
-      await ref.read(authControllerProvider.notifier).login(email, password);
+      await ref
+          .read(authControllerProvider.notifier)
+          .login(email, password, mantener: _mantener);
       if (mounted) context.go('/');
     } catch (error) {
       final apiError = ApiError.from(error);
@@ -196,7 +211,24 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
                 ),
               ),
-              const SizedBox(height: AppSpacing.page + AppSpacing.gapXs),
+              const SizedBox(height: AppSpacing.gapXs),
+              CheckboxListTile(
+                key: const Key('mantener-sesion'),
+                value: _mantener,
+                onChanged: _submitting
+                    ? null
+                    : (valor) => setState(() => _mantener = valor ?? true),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                title: const Text('Mantener la sesión iniciada'),
+                subtitle: _mantener
+                    ? null
+                    : const Text(
+                        'Al cerrar la aplicación tendrás que volver a entrar.',
+                      ),
+              ),
+              const SizedBox(height: AppSpacing.gap),
 
               _BotonPrincipal(enviando: _submitting, onPressed: _submit),
               const SizedBox(height: AppSpacing.gapXs),
@@ -391,7 +423,11 @@ class _BandaDeMarca extends StatelessWidget {
                 color: sobreMarca,
               ),
             ),
-            const SizedBox(height: AppSpacing.gapXs),
+            // La firma UTS, con el guion del color del texto: el primario
+            // sobre el primario no se vería (DESIGN.md §4.1).
+            const SizedBox(height: AppSpacing.gapSm),
+            FirmaUts(tallo: sobreMarca),
+            const SizedBox(height: AppSpacing.gapSm),
             Text(
               'Menos planillas. Más tiempo con tus estudiantes.',
               style: AppType.body.copyWith(
@@ -553,7 +589,7 @@ class _ConnectionBanner extends StatelessWidget {
           _row(
             icon: Icons.warning_amber_outlined,
             color: SemanticTone.of(context, SemanticKind.warning).fg,
-            text: 'El servidor no alcanza la base de datos',
+            text: 'Hubo un problema en el servidor',
           ),
           const SizedBox(height: AppSpacing.gapXs),
           Text(

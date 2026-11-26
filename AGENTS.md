@@ -403,12 +403,15 @@ Configuración → «Cuentas del personal»; la gestión continua, en Personal.
 ### Cuentas, sesión y recuperación
 - **`POST /auth/register` es solo para ADMIN.** Acepta `role: 'ADMIN'` y la ficha de docente nace `APROBADO`, así que abierto era un generador público de administradores que además saltaba entero el diseño de `/registro`. Quien se da de alta por su cuenta pasa por `/registro`: interruptor de la administración, estado `PENDIENTE` y revisión humana.
 - **`POST /auth/refresh` rota el token** (RTR): cada canje quema el anterior sobre la misma sesión. Reutilizar uno ya rotado revoca **toda** la familia de sesiones del usuario, que es la única señal disponible de que alguien copió un token.
-- **Una sesión dura 15 días sin uso y queda atada al equipo** (`domains/session/session-policy.ts`, con pruebas). Cada renovación empieza otros 15, y el escritorio renueva una vez al día mientras está abierto, así que solo caduca quien cierra la aplicación y no vuelve en dos semanas. El escritorio manda `deviceId` —aleatorio, generado una vez y guardado en el almacén del sistema (`core/auth/device-id.ts`), **no se borra al cerrar sesión**— en `/login`, `/refresh` y `/password`; el servidor guarda su hash en `Sesion.deviceIdHash` y solo deja rotar esa sesión al mismo equipo, dentro del mismo `findOneAndUpdate`. Un refresh token presentado desde otro equipo (o sin `deviceId`) **revoca esa sesión** y responde 401. Las sesiones sin `deviceIdHash` —el móvil, que aún no lo manda, y las anteriores— siguen como antes, y una anterior queda atada al primer equipo que la renueva con identificador. `REFRESH_TOKEN_TTL` baja a `15d` por defecto; la caducidad que manda es `Sesion.expiresAt`.
+- **Una sesión dura 15 días sin uso y queda atada al equipo** (`domains/session/session-policy.ts`, con pruebas). Cada renovación empieza otros 15, y el escritorio renueva una vez al día mientras está abierto, así que solo caduca quien cierra la aplicación y no vuelve en dos semanas. El escritorio manda `deviceId` —aleatorio, generado una vez y guardado en el almacén del sistema (`core/auth/device-id.ts`), **no se borra al cerrar sesión**— en `/login`, `/refresh` y `/password`; el servidor guarda su hash en `Sesion.deviceIdHash` y solo deja rotar esa sesión al mismo equipo, dentro del mismo `findOneAndUpdate`. Un refresh token presentado desde otro equipo (o sin `deviceId`) **revoca esa sesión** y responde 401. El móvil también manda `deviceId` (`core/auth/device_id.dart`: 16 bytes aleatorios en el almacén seguro, clave `device_id`, **no se borra al cerrar sesión**) en `/login`, `/refresh` y `/password`. Las sesiones sin `deviceIdHash` —las anteriores— siguen como antes y quedan atadas al primer equipo que las renueva con identificador. `REFRESH_TOKEN_TTL` baja a `15d` por defecto; la caducidad que manda es `Sesion.expiresAt`.
 - **«Mantener la sesión iniciada»** (casilla del acceso del escritorio, marcada por defecto y recordada en `localStorage`): desmarcada, `tokenService.set(..., { persistir: false })` deja los tokens solo en memoria y borra los guardados, y las renovaciones conservan esa elección. Es para la sala común: cerrar la ventana termina la sesión.
 - **Solo el servidor termina una sesión; no contestar no la termina.** El refresco del escritorio distingue `rejected` (el servidor dijo que no: se borra) de `unreachable` (sin conexión, 5xx o 429: se conserva y la petición falla como `network`). Al arrancar, un `/auth/me` sin respuesta deja la sesión en `unreachable` —pantalla que reintenta sola cada 15 s— en vez de borrarla. Antes cualquier fallo al arrancar borraba los tokens, y abrir la app con el servidor apagado o aún despertando acababa siempre en el inicio de sesión.
 - **El código de recuperación se envía por correo, nunca en la respuesta.** Solo vuelve en `devCode` con `ALLOW_DEV_RECOVERY_CODE=1`, fuera de producción y sin `SMTP_HOST`: las tres condiciones a la vez. Devolverlo siempre convierte `/recovery/request` en una toma de cuenta de un solo paso, porque basta conocer un correo del directorio. Antes bastaban las dos últimas condiciones, es decir, **se deducía de dos ausencias**: un despliegue que olvidara `NODE_ENV` y no tuviera SMTP lo devolvía sin que nadie lo hubiera decidido. Deducir un permiso a partir de lo que falta es lo contrario de conceder un permiso.
 - **`POST /auth/password` cambia la contraseña propia y lo puede hacer cualquier rol** (incluida secretaría: escribe sobre su cuenta y sobre nada más, por eso está en la lista blanca de `role-access.ts`). Exige la actual —con solo el token, un equipo desbloqueado sería una toma de cuenta en dos clics—, **revoca todas las sesiones** y devuelve un par nuevo: sin eso, cambiarse la contraseña echaba al propio usuario al inicio de sesión y se leía como una avería. Está en Configuración de los dos clientes.
 - Las contraseñas van acotadas a 128 caracteres en todas las rutas: bcrypt solo mira 72 bytes, y sin tope `bcrypt.compare` con una cadena de megabytes ocupa el único hilo del proceso.
+
+- **«Mantener la sesión iniciada» también en el móvil** (casilla del acceso, marcada por defecto y recordada en `mantener_sesion`). Desmarcada, `login(..., mantener: false)` no guarda tokens ni usuario y borra lo guardado; las renovaciones y el cambio de contraseña respetan la elección. La bandeja de salida va siempre a disco.
+- **Renovación diaria en el móvil** (`core/auth/keep_alive.dart`, misma regla que el escritorio): al entrar y al volver a primer plano, si el refresh token tiene más de un día, se renueva por el mismo vuelo único que el 401 (`renewAccessToken`). Una sesión mantenida no caduca por abrir la app poco.
 
 ### Listados: carga progresiva en los dos clientes
 
@@ -501,9 +504,18 @@ nueve fallos por 429 a partir del décimo escenario.
 - **Abrir, renovar y cerrar sesión no gastan el cupo de escritura**
   (`RUTAS_DE_SESION`): llegan sin sesión y contaban por IP, así que detrás de
   la NAT del campus unas 120 renovaciones agotaban el cupo de todos.
-- **Cerrar sesión en el móvil revoca la sesión en el servidor**
-  (`POST /auth/logout`, de mejor esfuerzo y con 3 s de tope). Antes solo borraba
-  lo local y el refresh token seguía valiendo 15 días.
+- **Cerrar sesión en el móvil es rápido y no deja nada colgado**
+  (`AuthController.logout`). Lo local —tokens guardados, caché de lectura,
+  socket, precarga, estado de sincronización— se suelta en paralelo y la
+  pantalla vuelve al acceso en milisegundos; la baja del push y
+  `POST /auth/logout` siguen en segundo plano con **3 s de tope en total**. El
+  push se da de baja **antes** de soltar los tokens: desde `app.dart` salía ya
+  sin sesión y el teléfono seguía recibiendo las alertas del docente anterior.
+  Un segundo `logout` espera al primero, y un contador impide que ese segundo
+  plano borre los tokens de quien entre durante esos 3 s. La bandeja de salida
+  no se borra. Al entrar con otra cuenta (y al salir), `app.dart` invalida los
+  providers académicos (`_invalidarDatosAcademicos`): no dependen de la sesión,
+  y el docente siguiente veía las materias del anterior.
 - **Registro, cambio de contraseña y recuperación no castigan a un campus
   entero.** El registro frena los errores en 10 y las solicitudes buenas en 60
   por IP; `/auth/password` cuenta por cuenta; `/recovery/reset` solo cuenta
@@ -544,6 +556,8 @@ Un PDF con capa de texto se lee tal cual (confianza 1.0, sin reconocimiento que 
 
 Los tres escáneres (`/enrollments/import/scan`, `/grades/import/scan`, `/attendance/scan`) **filtran el tipo de archivo por firma real**, no por el `mimetype` ni por la extensión que manda el cliente: los tipos aceptados viven en `shared/uploads.ts` y lo que pasa el filtro va a `opencv`, `pypdf` y `rapidocr`, que son parsers nativos. También es de ahí de donde sale si el archivo es una hoja de cálculo (se interpreta en el backend) o una imagen (va al servicio de visión): antes esa decisión la tomaba el nombre del archivo.
 
+**El móvil también lee archivos y fotos** (`features/students/leer_listado.dart`, lógica pura en `roster_scan.dart`). En «Agregar estudiantes» de la materia: «Archivo» (`file_selector`, paquete oficial de Flutter, sin permisos nuevos) y «Foto» o galería (`image_picker`, 2400 px y calidad 85). Un CSV/TSV/TXT se lee en el teléfono; un XLSX, XLS, PDF o una foto van a `POST /enrollments/import/scan` con el `mimetype` de `ENTRADA_DE_ESCANER` (el multer filtra por él antes de leer el cuerpo). La propuesta cae como texto en el mismo cuadro de la lista pegada y se revisa en el acto con `parseRoster`; las filas con confianza < 0.7 se nombran en el resumen, no dentro de la línea. Solo «Matricular N» escribe. Sin conexión, PDF y foto se desactivan y lo dice (el CSV sigue). El directorio solo abre CSV: el escáner exige grupo. La subida reintenta una vez tras un 401 con un `FormData` nuevo, porque el interceptor no puede repetir un cuerpo ya consumido.
+
 ### Importación de calificaciones
 Mismo contrato de dos pasos que el listado y el escáner de asistencia: `POST /grades/import/scan` **propone** (Excel lo interpreta el backend con exceljs; PDF/foto van a `/vision/grades` del servicio ML) y `POST /grades/bulk` **escribe** tras la revisión en tabla del escritorio (`grades-import-dialog.tsx`). El corte y el componente se eligen una vez por lote; cada columna lleva su `label`, y como el `label` es parte de la clave única de Nota, repetirlo **sobrescribe** — por eso la respuesta separa `creadas` de `actualizadas` y el cliente lo avisa. La lógica pura (interpretar la matriz, cruzar con matrícula reutilizando el algoritmo de `sheet-match`) vive en `domains/grading/import-notas.ts`; el clamp 0–5 nunca recorta en silencio: una nota fuera de rango se marca para revisión (un «45» suele ser un 4.5 sin punto). Solo escritorio: el texto pegado y el CSV se parsean en cliente (`desktop/src/domain/grades/parse-grades.ts`).
 
@@ -563,6 +577,9 @@ La tipografía es Inter, empaquetada en `backend/assets/fonts` (si falta, Helvet
 
 ### Buzón de sugerencias (`/feedback`)
 El personal escribe (escritorio y móvil, secretaría incluida), ADMIN revisa y cambia el estado; al resolver/descartar se avisa al autor vía `crearNotificacion()` con `dedupeKey`. No confundir con `risk-feedback` (realimentación del modelo ML). La bandeja completa es solo de ADMIN; los demás roles —coordinación incluida— ven solo lo suyo.
+
+### Avisos programados (`/avisos`)
+ADMIN publica ahora o **programa** con fecha y hora, con caducidad opcional posterior a la publicación (validada en el formulario, `domain/announcements/programacion.ts`, y en el servidor contra lo que quedará guardado, `domains/announcements/announcement-status.ts`). Un programado no se reparte al crearlo —adelantaría su contenido—: lo recoge `repartirAvisosPendientes` cuando llega su fecha. **El estado lo dice el servidor** (`estado`: `PROGRAMADO` | `VIGENTE` | `CADUCADO`), igual que en las actividades: un cliente con la hora mal puesta enseñaría «Programado» un aviso que ya se está leyendo. Solo ADMIN ve programados y caducados; para el resto el listado sigue filtrando por fechas, y un programado no cuenta en «sin leer». `PATCH /avisos/:id` cambia la fecha de salida **solo mientras está programado**: moverla en uno publicado es 409 `AVISO_PUBLICADO`, porque lo escondería a quien lo está leyendo y su notificación ya salió. Adelantar un programado a «ahora» lo reparte en el acto, con la misma marca condicional sobre `notificadoEn` que el programador, así que nunca se reparte dos veces. Cancelar es eliminarlo, y el `PATCH` queda en la auditoría. El móvil no redacta avisos; los programados salen con su marca y abrirlos no los marca como leídos.
 
 ### Perfiles institucionales (`/instituciones`)
 
@@ -642,6 +659,8 @@ por periodo: uno solo superaría los 16 MB de MongoDB el día del cierre. Lo que
 guarda ya viene de `computeAcademicRecords()`; aquí no se recalcula nada.
 Reabrir **no borra** la fotografía anterior: anota autor, fecha, motivo y
 versión en `reopenings[]`.
+
+**Qué semestre corre lo decide el servidor** (`GET /periods/current`, cualquier sesión, también la web). Antes cada cliente lo deducía del mes de su reloj, y un equipo con la fecha mal puesta, o un semestre alargado hasta julio, bastaban para que escritorio y teléfono abrieran en semestres distintos: la lista simplemente salía vacía. ADMIN pone `startsOn` y `endsOn` en cada periodo (`PATCH /periods/:period`, que lo crea si no existe, así que el siguiente se prepara antes de empezar; un inicio posterior al fin es 400). La regla es pura y probada (`domains/periods/period-current.ts`) y mide el día en el campus: un periodo configurado cuyo rango contiene hoy; si no, el de calendario (enero–junio `-1`, julio–diciembre `-2`); en el hueco entre semestres, el siguiente que ya tiene inicio; si no, el de calendario. `origen` dice cuál de las dos fuentes decidió, y la pantalla de Periodos lo enseña. Un periodo creado de antemano no adelanta el actual. En los clientes, **lo que el docente elige en el selector manda**: se guarda la elección y el periodo en uso se deriva (`usePeriodoSeleccionado` en el escritorio, `selectedPeriodProvider` = `periodoEnUso(elegido, periodoVigenteProvider)` en el móvil). Copiar la respuesta a un estado la pisaría si llegara tarde. Sin respuesta ni caché se cae al mes del reloj (`currentPeriod()`), que es mejor que no abrir. La consulta se persiste sin conexión (raíz `periods`, clave `current`; `periodo.actual` en el móvil), la precarga de los dos la pide antes de precargar materias, y `sync:update` de `period` la invalida. El selector añade el vigente a sus opciones aunque el calendario local no lo tenga (`opcionesDePeriodo`). **No vuelvas a llamar a `currentPeriod()` en una pantalla**: es solo el respaldo.
 
 ### Estado de una actividad: `LATE` no se persiste
 
@@ -741,6 +760,82 @@ corto: encadenadas, el panel tardaría más cuanto peor estuviera el sistema.
 Las tareas se leen de `ejecuciones_tareas` (`shared/job-run.ts`), no de una
 variable del proceso: con dos instancias, la que atiende la consulta no tiene
 por qué ser la que ejecutó la tarea.
+
+### Uso de la aplicación (`/uso`, `domains/usage/`)
+
+ADMIN ve cuánto se usa la aplicación y quién la usa más. Es **estadística
+interna**: no se publica, y cada persona fue avisada al entrar. Detalle en
+`docs/USO_Y_PRIVACIDAD.md`.
+
+- **No hay una escritura por petición.** `registrarPeticionDeUso`, justo detrás
+  de `identificar`, suma a un acumulador en memoria (una entrada por persona y
+  día del campus) y `volcarUso()` lo vuelca cada 60 s con **un** `bulkWrite` de
+  upserts (`$inc`, `$addToSet`, `$min`, `$max`). Escribir en cada petición habría
+  duplicado las escrituras de toda la API para guardar una estadística. Lo que
+  se arriesga es, como mucho, un minuto si el proceso muere de golpe: el
+  apagado ordenado (`SIGTERM`/`SIGINT` en `server.ts`) vuelca antes de salir, y
+  un volcado fallido devuelve sus entradas al acumulador.
+- **Minutos activos = franjas de 5 minutos con actividad**, guardadas como
+  número de franja con `$addToSet` y no como contador: dos instancias, o el
+  escritorio y el móvil a la vez, no cuentan dos veces el mismo rato. El ranking
+  ordena por minutos, luego días, luego peticiones; las peticiones solas
+  premian a quien tiene más pantallas abiertas.
+- **El cliente se deduce, no se declara**: `web` por el canal del token;
+  dentro de `app`, móvil por el `User-Agent` de `dart:io` y escritorio por el
+  `Origin` de Tauri (`clienteDePeticion`, con pruebas).
+- `uso_diario` no guarda rutas, pantallas ni contenido. TTL de **400 días**
+  sobre `ultimaActividad`.
+- `GET /uso/resumen | /uso/ranking | /uso/export.xlsx` son **solo ADMIN**, por
+  lo mismo que la auditoría: abrirlo a coordinación lo convertiría en una forma
+  de vigilar al personal. Escritorio: «Uso de la aplicación» (`usage.read`).
+  Móvil: «Uso de la app» en «Más», `roles: ['ADMIN']`, rama al final de
+  `rutasDeRama`.
+- **Aviso de uso y privacidad.** `Usuario.avisoUsoVistoEn` y `avisoUsoVersion`;
+  `/auth/login` y `/auth/me` devuelven `avisoUsoPendiente`. El registro lo
+  muestra con su casilla y lo guarda al aceptar (`aceptaAvisoUso`, opcional
+  para el servidor: un móvil anterior no lo manda); las cuentas existentes ven
+  un diálogo una vez y «Entendido» llama a `POST /auth/aviso-uso`, que está en
+  la lista blanca de secretaría y fuera del cupo de escritura. Sin conexión no
+  se enseña y nunca bloquea. El texto vive en los dos clientes y en el
+  documento; el servidor solo guarda la versión, y **subir
+  `AVISO_USO_VERSION` (backend y los dos clientes, en el mismo commit) lo
+  vuelve a enseñar a todos**.
+
+### Contingencia del backend: varias instancias y base caída
+
+- **Cada tarea periódica corre en una sola instancia a la vez**
+  (`shared/turno-tarea.ts`, con pruebas, y `ejecutarTarea` en
+  `shared/job-run.ts`). Cada proceso arranca todas las tareas, y el 13 de
+  noviembre de 2026 tres hosts (`server1`, `servidor2` y un contenedor docker
+  contra Atlas) ejecutaban los mismos recordatorios y avisos. Ahora el
+  documento de `ejecuciones_tareas` lleva un turno (`leaseHolder`,
+  `leaseUntil`): una instancia lo reclama con un `findOneAndUpdate` + `upsert`
+  y lo renueva en cada pasada; si lo tiene otra, el índice único de `job`
+  rechaza el upsert (E11000) y esa instancia se salta la pasada. El turno es
+  **pegajoso** —dura dos intervalos y medio, mínimo 3 min— para que dos
+  instancias no se alternen; si la que lo tiene muere, otra lo toma al vencer.
+  Si la base falla al reclamarlo se ejecuta igual, como antes. La instancia se
+  identifica por su **host, no por su pid**: con el pid, el proceso nuevo de un
+  despliegue encontraba vigente el turno del anterior y se saltaba las tareas
+  dos intervalos y medio. Al apagarse (`SIGTERM`/`SIGINT`) suelta sus turnos
+  (`liberarTurnos`). `JOBS_ENABLED=0` apaga las tareas en una instancia
+  (contenedor de pruebas, réplica).
+- **Una notificación se considera nueva solo si el upsert la insertó**
+  (`includeResultMetadata` en `crearNotificacion`): deducirlo del `findOne`
+  previo dejaba a dos instancias mandar el mismo push.
+- **La base caída es 503 con `Retry-After`, no 500** (`esFalloDeConexionConLaBase`
+  en `shared/error.ts`, código `BASE_NO_DISPONIBLE`). Con el 500, la cola del
+  escritorio contaba cada fallo contra esa nota y la marcaba `fallida` a los
+  ocho; ahora `clasificarFallo` trata 502/503/504/52x y `BASE_NO_DISPONIBLE`
+  como «sin servidor»: espera sin gastar intentos.
+- **La conexión inicial a Atlas se reintenta** (`shared/db.ts`, 5 s → 60 s).
+  Mongoose reconecta una conexión que existió, no la primera: un arranque con
+  Atlas caído dejaba el proceso vivo —systemd no lo reinicia— y sin base. Los
+  perfiles institucionales iniciales se aseguran cuando la conexión llega, no
+  solo tras el primer intento (`server.ts`).
+- Lo que la revisión de estructura dejó pendiente (respaldo de Atlas, rollback
+  del despliegue, deriva de índices en `/system/health`, CI incompleto, versión
+  mínima de cliente) está priorizado en `docs/REVISION_ESTRUCTURA.md`.
 
 ### Telemetría de clientes
 
@@ -871,7 +966,7 @@ aparecer en el listado del teléfono).
 
 `period` es la que más arrastra: cerrar un semestre bloquea notas, asistencia y
 matrículas, así que tira esas tres cachés. Un formulario abierto que no se
-entere manda el cambio y recibe un 409 que no espera.
+entere manda el cambio y recibe un 409 que no espera. `period` tira también el semestre vigente (`['periods','current']` en el escritorio, `periodoVigenteProvider` en el móvil): cambiar las fechas de un semestre puede cambiar cuál corre hoy.
 
 Las actividades salen por `emitToUser`, no por difusión: llevan el título de
 una evaluación y la fecha de un parcial, y emitirlas a `role:PROFESSOR` las
@@ -939,6 +1034,8 @@ Dos mitades que no se mezclan:
   app en línea y, si fallan, ni sirven lo guardado ni marcan «datos guardados»**:
   un fallo de la precarga no puede encender el indicador de sin conexión. Un lector
   de caché nuevo tiene que respetar `enPrecarga`.
+
+- **Qué se dice cuando el servidor no contesta** (`core/network/mensajes_de_fallo.dart`). Con escrituras en la bandeja y sin red, tiempo de espera o un 5xx (502/503/504 incluidos), el mensaje es siempre «Hubo un problema en el servidor. Tus cambios quedan guardados en el teléfono y se subirán cuando se restablezca el servicio.»: en los avisos de nota y asistencia encolada, en la hoja del indicador (`explicacionDelIndicador`) y en el motivo de una entrada pendiente (`motivoDeEntrada`). Un 4xx rechazado conserva el mensaje del servidor; un 429 dice la espera.
 
 Garantías, las que fijan `outbox_logic_test.dart` y `outbox_service_test.dart`:
 
@@ -1196,6 +1293,28 @@ clave natural, así que reenviar es seguro.
   las que el servidor ya acota al docente. **Si una pantalla cambia la clave de su
   consulta, hay que cambiarla también en `precarga.ts`**: no falla, deja de
   precargarse.
+
+### Fallo del servidor: el mensaje no alarma (`domain/offline/aviso-servidor.ts`)
+
+En los equipos de los clientes salía «sin conexión con el servidor» o
+«verifica que esté encendido», y se leía como «el servidor se cayó y perdí lo
+que hice». No es así: notas y asistencia pasan por la cola y suben solas.
+`esFalloDelServidor()` decide cuándo aplica —sin respuesta, tiempo agotado o
+5xx; **nunca** un 4xx, un 401 ni un 429, que son respuestas del servidor y se
+enseñan tal cual— y el texto sale de un solo sitio, con pruebas en
+`tests/unit/aviso-servidor.test.ts`:
+
+- Escritura en cola (toast de `avisarGuardadoEnEquipo`, panel de envíos,
+  «Requiere conexión», tooltip de la barra superior): «Hubo un problema en el
+  servidor. Tus cambios quedan en local y se subirán cuando se restablezcan
+  los servicios.» **En la web dice «en esta pestaña»** y pide no cerrarla: la
+  cola vive en memoria y prometer el disco sería mentir (`dondeSeGuarda()`).
+- Lectura con datos en pantalla: se siguen viendo y sale una nota discreta
+  («Mostrando lo último guardado», como mucho una por minuto) en vez del toast
+  de error. Sin datos, `ErrorState` lo dice sin rojo.
+- Los mensajes genéricos de `errors.ts` (`network`, `timeout`, `server`) no
+  prometen guardado en local: fuera de notas y asistencia nada pasa por la
+  cola.
 
 ### Escritorio en Linux
 
@@ -1751,6 +1870,22 @@ tamaño del texto, reducir movimiento).
   commitearlo; sobre blanco este fallo es invisible.
 - Los gráficos de escritorio leen los tokens en vivo y se repintan al cambiar de tema; no les pases colores fijos.
 
+### Firma UTS (DESIGN.md §4.1)
+
+El único detalle decorativo propio: un guion de marca y un punto lima
+separados por un hueco, sacado del membrete de las actas. Vive en un solo
+sitio por cliente —`.firma` / `--firma-*` (`globals.css`, `tokens.css`) y
+`pintarFirma` / `FirmaMedidas` / `FirmaUts` (`core/theme/firma.dart`,
+`core/widgets/firma_uts.dart`)— y **los números tienen que coincidir**; se
+cambian en el mismo commit. Las pantallas no la ponen: la heredan de
+`PageHeader` / `CompactHeader` (bajo el título), del indicador del menú
+lateral y de la barra inferior (`IndicadorConFirma`, en el tema), de
+`StateView` y de la marca del acceso. Es decoración —el estado activo lo
+dicen el fondo y el texto—, va siempre oculta para el lector de pantalla y
+sigue al tono de Apariencia porque solo nombra tokens. **No la pongas en
+tarjetas, filas ni secciones**: si está en todas partes deja de firmar.
+El indicador del menú lateral respeta «reducir movimiento» (salta sin el resorte).
+
 ## Variables de entorno — trampas conocidas
 
 Leídas por `backend/src/shared/env.ts`. **Un nombre mal escrito no da error: cae en silencio al valor por defecto.** Verificar con `npm run check:env`.
@@ -1779,6 +1914,7 @@ Leídas por `backend/src/shared/env.ts`. **Un nombre mal escrito no da error: ca
   puerto, el login falla con un error de red que **no** menciona CORS.
 - El backend escucha en todas las interfaces (`0.0.0.0`) — necesario para que el móvil se conecte desde el teléfono.
 - `CAMPUS_UTC_OFFSET_MIN` (por defecto `-300`) es la zona del campus. Si el servidor corre en UTC y esto no se declara bien, **todas las clases y todos los recordatorios se desplazan varias horas sin ningún error visible**.
+- **`JOBS_ENABLED=0`** apaga las tareas periódicas en esa instancia (un contenedor de pruebas o una réplica). Encendidas por defecto; con varias encendidas, el turno de `shared/turno-tarea.ts` evita que la misma tarea corra en dos a la vez.
 - `CLASS_REMINDER_INTERVAL_MIN` va a `1` por defecto: un aviso de «empieza en 15 minutos» comprobado cada cuarto de hora no es un aviso. Con varias instancias, activarlo en una sola.
 - **El push a Android está apagado por defecto.** Sin `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL` y `FCM_PRIVATE_KEY` no se envía nada con la app cerrada y queda anotado en el log. Los recordatorios de clase siguen llegando: los programa el teléfono como alarmas locales.
 - **El puente con UniPlanner está apagado por defecto.** Sin `UNIPLANNER_PROJECT_ID`, `UNIPLANNER_CLIENT_EMAIL` y `UNIPLANNER_PRIVATE_KEY` no se lee ningún enlace ni se escribe ningún aviso, y queda anotado en el log. **La clave de cada universidad no es una variable**: sale de `Institucion.institutionId`, que es el identificador que ese modelo ya declara como «el que usará UniPlanner»; en el entorno, el despliegue entero quedaría atado a una sola. `UNIPLANNER_SOLO_VERIFICADOS=1` limita avisos y marcas de QR a los enlaces verificados (solos o a mano). Con la verificación automática es viable; los enlaces anteriores, sin nombre, se quedan fuera hasta que la persona lo añada en su app.
@@ -1912,6 +2048,9 @@ Los tres clientes se actualizan desde **GitHub Releases**; el proceso completo e
 - `ml_service/README.md` — ciclo de entrenamiento, endpoints y variables del modelo.
 - `docs/ARQUITECTURA_V2.md` — auditoría de la v1 y arquitectura de la v2.
 - `DESIGN.md` — tokens de diseño, paleta, accesibilidad (fuente de los estilos del escritorio).
+- `docs/USO_Y_PRIVACIDAD.md` — registro de uso de la aplicación: qué se guarda, cómo se cuentan los minutos, retención, quién lo ve y el texto del aviso de privacidad.
+- `docs/PARIDAD_CLIENTES.md` — qué hace cada cliente por rol (escritorio, móvil, web), qué diferencia es deliberada y la lista priorizada de huecos.
+- `docs/REVISION_ESTRUCTURA.md` — revisión de contingencia y actualizaciones (noviembre de 2026): tareas en varias instancias, base caída, respaldo, despliegue, CI y dependencias, con la lista priorizada de lo pendiente.
 - Swagger interactivo en `http://localhost:4000/docs` con el servidor arriba.
 ---
 

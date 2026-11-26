@@ -8,7 +8,7 @@ import '../auth/auth_repository.dart';
 import '../data/academic_repository.dart';
 import '../data/campus_time.dart';
 import '../data/models.dart';
-import '../data/providers.dart' show currentPeriod;
+import '../data/periodo_vigente.dart' show currentPeriod;
 import '../storage/offline_cache.dart';
 import './precarga_plan.dart';
 
@@ -25,14 +25,15 @@ class PrecargaService {
     Future<void> Function(TareaPrecarga)? ejecutor,
     Future<({List<Subject> materias, List<Group> grupos})> Function()? base,
   }) : _ahora = ahora ?? DateTime.now,
-       _periodo = periodo ?? currentPeriod,
+       _periodoFijo = periodo,
        _ejecutorPrueba = ejecutor,
        _basePrueba = base;
 
   static final PrecargaService instance = PrecargaService();
 
   final DateTime Function() _ahora;
-  final String Function() _periodo;
+  /// Solo en pruebas. Sin él se pregunta al servidor qué semestre corre.
+  final String Function()? _periodoFijo;
   final Future<void> Function(TareaPrecarga)? _ejecutorPrueba;
   final Future<({List<Subject> materias, List<Group> grupos})> Function()?
   _basePrueba;
@@ -91,7 +92,12 @@ class PrecargaService {
     } catch (_) {
       return false;
     }
-    final periodo = _periodo();
+    // El periodo del servidor, por la misma lectura que la pantalla: así queda
+    // en caché el vigente y las materias se precargan de ese semestre y no del
+    // que dice el reloj del teléfono.
+    final periodo = _periodoFijo?.call() ??
+        await _academico.periodoActual().catchError((_) => null) ??
+        currentPeriod();
     final tareas = tareasDeMaterias(
       subjects: base.materias,
       groups: base.grupos,

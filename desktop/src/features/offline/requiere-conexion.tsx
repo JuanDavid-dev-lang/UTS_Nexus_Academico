@@ -1,5 +1,7 @@
 import { PlugZap } from 'lucide-react';
 import { cn } from '@/shared/lib/cn';
+import { dondeSeGuarda } from '@/core/offline/avisos';
+import { avisoDeFalloDelServidor } from '@/domain/offline/aviso-servidor';
 
 /**
  * Estado para lo que no funciona sin servidor (asistente, reportes, lectura de
@@ -30,8 +32,8 @@ export function RequiereConexion({
       </div>
       <h3 className="text-body font-semibold text-text">Requiere conexión</h3>
       <p className="max-w-sm text-caption leading-relaxed text-muted">
-        {funcion} necesita al servidor y ahora no responde. Puedes seguir calificando y pasando
-        lista: lo que escribas se guarda en este equipo y se envía solo al volver la conexión.
+        {funcion} necesita al servidor, y ahora hay un problema en él. Puedes seguir calificando y
+        pasando lista. {avisoDeFalloDelServidor(dondeSeGuarda()).detalle}
       </p>
     </div>
   );

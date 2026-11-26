@@ -40,6 +40,20 @@ describe('clasificar el fallo de un envío', () => {
     });
   });
 
+  it('502/503/504 o la base caída esperan sin gastar intentos ni acabar en fallida', () => {
+    const tarde = { ...nota, intentos: MAX_INTENTOS_5XX + 5 };
+    for (const status of [502, 503, 504, 522]) {
+      expect(clasificarFallo(err({ kind: 'server', status }), tarde)).toMatchObject({
+        tipo: 'reintentar',
+        red: true,
+        detener: true,
+      });
+    }
+    expect(
+      clasificarFallo(err({ kind: 'server', status: 500, codigo: 'BASE_NO_DISPONIBLE' }), tarde),
+    ).toMatchObject({ tipo: 'reintentar', detener: true });
+  });
+
   it('401 pausa y conserva; borrar lo que ya no existe es éxito', () => {
     expect(clasificarFallo(err({ kind: 'unauthorized' }), nota)).toEqual({ tipo: 'pausar' });
     expect(clasificarFallo(err({ kind: 'not_found' }), { kind: 'grade.delete', intentos: 0 })).toEqual({ tipo: 'exito' });

@@ -15,6 +15,7 @@ import { useSession, useUserRole } from '@/state/session.store';
 import { can } from '@/core/auth/permissions';
 import { menuEsHorizontal } from '@/domain/appearance/preferences';
 import { AvisoWeb } from '@/features/web/aviso-web';
+import { AvisoUsoDialog } from '@/features/usage/aviso-uso-dialog';
 
 export function AppShell() {
   // El tutorial se ofrece una sola vez por persona, la primera vez que entra.
@@ -193,6 +194,8 @@ export function AppShell() {
         </button>
       ) : null}
       {tourAbierto && <Tour onFinish={cerrarTour} />}
+      {/* Aviso de uso y privacidad: una vez por cuenta, no bloquea sin red. */}
+      {!tourAbierto && <AvisoUsoDialog />}
     </div>
   );
 }

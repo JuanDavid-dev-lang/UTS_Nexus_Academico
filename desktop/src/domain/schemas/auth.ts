@@ -24,6 +24,8 @@ export const userSchema = z.preprocess((valor) => {
   role,
   fullName: z.string(),
   photoUrl: z.string().nullable().optional(),
+  /** Falta ver el aviso de uso y privacidad vigente. Un servidor anterior no lo manda. */
+  avisoUsoPendiente: z.boolean().optional(),
 }));
 
 export type User = z.infer<typeof userSchema>;

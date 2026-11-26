@@ -64,7 +64,7 @@ describe('appErrorFromResponse', () => {
       message: 'Operation `usuarios.findOne()` buffering timed out after 10000ms',
     });
 
-    expect(error.message).toBe('El servidor tuvo un problema. Intenta de nuevo en unos segundos.');
+    expect(error.message).toBe('Hubo un problema en el servidor. Inténtalo de nuevo en unos segundos.');
     // The raw text is still available for diagnosis, just not on screen.
     expect(error.details).toMatchObject({
       message: expect.stringContaining('buffering timed out'),

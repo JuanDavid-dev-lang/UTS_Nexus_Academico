@@ -20,9 +20,9 @@ class PeriodSelector extends ConsumerWidget {
       tooltip: 'Cambiar periodo académico',
       initialValue: period,
       onSelected: (value) =>
-          ref.read(selectedPeriodProvider.notifier).state = value,
+          ref.read(periodoElegidoProvider.notifier).state = value,
       itemBuilder: (_) => [
-        for (final option in recentPeriods())
+        for (final option in opcionesDePeriodo(period))
           PopupMenuItem(
             value: option,
             child: Row(

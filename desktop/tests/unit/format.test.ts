@@ -7,6 +7,7 @@ import {
   formatPercent,
   initials,
   recentPeriods,
+  opcionesDePeriodo,
 } from '@/shared/lib/format';
 
 describe('formatGrade', () => {
@@ -74,6 +75,21 @@ describe('recentPeriods', () => {
 
   it('starts from the second half when the date is after June', () => {
     expect(recentPeriods(3, localDate(2026, 8, 1))).toEqual(['2026-2', '2026-1', '2025-2']);
+  });
+});
+
+describe('opcionesDePeriodo', () => {
+  it('añade el vigente del servidor cuando el calendario local no lo tiene', () => {
+    expect(opcionesDePeriodo('2027-1', 3, localDate(2026, 11, 20))).toEqual([
+      '2027-1',
+      '2026-2',
+      '2026-1',
+      '2025-2',
+    ]);
+  });
+
+  it('no repite el vigente si ya está entre los recientes', () => {
+    expect(opcionesDePeriodo('2026-1', 3, localDate(2026, 8, 1))).toEqual(['2026-2', '2026-1', '2025-2']);
   });
 });
 

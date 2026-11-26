@@ -1,7 +1,9 @@
 import 'package:dio/dio.dart';
 
 import '../network/api_client.dart';
+import '../network/api_error.dart';
 import './models.dart';
+import './periodo_vigente.dart';
 import '../storage/offline_cache.dart';
 import '../storage/offline_status.dart';
 import '../sync/outbox_logic.dart';
@@ -56,6 +58,20 @@ class AcademicRepository {
           .map((e) => parsear(Map<String, dynamic>.from(e)))
           .toList();
     }
+  }
+
+  /// El semestre que corre hoy según el servidor (`GET /periods/current`), o
+  /// `null` si la respuesta no trae uno. Pasa por la caché: sin red se usa el
+  /// último que llegó, que es mejor respaldo que el mes del reloj del teléfono.
+  Future<String?> periodoActual() async {
+    final item = await mapaConCache('periodo.actual', () async {
+      final response = await _api.get('/periods/current');
+      final data = response.data;
+      final cuerpo = data is Map ? data['item'] : null;
+      return cuerpo is Map ? Map<String, dynamic>.from(cuerpo) : <String, dynamic>{};
+    });
+    final periodo = item['period'];
+    return periodo is String && esPeriodoValido(periodo) ? periodo : null;
   }
 
   Future<List<Subject>> subjects() {
@@ -280,6 +296,58 @@ class AcademicRepository {
     return ResultadoMatricula.fromJson(
       Map<String, dynamic>.from(response.data as Map),
     );
+  }
+
+  /// Lee un listado desde una hoja de cálculo, un PDF o una foto. Solo
+  /// PROPONE: devuelve el cuerpo de `POST /enrollments/import/scan` (filas con
+  /// su confianza) y no escribe nada. La escritura sigue siendo
+  /// [enrollRoster], con lo que el docente revisó.
+  ///
+  /// [tipo] es el `mimetype` declarado (`tipoParaSubir`): el multer de la ruta
+  /// filtra por él antes de leer el cuerpo.
+  Future<Map<String, dynamic>> scanRoster({
+    required String groupId,
+    required List<int> bytes,
+    required String nombre,
+    required String tipo,
+  }) async {
+    Future<Map<String, dynamic>> enviar() async {
+      // Un `FormData` se consume al enviarse: el reintento tras renovar el
+      // token necesita uno nuevo, y por eso se construye dentro.
+      final formulario = FormData.fromMap({
+        'groupId': groupId,
+        'file': MultipartFile.fromBytes(
+          bytes,
+          filename: nombre,
+          contentType: DioMediaType.parse(tipo),
+        ),
+      });
+      final response = await _api.post(
+        '/enrollments/import/scan',
+        data: formulario,
+        // El reconocimiento de una hoja tarda (el servidor espera hasta 60 s
+        // al servicio de lectura): el tiempo normal cortaría una lectura que
+        // iba bien. Mismo margen que el escritorio.
+        options: Options(
+          sendTimeout: const Duration(seconds: 60),
+          receiveTimeout: const Duration(seconds: 90),
+        ),
+      );
+      return Map<String, dynamic>.from(response.data as Map);
+    }
+
+    try {
+      return await enviar();
+    } on ApiError catch (error) {
+      // El interceptor renueva el token ante un 401 pero no puede repetir una
+      // subida (el cuerpo ya se consumió); con el token nuevo puesto, un
+      // segundo intento sí sale.
+      if (error.kind != ApiErrorKind.unauthorized ||
+          _api.refreshToken == null) {
+        rethrow;
+      }
+      return enviar();
+    }
   }
 
   Future<List<ConsolidatedRow>> consolidated({

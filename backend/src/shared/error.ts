@@ -5,6 +5,28 @@ import { ZodError } from 'zod';
 /** Nombres de error que lanza `jsonwebtoken` al verificar un token. */
 const ERRORES_JWT = new Set(['TokenExpiredError', 'JsonWebTokenError', 'NotBeforeError']);
 
+/** Errores del driver de Mongo que significan «no hay base», no «la consulta está mal». */
+const ERRORES_CONEXION_MONGO = new Set([
+  'MongoServerSelectionError',
+  'MongoNetworkError',
+  'MongoNetworkTimeoutError',
+  'MongoNotConnectedError',
+  'MongoTopologyClosedError',
+  'MongoPoolClearedError',
+]);
+
+/**
+ * Si un error es la base caída o inalcanzable. Con `bufferCommands: false`,
+ * Mongoose lanza un `MongooseError` genérico al consultar sin conexión; se
+ * reconoce por su mensaje, que es estable entre versiones.
+ */
+export function esFalloDeConexionConLaBase(err: unknown): boolean {
+  const e = err as { name?: string; message?: string } | null;
+  if (!e) return false;
+  if (e.name && ERRORES_CONEXION_MONGO.has(e.name)) return true;
+  return e.name === 'MongooseError' && /before initial connection is complete|bufferCommands = false/i.test(e.message ?? '');
+}
+
 /**
  * Traduce un error a una respuesta HTTP.
  *
@@ -54,6 +76,20 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
    */
   if (ERRORES_JWT.has(err?.name)) {
     return res.status(401).json({ ok: false, message: 'Invalid session' });
+  }
+
+  /**
+   * La base no responde: 503 con `Retry-After`, no 500.
+   *
+   * Con Atlas caído cada petición salía como 500, y el escritorio cuenta el
+   * 5xx como fallo de esa escritura concreta: tras ocho la marcaba `fallida`,
+   * cuando la nota estaba bien y lo que faltaba era la base. Un 503 los
+   * clientes lo tratan como «sin servidor» y esperan con la cola intacta.
+   */
+  if (esFalloDeConexionConLaBase(err)) {
+    console.error('[error] la base no responde:', err?.message ?? err);
+    res.setHeader('Retry-After', '30');
+    return res.status(503).json({ ok: false, codigo: 'BASE_NO_DISPONIBLE', message: 'Service unavailable' });
   }
 
   /**

@@ -6,6 +6,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:uts_academico/core/network/mensajes_de_fallo.dart';
 import 'package:uts_academico/core/network/realtime_service.dart';
 import 'package:uts_academico/core/storage/offline_status.dart';
 import 'package:uts_academico/core/sync/outbox_entry.dart';
@@ -180,6 +181,33 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.text('Cambios sin enviar'), findsWidgets);
       expect(find.text('Ver los 2 cambios sin enviar'), findsOneWidget);
+    });
+  });
+
+  group('explicacionDelIndicador', () {
+    test('con cambios en la bandeja y sin servidor, dice que están a salvo', () {
+      for (final estado in [
+        EstadoIndicador.sinConexion,
+        EstadoIndicador.reconectando,
+      ]) {
+        expect(
+          explicacionDelIndicador(estado, pendientes: 2),
+          mensajeCambiosGuardados,
+        );
+      }
+    });
+
+    test('sin cambios pendientes no habla de cambios guardados', () {
+      final texto = explicacionDelIndicador(EstadoIndicador.sinConexion);
+      expect(texto, isNot(mensajeCambiosGuardados));
+      expect(texto.toLowerCase(), isNot(contains('caído')));
+    });
+
+    test('un rechazo del servidor sigue diciendo que hay que revisarlo', () {
+      expect(
+        explicacionDelIndicador(EstadoIndicador.fallidas, pendientes: 3),
+        contains('rechazó'),
+      );
     });
   });
 }

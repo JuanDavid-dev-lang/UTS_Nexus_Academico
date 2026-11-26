@@ -30,6 +30,12 @@ const schema = new Schema(
     failures: { type: Number, default: 0 },
     /** Qué instancia la ejecutó; con varias, evita presentar un dato local como global. */
     lastHost: { type: String, default: '' },
+    /**
+     * Turno entre instancias (`shared/turno-tarea.ts`): quién ejecuta esta
+     * tarea y hasta cuándo. Las demás se la saltan mientras siga vigente.
+     */
+    leaseHolder: { type: String, default: null },
+    leaseUntil: { type: Date, default: null },
   },
   { timestamps: true },
 );

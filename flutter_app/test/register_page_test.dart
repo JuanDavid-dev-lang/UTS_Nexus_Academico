@@ -41,6 +41,7 @@ class MockRegistroService extends Fake implements RegistroService {
     required String password,
     String? institutionId,
     String? institucionSolicitada,
+    bool aceptaAvisoUso = false,
   }) async {
     if (onSolicitar != null) {
       return onSolicitar!(
@@ -112,7 +113,9 @@ void main() {
     expect(find.text('Dónde enseñas'), findsOneWidget);
     expect(find.text('Tu cuenta'), findsOneWidget);
 
-    // Intentar enviar sin datos
+    // Intentar enviar sin datos. La lista es perezosa: el botón no existe
+    // hasta que se desplaza hasta él.
+    await tester.scrollUntilVisible(find.text('Enviar solicitud'), 300, scrollable: find.byType(Scrollable).first);
     await tester.tap(find.text('Enviar solicitud'));
     await tester.pumpAndSettle();
 
@@ -209,8 +212,18 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byIcon(Icons.visibility_off_outlined), findsOneWidget);
 
+    // Sin la casilla del aviso de uso no se envía.
+    await tester.scrollUntilVisible(find.text('Enviar solicitud'), 300, scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Enviar solicitud'));
+    await tester.pumpAndSettle();
+    expect(payloadEnviado, isNull);
+
+    await tester.scrollUntilVisible(find.text('He leído el aviso de uso y privacidad'), -200, scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('He leído el aviso de uso y privacidad'));
+    await tester.pumpAndSettle();
+
     // Enviar solicitud
-    await tester.ensureVisible(find.text('Enviar solicitud'));
+    await tester.scrollUntilVisible(find.text('Enviar solicitud'), 300, scrollable: find.byType(Scrollable).first);
     await tester.tap(find.text('Enviar solicitud'));
     await tester.pumpAndSettle();
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../network/mensajes_de_fallo.dart';
 import '../sync/outbox_entry.dart';
 import '../sync/outbox_service.dart';
 import '../theme/app_theme.dart';
@@ -115,7 +116,14 @@ class _FilaPendiente extends StatelessWidget {
       OutboxEstado.enviando => 'Enviando',
       OutboxEstado.fallida => 'No se envió',
     };
-    final motivo = entrada.ultimoError?.mensaje ?? '';
+    // Un intento que falló porque el servidor no contestó no es un error del
+    // docente: se dice que el cambio está a salvo, no «el servidor tuvo un
+    // problema». Un rechazo (4xx) conserva el motivo del servidor.
+    final motivo = motivoDeEntrada(
+      fallida: fallida,
+      status: entrada.ultimoError?.status,
+      mensaje: entrada.ultimoError?.mensaje ?? '',
+    );
 
     return AppCard(
       child: Column(
@@ -147,7 +155,9 @@ class _FilaPendiente extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
-                fallida ? motivo : 'Último intento: $motivo',
+                fallida || motivo == mensajeCambiosGuardados
+                    ? motivo
+                    : 'Último intento: $motivo',
                 style: AppType.caption.copyWith(
                   color: fallida ? tono.fg : muted,
                 ),

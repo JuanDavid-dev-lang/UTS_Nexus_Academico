@@ -279,6 +279,43 @@
     color: var(--text);
   }
 
+  /* Sobre la marca el guion toma el color del texto: el primario sobre el
+     primario no se vería. */
+  .surface-brand {
+    --firma-tallo: currentColor;
+  }
+
+  /*
+   * Firma UTS: guion de marca + punto lima (DESIGN.md §4.1).
+   *
+   * Dos tramos planos con un corte seco, no un degradado: los `linear-gradient`
+   * de abajo solo dibujan bordes duros. El tamaño lo pone quien la usa (el
+   * indicador del menú la estira); `.firma-filete` es el tamaño estándar bajo
+   * un título. `.firma-vertical` la gira para un indicador lateral: el punto
+   * queda abajo.
+   */
+  .firma {
+    --firma-dir: to right;
+    display: block;
+    flex-shrink: 0;
+    border-radius: var(--radius-pill);
+    background-image: linear-gradient(
+      var(--firma-dir),
+      var(--firma-tallo) 0 calc(100% - var(--firma-punta) - var(--firma-hueco)),
+      transparent 0 calc(100% - var(--firma-punta)),
+      var(--firma-punta-color) 0
+    );
+  }
+
+  .firma-vertical {
+    --firma-dir: to bottom;
+  }
+
+  .firma-filete {
+    inline-size: var(--firma-largo);
+    block-size: var(--firma-grosor);
+  }
+
   /*
    * Pozo: cabecera de tabla, panel de filtros, zona que contiene en vez de
    * presentar. Se hunde respecto a la card en vez de elevarse sobre ella.

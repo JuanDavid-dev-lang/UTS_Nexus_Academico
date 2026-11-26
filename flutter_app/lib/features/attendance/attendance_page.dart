@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/data/providers.dart';
 import '../../core/network/api_error.dart';
+import '../../core/network/mensajes_de_fallo.dart';
 import '../../core/sync/outbox_logic.dart';
 import '../../core/sync/outbox_service.dart';
 import '../../core/auth/auth_controller.dart';
@@ -448,9 +449,8 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
       if (resultado == ResultadoEscritura.encolada) {
         AppToast.info(
           context,
-          'Asistencia guardada en el teléfono',
-          '${_students.length} estudiantes. Se enviará sola cuando haya '
-              'conexión.',
+          'Asistencia de ${_students.length} estudiantes guardada',
+          mensajeCambiosGuardados,
         );
       } else {
         AppToast.success(
