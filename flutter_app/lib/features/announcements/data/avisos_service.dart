@@ -12,6 +12,13 @@ class Aviso {
   bool leido;
   final String autor;
 
+  /// `PROGRAMADO`, `VIGENTE` o `CADUCADO`. Lo decide el servidor con su reloj
+  /// y solo ADMIN recibe los dos primeros; un servidor anterior no lo manda y
+  /// se lee como vigente.
+  final String estado;
+
+  bool get programado => estado == 'PROGRAMADO';
+
   Aviso({
     required this.id,
     required this.titulo,
@@ -22,6 +29,7 @@ class Aviso {
     required this.fijado,
     required this.leido,
     required this.autor,
+    this.estado = 'VIGENTE',
   });
 
   factory Aviso.fromJson(Map<String, dynamic> json) {
@@ -36,6 +44,7 @@ class Aviso {
       fijado: json['fijado'] as bool? ?? false,
       leido: json['leido'] as bool? ?? false,
       autor: autor is Map ? (autor['fullName'] ?? '').toString() : '',
+      estado: (json['estado'] ?? 'VIGENTE').toString(),
     );
   }
 }

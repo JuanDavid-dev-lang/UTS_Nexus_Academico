@@ -52,15 +52,15 @@ export class AppError extends Error {
 }
 
 const MESSAGES: Record<AppErrorKind, string> = {
-  network: 'No hay conexión con el servidor. Verifica que esté encendido.',
-  timeout: 'El servidor tardó demasiado en responder.',
+  network: 'No hay respuesta del servidor. Inténtalo de nuevo cuando se restablezcan los servicios.',
+  timeout: 'El servidor está tardando en responder. Inténtalo de nuevo en unos segundos.',
   unauthorized: 'Tu sesión expiró. Vuelve a iniciar sesión.',
   forbidden: 'No tienes permisos para realizar esta acción.',
   not_found: 'No encontramos lo que buscabas.',
   validation: 'Revisa los datos ingresados: hay algo que no es válido.',
   conflict: 'Ese registro ya existe.',
   rate_limited: 'Demasiadas solicitudes seguidas. Espera un momento.',
-  server: 'El servidor tuvo un problema. Intenta de nuevo en unos segundos.',
+  server: 'Hubo un problema en el servidor. Inténtalo de nuevo en unos segundos.',
   contract: 'El servidor respondió en un formato inesperado.',
   unknown: 'Ocurrió un problema inesperado.',
 };

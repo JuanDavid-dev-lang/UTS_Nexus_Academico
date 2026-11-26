@@ -23,6 +23,14 @@ export const avisoRepository = {
     return (await http.post('/avisos', input, { schema: itemResponse(avisoSchema) })).item;
   },
 
+  /**
+   * Corrige un aviso. Mientras está programado también cambia su salida; uno
+   * ya publicado responde 409 `AVISO_PUBLICADO` si se intenta moverla.
+   */
+  async update(id: string, input: Partial<AvisoInput>): Promise<Aviso> {
+    return (await http.patch(`/avisos/${id}`, input, { schema: itemResponse(avisoSchema) })).item;
+  },
+
   /** Cuántos docentes recibirían un aviso con este alcance, antes de publicarlo. */
   async destinatarios(
     alcance: Pick<AvisoInput, 'sedes' | 'facultades' | 'programas'>,

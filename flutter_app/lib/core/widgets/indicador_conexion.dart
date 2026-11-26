@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../network/mensajes_de_fallo.dart';
 import '../network/realtime_service.dart';
 import '../storage/offline_status.dart';
 import '../sync/outbox_service.dart';
@@ -242,7 +243,11 @@ class _IndicadorConexionState extends ConsumerState<IndicadorConexion>
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                _explicacion(estado, datos),
+                explicacionDelIndicador(
+                  estado,
+                  desdeCache: datos?.desdeCache,
+                  pendientes: pendientesTotales,
+                ),
                 style: AppType.body.copyWith(color: palette.muted, height: 1.4),
               ),
               if (ultima != null) ...[
@@ -284,21 +289,34 @@ class _IndicadorConexionState extends ConsumerState<IndicadorConexion>
       },
     );
   }
+}
 
-  String _explicacion(
-    EstadoIndicador estado,
-    EstadoDatos? datos,
-  ) => switch (estado) {
+/// El texto de la hoja del indicador, sin Flutter de por medio.
+///
+/// Con cambios en la bandeja y el servidor sin contestar se dice
+/// [mensajeCambiosGuardados]: lo primero que quiere saber quien acaba de poner
+/// notas es que no se perdieron, no el diagnóstico de la red.
+String explicacionDelIndicador(
+  EstadoIndicador estado, {
+  DateTime? desdeCache,
+  int pendientes = 0,
+}) {
+  final problemaDeServicio =
+      estado == EstadoIndicador.reconectando ||
+      estado == EstadoIndicador.sinConexion;
+  if (problemaDeServicio && pendientes > 0) return mensajeCambiosGuardados;
+  return switch (estado) {
     EstadoIndicador.reconectando =>
       'Se perdió la conexión con el servidor y se está recuperando sola. '
           'Puedes seguir trabajando: lo que anotes se guarda en el teléfono.',
     EstadoIndicador.sinConexion =>
-      datos?.desdeCache != null
-          ? 'Estás viendo datos guardados ${haceCuanto(datos?.desdeCache)}. '
-                'Las notas y la asistencia que anotes se envían solas '
-                'cuando vuelva la conexión.'
-          : 'No se encuentra el servidor. Las notas y la asistencia que '
-                'anotes se envían solas cuando vuelva la conexión.',
+      desdeCache != null
+          ? 'Estás viendo datos guardados ${haceCuanto(desdeCache)}. '
+                'Las notas y la asistencia que anotes se guardan en el '
+                'teléfono y se subirán cuando se restablezca el servicio.'
+          : 'No se pudo hablar con el servidor. Las notas y la asistencia '
+                'que anotes se guardan en el teléfono y se subirán cuando se '
+                'restablezca el servicio.',
     EstadoIndicador.enviando => 'Subiendo lo que anotaste sin conexión.',
     EstadoIndicador.pendientes =>
       'Hay cambios esperando su turno para enviarse.',

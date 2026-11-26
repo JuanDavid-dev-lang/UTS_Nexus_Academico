@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/network/api_error.dart';
 import '../../core/theme/app_theme.dart';
+import 'leer_listado.dart';
 import 'roster_parser.dart';
 
 class RosterImportSheet extends StatefulWidget {
@@ -103,6 +104,21 @@ class _RosterImportSheetState extends State<RosterImportSheet> {
             style: AppType.caption,
           ),
           const SizedBox(height: 14),
+          // Solo CSV: el alta en el directorio no cuelga de un grupo, y el
+          // escáner de PDF y fotos del servidor exige uno. Para eso está
+          // «Agregar estudiantes» en la materia.
+          LeerListado(
+            groupId: null,
+            habilitado: !_importing,
+            onLeido: (lectura) {
+              _controller.text = lectura.texto;
+              setState(() {
+                _proposal = parseRoster(lectura.texto);
+                _importError = null;
+              });
+            },
+          ),
+          const SizedBox(height: 8),
           TextField(
             key: const Key('roster-input'),
             controller: _controller,

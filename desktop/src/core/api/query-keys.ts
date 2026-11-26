@@ -214,6 +214,8 @@ export const queryKeys = {
   periods: {
     all: ['periods'] as const,
     list: () => ['periods', 'list'] as const,
+    /** El semestre vigente según el servidor. Se persiste para abrir sin red. */
+    current: () => ['periods', 'current'] as const,
     detail: (period: string) => ['periods', 'detail', period] as const,
     snapshot: (period: string, filtro?: Record<string, unknown>) =>
       ['periods', 'snapshot', period, filtro ?? null] as const,
@@ -252,6 +254,12 @@ export const queryKeys = {
       filtro ? (['audit', 'list', filtro] as const) : (['audit', 'list'] as const),
     detail: (id: string) => ['audit', 'detail', id] as const,
     catalogo: () => ['audit', 'catalogo'] as const,
+  },
+
+  usage: {
+    all: ['usage'] as const,
+    resumen: (filtro: Record<string, unknown>) => ['usage', 'resumen', filtro] as const,
+    ranking: (filtro: Record<string, unknown>) => ['usage', 'ranking', filtro] as const,
   },
 
   system: {

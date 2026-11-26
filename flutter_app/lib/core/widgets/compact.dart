@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import './firma_uts.dart';
 import './keyboard_inset.dart';
 import './ui_kit.dart';
 
@@ -58,6 +59,18 @@ class CompactHeader extends StatelessWidget implements PreferredSizeWidget {
       titleSpacing: leading == null ? AppSpacing.page : 0,
       leading: leading,
       automaticallyImplyLeading: leading != null,
+      // La firma UTS en la esquina inferior, alineada con el título: es lo
+      // que hace reconocible cada pantalla sin un bloque de color
+      // (DESIGN.md §4.1). Va en `flexibleSpace` para no sumar alto.
+      flexibleSpace: Align(
+        alignment: AlignmentDirectional.bottomStart,
+        child: Padding(
+          padding: EdgeInsetsDirectional.only(
+            start: leading == null ? AppSpacing.page : kToolbarHeight,
+          ),
+          child: const FirmaUts(),
+        ),
+      ),
       title: Row(
         crossAxisAlignment: CrossAxisAlignment.baseline,
         textBaseline: TextBaseline.alphabetic,

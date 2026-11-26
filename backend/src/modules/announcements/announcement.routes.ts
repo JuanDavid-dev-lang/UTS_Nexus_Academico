@@ -9,6 +9,11 @@ import { emitSync } from '../../shared/socket.js';
 import { FACULTADES, NIVELES, PROGRAMAS, SEDES } from '../../domains/catalog/uts.js';
 import { notificarAviso } from './announcement-notify.service.js';
 import { esRolPorPrograma } from '../../shared/types.js';
+import {
+  errorDeFechasDeAviso,
+  estadoDeAviso,
+  puedeMoverPublicacion,
+} from '../../domains/announcements/announcement-status.js';
 
 /**
  * Avisos institucionales.
@@ -80,6 +85,7 @@ announcementRouter.get('/', requireRole(...CON_SESION), async (req, res, next) =
     const pagina = campo.paginacionCon(200).parse(req.query);
     const { skip, limit } = campo.saltoYTope(pagina);
     const yo = String(req.user?.id ?? '');
+    const ahora = new Date();
 
     // `sinLeer` se cuenta contra el filtro completo, no contra la página: el
     // contador de la campana tiene que decir cuántos avisos hay sin leer, no
@@ -92,7 +98,12 @@ announcementRouter.get('/', requireRole(...CON_SESION), async (req, res, next) =
         .limit(limit)
         .lean(),
       AnnouncementModel.countDocuments(filtro),
-      AnnouncementModel.countDocuments({ ...filtro, leidoPor: { $ne: req.user?.id } }),
+      // Un programado no cuenta como «sin leer»: todavía no lo puede leer nadie.
+      AnnouncementModel.countDocuments({
+        ...filtro,
+        publicadoEn: { $lte: ahora },
+        leidoPor: { $ne: req.user?.id },
+      }),
     ]);
 
     res.json({
@@ -104,6 +115,9 @@ announcementRouter.get('/', requireRole(...CON_SESION), async (req, res, next) =
           // sobre las personas, no sobre el aviso.
           leidoPor: undefined,
           lecturas: (item.leidoPor ?? []).length,
+          // Solo ADMIN llega a ver PROGRAMADO o CADUCADO: a los demás el filtro
+          // ya les quita los dos. Lo decide el reloj del servidor, no el cliente.
+          estado: estadoDeAviso(item, ahora),
         })),
         total,
         pagina,
@@ -171,16 +185,41 @@ announcementRouter.post('/destinatarios', requireRole('ADMIN'), async (req, res,
   }
 });
 
+type DatosDeReparto = {
+  titulo: string;
+  cuerpo: string;
+  tipo: 'INFORMATIVO' | 'IMPORTANTE' | 'URGENTE';
+  autorId: string | null;
+  sedes: string[];
+  facultades: string[];
+  programas: string[];
+  publicadoEn: Date;
+  expiraEn: Date | null;
+};
+
+/**
+ * Reparte la notificación de un aviso que ya salió, fuera de la petición.
+ *
+ * La marca `notificadoEn` se pone con la condición `notificadoEn: null`: si el
+ * programador de tareas lo recogió a la vez, solo uno de los dos reparte.
+ */
+function repartirAhora(id: string, datos: DatosDeReparto): void {
+  void AnnouncementModel.updateOne({ _id: id, notificadoEn: null }, { $set: { notificadoEn: new Date() } })
+    .then(resultado => {
+      if (resultado.modifiedCount === 0) return undefined;
+      return notificarAviso({ id, ...datos });
+    })
+    .catch(error => {
+      console.error(`[avisos] fallo al repartir la notificación de ${id}:`, error);
+    });
+}
+
 announcementRouter.post('/', requireRole('ADMIN'), async (req, res, next) => {
   try {
     const datos = cuerpo.parse(req.body);
 
-    if (datos.expiraEn && datos.expiraEn <= datos.publicadoEn) {
-      return res.status(400).json({
-        ok: false,
-        message: 'La fecha de caducidad tiene que ser posterior a la de publicación.',
-      });
-    }
+    const errorFechas = errorDeFechasDeAviso(datos.publicadoEn, datos.expiraEn);
+    if (errorFechas) return res.status(400).json({ ok: false, message: errorFechas });
 
     const item = await AnnouncementModel.create({ ...datos, autorId: req.user?.id });
 
@@ -195,7 +234,7 @@ announcementRouter.post('/', requireRole('ADMIN'), async (req, res, next) => {
     // Poblado como en el listado: si aquí se devuelve el ObjectId a secas, el
     // cliente recibe un aviso con una forma distinta de la que ya conoce.
     await item.populate('autorId', 'fullName');
-    res.status(201).json({ ok: true, item });
+    res.status(201).json({ ok: true, item: { ...item.toObject(), estado: estadoDeAviso(item, new Date()) } });
 
     // El reparto va DESPUÉS de responder y a propósito.
     //
@@ -207,47 +246,77 @@ announcementRouter.post('/', requireRole('ADMIN'), async (req, res, next) => {
     //
     // Los programados no se reparten aquí: se quedan con `notificadoEn` en
     // null y los recoge `repartirAvisosPendientes` cuando llegue su fecha.
-    if (datos.publicadoEn <= new Date()) {
-      void AnnouncementModel.updateOne(
-        { _id: item.id, notificadoEn: null },
-        { $set: { notificadoEn: new Date() } },
-      )
-        .then(() =>
-          notificarAviso({
-            id: item.id,
-            titulo: datos.titulo,
-            cuerpo: datos.cuerpo,
-            tipo: datos.tipo,
-            autorId: req.user?.id ?? null,
-            sedes: datos.sedes,
-            facultades: datos.facultades,
-            programas: datos.programas,
-            publicadoEn: datos.publicadoEn,
-            expiraEn: datos.expiraEn,
-          }),
-        )
-        .catch(error => {
-          console.error(`[avisos] fallo al repartir la notificación de ${item.id}:`, error);
-        });
-    }
+    if (datos.publicadoEn <= new Date()) repartirAhora(item.id, { ...datos, autorId: req.user?.id ?? null });
   } catch (err) {
     next(err);
   }
 });
 
+/**
+ * Editar un aviso. Sirve para corregirlo y, mientras está programado, para
+ * cambiar su fecha de salida; un aviso que ya salió no se reprograma (ver
+ * `puedeMoverPublicacion`). Cancelar un programado es eliminarlo.
+ *
+ * Las fechas se validan contra lo que quedará guardado, no solo contra lo que
+ * llega: cambiar solo la caducidad puede dejarla antes de la publicación.
+ */
 announcementRouter.patch('/:id', requireRole('ADMIN'), async (req, res, next) => {
   try {
     const datos = cuerpo.partial().parse(req.body);
+
+    const antes = await AnnouncementModel.findOne({ _id: req.params.id, deletedAt: null }).lean();
+    if (!antes) return res.status(404).json({ ok: false, message: 'Aviso no encontrado.' });
+
+    const ahora = new Date();
+    const estadoAntes = estadoDeAviso(antes, ahora);
+    const cambiaPublicacion =
+      datos.publicadoEn !== undefined && datos.publicadoEn.getTime() !== new Date(antes.publicadoEn).getTime();
+    if (cambiaPublicacion && !puedeMoverPublicacion(estadoAntes)) {
+      return res.status(409).json({
+        ok: false,
+        codigo: 'AVISO_PUBLICADO',
+        message: 'Este aviso ya se publicó: su fecha de publicación no se puede cambiar.',
+      });
+    }
+
+    const publicadoEn = datos.publicadoEn ?? new Date(antes.publicadoEn);
+    const expiraEn = datos.expiraEn !== undefined ? datos.expiraEn : (antes.expiraEn ?? null);
+    const errorFechas = errorDeFechasDeAviso(publicadoEn, expiraEn);
+    if (errorFechas) return res.status(400).json({ ok: false, message: errorFechas });
 
     const item = await AnnouncementModel.findOneAndUpdate(
       { _id: req.params.id, deletedAt: null },
       { $set: datos },
       { new: true },
-    );
+    ).populate('autorId', 'fullName');
     if (!item) return res.status(404).json({ ok: false, message: 'Aviso no encontrado.' });
 
+    await auditChange({
+      actorId: req.user?.id,
+      action: 'UPDATE',
+      entity: 'Aviso',
+      entityId: item.id,
+      before: antes,
+      after: item.toObject(),
+    });
     emitSync('sync:update', { entity: 'announcement', action: 'update', id: item.id });
-    res.json({ ok: true, item });
+    res.json({ ok: true, item: { ...item.toObject(), estado: estadoDeAviso(item, new Date()) } });
+
+    // Un programado adelantado a «ahora» sale ya, sin esperar a la siguiente
+    // pasada del programador.
+    if (estadoAntes === 'PROGRAMADO' && item.publicadoEn <= new Date()) {
+      repartirAhora(item.id, {
+        titulo: item.titulo,
+        cuerpo: item.cuerpo,
+        tipo: item.tipo as DatosDeReparto['tipo'],
+        autorId: antes.autorId ? String(antes.autorId) : null,
+        sedes: item.sedes,
+        facultades: item.facultades,
+        programas: item.programas,
+        publicadoEn: item.publicadoEn,
+        expiraEn: item.expiraEn ?? null,
+      });
+    }
   } catch (err) {
     next(err);
   }

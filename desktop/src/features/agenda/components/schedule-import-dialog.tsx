@@ -5,7 +5,8 @@ import { Badge, Button, Dialog, DialogContent, DialogFooter } from '@/shared/ui'
 import { queryKeys } from '@/core/api/query-keys';
 import { agendaRepository } from '@/infrastructure/repositories/agenda.repository';
 import { toast } from '@/state/toast.store';
-import { currentPeriod, etiquetaDeGrupo } from '@/shared/lib/format';
+import { etiquetaDeGrupo } from '@/shared/lib/format';
+import { usePeriodoActual } from '@/shared/hooks/use-periodo-actual';
 import type { SesionHorario } from '@/domain/schemas/agenda';
 
 /**
@@ -30,7 +31,7 @@ export function ScheduleImportDialog({
   const queryClient = useQueryClient();
   const fileInput = useRef<HTMLInputElement>(null);
   const [sesiones, setSesiones] = useState<SesionHorario[]>([]);
-  const period = currentPeriod();
+  const period = usePeriodoActual();
 
   const scan = useMutation({
     mutationFn: (file: File) => agendaRepository.scanHorario(period, file),

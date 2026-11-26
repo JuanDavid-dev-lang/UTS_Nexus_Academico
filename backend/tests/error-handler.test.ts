@@ -18,6 +18,9 @@ function respuesta() {
       res.body = body;
       return fake;
     },
+    setHeader() {
+      return fake;
+    },
   } as unknown as Response;
   return { fake, res };
 }
@@ -94,5 +97,25 @@ describe('errorHandler', () => {
     const res = traducir(Object.assign(new Error('x'), { codigo: 'INTERNO' }));
     silenciar.mockRestore();
     expect(res.body).toEqual({ ok: false, message: 'Internal server error' });
+  });
+
+  it('la base caída es 503 con código, no 500', () => {
+    const silencio = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const err = Object.assign(new Error('connect ECONNREFUSED'), { name: 'MongoServerSelectionError' });
+    const res = traducir(err);
+    silencio.mockRestore();
+    expect(res.status).toBe(503);
+    expect(res.body).toMatchObject({ codigo: 'BASE_NO_DISPONIBLE' });
+  });
+
+  it('consultar sin conexión inicial (bufferCommands off) también es 503', () => {
+    const silencio = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const err = Object.assign(
+      new Error('Cannot call `x.find()` before initial connection is complete if `bufferCommands = false`.'),
+      { name: 'MongooseError' },
+    );
+    const res = traducir(err);
+    silencio.mockRestore();
+    expect(res.status).toBe(503);
   });
 });

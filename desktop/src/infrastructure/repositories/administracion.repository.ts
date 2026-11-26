@@ -14,6 +14,7 @@ import {
   errorClienteSchema,
   fotografiaSchema,
   periodoSchema,
+  periodoActualSchema,
   registroAuditoriaSchema,
   resultadoCierreSchema,
   saludSchema,
@@ -21,6 +22,7 @@ import {
   type ErrorCliente,
   type Fotografia,
   type Periodo,
+  type PeriodoActual,
   type RegistroAuditoria,
   type Salud,
 } from '@/domain/schemas/administracion';
@@ -48,10 +50,22 @@ export const periodosRepository = {
     return (await http.get(`/periods/${period}`, { schema: itemResponse(periodoSchema) })).item;
   },
 
-  /** El último día del semestre. `null` vuelve a la fecha por defecto. */
-  async configurarFin(period: string, endsOn: string | null): Promise<Periodo> {
+  /** El semestre que corre hoy, según el servidor. */
+  async actual(): Promise<PeriodoActual> {
+    return (await http.get('/periods/current', { schema: itemResponse(periodoActualSchema) })).item;
+  },
+
+  /**
+   * Primer y último día del semestre. `null` vuelve a la fecha por defecto y
+   * un campo ausente no se toca. Si el periodo no existe, el servidor lo crea:
+   * así se prepara el siguiente semestre antes de que empiece.
+   */
+  async configurarFechas(
+    period: string,
+    fechas: { startsOn?: string | null; endsOn?: string | null },
+  ): Promise<Periodo> {
     return (
-      await http.patch(`/periods/${period}`, { endsOn }, { schema: itemResponse(periodoSchema) })
+      await http.patch(`/periods/${period}`, fechas, { schema: itemResponse(periodoSchema) })
     ).item;
   },
 

@@ -39,6 +39,9 @@ export type Capability =
   | 'periods.close'
   | 'periods.reopen'
   | 'audit.read'
+  // Uso de la aplicación: quién la usa y cuánto. Solo ADMIN, por lo mismo que
+  // la auditoría: es información sobre el personal.
+  | 'usage.read'
   | 'system.health'
   | 'telemetry.read'
   | 'telemetry.manage'
@@ -75,7 +78,7 @@ const MATRIX: Record<Role, Capability[]> = {
     'professors.manage',
     'activities.read', 'activities.write', 'activities.reopen',
     'periods.read', 'periods.close', 'periods.reopen',
-    'audit.read', 'system.health', 'telemetry.read', 'telemetry.manage',
+    'audit.read', 'usage.read', 'system.health', 'telemetry.read', 'telemetry.manage',
     'coordination.read', 'coordination.export', 'staff.manage',
     'institutions.manage', 'institutions.read',
     'uniplanner.links.read', 'uniplanner.links.manage',

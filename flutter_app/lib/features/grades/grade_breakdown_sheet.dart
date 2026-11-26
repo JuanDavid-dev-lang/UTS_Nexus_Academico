@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/data/models.dart';
 import '../../core/data/providers.dart';
 import '../../core/network/api_error.dart';
+import '../../core/network/mensajes_de_fallo.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/ui_kit.dart';
 import '../../core/widgets/compact.dart';
@@ -188,7 +189,7 @@ class _GradeBreakdownSheetState extends ConsumerState<_GradeBreakdownSheet> {
           AppToast.info(
             context,
             'Eliminación guardada en el teléfono',
-            'Se enviará cuando haya conexión.',
+            mensajeCambiosGuardados,
           );
         }
       }
@@ -226,7 +227,7 @@ class _GradeBreakdownSheetState extends ConsumerState<_GradeBreakdownSheet> {
       AppToast.info(
         context,
         'Nota guardada en el teléfono',
-        'Se enviará sola cuando haya conexión.',
+        mensajeCambiosGuardados,
       );
     }
   }

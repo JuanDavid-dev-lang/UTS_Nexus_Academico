@@ -65,6 +65,8 @@ describe('el guardián de solo lectura', () => {
     // Su propia contraseña: escribe sobre su cuenta y sobre nada más. Sin esto,
     // cambiarla dependía de que un administrador lo hiciera por ella.
     expect(puedeEscribir('SECRETARY', 'POST', '/auth/password')).toBe(true);
+    // Marcar visto el aviso de uso: sin esto el diálogo volvía en cada inicio.
+    expect(puedeEscribir('SECRETARY', 'POST', '/auth/aviso-uso')).toBe(true);
   });
 
   it('no convierte el alta de cuentas en una excepción de sesión', () => {

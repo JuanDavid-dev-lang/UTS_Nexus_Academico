@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Megaphone, Users } from 'lucide-react';
+import { AlertTriangle, CalendarClock, Megaphone, Users } from 'lucide-react';
 import {
   Button,
   Dialog,
@@ -12,11 +12,23 @@ import {
   Textarea,
 } from '@/shared/ui';
 import { avisoRepository, registroRepository } from '@/infrastructure/repositories/academic.repository';
-import type { FacultadId, SedeId, TipoAviso } from '@/domain/schemas/academic';
+import type { Aviso, FacultadId, SedeId, TipoAviso } from '@/domain/schemas/academic';
+import {
+  aInputLocal,
+  fechasDeAviso,
+  type FormularioFechas,
+} from '@/domain/announcements/programacion';
 import { queryKeys } from '@/core/api/query-keys';
 import { toast } from '@/state/toast.store';
 
-type Props = { open: boolean; onOpenChange: (open: boolean) => void };
+type Props = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** Aviso a editar; sin él se redacta uno nuevo. */
+  aviso?: Aviso | null;
+};
+
+const FECHAS_VACIAS: FormularioFechas = { modo: 'ahora', publicarEn: '', caducaEn: '' };
 
 /** Mínimos que exige el backend. Repetirlos aquí es lo que permite decirlos antes. */
 const MINIMO_TITULO = 4;
@@ -41,9 +53,41 @@ const VACIO = {
  * pantalla en vez de dejarlo a la intuición: la diferencia entre avisar a una
  * facultad y avisar a todo el mundo no debería descubrirse después de enviar.
  */
-export function AnnouncementComposer({ open, onOpenChange }: Props) {
-  const [valores, setValores] = useState(VACIO);
+/** Valores del formulario a partir del aviso que se edita, o vacíos. */
+function valoresDe(aviso: Aviso | null): typeof VACIO {
+  if (!aviso) return VACIO;
+  return {
+    titulo: aviso.titulo,
+    cuerpo: aviso.cuerpo,
+    tipo: aviso.tipo,
+    sedes: aviso.sedes as SedeId[],
+    facultades: aviso.facultades as FacultadId[],
+    programas: aviso.programas,
+    fijado: aviso.fijado,
+  };
+}
+
+function fechasDe(aviso: Aviso | null): FormularioFechas {
+  if (!aviso) return FECHAS_VACIAS;
+  const programado = aviso.estado === 'PROGRAMADO';
+  return {
+    modo: programado ? 'programar' : 'ahora',
+    publicarEn: programado ? aInputLocal(aviso.publicadoEn) : '',
+    caducaEn: aInputLocal(aviso.expiraEn),
+  };
+}
+
+/**
+ * El estado inicial sale del aviso al montar; la pantalla pone una `key` por
+ * apertura para editar otro aviso con un formulario limpio, sin un efecto que
+ * copie props al estado.
+ */
+export function AnnouncementComposer({ open, onOpenChange, aviso = null }: Props) {
+  const [valores, setValores] = useState(() => valoresDe(aviso));
+  const [fechas, setFechas] = useState<FormularioFechas>(() => fechasDe(aviso));
   const queryClient = useQueryClient();
+  /** Un aviso que ya salió no se reprograma: solo se corrige y caduca. */
+  const yaPublicado = Boolean(aviso && aviso.estado !== 'PROGRAMADO');
 
   const catalogo = useQuery({
     queryKey: queryKeys.registro.catalogo(),
@@ -58,14 +102,28 @@ export function AnnouncementComposer({ open, onOpenChange }: Props) {
   }, [catalogo.data, valores.facultades]);
 
   const publicar = useMutation({
-    mutationFn: () => avisoRepository.create(valores),
-    onSuccess: () => {
+    mutationFn: (salida: { publicadoEn: string | undefined; expiraEn: string | null }) => {
+      if (!aviso) return avisoRepository.create({ ...valores, ...salida });
+      // Al editar, la caducidad va siempre (vacía la quita). La publicación solo
+      // si el aviso sigue programado; «publicar ahora» lo adelanta a este
+      // instante y el servidor reparte la notificación en el acto.
+      const cambios = { ...valores, expiraEn: salida.expiraEn };
+      if (yaPublicado) return avisoRepository.update(aviso._id, cambios);
+      return avisoRepository.update(aviso._id, {
+        ...cambios,
+        publicadoEn: salida.publicadoEn ?? new Date().toISOString(),
+      });
+    },
+    onSuccess: (guardado) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.announcements.all });
-      toast.success('Aviso publicado');
+      toast.success(
+        aviso ? 'Aviso actualizado' : guardado.estado === 'PROGRAMADO' ? 'Aviso programado' : 'Aviso publicado',
+      );
       setValores(VACIO);
+      setFechas(FECHAS_VACIAS);
       onOpenChange(false);
     },
-    onError: causa => toast.fromError(causa, 'No se pudo publicar'),
+    onError: causa => toast.fromError(causa, aviso ? 'No se pudo guardar' : 'No se pudo publicar'),
   });
 
   const alcance = useMemo(() => {
@@ -108,11 +166,17 @@ export function AnnouncementComposer({ open, onOpenChange }: Props) {
    * El botón se deshabilitaba sin decir nada y el motivo real —el contenido no
    * llega al mínimo— no estaba escrito en ninguna parte de la pantalla.
    */
+  // `new Date()` en cada render es a propósito: la validación de «ya pasó»
+  // tiene que mirar el momento en que se pulsa, no el de abrir el diálogo.
+  const salida = fechasDeAviso(fechas, new Date());
   const impedimento = tituloCorto
     ? `El título necesita al menos ${MINIMO_TITULO} caracteres.`
     : cuerpoCorto
       ? `El contenido necesita al menos ${MINIMO_CUERPO} caracteres.`
-      : null;
+      : !salida.ok
+        ? salida.error
+        : null;
+  const programando = fechas.modo === 'programar' && !yaPublicado;
 
   function alternar<T extends string>(lista: T[], valor: T): T[] {
     return lista.includes(valor) ? lista.filter(x => x !== valor) : [...lista, valor];
@@ -121,7 +185,7 @@ export function AnnouncementComposer({ open, onOpenChange }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        title="Publicar un aviso"
+        title={aviso ? 'Editar aviso' : 'Publicar un aviso'}
         description="Lo verán los docentes que cumplan todos los criterios que marques."
         className="max-w-2xl"
       >
@@ -186,6 +250,66 @@ export function AnnouncementComposer({ open, onOpenChange }: Props) {
               />
               Fijar arriba del listado
             </label>
+          </div>
+
+          <div className="rounded-lg border border-border p-3">
+            <p className="mb-2 flex items-center gap-2 text-caption font-semibold text-text">
+              <CalendarClock className="size-4" aria-hidden />
+              Cuándo
+            </p>
+            {yaPublicado ? (
+              <p className="mb-3 text-caption text-muted">
+                Este aviso ya se publicó; su fecha de publicación no cambia. Puedes ponerle o quitarle
+                caducidad.
+              </p>
+            ) : (
+              <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1" role="radiogroup" aria-label="Publicación">
+                <label className="flex cursor-pointer items-center gap-2 text-body">
+                  <input
+                    type="radio"
+                    name="modo-publicacion"
+                    className="size-4 accent-primary"
+                    checked={fechas.modo === 'ahora'}
+                    onChange={() => setFechas(f => ({ ...f, modo: 'ahora' }))}
+                  />
+                  Publicar ahora
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-body">
+                  <input
+                    type="radio"
+                    name="modo-publicacion"
+                    className="size-4 accent-primary"
+                    checked={fechas.modo === 'programar'}
+                    onChange={() => setFechas(f => ({ ...f, modo: 'programar' }))}
+                  />
+                  Programar
+                </label>
+              </div>
+            )}
+            <div className="grid gap-3 sm:grid-cols-2">
+              {programando ? (
+                <Field label="Publicar el" hint="Aparece solo y llega la notificación a esa hora.">
+                  {props => (
+                    <Input
+                      {...props}
+                      type="datetime-local"
+                      value={fechas.publicarEn}
+                      onChange={e => setFechas(f => ({ ...f, publicarEn: e.target.value }))}
+                    />
+                  )}
+                </Field>
+              ) : null}
+              <Field label="Caduca el" hint="Opcional. Después deja de verse.">
+                {props => (
+                  <Input
+                    {...props}
+                    type="datetime-local"
+                    value={fechas.caducaEn}
+                    onChange={e => setFechas(f => ({ ...f, caducaEn: e.target.value }))}
+                  />
+                )}
+              </Field>
+            </div>
           </div>
 
           <div className="rounded-lg border border-border p-3">
@@ -292,10 +416,10 @@ export function AnnouncementComposer({ open, onOpenChange }: Props) {
               variant="primary"
               loading={publicar.isPending}
               disabled={publicar.isPending || impedimento !== null}
-              onClick={() => publicar.mutate()}
+              onClick={() => salida.ok && publicar.mutate(salida)}
             >
               <Megaphone className="size-4" aria-hidden />
-              Publicar
+              {aviso ? 'Guardar' : programando ? 'Programar' : 'Publicar'}
             </Button>
           </DialogFooter>
         </div>

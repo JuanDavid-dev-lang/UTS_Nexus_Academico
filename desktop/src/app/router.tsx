@@ -37,6 +37,7 @@ const ThesisFormatsPage = lazy(() => import('@/features/thesis/thesis-formats-pa
 const ActivitiesPage = lazy(() => import('@/features/activities/activities-page'));
 const PeriodsPage = lazy(() => import('@/features/periods/periods-page'));
 const AuditPage = lazy(() => import('@/features/audit/audit-page'));
+const UsagePage = lazy(() => import('@/features/usage/usage-page'));
 const HealthPage = lazy(() => import('@/features/system/health-page'));
 const CoordinationPage = lazy(() => import('@/features/coordination/coordination-page'));
 const StaffPage = lazy(() => import('@/features/staff/staff-page'));
@@ -109,6 +110,7 @@ export const router = createBrowserRouter([
           { path: '/actividades', element: <Con capacidad="activities.read"><ActivitiesPage /></Con> },
           { path: '/periodos', element: <Con capacidad="coordination.read"><PeriodsPage /></Con> },
           { path: '/auditoria', element: <Con capacidad="audit.read"><AuditPage /></Con> },
+          { path: '/uso', element: <Con capacidad="usage.read"><ConConexion funcion="El uso de la aplicación"><UsagePage /></ConConexion></Con> },
           { path: '/estado-sistema', element: <Con capacidad="system.health"><HealthPage /></Con> },
           { path: '/notificaciones', element: <NotificationsPage /> },
           { path: '/configuracion', element: <SettingsPage /> },

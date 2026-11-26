@@ -776,6 +776,7 @@ AI_MODEL=llama3.1:8b
 | `JWT_REFRESH_SECRET` | `dev-refresh` | Ídem para los refresh tokens |
 | `CLIENT_ORIGIN` | `*` | Ninguna en local; restringir solo en despliegue público |
 | `RISK_SCAN_INTERVAL_MIN` | `0` | Sin escaneo automático de riesgo |
+| `JOBS_ENABLED` | `1` | Las tareas periódicas corren; con varias instancias, un turno en la base evita duplicados |
 | `ACTIVITY_DUE_INTERVAL_MIN` | `15` | Sin avisos de vencimiento de actividades |
 | `ATTENDANCE_PATTERN_INTERVAL_MIN` | `0` | Sin detección de patrones de inasistencia |
 | `TELEMETRY_RETENTION_DAYS` | `90` | Los errores resueltos no se purgan nunca |
@@ -1081,6 +1082,8 @@ presentándose como abiertas sin que nadie lo notara.
 | Método | Ruta | Descripción |
 |--------|------|-------------|
 | `GET` | `/periods` | Todos: los registrados y los que solo existen por sus datos |
+| `GET` | `/periods/current` | Semestre vigente según las fechas del ADMIN (o el calendario), para cualquier sesión |
+| `PATCH` | `/periods/:period` | Fija `startsOn`/`endsOn`; crea el periodo si no existe (ADMIN) |
 | `GET` | `/periods/:period` | Estado, progreso del cierre y resumen de la fotografía |
 | `POST` | `/periods/:period/cierre` | Inicia o **retoma** el cierre (**solo ADMIN**: el periodo es global) |
 | `POST` | `/periods/:period/cierre/abortar` | Devuelve a `OPEN` un cierre atascado (ADMIN) |
@@ -1148,7 +1151,10 @@ sería regalar el mapa de la instalación.
 |--------|------|-------------|
 | `GET` | `/students` · `/subjects` · `/groups` | Catálogo académico del docente |
 | `GET` | `/students/search` | Directorio global — identidad mínima, sin notas ni riesgo |
-| `GET` | `/avisos` | Avisos institucionales por sede, facultad y programa |
+| `GET` | `/avisos` | Avisos institucionales por sede, facultad y programa; ADMIN ve también los programados |
+| `POST` · `PATCH` | `/avisos` · `/avisos/:id` | Publicar ahora o programar con fecha, hora y caducidad (ADMIN) |
+| `GET` | `/uso/resumen` · `/uso/ranking` · `/uso/export.xlsx` | Estadística interna de uso de la aplicación (**solo ADMIN**) |
+| `POST` | `/auth/aviso-uso` | Marca visto el aviso de uso y privacidad de la propia cuenta |
 | `POST` | `/feedback` | Buzón de sugerencias y reportes de error |
 | `GET` | `/trabajos-grado/formatos` | Formatos oficiales — solo directores de trabajo de grado |
 | `GET` | `/professors` · `PATCH /professors/:id` | Gestión de docentes (ADMIN) |

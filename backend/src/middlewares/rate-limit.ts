@@ -81,7 +81,9 @@ export const limiteGeneral = limitador({
  * siguiente recibía 429, que el escritorio lee como «sin servidor». El login
  * tiene su propio freno a los intentos fallidos.
  */
-const RUTAS_DE_SESION = new Set(['/auth/login', '/auth/refresh', '/auth/logout']);
+// `/auth/aviso-uso` se marca una vez por cuenta y versión del aviso: no es
+// trabajo sobre el expediente y no debe restar del cupo de quien va a calificar.
+const RUTAS_DE_SESION = new Set(['/auth/login', '/auth/refresh', '/auth/logout', '/auth/aviso-uso']);
 
 export const limiteEscritura = limitador({
   windowMs: 15 * 60 * 1000,

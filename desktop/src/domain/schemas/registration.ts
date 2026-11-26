@@ -84,6 +84,9 @@ export const solicitudRegistroSchema = z
       .regex(/[a-z]/, 'Incluye una minúscula')
       .regex(/[A-Z]/, 'Incluye una mayúscula')
       .regex(/\d/, 'Incluye un número'),
+    // Casilla «He leído el aviso de uso y privacidad». El servidor guarda la
+    // fecha y la versión; sin ella la cuenta lo vería al entrar.
+    aceptaAvisoUso: z.boolean().refine((v) => v, 'Lee el aviso de uso y privacidad y marca la casilla'),
   })
   .superRefine((datos, ctx) => {
     // «Otra institución…» no es una institución: sin el nombre escrito, el

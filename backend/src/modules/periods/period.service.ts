@@ -18,6 +18,13 @@ import { invalidarCachePeriodos } from '../../shared/period-guard.js';
 import { resumirError } from '../../shared/sanitize.js';
 import { finDePeriodoPorDefecto } from '../../domains/periods/period-calendar.js';
 import {
+  inicioDePeriodoPorDefecto,
+  periodoVigente,
+  rangoDePeriodoValido,
+  type OrigenPeriodo,
+} from '../../domains/periods/period-current.js';
+import { env } from '../../shared/env.js';
+import {
   compararPeriodos,
   porcentajeDeCierre,
   transicionValida,
@@ -57,6 +64,10 @@ export type PeriodoResumen = {
   endsOn: string | null;
   /** El que se usa si no hay `endsOn`. `null` en periodos sin calendario. */
   endsOnPorDefecto: string | null;
+  /** Primer día del semestre que puso la administración, `AAAA-MM-DD`. */
+  startsOn: string | null;
+  /** El que se usa si no hay `startsOn`. `null` en periodos sin calendario. */
+  startsOnPorDefecto: string | null;
 };
 
 function aResumen(documento: Record<string, any>, implicito = false): PeriodoResumen {
@@ -80,6 +91,8 @@ function aResumen(documento: Record<string, any>, implicito = false): PeriodoRes
     implicito,
     endsOn: typeof documento.endsOn === 'string' ? documento.endsOn : null,
     endsOnPorDefecto: finDePeriodoPorDefecto(String(documento.period)),
+    startsOn: typeof documento.startsOn === 'string' ? documento.startsOn : null,
+    startsOnPorDefecto: inicioDePeriodoPorDefecto(String(documento.period)),
   };
 }
 
@@ -92,12 +105,26 @@ function aResumen(documento: Record<string, any>, implicito = false): PeriodoRes
  */
 export async function configurarPeriodo(
   periodo: string,
-  cambios: { label?: string; endsOn?: string | null },
+  cambios: { label?: string; startsOn?: string | null; endsOn?: string | null },
   actor: { id: string },
 ): Promise<PeriodoResumen> {
   const antes = await AcademicPeriodModel.findOne({ period: periodo }).lean();
+  const previo = antes as { startsOn?: string | null; endsOn?: string | null } | null;
+
+  // Coherencia con lo que quedará guardado, no solo con lo que llega: cambiar
+  // solo el fin puede dejarlo antes de un inicio que ya estaba puesto.
+  const resultante = {
+    period: periodo,
+    startsOn: cambios.startsOn !== undefined ? cambios.startsOn : (previo?.startsOn ?? null),
+    endsOn: cambios.endsOn !== undefined ? cambios.endsOn : (previo?.endsOn ?? null),
+  };
+  if (!rangoDePeriodoValido(resultante)) {
+    throw new ErrorDePeriodo('El primer día del semestre no puede ser posterior al último.', 400);
+  }
+
   const set: Record<string, unknown> = { updatedBy: actor.id };
   if (cambios.label !== undefined) set.label = cambios.label;
+  if (cambios.startsOn !== undefined) set.startsOn = cambios.startsOn;
   if (cambios.endsOn !== undefined) set.endsOn = cambios.endsOn;
 
   const documento = await AcademicPeriodModel.findOneAndUpdate(
@@ -106,16 +133,55 @@ export async function configurarPeriodo(
     { upsert: true, new: true, setDefaultsOnInsert: true },
   ).lean();
 
+  type FechasGuardadas = { label?: unknown; startsOn?: string | null; endsOn?: string | null };
+  const fechas = (d: FechasGuardadas | null) =>
+    d ? { label: d.label, startsOn: d.startsOn ?? null, endsOn: d.endsOn ?? null } : null;
   await auditChange({
     actorId: actor.id,
     action: antes ? 'UPDATE' : 'CREATE',
     entity: 'PeriodoAcademico',
     entityId: String(documento!._id),
-    before: antes ? { label: antes.label, endsOn: (antes as { endsOn?: string }).endsOn ?? null } : null,
-    after: { label: documento!.label, endsOn: (documento as { endsOn?: string }).endsOn ?? null },
+    before: fechas(antes as FechasGuardadas | null),
+    after: fechas(documento as FechasGuardadas | null),
   });
   emitSync('sync:update', { entity: 'period', action: 'update', id: periodo });
   return aResumen(documento as unknown as Parameters<typeof aResumen>[0]);
+}
+
+export type PeriodoActual = {
+  period: string;
+  label: string;
+  startsOn: string | null;
+  endsOn: string | null;
+  origen: OrigenPeriodo;
+  state: EstadoPeriodo;
+};
+
+/**
+ * El semestre que corre hoy, decidido aquí y no en cada cliente.
+ *
+ * Una consulta sobre una colección de unas pocas decenas de documentos: no
+ * merece caché propia, y los clientes ya la guardan con `staleTime` largo.
+ */
+export async function periodoActual(ahora: Date = new Date()): Promise<PeriodoActual> {
+  const documentos = await AcademicPeriodModel.find({ deletedAt: null })
+    .select({ period: 1, label: 1, startsOn: 1, endsOn: 1, state: 1 })
+    .lean();
+  const vigente = periodoVigente(
+    documentos.map((d) => ({
+      period: String(d.period),
+      startsOn: (d as { startsOn?: string | null }).startsOn ?? null,
+      endsOn: (d as { endsOn?: string | null }).endsOn ?? null,
+    })),
+    ahora,
+    env.CAMPUS_UTC_OFFSET_MIN,
+  );
+  const propio = documentos.find((d) => String(d.period) === vigente.period);
+  return {
+    ...vigente,
+    label: String(propio?.label ?? ''),
+    state: ((propio?.state as EstadoPeriodo | undefined) ?? 'OPEN'),
+  };
 }
 
 /**

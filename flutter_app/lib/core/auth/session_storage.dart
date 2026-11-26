@@ -56,6 +56,24 @@ class SessionStorage {
     }
   }
 
+  /// «Mantener la sesión iniciada», recordado en el teléfono como el
+  /// escritorio lo recuerda en `localStorage`. No es un secreto: solo decide si
+  /// la próxima vez la casilla sale marcada. Por defecto, marcada.
+  static const _kMantener = 'mantener_sesion';
+
+  Future<bool> leerMantenerSesion() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_kMantener) ?? true;
+  }
+
+  Future<void> guardarMantenerSesion(bool mantener) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kMantener, mantener);
+  }
+
+  /// Borra la sesión guardada. **No** toca la preferencia de «mantener» ni el
+  /// identificador del teléfono (`IdDeEquipo`): los dos son del teléfono, no de
+  /// la sesión.
   Future<void> clear() async {
     await Future.wait([
       _secure.delete(key: _kAccess),

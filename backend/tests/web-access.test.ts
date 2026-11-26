@@ -26,6 +26,8 @@ describe('soloEnApp', () => {
     expect(soloEnApp('GET', '/ml/risk')).toBe(false);
     expect(soloEnApp('POST', '/feedback')).toBe(false);
     expect(soloEnApp('POST', '/enrollments/bulk')).toBe(false);
+    // El semestre vigente lo leen todas las pantallas, también en la web.
+    expect(soloEnApp('GET', '/periods/current')).toBe(false);
   });
 
   it('corta las funciones de la app, con todas sus subrutas', () => {

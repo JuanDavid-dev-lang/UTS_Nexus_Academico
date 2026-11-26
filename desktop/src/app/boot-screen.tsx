@@ -56,10 +56,10 @@ export function UnreachableScreen() {
     <div className="flex h-screen w-screen flex-col items-center justify-center gap-5 bg-bg px-6 text-center">
       <Logo size={72} alt="" />
       <div className="flex max-w-md flex-col items-center gap-1.5">
-        <p className="text-body font-semibold text-text">No se pudo conectar con el servidor</p>
+        <p className="text-body font-semibold text-text">Hubo un problema en el servidor</p>
         <p className="text-caption text-muted">
-          Tu sesión sigue guardada. Se vuelve a intentar sola cada pocos segundos; si el servidor estaba
-          apagado, entrarás en cuanto responda.
+          Tu sesión sigue guardada y se vuelve a intentar sola cada pocos segundos. Entrarás en cuanto
+          se restablezcan los servicios.
         </p>
         <p className="font-mono text-caption text-subtle">{serverUrl}</p>
       </div>

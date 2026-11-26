@@ -12,7 +12,7 @@ import {
 } from '@/shared/ui';
 import { queryKeys } from '@/core/api/query-keys';
 import { analyticsRepository } from '@/infrastructure/repositories/insights.repository';
-import { currentPeriod } from '@/shared/lib/format';
+import { usePeriodoActual } from '@/shared/hooks/use-periodo-actual';
 import { toast } from '@/state/toast.store';
 import type { InterventionStatus, RiskItem } from '@/domain/schemas/academic';
 
@@ -70,6 +70,7 @@ export function InterventionDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
+  const period = usePeriodoActual();
   const [estado, setEstado] = useState<InterventionStatus>('PENDIENTE');
   const [nota, setNota] = useState('');
 
@@ -86,7 +87,7 @@ export function InterventionDialog({
       analyticsRepository.saveIntervention({
         studentId: row!.studentId,
         subjectId: row!.subjectId,
-        period: currentPeriod(),
+        period,
         estado,
         nota: nota.trim(),
       }),

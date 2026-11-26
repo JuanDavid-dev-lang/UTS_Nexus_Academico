@@ -137,6 +137,7 @@ class RegistroService {
     required String password,
     String? institutionId,
     String? institucionSolicitada,
+    bool aceptaAvisoUso = false,
   }) async {
     final r = await _api.post('/registro', data: {
       'cedula': cedula,
@@ -152,6 +153,9 @@ class RegistroService {
         'institutionId': institutionId.trim()
       else if (institucionSolicitada != null && institucionSolicitada.trim().isNotEmpty)
         'institucionSolicitada': institucionSolicitada.trim(),
+      // El servidor guarda la fecha y la versión del aviso de uso. Sin el
+      // campo, la cuenta lo verá al entrar por primera vez.
+      if (aceptaAvisoUso) 'aceptaAvisoUso': true,
     });
     final d = r.data;
     if (d is Map && d['message'] is String) return d['message'] as String;

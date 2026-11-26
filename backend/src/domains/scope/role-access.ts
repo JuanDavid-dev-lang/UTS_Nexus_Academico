@@ -46,6 +46,8 @@ export const ESCRITURAS_DE_SOLO_LECTURA: readonly RegExp[] = [
   // administrador cambiara la contraseña de secretaría por ella, que es lo
   // contrario de lo que consigue cambiarla.
   /^\/auth\/(login|refresh|logout|password|recovery\/request|recovery\/reset)$/,
+  // Marcar visto el aviso de uso y privacidad: escribe sobre la propia cuenta.
+  /^\/auth\/aviso-uso$/,
   // Bandeja propia: marcar leído, borrar un aviso propio, preferencias.
   /^\/notifications\/(read-all|preferences)$/,
   /^\/notifications\/[^/]+\/read$/,

@@ -40,6 +40,11 @@ dependencies:
   # hace nada en iOS: los `AppWidgetProvider` son nativos de Android y este
   # paquete solo sirve de puente para escribir los datos y abrir la app.
   home_widget: ^0.10.0
+  # Elegir un listado (CSV, XLSX, PDF) para matricular desde el teléfono. Es el
+  # paquete oficial del equipo de Flutter (flutter/packages, como image_picker):
+  # en Android abre el selector del sistema (SAF) sin pedir permiso de
+  # almacenamiento y en iOS el de Archivos, sin entradas nuevas en Info.plist.
+  file_selector: ^1.1.0
 
 dev_dependencies:
   flutter_test:

@@ -59,6 +59,12 @@ export function HeroAcceso() {
 
       <div className="flex max-w-md flex-col gap-8">
         <div className="flex flex-col gap-4">
+          {/* La firma UTS a escala de cartel: el mismo guion y punto que
+              asientan cada título dentro de la aplicación (DESIGN.md §4.1). */}
+          <span
+            aria-hidden
+            className="firma [--firma-hueco:5px] [--firma-punta:10px] h-1 w-14"
+          />
           <h2 className="text-h1 font-semibold leading-[1.1] tracking-[-0.03em] [text-wrap:balance]">
             Menos planillas. Más tiempo con tus estudiantes.
           </h2>

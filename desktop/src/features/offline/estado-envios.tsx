@@ -7,6 +7,7 @@ import { outbox } from '@/core/offline/outbox';
 import { textoDeCola, type OutboxEntry } from '@/domain/offline/outbox';
 import { useOutbox, useResumenDeCola } from '@/state/outbox.store';
 import { useEnLinea } from '@/state/connectivity.store';
+import { mensajeDeFalloDelServidor } from '@/domain/offline/aviso-servidor';
 
 const ESTADO_PRESENTACION = {
   pendiente: { etiqueta: 'Sin enviar', tono: 'warning' },
@@ -71,9 +72,7 @@ function PanelDeEnvios({
           description={
             enLinea
               ? 'Se envían solos, en el orden en que los hiciste. Si uno falla, aquí ves por qué.'
-              : persiste
-                ? 'Sin conexión con el servidor. Están guardados en este equipo y se envían solos al volver.'
-                : 'Sin conexión con el servidor. Se envían solos al volver; no cierres esta ventana hasta entonces.'
+              : mensajeDeFalloDelServidor(persiste ? 'equipo' : 'pestana')
           }
           className="max-w-xl"
         >

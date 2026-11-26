@@ -44,6 +44,11 @@ class ApiClient {
   String? accessToken;
   String? refreshToken;
 
+  /// Identificador de este teléfono (`IdDeEquipo`). Va en cada renovación: el
+  /// servidor solo deja rotar una sesión atada al equipo que la creó, y un
+  /// refresh sin él sobre una sesión atada la revoca.
+  String? deviceId;
+
   /// Persiste los tokens renovados. Lo inyecta la capa de sesión.
   Future<void> Function(String accessToken, String refreshToken)? onTokensRenewed;
 
@@ -141,7 +146,10 @@ class ApiClient {
 
       final response = await refreshDio.post<Map<String, dynamic>>(
         '/auth/refresh',
-        data: {'refreshToken': token},
+        data: {
+          'refreshToken': token,
+          if (deviceId != null) 'deviceId': deviceId,
+        },
       );
 
       final data = response.data;
@@ -175,8 +183,10 @@ class ApiClient {
   Future<Response<T>> get<T>(String path, {Map<String, dynamic>? query}) =>
       _guard(() => dio.get<T>(path, queryParameters: query));
 
-  Future<Response<T>> post<T>(String path, {Object? data}) =>
-      _guard(() => dio.post<T>(path, data: data));
+  /// [options] existe para la subida de archivos, que necesita más tiempo de
+  /// espera que el normal: leer una hoja escaneada tarda.
+  Future<Response<T>> post<T>(String path, {Object? data, Options? options}) =>
+      _guard(() => dio.post<T>(path, data: data, options: options));
 
   Future<Response<T>> patch<T>(String path, {Object? data}) =>
       _guard(() => dio.patch<T>(path, data: data));

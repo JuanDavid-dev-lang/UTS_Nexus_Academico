@@ -1,3 +1,4 @@
+import { AVISO_USO_VERSION } from '../../domains/usage/aviso-uso.js';
 import { Router } from 'express';
 import type { AlcanceDePrograma } from '../../domains/scope/program-scope.js';
 import bcrypt from 'bcryptjs';
@@ -160,6 +161,11 @@ const solicitud = z.object({
    */
   institutionId: z.string().trim().max(LIMITES_INSTITUCION.ID_MAX).optional(),
   institucionSolicitada: z.string().trim().max(LIMITES_INSTITUCION.NOMBRE_MAX).optional(),
+  /**
+   * Casilla «He leído el aviso de uso y privacidad». Opcional: un móvil
+   * anterior no la manda, y su cuenta verá el aviso al entrar por primera vez.
+   */
+  aceptaAvisoUso: z.boolean().optional(),
 });
 
 // ── Solicitud de registro ───────────────────────────────────────────────────
@@ -209,6 +215,9 @@ registrationRouter.post('/', limiteSolicitudesTotal, limiteSolicitudesFallidas, 
       fullName: `${datos.nombres} ${datos.apellidos}`.replace(/\s+/g, ' ').trim(),
       // La misma que la ficha: el alcance se lee de la cuenta.
       institutionId: institucion.institutionId,
+      ...(datos.aceptaAvisoUso
+        ? { avisoUsoVistoEn: new Date(), avisoUsoVersion: AVISO_USO_VERSION }
+        : {}),
     });
 
     // Las dos escrituras van juntas o ninguna. Si la ficha fallaba, la cuenta

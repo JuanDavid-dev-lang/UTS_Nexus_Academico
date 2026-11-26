@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { app } from './app.js';
-import { connectDb } from './shared/db.js';
+import mongoose from 'mongoose';
+import { connectDb, dbStatus } from './shared/db.js';
 import { createSocketServer } from './shared/socket.js';
 import {
   startScheduler,
@@ -15,6 +16,8 @@ import {
 } from './shared/scheduler.js';
 import { env, esProduccion, validarProduccion } from './shared/env.js';
 import { asegurarPerfilesIniciales } from './shared/institutions-bootstrap.js';
+import { detenerVolcadoDeUso, iniciarVolcadoDeUso } from './modules/usage/usage.service.js';
+import { liberarTurnos } from './shared/job-run.js';
 
 // Antes de abrir el puerto, antes de conectar a la base y antes de aceptar una
 // sola petición: si la configuración de producción es insegura, aquí se detiene.
@@ -70,10 +73,19 @@ await connectDb();
 // Perfiles institucionales iniciales (UTS, UIS, UDES) y docentes sin
 // institución vinculados a las UTS. Idempotente; nunca detiene el arranque:
 // sin perfiles el registro sigue funcionando, solo que con el selector vacío.
-try {
-  await asegurarPerfilesIniciales();
-} catch (causa) {
-  console.error('[instituciones] no se pudieron asegurar los perfiles iniciales:', causa);
+const asegurarPerfiles = async (): Promise<void> => {
+  try {
+    await asegurarPerfilesIniciales();
+  } catch (causa) {
+    console.error('[instituciones] no se pudieron asegurar los perfiles iniciales:', causa);
+  }
+};
+if (dbStatus().status === 'connected') {
+  await asegurarPerfiles();
+} else {
+  // La conexión inicial se reintenta en segundo plano (`shared/db.ts`): los
+  // perfiles se aseguran cuando llegue, no solo en el primer intento.
+  mongoose.connection.once('connected', () => void asegurarPerfiles());
 }
 
 server.listen(env.PORT, env.HOST, () => {
@@ -88,5 +100,19 @@ server.listen(env.PORT, env.HOST, () => {
   startAttendanceQrReader();
   startUniplannerRequestWatcher();
   startUniplannerLinkVerifier();
+  iniciarVolcadoDeUso();
 });
+
+/**
+ * Apagado ordenado: vuelca el registro de uso acumulado en memoria antes de
+ * salir. Sin esto, cada reinicio (un despliegue, systemd) perdía hasta un
+ * minuto de estadística. Con tope de 5 s: un Atlas que no contesta no puede
+ * retener el apagado.
+ */
+for (const senal of ['SIGTERM', 'SIGINT'] as const) {
+  process.once(senal, () => {
+    setTimeout(() => process.exit(0), 5_000).unref();
+    void Promise.all([detenerVolcadoDeUso(), liberarTurnos()]).finally(() => process.exit(0));
+  });
+}
 

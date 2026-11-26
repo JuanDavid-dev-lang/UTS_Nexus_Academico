@@ -29,7 +29,8 @@ import { useCurrentUser, useUserRole } from '@/state/session.store';
 import { ExportButton } from '@/features/reports/components/export-button';
 import { useRecorteWeb } from '@/shared/hooks/use-recorte-web';
 import { can } from '@/core/auth/permissions';
-import { currentPeriod, etiquetaDeGrupo, formatDate, formatPercent, recentPeriods, toIsoDate } from '@/shared/lib/format';
+import { etiquetaDeGrupo, formatDate, formatPercent, opcionesDePeriodo, toIsoDate } from '@/shared/lib/format';
+import { usePeriodoSeleccionado } from '@/shared/hooks/use-periodo-actual';
 import { cn } from '@/shared/lib/cn';
 import { toast } from '@/state/toast.store';
 import { SheetScanDialog } from './components/sheet-scan-dialog';
@@ -54,7 +55,7 @@ import {
  * already made - the v1 flow required a separate save step per student.
  */
 export default function AttendancePage() {
-  const [period, setPeriod] = useState(currentPeriod());
+  const [period, setPeriod] = usePeriodoSeleccionado();
   const [subjectId, setSubjectId] = useState('');
   /** El grupo que eligió el docente. Vacío = ninguno elegido todavía. */
   const [groupId, setGroupId] = useState('');
@@ -326,7 +327,7 @@ export default function AttendancePage() {
                 setSubjectId('');
               }}
             >
-              {recentPeriods(6).map((option) => (
+              {opcionesDePeriodo(period).map((option) => (
                 <option key={option} value={option}>
                   {option}
                 </option>

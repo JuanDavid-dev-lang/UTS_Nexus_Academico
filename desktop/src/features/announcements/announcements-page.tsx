@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Pin, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, CalendarClock, Pencil, Pin, Plus, Trash2 } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -32,6 +32,17 @@ function fecha(iso: string): string {
   return new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+/** Fecha y hora, para lo programado: «el viernes» no basta si sale a las 7:00. */
+function fechaHora(iso: string): string {
+  return new Date(iso).toLocaleString('es-CO', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 /**
  * Avisos de la institución.
  *
@@ -44,6 +55,9 @@ export default function AnnouncementsPage() {
   const role = useUserRole();
   const esAdmin = role === 'ADMIN';
   const [componiendo, setComponiendo] = useState(false);
+  const [editando, setEditando] = useState<Aviso | null>(null);
+  /** Cambia en cada edición: remonta el formulario con los datos de ese aviso. */
+  const [apertura, setApertura] = useState(0);
   const [borrando, setBorrando] = useState<Aviso | null>(null);
   const [abierto, setAbierto] = useState<string | null>(null);
 
@@ -76,12 +90,18 @@ export default function AnnouncementsPage() {
         title="Avisos"
         subtitle={
           avisos.data
-            ? `${avisos.data.items.length} publicados · ${avisos.data.sinLeer} sin leer`
+            ? resumenDeAvisos(avisos.data.items, avisos.data.sinLeer)
             : 'Comunicaciones de la institución'
         }
         actions={
           esAdmin ? (
-            <Button variant="primary" onClick={() => setComponiendo(true)}>
+            <Button
+              variant="primary"
+              onClick={() => {
+                setEditando(null);
+                setComponiendo(true);
+              }}
+            >
               <Plus aria-hidden />
               Publicar aviso
             </Button>
@@ -89,7 +109,17 @@ export default function AnnouncementsPage() {
         }
       />
 
-      {esAdmin && <AnnouncementComposer open={componiendo} onOpenChange={setComponiendo} />}
+      {esAdmin && (
+        <AnnouncementComposer
+          key={editando ? `${editando._id}:${apertura}` : 'nuevo'}
+          open={componiendo}
+          onOpenChange={abierto => {
+            setComponiendo(abierto);
+            if (!abierto) setEditando(null);
+          }}
+          aviso={editando}
+        />
+      )}
 
       {avisos.isPending ? (
         <SkeletonList rows={4} />
@@ -110,6 +140,7 @@ export default function AnnouncementsPage() {
         <div className="flex flex-col gap-3">
           {avisos.data.items.map(aviso => {
             const expandido = abierto === aviso._id;
+            const programado = aviso.estado === 'PROGRAMADO';
             return (
               // Sin franja en el filo: «Sin leer» ya lo dice la insignia, y el
               // filo de marca basta para encontrarlo al recorrer la lista.
@@ -133,12 +164,19 @@ export default function AnnouncementsPage() {
                         )}
                         <span className="text-body font-semibold text-text">{aviso.titulo}</span>
                         <Badge tone={TIPO[aviso.tipo].tono}>{TIPO[aviso.tipo].texto}</Badge>
-                        {!aviso.leido && <Badge tone="info">Sin leer</Badge>}
+                        {programado && (
+                          <Badge tone="info">
+                            <CalendarClock className="size-3.5" aria-hidden />
+                            Programado para el {fechaHora(aviso.publicadoEn)}
+                          </Badge>
+                        )}
+                        {aviso.estado === 'CADUCADO' && <Badge tone="neutral">Caducado</Badge>}
+                        {!aviso.leido && !programado && <Badge tone="info">Sin leer</Badge>}
                       </div>
                       <p className="text-caption text-muted">
                         {fecha(aviso.publicadoEn)}
                         {aviso.autorId?.fullName ? ` · ${aviso.autorId.fullName}` : ''}
-                        {esAdmin ? ` · ${aviso.lecturas} lectura(s)` : ''}
+                        {esAdmin && !programado ? ` · ${aviso.lecturas} lectura(s)` : ''}
                       </p>
                       {!expandido && (
                         <p className="line-clamp-2 text-body text-muted">{aviso.cuerpo}</p>
@@ -156,15 +194,29 @@ export default function AnnouncementsPage() {
                         </p>
                       )}
                       {esAdmin && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="mt-3 text-danger"
-                          onClick={() => setBorrando(aviso)}
-                        >
-                          <Trash2 className="size-4" aria-hidden />
-                          Eliminar
-                        </Button>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setEditando(aviso);
+                              setApertura(n => n + 1);
+                              setComponiendo(true);
+                            }}
+                          >
+                            <Pencil className="size-4" aria-hidden />
+                            Editar
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-danger"
+                            onClick={() => setBorrando(aviso)}
+                          >
+                            <Trash2 className="size-4" aria-hidden />
+                            {programado ? 'Cancelar publicación' : 'Eliminar'}
+                          </Button>
+                        </div>
                       )}
                     </div>
                   )}
@@ -178,15 +230,32 @@ export default function AnnouncementsPage() {
       <ConfirmDialog
         open={!!borrando}
         onOpenChange={abierto => !abierto && setBorrando(null)}
-        title="¿Eliminar este aviso?"
+        title={borrando?.estado === 'PROGRAMADO' ? '¿Cancelar este aviso programado?' : '¿Eliminar este aviso?'}
         description={
           borrando
-            ? `«${borrando.titulo}» dejará de verse para todos los docentes.`
+            ? borrando.estado === 'PROGRAMADO'
+              ? `«${borrando.titulo}» no llegará a publicarse ni a notificarse.`
+              : `«${borrando.titulo}» dejará de verse para todos los docentes.`
             : ''
         }
-        confirmLabel="Eliminar"
+        confirmLabel={borrando?.estado === 'PROGRAMADO' ? 'Cancelar aviso' : 'Eliminar'}
         onConfirm={() => borrando && borrar.mutate(borrando._id)}
       />
     </PageContainer>
   );
+}
+
+/**
+ * Subtítulo de la pantalla. Cuenta lo que el servidor dice que es cada aviso:
+ * a un docente solo le llegan vigentes; a ADMIN también programados y
+ * caducados, y mezclarlos bajo «publicados» contaría como enviado lo que aún
+ * no ha salido.
+ */
+function resumenDeAvisos(items: Aviso[], sinLeer: number): string {
+  const programados = items.filter(a => a.estado === 'PROGRAMADO').length;
+  const publicados = items.length - programados;
+  const partes = [`${publicados} publicados`];
+  if (programados > 0) partes.push(`${programados} programado(s)`);
+  partes.push(`${sinLeer} sin leer`);
+  return partes.join(' · ');
 }

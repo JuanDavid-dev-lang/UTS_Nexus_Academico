@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'appearance/appearance_preferences.dart';
 import 'appearance/palettes.dart';
+import 'firma.dart';
 
 /// Sistema de diseño — UTS Nexus Académico (móvil).
 ///
@@ -928,9 +929,18 @@ class AppTheme {
         // opaca no cambia de tono si algún día la barra deja de ser blanca.
         indicatorColor: palette.primarySoft,
         // Píldora y no el óvalo ancho de Material 3: abraza el icono y deja
-        // claro cuál es la pestaña sin pintar media barra.
-        indicatorShape: RoundedRectangleBorder(
+        // claro cuál es la pestaña sin pintar media barra. Lleva la firma UTS
+        // junto a su borde inferior, el mismo marcador de sección que el menú
+        // lateral del escritorio (DESIGN.md §4.1).
+        indicatorShape: IndicadorConFirma(
           borderRadius: BorderRadius.circular(r(AppSpacing.radiusInput)),
+          tallo: coloresDeFirma(
+            isDark: palette.isDark,
+            primary: palette.primary,
+            accent: palette.accent,
+            accentSecondary: palette.accentSecondary,
+          ).tallo,
+          punta: palette.accent,
         ),
         surfaceTintColor: Colors.transparent,
         elevation: 0,

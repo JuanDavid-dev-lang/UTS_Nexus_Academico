@@ -16,7 +16,8 @@ import { analyticsRepository } from '@/infrastructure/repositories/insights.repo
 import { attendanceRepository } from '@/infrastructure/repositories/attendance.repository';
 import { gradeRepository } from '@/infrastructure/repositories/grades.repository';
 import { toast } from '@/state/toast.store';
-import { currentPeriod, formatDate, formatGrade, formatPercent } from '@/shared/lib/format';
+import { formatDate, formatGrade, formatPercent } from '@/shared/lib/format';
+import { usePeriodoActual } from '@/shared/hooks/use-periodo-actual';
 import type { AccionSeguimiento, RiskItem, Seguimiento } from '@/domain/schemas/risk';
 import { can } from '@/core/auth/permissions';
 import { useUserRole } from '@/state/session.store';
@@ -77,7 +78,7 @@ export function SeguimientoDialog({
   const queryClient = useQueryClient();
   // Secretaría consulta el expediente pero no anota: el servidor respondería 403.
   const puedeIntervenir = can(useUserRole(), 'analytics.intervene');
-  const period = currentPeriod();
+  const period = usePeriodoActual();
   const scope = row
     ? { studentId: row.studentId, subjectId: row.subjectId, period }
     : null;

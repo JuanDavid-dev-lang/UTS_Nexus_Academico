@@ -20,7 +20,8 @@ import { useSubjects } from '@/features/subjects/hooks/use-subjects';
 import { useUserRole } from '@/state/session.store';
 import { platform } from '@/core/platform/tauri';
 import { toast } from '@/state/toast.store';
-import { currentPeriod, recentPeriods, toIsoDate } from '@/shared/lib/format';
+import { opcionesDePeriodo, toIsoDate } from '@/shared/lib/format';
+import { usePeriodoSeleccionado } from '@/shared/hooks/use-periodo-actual';
 import type { ReportFormat, ReportKind } from '@/domain/repositories/ports';
 
 const REPORTS: { kind: ReportKind; title: string; description: string }[] = [
@@ -56,7 +57,7 @@ const EXTENSIONS: Record<ReportFormat, string> = { pdf: 'pdf', excel: 'xlsx' };
  * the file, not choosing a path.
  */
 export default function ReportsPage() {
-  const [period, setPeriod] = useState(currentPeriod());
+  const [period, setPeriod] = usePeriodoSeleccionado();
   const [subjectId, setSubjectId] = useState('');
   const [pending, setPending] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -139,7 +140,7 @@ export default function ReportsPage() {
                   setSubjectId('');
                 }}
               >
-                {recentPeriods(6).map((option) => (
+                {opcionesDePeriodo(period).map((option) => (
                   <option key={option} value={option}>
                     {option}
                   </option>

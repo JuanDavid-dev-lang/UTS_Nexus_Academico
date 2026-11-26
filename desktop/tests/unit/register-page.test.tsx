@@ -110,6 +110,12 @@ describe('pantalla de registro de docentes', () => {
       target: { value: 'ClaveSegura2026' },
     });
 
+    // Sin marcar el aviso de uso y privacidad no se envía.
+    fireEvent.click(screen.getByRole('button', { name: /Enviar solicitud/i }));
+    await screen.findByText(/Lee el aviso de uso y privacidad/i);
+    expect(repositories.solicitar).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByLabelText(/He leído el aviso de uso y privacidad/i));
+
     // Enviar
     fireEvent.click(screen.getByRole('button', { name: /Enviar solicitud/i }));
 
@@ -125,6 +131,7 @@ describe('pantalla de registro de docentes', () => {
         institucionSolicitada: 'Universidad Industrial de Santander',
         email: 'maria.ortiz@uts.edu.co',
         password: 'ClaveSegura2026',
+        aceptaAvisoUso: true,
       });
     });
 

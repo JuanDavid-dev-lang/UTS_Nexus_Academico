@@ -88,16 +88,59 @@ posterior sobrescribe los registros por su clave, pero el documento del periodo
 conserva la traza — que es lo único que permite responder «¿por qué el
 consolidado de diciembre no coincide con el de marzo?».
 
-### Último día del semestre
+### Fechas del semestre y semestre vigente
 
-Cada periodo puede llevar `endsOn` (`AAAA-MM-DD`): el día de las notas de
-habilitación del acuerdo del Consejo Académico. Se pone desde la tarjeta del
-periodo en esta misma pantalla (`PATCH /periods/:period`, solo ADMIN: el
-periodo es global) y se puede corregir con el periodo cerrado. Hoy lo usa una sola
-cosa: hasta ese día queda fijo el enlace de UniPlanner de quien marca asistencia
-por QR (`docs/UNIPLANNER.md` §8). Sin fecha, se usa la de
-`domains/periods/period-calendar.ts` —30 de junio y 20 de diciembre—, y la
-tarjeta dice cuál se está aplicando.
+Cada periodo puede llevar `startsOn` y `endsOn` (`AAAA-MM-DD`): el primer día
+de clases y el de las notas de habilitación del acuerdo del Consejo Académico.
+Se ponen desde la tarjeta del periodo en esta misma pantalla (`PATCH
+/periods/:period`, solo ADMIN: el periodo es global) y se pueden corregir con el
+periodo cerrado. El servidor rechaza con 400 un inicio posterior al fin,
+comparando con lo que quedará guardado y no solo con lo que llega. Si el periodo
+no existe, el `PATCH` lo crea: así se prepara el semestre siguiente con sus
+fechas antes de que empiece («Preparar semestre», arriba de la pantalla).
+
+Las dos fechas deciden **qué semestre corre hoy** (`GET /periods/current`,
+cualquier sesión, también por la web). Antes cada cliente lo deducía del mes de
+su reloj, y un equipo con la fecha mal puesta, o un semestre que la universidad
+alargó hasta julio, bastaban para que escritorio y teléfono abrieran en
+semestres distintos sin que nada fallara: la lista simplemente salía vacía. La
+regla es pura y está probada (`domains/periods/period-current.ts`,
+`tests/period-current.test.ts`), y mide el día **en el campus**
+(`CAMPUS_UTC_OFFSET_MIN`):
+
+1. Un periodo con fechas configuradas cuyo rango contiene hoy → `configurado`
+   (si falta una de las dos se rellena con la de por defecto).
+2. Si no, el de calendario —enero–junio `-1`, julio–diciembre `-2`— cuando su
+   rango lo contiene → `calendario`.
+3. En el hueco entre semestres, el siguiente que **ya tiene inicio
+   configurado**: las pantallas abren en el semestre que viene, no en uno que
+   terminó. Un periodo creado de antemano no adelanta el actual mientras el de
+   calendario siga en curso.
+4. Si nadie configuró el siguiente, el de calendario.
+
+La respuesta trae `{ period, label, startsOn, endsOn, origen, state }`, y la
+pantalla enseña el vigente con su origen: un semestre deducido del calendario
+cuando la universidad ya fijó otras fechas es justo el error que nadie ve.
+Cambiar fechas emite `sync:update` de `period`, que en los dos clientes tira
+también la consulta del vigente.
+
+En los clientes, el periodo por defecto de Notas, Asistencia, Reportes,
+Materias, el seguimiento de riesgo y la importación de horario sale de ahí
+(`usePeriodoActual` / `usePeriodoSeleccionado` en el escritorio,
+`selectedPeriodProvider` derivado de `periodoVigenteProvider` en el móvil). Lo
+que el docente elige a mano en el selector manda: por eso se guarda la elección
+y el resto se deriva, en vez de copiar la respuesta a un estado que la pisaría
+si llegara tarde. Sin respuesta ni caché se usa el mes del reloj, que es mejor
+que no abrir. La consulta se guarda para abrir sin conexión (raíz `periods`,
+clave `current`, en el escritorio; `periodo.actual` en `OfflineCache` en el
+móvil) y la precarga de los dos la pide primero para precargar las materias de
+ese semestre. El selector añade el vigente a sus opciones aunque no esté entre
+los recientes del calendario (en diciembre puede ser ya `2027-1`).
+
+`endsOn` sigue usándose además para otra cosa: hasta ese día queda fijo el
+enlace de UniPlanner de quien marca asistencia por QR (`docs/UNIPLANNER.md` §8).
+Sin fecha, se usa la de `domains/periods/period-calendar.ts` —30 de junio y 20
+de diciembre—, y la tarjeta dice cuál se está aplicando.
 
 ### Interfaz
 

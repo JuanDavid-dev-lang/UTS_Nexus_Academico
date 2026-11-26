@@ -175,6 +175,22 @@
   --radius-2xl: 16px;
   --radius-pill: 999px;
 
+  /*
+   * Firma UTS (DESIGN.md §4.1): un guion en el color de marca seguido de un
+   * punto lima, separados por un hueco. Es el único detalle decorativo propio
+   * de la aplicación y vive en un solo sitio: `.firma` (globals.css) en el
+   * escritorio y `FirmaUts` (core/widgets/firma_uts.dart) en el móvil, con los
+   * mismos números. Sigue al tono de Apariencia porque solo nombra tokens.
+   * Es decoración: nunca lleva por sí sola un significado (el estado activo
+   * del menú ya lo dicen el fondo y el color del texto).
+   */
+  --firma-tallo: var(--primary);
+  --firma-punta-color: var(--accent);
+  --firma-largo: 28px;
+  --firma-grosor: 3px;
+  --firma-punta: 6px;
+  --firma-hueco: 3px;
+
   /* Motion - short and consistent. Anything above 300ms feels sluggish. */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
@@ -289,6 +305,10 @@
   --info-border: #1d5c6b;
 
   --ring: #cad225;
+
+  /* En oscuro el primario ya es lima: el guion baja a la lima apagada y el
+     punto conserva la lima viva, así la firma sigue siendo de dos tramos. */
+  --firma-tallo: var(--accent-secondary);
 
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
   --shadow-md: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 10px -2px rgb(0 0 0 / 0.32);

@@ -291,6 +291,65 @@ sus filas con un filo) y el título de la pantalla repetido en la barra superior
 > éxito/bajo riesgo, el rojo siempre es peligro/alto riesgo. Nunca reutilizar un
 > color con otro significado.
 
+### 4.1 Firma UTS — el detalle que hace reconocible la aplicación
+
+**Qué es.** Un guion corto en el color de marca seguido de un punto lima,
+separados por un hueco: `▬▬▬ ▪`. Sale de la franja verde con filete lima del
+membrete de las actas, y es el **único** detalle decorativo propio de la
+aplicación. No es un logotipo ni un adorno libre: siempre la misma forma, en
+los mismos sitios.
+
+| Medida | Valor | Token escritorio | Móvil (`FirmaMedidas`) |
+|--------|-------|------------------|------------------------|
+| Largo | 28 px | `--firma-largo` | `largo` |
+| Grosor | 3 px | `--firma-grosor` | `grosor` |
+| Punto | 6 px | `--firma-punta` | `punta` |
+| Hueco | 3 px | `--firma-hueco` | `hueco` |
+| Guion | `--primary` (claro) · `--accent-secondary` (oscuro, donde el primario ya es lima) | `--firma-tallo` | `coloresDeFirma().tallo` |
+| Punto | `--accent` | `--firma-punta-color` | `palette.accent` |
+
+Los colores solo nombran tokens, así que **sigue al tono de Apariencia** (con
+Océano el guion es azul) y al modo. Sobre la superficie de marca el guion
+toma el color del texto (`.surface-brand` redefine `--firma-tallo`; en el
+móvil, `FirmaUts(tallo: …)`): el primario sobre el primario no se vería.
+
+**Dónde vive** (las pantallas no la ponen; la heredan):
+
+| Sitio | Escritorio / web | Móvil |
+|-------|------------------|-------|
+| Bajo el título de cada pantalla | `PageHeader`: monta el filo inferior por el inicio | `CompactHeader`: esquina inferior, alineada con el título (`flexibleSpace`, no suma alto) |
+| Marcador de sección activa | Indicador del menú lateral (vertical a los lados, horizontal arriba/abajo) | Indicador de la barra inferior (`IndicadorConFirma`, en el tema) |
+| Estados vacío y de error | `StateView`, entre título y explicación | `StateView`, igual |
+| Marca del acceso | Columna de marca, a escala de cartel sobre el titular | Banda de marca, entre nombre y frase |
+
+**Cómo usarla en algo nuevo.** Escritorio: `<span aria-hidden className="firma
+firma-filete" />` (tamaño estándar) o `firma` + tamaño propio; `firma-vertical`
+la gira con el punto abajo. Móvil: `const FirmaUts()` o `FirmaUts(vertical:
+true)`. El pintado vive en `desktop/src/styles/globals.css` (`.firma`) y en
+`flutter_app/lib/core/theme/firma.dart` (`pintarFirma`); **los números de los
+dos tienen que coincidir** y se cambian en el mismo commit.
+
+**Qué no hacer.**
+- No es un significado: el estado activo lo dicen el fondo y el color del
+  texto, la firma lo acompaña. Por eso no necesita 3:1 (WCAG 1.4.11) y la lima
+  sobre blanco vale.
+- No en cada tarjeta, fila o sección: si está en todas partes deja de firmar.
+  Los cuatro sitios de arriba son la lista; añadir uno es una decisión de
+  diseño, no de pantalla.
+- No se anima por su cuenta. El indicador del menú se desliza entre entradas
+  y con «reducir movimiento» salta sin transición.
+- Nada en crudo: ni `#CAD225` ni `#144D37` en una pantalla. Ni degradados,
+  sombras o halos: los `linear-gradient` de `.firma` solo dibujan cortes secos
+  entre dos tramos planos.
+- Siempre `aria-hidden` / `ExcludeSemantics`: un lector de pantalla no tiene
+  nada que leer ahí.
+
+**El resto del lenguaje, que la firma no sustituye**: cifras con `tabular`
+(`StatCard`, columnas de notas; `FontFeature.tabularFigures()` en el móvil),
+foco con `--ring` (primario en claro, lima en oscuro) a 2 px y selección con
+`--primary-soft`. Son la misma familia: marca para lo que se elige, lima para
+lo que se señala.
+
 ---
 
 ## 5. Tipografía
@@ -509,6 +568,15 @@ Toda vista debe contemplar sus estados:
 
 `Loading (Skeleton)` · `Empty` · `Sin datos` · `Error` · `Actualizando` ·
 `Offline / Sin conexión`.
+
+**Fallo del servidor** (sin respuesta, tiempo agotado, 5xx): el tono es
+tranquilo y nunca dice que el servidor «se cayó». Con escrituras en cola:
+«Hubo un problema en el servidor. Tus cambios quedan en local y se subirán
+cuando se restablezcan los servicios.» (en la web, «en esta pestaña», porque
+la cola vive en memoria). Una lectura con datos en pantalla sigue enseñándolos
+con una nota discreta («Mostrando lo último guardado»); sin datos, el estado
+va sin rojo. Un 4xx y una sesión rechazada se enseñan tal cual. Los textos
+salen de `desktop/src/domain/offline/aviso-servidor.ts`.
 
 ---
 

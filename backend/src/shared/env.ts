@@ -192,6 +192,15 @@ export const env = {
     (process.env.ALLOW_DEV_RECOVERY_CODE ?? '').toLowerCase(),
   ),
 
+  /**
+   * `0` apaga las tareas periódicas en esta instancia (recordatorios, avisos,
+   * riesgo, UniPlanner…). Para un contenedor de pruebas o una segunda
+   * instancia que no debe repartir nada. Encendidas por defecto; con varias
+   * instancias encendidas, el turno de `shared/turno-tarea.ts` evita que la
+   * misma tarea corra en dos a la vez.
+   */
+  JOBS_ENABLED: !['0', 'false', 'no'].includes((process.env.JOBS_ENABLED ?? '').toLowerCase()),
+
   /** `production` activa las comprobaciones de abajo. */
   NODE_ENV: process.env.NODE_ENV ?? 'development',
 };

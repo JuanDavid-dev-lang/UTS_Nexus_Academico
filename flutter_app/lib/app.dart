@@ -41,6 +41,7 @@ import './features/grades/grades_page.dart';
 import './features/feedback/feedback_page.dart';
 import './features/thesis/thesis_formats_page.dart';
 import './features/admin/admin_supervision_page.dart';
+import './features/usage/usage_page.dart';
 import './features/students/students_paginados_provider.dart';
 
 /// Navigator raíz. Lo necesita [UpdateGate]: el `builder` de `MaterialApp` se
@@ -171,6 +172,7 @@ final router = GoRouter(
         // inaccesible hasta reiniciar.
         _rama('/trabajos-grado', (_, __) => const ThesisFormatsPage()),
         _rama('/profile', (_, __) => const ProfilePage()),
+        _rama('/uso', (_, __) => const UsagePage()),
       ],
     ),
   ],
@@ -219,6 +221,9 @@ class _UtsAppState extends ConsumerState<UtsApp> {
         // Volver a primer plano es el momento en que más probable es que haya
         // red de nuevo tras un rato en el bolsillo.
         OutboxService.instance.solicitarDrenaje();
+        // Una sesión mantenida no caduca por abrir la app poco: si el refresh
+        // token tiene más de un día, se renueva (como mucho una vez al día).
+        ref.read(authControllerProvider.notifier).mantenerSesion();
       },
     );
 
@@ -314,6 +319,16 @@ class _UtsAppState extends ConsumerState<UtsApp> {
   /// providers no son `autoDispose`: invalidar uno que nadie mira solo lo
   /// marca, y se pide de nuevo cuando alguien lo abre.
   void _refrescarTrasReconexion() {
+    _invalidarDatosAcademicos();
+    unawaited(_reprogramarRecordatorios());
+  }
+
+  /// Todo lo que se lee del servidor y vive en providers sin `autoDispose`.
+  /// Lo usan la reconexión del socket y el cambio de cuenta: los providers no
+  /// dependen de la sesión, así que sin esto el docente que entra después de
+  /// otro en el mismo teléfono veía las materias del anterior hasta la primera
+  /// recarga (y su memoria seguía ocupada con ellas tras cerrar sesión).
+  void _invalidarDatosAcademicos() {
     ref.invalidate(dashboardProvider);
     ref.invalidate(subjectsProvider);
     ref.invalidate(groupsProvider);
@@ -331,7 +346,6 @@ class _UtsAppState extends ConsumerState<UtsApp> {
     ref.invalidate(agendaResumenProvider);
     ref.invalidate(agendaSemanaProvider);
     ref.invalidate(agendaProximaProvider);
-    unawaited(_reprogramarRecordatorios());
   }
 
   @override
@@ -467,6 +481,8 @@ class _UtsAppState extends ConsumerState<UtsApp> {
            */
           case 'period':
             ref.invalidate(periodosProvider);
+            // Cambiar las fechas de un semestre puede cambiar cuál corre hoy.
+            ref.invalidate(periodoVigenteProvider);
             ref.invalidate(consolidatedGradesProvider);
             ref.invalidate(pendingGradesProvider);
             ref.invalidate(dashboardProvider);
@@ -527,6 +543,10 @@ class _UtsAppState extends ConsumerState<UtsApp> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         if (next.isAuthenticated) {
+          // Otra cuenta (o la primera tras arrancar): nada de lo que hubiera
+          // en memoria es suyo. Se invalida antes de montar el panel, así que
+          // no hay ninguna pantalla mirando y no se dispara ninguna consulta.
+          if (previous?.user?.id != next.user?.id) _invalidarDatosAcademicos();
           router.go('/');
           // Al entrar se piden los permisos, se registra el teléfono para el
           // push y se programan los avisos de la semana. Es el único momento en
@@ -545,13 +565,19 @@ class _UtsAppState extends ConsumerState<UtsApp> {
           // Al cerrar sesión no pueden quedar alarmas con el nombre de las
           // clases del docente anterior, ni un token que le siga empujando sus
           // alertas a un teléfono que ya no es suyo.
-          unawaited(PushService.instance.darDeBaja());
+          // La baja del push la hace `AuthController.logout()`, antes de
+          // soltar los tokens: desde aquí salía ya sin sesión y no llegaba.
           unawaited(LocalNotificationsService.instance.cancelarTodo());
           // Los widgets de la pantalla de inicio son visibles para cualquiera
           // que tenga el teléfono en la mano: el horario del docente anterior
           // no puede seguir ahí para el que entre después.
           unawaited(HomeWidgetService.instance.limpiar());
           router.go('/login');
+          // Suelta de memoria los datos del docente que salió, ya con el
+          // acceso en pantalla (ningún provider observado: no se consulta).
+          WidgetsBinding.instance.endOfFrame.then((_) {
+            if (mounted) _invalidarDatosAcademicos();
+          });
         }
       });
     });

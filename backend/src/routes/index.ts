@@ -40,6 +40,8 @@ import { attendanceQrRouter } from '../modules/attendance-qr/attendance-qr.route
 import { identificar, bloquearSoloLectura, restringirCanalWeb } from '../middlewares/auth.js';
 import { limiteEscritura, limiteGeneral } from '../middlewares/rate-limit.js';
 import { cargarAlcance } from '../middlewares/scope.js';
+import { registrarPeticionDeUso } from '../middlewares/usage.js';
+import { usageRouter } from '../modules/usage/usage.routes.js';
 
 export const apiRouter = Router();
 
@@ -66,6 +68,9 @@ export const apiRouter = Router();
  *    consultaría sin acotar y devolvería datos de otra carrera con un 200.
  */
 apiRouter.use(identificar);
+// Registro de uso (estadística interna de ADMIN): suma en memoria y vuelca
+// por lotes cada minuto; no añade ninguna escritura por petición.
+apiRouter.use(registrarPeticionDeUso);
 apiRouter.use(restringirCanalWeb);
 apiRouter.use(limiteGeneral);
 apiRouter.use(limiteEscritura);
@@ -141,3 +146,6 @@ apiRouter.use('/uniplanner', uniplannerRouter);
 // entra por aquí —su marca llega por Firestore y la lee el servidor—, así que
 // no hay ninguna ruta abierta a quien no tenga sesión de Nexus.
 apiRouter.use('/asistencia-qr', attendanceQrRouter);
+// Uso de la aplicación: cuánto se usa y quién más. Solo ADMIN, estadística
+// interna (`docs/USO_Y_PRIVACIDAD.md`).
+apiRouter.use('/uso', usageRouter);

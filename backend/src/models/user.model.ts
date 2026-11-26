@@ -42,6 +42,14 @@ const schema = new Schema(
     institutionId: { type: Schema.Types.ObjectId, ref: 'Institucion', default: null, index: true },
 
     lastLoginAt: { type: Date, default: null },
+
+    /**
+     * Aviso de uso y privacidad (`docs/USO_Y_PRIVACIDAD.md`): cuándo lo vio y
+     * qué versión. `null` = no lo ha visto; al entrar se le enseña una vez.
+     * Subir `AVISO_USO_VERSION` lo vuelve a enseñar a todos.
+     */
+    avisoUsoVistoEn: { type: Date, default: null },
+    avisoUsoVersion: { type: Number, default: null },
     passwordResetCodeHash: { type: String, default: null },
     passwordResetExpiresAt: { type: Date, default: null },
     passwordResetAttempts: { type: Number, default: 0 },

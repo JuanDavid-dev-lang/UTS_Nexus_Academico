@@ -118,7 +118,9 @@ class _TarjetaState extends State<_Tarjeta> {
 
   Future<void> _alternar() async {
     setState(() => _abierto = !_abierto);
-    if (_abierto && !widget.aviso.leido) {
+    // Un programado (solo lo ve ADMIN) todavía no se ha publicado: abrirlo no
+    // es leerlo.
+    if (_abierto && !widget.aviso.leido && !widget.aviso.programado) {
       // Optimista: la marca se aplica en pantalla sin esperar al servidor. Si
       // la petición falla, el aviso sigue ahí y se volverá a marcar al abrirlo.
       setState(() => widget.aviso.leido = true);
@@ -154,7 +156,7 @@ class _TarjetaState extends State<_Tarjeta> {
                     style: AppType.body.copyWith(fontWeight: FontWeight.w700),
                   ),
                 ),
-                if (!a.leido)
+                if (!a.leido && !a.programado)
                   Container(
                     width: 9,
                     height: 9,
@@ -166,16 +168,26 @@ class _TarjetaState extends State<_Tarjeta> {
               ],
             ),
             const SizedBox(height: 6),
-            Row(
+            // Wrap y no Row: con la marca de programado, en 360 dp no caben
+            // las dos píldoras y la fecha en una línea.
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 StatusPill(
                   AnnouncementsPage._etiqueta(a.tipo),
                   kind: AnnouncementsPage._kind(a.tipo),
                 ),
-                const SizedBox(width: 8),
+                if (a.programado)
+                  const StatusPill('Programado', kind: SemanticKind.info),
+                if (a.estado == 'CADUCADO')
+                  const StatusPill('Caducado', kind: SemanticKind.warning),
                 if (fecha != null)
                   Text(
-                    '${fecha.day}/${fecha.month}/${fecha.year}',
+                    a.programado
+                        ? 'Sale el ${_fechaHora(fecha.toLocal())}'
+                        : '${fecha.day}/${fecha.month}/${fecha.year}',
                     style: AppType.caption.copyWith(color: widget.muted),
                   ),
               ],
@@ -200,3 +212,7 @@ class _TarjetaState extends State<_Tarjeta> {
     );
   }
 }
+
+/// «26/11/2026 7:05» para un programado: el día solo no dice a qué hora sale.
+String _fechaHora(DateTime f) =>
+    '${f.day}/${f.month}/${f.year} ${f.hour}:${f.minute.toString().padLeft(2, '0')}';

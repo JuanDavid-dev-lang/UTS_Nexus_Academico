@@ -33,10 +33,14 @@ export function PageHeader({
     // con él por ser lo primero que se lee.
     <header
       className={cn(
-        'flex flex-wrap items-end justify-between gap-x-6 gap-y-3 border-b border-border pb-5',
+        'relative flex flex-wrap items-end justify-between gap-x-6 gap-y-3 border-b border-border pb-5',
         className,
       )}
     >
+      {/* La firma UTS asienta el título sobre su filo: el guion y el punto
+          montan el borde inferior por el inicio. Es lo que hace reconocible
+          cada pantalla sin un bloque de color (DESIGN.md §4.1). */}
+      <span aria-hidden className="firma firma-filete absolute -bottom-0.5 left-0" />
       <div className="flex min-w-0 flex-col gap-1.5">
         {eyebrow ? (
           // Contexto (periodo, materia, grupo) en voz baja: no es un titular

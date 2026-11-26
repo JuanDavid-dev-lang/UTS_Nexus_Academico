@@ -37,7 +37,8 @@ import { queryKeys } from '@/core/api/query-keys';
 import { useUserRole } from '@/state/session.store';
 import { can } from '@/core/auth/permissions';
 import { toast } from '@/state/toast.store';
-import type { EstadoPeriodo, Periodo } from '@/domain/schemas/administracion';
+import type { EstadoPeriodo, Periodo, PeriodoActual } from '@/domain/schemas/administracion';
+import { opcionesPeriodoActual } from '@/shared/hooks/use-periodo-actual';
 
 /**
  * Cierre oficial de periodos académicos.
@@ -139,13 +140,21 @@ export default function PeriodsPage() {
     onError: (causa) => toast.fromError(causa, 'No se pudo reabrir'),
   });
 
+  const actual = useQuery(opcionesPeriodoActual);
   const periodos = listado.data ?? [];
+  const vigente = actual.data?.period ?? null;
 
   return (
     <PageContainer>
       <PageHeader
         title="Periodos académicos"
         subtitle="Cerrar un semestre bloquea notas, asistencia y matrículas, y congela el consolidado oficial."
+      />
+
+      <SemestreVigente
+        actual={actual.data ?? null}
+        editable={puedeCerrar}
+        onGuardado={invalidar}
       />
 
       {listado.isPending ? <SkeletonList rows={4} /> : null}
@@ -178,6 +187,7 @@ export default function PeriodsPage() {
                       />
                       {presentacion.texto}
                     </Badge>
+                    {periodo.period === vigente ? <Badge tone="success">Vigente</Badge> : null}
                     {periodo.implicito ? (
                       <Badge tone="neutral" title="Existe por los datos, todavía sin registro propio.">
                         Histórico
@@ -245,7 +255,7 @@ export default function PeriodsPage() {
               </CardHeader>
 
               <CardContent className="pt-0">
-                <FinDelSemestre periodo={periodo} editable={puedeCerrar} onGuardado={invalidar} />
+                <FechasDelSemestre periodo={periodo} editable={puedeCerrar} onGuardado={invalidar} />
               </CardContent>
 
               {enCurso || periodo.progresoDetalle.total > 0 ? (
@@ -441,15 +451,140 @@ function dia(valor: string): string {
 }
 
 /**
- * Último día del semestre: el de las notas de habilitación del acuerdo del
- * Consejo Académico.
+ * Qué semestre corre hoy y de dónde lo saca el servidor.
  *
- * Hasta ese día queda fijo el enlace de UniPlanner de quien marca asistencia
+ * Es el semestre con el que abren Notas, Asistencia, Reportes y Materias en
+ * los tres clientes, así que se enseña arriba y con su origen: un semestre
+ * deducido del calendario cuando la universidad ya fijó otras fechas es
+ * exactamente el error que nadie ve hasta que una lista sale vacía. ADMIN
+ * puede preparar aquí el siguiente semestre con sus fechas antes de que
+ * empiece.
+ */
+function SemestreVigente({
+  actual,
+  editable,
+  onGuardado,
+}: {
+  actual: PeriodoActual | null;
+  editable: boolean;
+  onGuardado: () => void;
+}) {
+  const [preparando, setPreparando] = useState(false);
+  const [clave, setClave] = useState('');
+  const [inicio, setInicio] = useState('');
+  const [fin, setFin] = useState('');
+
+  const crear = useMutation({
+    mutationFn: () =>
+      periodosRepository.configurarFechas(clave.trim(), {
+        startsOn: inicio || null,
+        endsOn: fin || null,
+      }),
+    onSuccess() {
+      toast.success(`Semestre ${clave.trim()} preparado`);
+      setPreparando(false);
+      onGuardado();
+    },
+    onError: (causa) => toast.fromError(causa, 'No se pudo preparar el semestre'),
+  });
+
+  const claveValida = /^\d{4}-[1-4]$/.test(clave.trim());
+  const rangoValido = !inicio || !fin || inicio <= fin;
+
+  return (
+    <Card className="mb-3">
+      <CardContent className="flex flex-wrap items-center gap-3 p-4">
+        <CalendarClock className="size-4 shrink-0 text-muted" aria-hidden />
+        <p className="min-w-0 flex-1 text-caption text-muted">
+          <span className="font-semibold text-text">
+            Semestre vigente: {actual ? actual.period : '…'}
+          </span>
+          {actual?.startsOn && actual.endsOn
+            ? ` · del ${dia(actual.startsOn)} al ${dia(actual.endsOn)}`
+            : ''}
+          {actual
+            ? actual.origen === 'configurado'
+              ? ' · según las fechas que puso la administración.'
+              : ' · según el calendario por defecto (enero–junio, julio–diciembre).'
+            : ''}{' '}
+          Es el semestre con el que abren las pantallas en todas las aplicaciones.
+        </p>
+        {editable ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setClave(actual ? siguientePeriodo(actual.period) : '');
+              setInicio('');
+              setFin('');
+              setPreparando(true);
+            }}
+          >
+            Preparar semestre
+          </Button>
+        ) : null}
+      </CardContent>
+
+      <Dialog open={preparando} onOpenChange={setPreparando}>
+        <DialogContent
+          title="Preparar un semestre"
+          description="Crea el periodo con sus fechas antes de que empiece. Si ya existe, solo cambian las fechas que escribas."
+        >
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field label="Periodo" hint="AAAA-N, por ejemplo 2027-1">
+              {(props) => <Input {...props} value={clave} onChange={(e) => setClave(e.target.value)} />}
+            </Field>
+            <Field label="Primer día">
+              {(props) => (
+                <Input {...props} type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} />
+              )}
+            </Field>
+            <Field label="Último día">
+              {(props) => (
+                <Input {...props} type="date" value={fin} onChange={(e) => setFin(e.target.value)} />
+              )}
+            </Field>
+          </div>
+          {!rangoValido ? (
+            <p className="text-caption font-medium text-danger">
+              El primer día no puede ser posterior al último.
+            </p>
+          ) : null}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setPreparando(false)}>
+              Cancelar
+            </Button>
+            <Button
+              loading={crear.isPending}
+              disabled={!claveValida || !rangoValido}
+              onClick={() => crear.mutate()}
+            >
+              Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
+
+/** El periodo que sigue: `2026-2` → `2027-1`. Solo para proponer en el formulario. */
+function siguientePeriodo(periodo: string): string {
+  const [anio = 0, ciclo = 0] = periodo.split('-').map(Number);
+  return ciclo >= 2 ? `${anio + 1}-1` : `${anio}-2`;
+}
+
+/**
+ * Primer y último día del semestre.
+ *
+ * Los dos deciden qué semestre corre (`GET /periods/current`). El último es
+ * además el de las notas de habilitación del acuerdo del Consejo Académico:
+ * hasta ese día queda fijo el enlace de UniPlanner de quien marca asistencia
  * por QR, para que nadie cambie su código por el de un compañero a mitad de
  * semestre. Sin fecha propia se usa la de por defecto, y se dice cuál es: una
  * fecha que se aplica sin que se vea es una que nadie revisa.
  */
-function FinDelSemestre({
+function FechasDelSemestre({
   periodo,
   editable,
   onGuardado,
@@ -458,68 +593,98 @@ function FinDelSemestre({
   editable: boolean;
   onGuardado: () => void;
 }) {
+  const inicioVigente = periodo.startsOn ?? periodo.startsOnPorDefecto;
+  const finVigente = periodo.endsOn ?? periodo.endsOnPorDefecto;
   const [editando, setEditando] = useState(false);
-  const [valor, setValor] = useState(periodo.endsOn ?? periodo.endsOnPorDefecto ?? '');
+  const [inicio, setInicio] = useState(inicioVigente ?? '');
+  const [fin, setFin] = useState(finVigente ?? '');
 
   const guardar = useMutation({
-    mutationFn: (endsOn: string | null) => periodosRepository.configurarFin(periodo.period, endsOn),
+    mutationFn: (fechas: { startsOn?: string | null; endsOn?: string | null }) =>
+      periodosRepository.configurarFechas(periodo.period, fechas),
     onSuccess() {
-      toast.success('Último día del semestre guardado');
+      toast.success('Fechas del semestre guardadas');
       setEditando(false);
       onGuardado();
     },
     onError(error) {
-      toast.fromError(error, 'No se pudo guardar la fecha');
+      toast.fromError(error, 'No se pudieron guardar las fechas');
     },
   });
 
-  const vigente = periodo.endsOn ?? periodo.endsOnPorDefecto;
+  const rangoValido = !inicio || !fin || inicio <= fin;
+  const configuradas = Boolean(periodo.startsOn || periodo.endsOn);
 
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg bg-surface-sunken px-3 py-2">
       <CalendarClock className="size-4 shrink-0 text-muted" aria-hidden />
       {editando ? (
         <>
-          <Field label="Último día del semestre" className="w-52">
+          <Field label="Primer día del semestre" className="w-52">
             {(props) => (
-              <Input {...props} type="date" value={valor} onChange={(e) => setValor(e.target.value)} />
+              <Input {...props} type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} />
             )}
           </Field>
-          <div className="flex gap-2 self-end">
-            <Button size="sm" loading={guardar.isPending} disabled={!valor} onClick={() => guardar.mutate(valor)}>
+          <Field label="Último día del semestre" className="w-52">
+            {(props) => (
+              <Input {...props} type="date" value={fin} onChange={(e) => setFin(e.target.value)} />
+            )}
+          </Field>
+          <div className="flex flex-wrap gap-2 self-end">
+            <Button
+              size="sm"
+              loading={guardar.isPending}
+              disabled={!inicio || !fin || !rangoValido}
+              onClick={() => guardar.mutate({ startsOn: inicio, endsOn: fin })}
+            >
               Guardar
             </Button>
-            {periodo.endsOn ? (
-              <Button size="sm" variant="ghost" disabled={guardar.isPending} onClick={() => guardar.mutate(null)}>
-                Usar la de por defecto
+            {configuradas ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={guardar.isPending}
+                onClick={() => guardar.mutate({ startsOn: null, endsOn: null })}
+              >
+                Usar las de por defecto
               </Button>
             ) : null}
             <Button size="sm" variant="ghost" disabled={guardar.isPending} onClick={() => setEditando(false)}>
               Cancelar
             </Button>
           </div>
+          {!rangoValido ? (
+            <p className="w-full text-caption font-medium text-danger">
+              El primer día no puede ser posterior al último.
+            </p>
+          ) : null}
         </>
       ) : (
         <>
           <p className="min-w-0 flex-1 text-caption text-muted">
             <span className="font-semibold text-text">
-              Último día del semestre: {vigente ? dia(vigente) : 'sin fecha'}
+              {inicioVigente && finVigente
+                ? `Del ${dia(inicioVigente)} al ${dia(finVigente)}`
+                : finVigente
+                  ? `Último día: ${dia(finVigente)}`
+                  : 'Sin fechas'}
             </span>
-            {periodo.endsOn
+            {configuradas
               ? ' · del acuerdo académico.'
-              : vigente
-                ? ' · fecha por defecto; pon la del acuerdo del Consejo Académico.'
+              : finVigente
+                ? ' · fechas por defecto; pon las del acuerdo del Consejo Académico.'
                 : ' · periodo sin calendario: el enlace de UniPlanner queda fijo 30 días desde cada asistencia.'}{' '}
-            Hasta ese día, quien marque asistencia por QR no puede cambiar su enlace de UniPlanner.
+            Hasta el último día, quien marque asistencia por QR no puede cambiar su enlace de UniPlanner.
           </p>
           {editable ? (
             <Button
               size="sm"
               variant="ghost"
               onClick={() => {
-                // Parte de la fecha en vigor, no de la última que se escribió:
-                // tras «usar la de por defecto» el campo enseñaba la anterior.
-                setValor(vigente ?? '');
+                // Parte de las fechas en vigor, no de las últimas que se escribieron:
+                // tras «usar las de por defecto» el campo enseñaba las anteriores.
+                setInicio(inicioVigente ?? '');
+                setFin(finVigente ?? '');
                 setEditando(true);
               }}
             >
@@ -531,4 +696,3 @@ function FinDelSemestre({
     </div>
   );
 }
-

@@ -7,6 +7,7 @@ import '../../core/network/api_error.dart';
 import './data/registro_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/ui_kit.dart';
+import '../usage/aviso_uso.dart';
 
 /// Solicitud de registro de un docente.
 ///
@@ -49,6 +50,8 @@ class _RegisterPageState extends State<RegisterPage> {
   bool _cargando = true;
   bool _enviando = false;
   bool _obscurePassword = true;
+  bool _aceptaAvisoUso = false;
+  bool _avisoSinMarcar = false;
   String _filtroPrograma = '';
   String? _error;
   String? _enviado;
@@ -157,6 +160,12 @@ class _RegisterPageState extends State<RegisterPage> {
       return;
     }
 
+    if (!_aceptaAvisoUso) {
+      // Error junto a la casilla, no un aviso flotante: es ahí donde se arregla.
+      setState(() => _avisoSinMarcar = true);
+      return;
+    }
+
     final catalogo = _catalogo;
     if (catalogo == null) return;
 
@@ -197,6 +206,7 @@ class _RegisterPageState extends State<RegisterPage> {
         password: _password.text,
         institutionId: institutionIdEnviar,
         institucionSolicitada: institucionSolicitadaEnviar,
+        aceptaAvisoUso: true,
       );
       if (!mounted) return;
       setState(() {
@@ -942,6 +952,38 @@ class _RegisterPageState extends State<RegisterPage> {
                     ],
                   ),
                 ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Aviso de uso y privacidad: visible y aceptado antes de enviar.
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(avisoUsoTitulo, style: AppType.bodyStrong),
+                const SizedBox(height: AppSpacing.gapSm),
+                TextoAvisoUso(
+                  estilo: AppType.caption.copyWith(color: context.palette.muted),
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: _aceptaAvisoUso,
+                  onChanged: (v) => setState(() {
+                    _aceptaAvisoUso = v ?? false;
+                    _avisoSinMarcar = false;
+                  }),
+                  title: const Text('He leído el aviso de uso y privacidad'),
+                ),
+                if (_avisoSinMarcar)
+                  Text(
+                    'Lee el aviso de uso y privacidad y marca la casilla.',
+                    style: AppType.caption.copyWith(
+                      color: SemanticTone.of(context, SemanticKind.danger).fg,
+                    ),
+                  ),
               ],
             ),
           ),

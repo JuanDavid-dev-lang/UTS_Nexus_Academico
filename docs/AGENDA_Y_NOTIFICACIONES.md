@@ -188,6 +188,31 @@ salvo que el usuario lo desactive.
 
 ---
 
+### Avisos institucionales programados
+
+ADMIN redacta un aviso y elige «Publicar ahora» o «Programar» con fecha y
+hora, y opcionalmente una caducidad posterior a la publicación (el formulario lo
+valida en `domain/announcements/programacion.ts` y el servidor otra vez en
+`domains/announcements/announcement-status.ts`, contra lo que quedará
+guardado). Un aviso programado no se reparte al crearlo —adelantaría su
+contenido—: queda con `notificadoEn: null` y lo recoge
+`repartirAvisosPendientes` (`ANNOUNCEMENT_PUBLISH_INTERVAL_MIN`).
+
+- **El estado lo dice el servidor** (`estado`: `PROGRAMADO`, `VIGENTE`,
+  `CADUCADO`), igual que el de una actividad: un cliente con la hora mal puesta
+  enseñaría «Programado» un aviso que los docentes ya están leyendo.
+- **Solo ADMIN ve lo programado y lo caducado.** Para docentes, coordinación y
+  secretaría el listado sigue filtrando `publicadoEn <= ahora` y la caducidad.
+  Un programado no cuenta en «sin leer».
+- **Editar y cancelar antes de que salga.** `PATCH /avisos/:id` cambia la fecha
+  de salida solo mientras está programado; mover la de uno ya publicado es 409
+  `AVISO_PUBLICADO`, porque lo escondería a quien lo está leyendo y su campana
+  ya sonó. Adelantar un programado a «ahora» lo reparte en el acto, con la
+  misma marca condicional sobre `notificadoEn` que usa el programador, así que
+  no se reparte dos veces. Cancelar es eliminarlo. El `PATCH` ahora audita.
+- El móvil no redacta avisos; si un ADMIN abre la lista, los programados salen
+  con su marca y la hora de salida, y abrirlos no los marca como leídos.
+
 ## 5. Sincronización en tiempo real
 
 Se reutilizó el `sync:update` que ya existía. Se añadieron entidades y un
